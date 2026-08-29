@@ -201,7 +201,7 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
 export function deathAction(p: PlayerState): MutationResult {
   const line = applyDeath(p);
   p.battle = undefined;
-  p.notices = [line, 'You gather yourself at a safe place.'];
+  p.notices = [line, "You gather yourself. Roads end; dawns don't."];
   p.scene = { view: 'zone' };
   return {};
 }

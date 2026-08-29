@@ -8,18 +8,18 @@ import type { NpcDef, QuestDef } from './types.ts';
 const Q = (q: QuestDef): QuestDef => q;
 
 export const QUESTS: readonly QuestDef[] = [
-  // ══ Chapter 1 — The Dying Flame ══════════════════════════════════════
+  // ══ Chapter 1 — The Last Ember ══════════════════════════════════════
   Q({
     id: 'm1_embers',
     name: 'Sparks of Trouble',
     main: true,
     chapter: 1,
     level: 1,
-    summary: 'Elder Maren asks you to thin the wolf packs circling Emberfall.',
+    summary: 'Elder Maren asks you to thin the wolf packs — the first steps on a longer road.',
     intro:
-      'Maren grips her staff. "Wolves circle the fields every night now. Thin them, and the village breathes."',
+      'Maren looks to the horizon. "The wolves grow bold as the Flame dims. Thin them, so the village keeps heart enough to hope."',
     outro:
-      '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. He has work for capable hands."',
+      '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. The road you\'ll walk starts at his forge."',
     objectives: [{ kind: 'kill', target: 'e_wolf', count: 4 }],
     rewards: { xp: 120, gold: 80 },
     giver: 'npc_maren',
@@ -31,11 +31,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 2,
     prereqQuest: 'm1_embers',
-    summary: "Deliver Maren's sealed letter to Blacksmith Bram.",
+    summary: "Deliver Maren's sealed letter to Blacksmith Bram — the first clue toward the dawn.",
     intro:
-      '"Take this to Bram," Maren says, pressing a wax-sealed letter into your hands. "His forge was the last to touch the Great Flame. He should hear what I\'ve read."',
+      '"Take this to Bram," Maren says, pressing a wax-sealed letter into your hands. "His forge was the last to touch the Great Flame. If tomorrow can be found, his fire knows where to look."',
     outro:
-      'Bram breaks the seal, reads, and goes very still. "The Flame isn\'t just dying. Something is drinking it. Say nothing yet — but the Whisperwood roots still carry warmth. Find out what\'s souring them."',
+      'Bram breaks the seal, reads, and hope flickers across his face. "The Flame isn\'t just dying — its tomorrow was stolen and scattered. The Whisperwood roots still carry warmth. Follow it. Find where the light went."',
     objectives: [{ kind: 'talk', target: 'npc_bram' }],
     rewards: { xp: 150, gold: 100, items: { c_potion: 1 } },
     giver: 'npc_maren',
@@ -47,11 +47,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 3,
     prereqQuest: 'm2_letter',
-    summary: 'Cleanse the Rootbound Hollow and its broodmother.',
+    summary: "Cleanse the Rootbound Hollow — reclaim the wood's warmth for what comes next.",
     intro:
-      'Bram arms you properly. "Follow the warm roots into the Hollow. What you find at the bottom of that silk — end it."',
+      'Bram arms you properly. "Follow the warm roots into the Hollow. Cut loose what\'s choking them, and the wood will remember how to grow."',
     outro:
-      "The Hollow's silk slackens and greys. Warmth seeps back into the roots like blood into a numb limb. The wood exhales.",
+      "The Hollow's silk slackens and greys. Warmth seeps back into the roots like blood into a numb limb — the wood exhales, and somewhere above, a bud opens out of season.",
     objectives: [{ kind: 'kill', target: 'e_aranya', count: 1 }],
     rewards: { xp: 400, gold: 250, items: { m_iron_chunk: 1 } },
   }),
@@ -62,11 +62,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 4,
     prereqQuest: 'm3_roots',
-    summary: "Gather ember shards from the recovering wood for Bram's forge.",
+    summary: "Gather ember shards — seed-stock of the dawn — for Bram's forge.",
     intro:
-      '"The wood bleeds ember-shards where the rot was cut," Bram says. "Bring me enough, and I\'ll forge you a blade worthy of what\'s coming."',
+      'Bram says, "The wood bleeds ember-shards where the rot was cut. Bring me enough, and I\'ll forge you a blade that carries a promise: the light isn\'t gone, only scattered."',
     outro:
-      "Bram quenches the shard-steel with a hiss that sounds like relief. \"That's chapter one closed. The swamp is next — Hollowmere's water carries the same rot. Head east when you're ready.\"",
+      'Bram quenches the shard-steel with a hiss that sounds like relief. "Chapter one closed. The swamp east carries the same rot — and maybe another piece of the dawn. Go when you\'re ready."',
     objectives: [{ kind: 'collect', target: 'm_ember_shard', count: 6 }],
     rewards: {
       xp: 350,
@@ -85,10 +85,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 9,
     prereqQuest: 'm4_blessing',
-    summary: 'Travel to Hollowmere and take its measure.',
-    intro: 'The swamp swallows sound. You are meant to be here — the rot wants witnesses.',
+    summary: 'Travel to Hollowmere — beyond it, word of stolen light.',
+    intro:
+      'The swamp swallows sound. You are meant to be here — the road to tomorrow runs straight through the dark.',
     outro:
-      'The Ferryman poles you across black water. "You\'re for the Shrine, then. Everybody is, eventually."',
+      'The Ferryman poles you across black water. "You\'re for the Shrine, then. Everybody who still believes in morning is, eventually."',
     objectives: [{ kind: 'reach', target: 'hollowmere' }],
     rewards: { xp: 300, gold: 150 },
   }),
@@ -99,11 +100,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 10,
     prereqQuest: 'm5_fen',
-    summary: "Collect toxin samples from the marsh's leeches.",
+    summary: 'Collect toxin samples — proof that the poisoning can be undone.',
     intro:
-      '"Leeches carry the toxin whole," the Ferryman says. "Fetch samples. I know a counter-craft, if there\'s anything left worth saving."',
+      '"Leeches carry the toxin whole," the Ferryman says. "Fetch samples. What can be named can be countered — and what\'s countered makes room for something better."',
     outro:
-      '"That\'s the brew," the Ferryman mutters over the vials. "Drained from the Flame\'s runoff. The Tyrant didn\'t poison the swamp — he claimed the poisoning."',
+      '"That\'s the brew," the Ferryman mutters over the vials. "Drained from the Flame\'s runoff. The Tyrant didn\'t poison the swamp — he claimed its despair. Take that claim back."',
     objectives: [{ kind: 'collect', target: 'q_toxin_sample', count: 4 }],
     rewards: { xp: 900, gold: 400, items: { c_antidote: 2 } },
   }),
@@ -114,11 +115,12 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 12,
     prereqQuest: 'm6_toxin',
-    summary: 'Descend into the Sunken Shrine and end Bog Tyrant Vosk.',
+    summary:
+      'Descend into the Sunken Shrine and end Bog Tyrant Vosk — and the despair he feeds on.',
     intro:
-      '"The Shrine drowns slowly," the Ferryman says. "The Tyrant drowns faster things. Go down before the water finishes the job."',
+      '"The Shrine drowns slowly," the Ferryman says. "Hope drowns faster. Go down and raise something before the water finishes the job."',
     outro:
-      "Vosk deflates with a sound like a dying bell. The water around the Shrine clears a hand's breadth — the first clean light in years.",
+      "Vosk deflates with a sound like a dying bell. The water around the Shrine clears a hand's breadth — the first clean light in years, and the frogs sing like it's spring.",
     objectives: [{ kind: 'kill', target: 'e_vosk', count: 1 }],
     rewards: { xp: 1400, gold: 700, flags: ['chapter2Done'], unlockZone: 'sunspire' },
   }),
@@ -129,11 +131,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 13,
     prereqQuest: 'm7_tyrant',
-    summary: "Hear the Ferryman's word about the ruins beyond.",
+    summary: "Hear the Ferryman's word about the ruins beyond — another piece of tomorrow waits.",
     intro:
-      '"Word travels faster than boats," the Ferryman says. "There\'s a city of gears east — Sunspire. A cult there is bottling hours. Their curator sent for anyone who fights well."',
+      '"Word travels faster than boats," the Ferryman says. "There\'s a city of gears east — Sunspire. A cult there is bottling hours. Whoever holds the hours holds the future."',
     outro:
-      '"Take the east road," the Ferryman says. "And mind the sentinels. They only remember half their orders."',
+      '"Take the east road," the Ferryman says. "And mind the sentinels. They only remember half their orders — the half worth keeping, with luck."',
     objectives: [{ kind: 'talk', target: 'npc_ferryman' }],
     rewards: { xp: 500, gold: 250 },
   }),
@@ -146,24 +148,26 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 15,
     prereqQuest: 'm8_passage',
-    summary: 'Reach the Sunspire Ruins.',
-    intro: 'Gears the size of houses grind beneath the sand. The sun here comes in measured doses.',
+    summary: 'Reach the Sunspire Ruins, where stolen time is hoarded.',
+    intro:
+      'Gears the size of houses grind beneath the sand, patient as erosion. Somewhere in the desert, futures wait to be wound back into the world.',
     outro:
-      'Curator Ombra looks you over like an acquisition. "Good. The Vault steals time from the Flame. Its keeper must be taught theft has costs."',
+      'Curator Ombra looks you over like an acquisition. "Good. The Vault steals time from the Flame — tomorrow, measured in hours. Its keeper must be taught that futures belong to the living."',
     objectives: [{ kind: 'reach', target: 'sunspire' }],
     rewards: { xp: 400, gold: 200 },
   }),
   Q({
     id: 'm10_cult',
-    name: 'Burn the Fanaticism',
+    name: 'The Hoarded Sun',
     main: true,
     chapter: 3,
     level: 16,
     prereqQuest: 'm9_spire',
-    summary: "Break the Sun Cult's hold on the ruins.",
+    summary: "Break the Sun Cult's hold on the ruins — they worship a sun they never share.",
     intro:
-      '"They call it devotion," Ombra says. "It\'s theft with hymns. Thin their ranks until the singing stops."',
-    outro: 'The hymns have stopped. The desert wind sounds almost like rest.',
+      '"They call it devotion," Ombra says. "It\'s despair wearing hymns — kneeling to a sun they\'ve decided never rises for anyone else. Thin their ranks until the singing stops."',
+    outro:
+      'The hymns have stopped. The desert wind sounds almost like rest — and real pilgrims, the hopeful kind, begin drifting back toward the ruins.',
     objectives: [{ kind: 'kill', target: 'e_cultist', count: 8 }],
     rewards: { xp: 1200, gold: 600, items: { c_ether: 2 } },
   }),
@@ -176,9 +180,9 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm10_cult',
     summary: 'Break the automatons guarding the Vault of Hours and claim its key.',
     intro:
-      '"The Vault only opens for its own key," Ombra says. "The automatons carry it. They also carry enough brass to matter. Break them."',
+      '"The Vault only opens for its own key," Ombra says. "The automatons carry it. Break them, and we wind tomorrow\'s door open."',
     outro:
-      'The last automaton folds with a sound like a struck hour. A key of cold gold light sits in the wreckage — the Sunspire Key.',
+      'The last automaton folds with a sound like a struck hour. A key of cold gold light sits in the wreckage — the Sunspire Key, and it is warm on one side only. The side that faces morning.',
     objectives: [{ kind: 'kill', target: 'e_automaton', count: 4 }],
     rewards: { xp: 1500, gold: 700, items: { q_sunspire_key: 1 } },
   }),
@@ -189,11 +193,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 19,
     prereqQuest: 'm11_toll',
-    summary: 'Enter the Vault of Hours and end the Chronolich.',
+    summary: 'Enter the Vault of Hours and end the Chronolich — give the stolen hours back.',
     intro:
-      "The Vault door drinks the key's light. Inside, every stolen hour ticks in the dark, and something old keeps the ledgers.",
+      "The Vault door drinks the key's light. Inside, every stolen hour ticks in the dark — futures, filed and abandoned.",
     outro:
-      'The Chronolich\'s hourglass shatters, and stolen time pours out — hours return to the Flame in a ribbon of light. Ombra nods once. "North. The flame\'s twin sleeps in Frostpeak. Something is coiled around it."',
+      'The Chronolich\'s hourglass shatters, and stolen time pours out — hours return to the Flame in a ribbon of light. Ombra nods once. "North. The flame\'s twin sleeps in Frostpeak. Wake it, and winter gets an ending too."',
     objectives: [{ kind: 'kill', target: 'e_chronolich', count: 1 }],
     rewards: { xp: 3600, gold: 1600, flags: ['chapter3Done'], unlockZone: 'frostpeak' },
   }),
@@ -206,10 +210,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 22,
     prereqQuest: 'm12_chronolich',
-    summary: 'Cross into Frostpeak Pass.',
-    intro: "Cold that doesn't bite so much as consider you. Above, the pass glitters blue.",
+    summary: 'Cross into Frostpeak Pass, where even the cold keeps a promise.',
+    intro:
+      "Cold that doesn't bite so much as consider you. Above, the pass glitters blue — and under the blue, something warm is sleeping.",
     outro:
-      'Rho eyes your weapons. "You\'ll want more than iron where you\'re going. The Maw breathes cold that eats courage first."',
+      "Rho eyes your weapons. \"You'll want more than iron where you're going. But hear me: the Maw doesn't guard the Frostfire. It guards its dreaming — and dreams are worth waking carefully.\"",
     objectives: [{ kind: 'reach', target: 'frostpeak' }],
     rewards: { xp: 600, gold: 300 },
   }),
@@ -220,11 +225,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 23,
     prereqQuest: 'm13_pass',
-    summary: 'Collect Frost Emblems from the wraiths haunting the pass.',
+    summary: 'Collect Frost Emblems from the wraiths — oaths that still believe in something.',
     intro:
-      '"The wraiths were wardens once," Rho says. "They still carry their marks. Bring me three, and I\'ll open the Maw\'s old road for you."',
+      '"The wraiths were wardens once," Rho says. "They froze mid-oath, still believing. Their marks still open old roads. Three, and the way to the Maw is yours."',
     outro:
-      'Rho aligns the emblems, and the ice remembers a door. "The Maw is open. What sleeps inside — wake it gently, or not at all."',
+      'Rho aligns the emblems, and the ice remembers a door. "The Maw is open. What sleeps inside — wake it gently. Some futures start as dreams."',
     objectives: [{ kind: 'collect', target: 'q_frost_emblem', count: 3 }],
     rewards: { xp: 2400, gold: 900, items: { c_greater_potion: 2 } },
   }),
@@ -235,11 +240,12 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 25,
     prereqQuest: 'm14_emblem',
-    summary: 'Face Jormunis in the Glacier Maw.',
+    summary:
+      "Face Jormunis and free the Frostfire — the flame's twin, and winter's promise of spring.",
     intro:
       'The Maw breathes around you. Deep in the blue, a heartbeat made of ice — and coiled around it, the wyrm.',
     outro:
-      "Jormunis uncoils one last time, and the Frostfire rises free — streaming north-to-south through the mountain toward the Cinder Wastes. The flame's twin goes home.",
+      'Jormunis uncoils one last time, and the Frostfire rises free — streaming through the mountain toward the Cinder Wastes. Winter, it turns out, was never the enemy. It was a promise waiting to thaw.',
     objectives: [{ kind: 'kill', target: 'e_jormunis', count: 1 }],
     rewards: { xp: 9000, gold: 3200, flags: ['chapter4Done'], unlockZone: 'cinder' },
   }),
@@ -252,11 +258,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 30,
     prereqQuest: 'm15_wyrm',
-    summary: 'Cross the Cinder Wastes.',
+    summary: 'Cross the Cinder Wastes, where a starving guardian still keeps faith.',
     intro:
-      'Ash falls like snow that gave up on being cold. Somewhere under it, a heart of fire is starving.',
+      "Ash falls like snow that gave up on being cold. Somewhere under it, a heart of fire is starving — but a heart that starves is a heart that hasn't stopped.",
     outro:
-      "Sorrel finds you before the imps do. \"You came with the Frostfire's wake. Then you're the one Ignivar's been burning to meet. Follow me.\"",
+      "Sorrel finds you before the imps do. \"You came with the Frostfire's wake. Then you're the one Ignivar's been burning to meet. Follow me — hope travels light, but you'll want company anyway.\"",
     objectives: [{ kind: 'reach', target: 'cinder' }],
     rewards: { xp: 900, gold: 450 },
   }),
@@ -267,11 +273,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 31,
     prereqQuest: 'm16_ashes',
-    summary: "Hear Ashen Monk Sorrel's plea.",
+    summary: "Hear Ashen Monk Sorrel's plea — the truth behind the hunger.",
     intro:
-      '"Listen before you swing," Sorrel says. "Ignivar guarded the Flame for a thousand years. Then the Sundered King began drinking it, and everyone blamed the hunger on the guardian."',
+      '"Listen before you swing," Sorrel says. "Ignivar guarded the Flame for a thousand years. Then the Sundered King began drinking it, and everyone blamed the hunger on the guardian. Despair is easy. Listen harder."',
     outro:
-      '"He\'ll fight you anyway," Sorrel says quietly. "Pride burns hotter than starvation. But when he falls — and he will — know that the true thief is above the sky, in a tower that isn\'t entirely real."',
+      '"He\'ll fight you anyway," Sorrel says quietly. "Pride burns hotter than starvation. But when he falls — and he will — know that the true thief is above the sky, in a tower that isn\'t entirely real. And that endings here have always been doorways."',
     objectives: [{ kind: 'talk', target: 'npc_ashen' }],
     rewards: { xp: 1500, gold: 700, items: { c_super_potion: 1 } },
   }),
@@ -282,11 +288,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 32,
     prereqQuest: 'm17_plea',
-    summary: "Collect Cinder Sigils branded by the Revenants' sorrow.",
+    summary: 'Collect Cinder Sigils — the sorrow of the faithful, honored into a lamp.',
     intro:
-      '"The revenants are the Flame\'s old faithful," Sorrel says. "Their sorrow brands the ash with sigils. Bring me three — they\'ll calm the Caldera\'s rage enough for you to descend."',
+      '"The revenants are the Flame\'s old faithful," Sorrel says. "Their sorrow brands the ash with sigils. Bring me three — grief, honored, becomes a lamp. That\'s how we calm the Caldera."',
     outro:
-      "The sigils cool in Sorrel's hands. \"The Caldera's throat is open. Go down gently. He's been waiting to be understood for a very long time.\"",
+      "The sigils cool in Sorrel's hands. \"The Caldera's throat is open. Go down gently. He's been waiting to be understood for a very long time — and being understood is its own dawn.\"",
     objectives: [{ kind: 'collect', target: 'q_cinder_sigil', count: 3 }],
     rewards: { xp: 4000, gold: 1500, items: { c_phoenix_feather: 1 } },
   }),
@@ -297,16 +303,17 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 34,
     prereqQuest: 'm18_sigil',
-    summary: 'Descend the Pyre Caldera and face Ignivar.',
+    summary:
+      "Descend the Pyre Caldera and face Ignivar — free the flame, don't just end the fight.",
     intro:
-      "At the caldera's bottom, the Last Flame gutters in a cage of its own cinders. It looks up. It is so tired.",
+      "At the caldera's bottom, the Last Flame gutters in a cage of its own cinders. It looks up. It is so tired — and still, stubbornly, burning.",
     outro:
-      'Ignivar\'s last ember drifts free — and instead of dying, it funnels upward, toward a spire that stands where the sky has a seam. "The thief," Sorrel whispers. "The Umbral Spire. Go finish this."',
+      'Ignivar\'s last ember drifts free — and instead of dying, it funnels upward, toward a spire that stands where the sky has a seam. "The thief," Sorrel whispers. "The Umbral Spire. Go finish this — not for vengeance. For morning."',
     objectives: [{ kind: 'kill', target: 'e_ignivar', count: 1 }],
     rewards: { xp: 20000, gold: 6500, flags: ['chapter5Done'], unlockZone: 'umbra' },
   }),
 
-  // ══ Chapter 6 — The Sundered Crown ══════════════════════════════════
+  // ══ Chapter 6 — The Dawncaller ══════════════════════════════════
   Q({
     id: 'm20_seam',
     name: 'The Space Between',
@@ -314,11 +321,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 38,
     prereqQuest: 'm19_ignivar',
-    summary: 'Reach the Umbral Spire.',
+    summary: 'Reach the Umbral Spire, raised by a man who decided tomorrow was over.',
     intro:
-      'The Spire stands in the seam between light and dark — real from one angle, absence from the next.',
+      'The Spire stands in the seam between light and dark — real from one angle, absence from the next. Even here, your shadow keeps pace. Hold onto that.',
     outro:
-      'The Archivist\'s pen never stops moving. "The King split the Flame to hold both halves of the sky. The split is what\'s killing it. Mend the crown, mend the Flame."',
+      'The Archivist\'s pen never stops moving. "The King split the Flame because he stopped believing in morning. Despair, hoarded, becomes a crown. Mend the crown, and belief comes home."',
     objectives: [{ kind: 'reach', target: 'umbra' }],
     rewards: { xp: 1500, gold: 700 },
   }),
@@ -329,11 +336,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 39,
     prereqQuest: 'm20_seam',
-    summary: "Cut down the Crownsworn guarding the Spire's ascent.",
+    summary: 'Cut down the Crownsworn — knights still fighting a war of despair.',
     intro:
-      '"They were knights once," the Archivist says. "Now they\'re the King\'s habit, still fighting his wars. Give them rest."',
+      '"They were knights once," the Archivist says. "Now they\'re the King\'s habit, still fighting his wars. Give them rest — even loyalty deserves a future."',
     outro:
-      'The last of the Crownsworn kneels as it falls — not to you, but to some old, remembered king. The stair to the throne is clear.',
+      'The last of the Crownsworn kneels as it falls — not to you, but to some old, remembered king, finally let go. The stair to the throne is clear.',
     objectives: [{ kind: 'kill', target: 'e_crownsworn', count: 10 }],
     rewards: { xp: 9000, gold: 3000 },
   }),
@@ -346,9 +353,9 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm21_loyalty',
     summary: 'Claim the Umbral Key from the Crownsworn elite.',
     intro:
-      '"The throne room opens for the Umbral Key," the Archivist says. "The Crownsworn carry it in pieces of duty. Relieve them of it."',
+      '"The throne room opens for the Umbral Key," the Archivist says. "The Crownsworn carry it in pieces of duty. Relieve them of it — gently, if you can manage."',
     outro:
-      'The key is cold, and it opens what should stay locked. The throne room doors swing inward on a room split down the middle — half ember, half ash.',
+      'The key is cold, and it opens what should stay locked. The throne room doors swing inward on a room split down the middle — half ember, half ash, and one thin line of light running down the seam.',
     objectives: [{ kind: 'collect', target: 'q_umbra_key', count: 1 }],
     rewards: { xp: 10000, gold: 3500, items: { c_elixir: 1 } },
   }),
@@ -359,11 +366,11 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 41,
     prereqQuest: 'm22_umbral_key',
-    summary: 'Face King Aldric the Sundered at the top of everything.',
+    summary: 'Face King Aldric the Sundered — despair with a crown on it.',
     intro:
-      'Aldric rises from a throne split down the middle, wearing half a crown. "Another flame-licker," he says. "Kneel, or be divided."',
+      'Aldric rises from a throne split down the middle, wearing half a crown. "Another flame-licker," he says. "Kneel. I stopped waiting for dawn a hundred years ago, and I have never once regretted it."',
     outro:
-      'The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world. The Flame roars back to life. Somewhere far below, the village of Emberfall lights its lamps without knowing why. You have cleared the story — but the Seam below the world is still open, and it is hungry.',
+      "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. You have cleared the story — but the Seam below the world is still open, and the future is worth guarding.",
     objectives: [{ kind: 'kill', target: 'e_aldric', count: 1 }],
     rewards: {
       xp: 45000,
@@ -382,26 +389,27 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 7,
     level: 45,
     prereqQuest: 'm23_aldric',
-    summary: 'Descend into the Abyss.',
+    summary: 'Descend into the Abyss — the future needs a witness.',
     intro:
-      'The Seam, exposed by the sundering, leads beneath the world. Echoes of everyone who ever sought the crown drift down here, still climbing.',
+      'The Seam, exposed by the sundering, leads beneath the world. Echoes of everyone who ever sought the crown drift down here, still climbing — still believing.',
     outro:
-      'Echo-of-Maren smiles like sunrise through water. "The Warden guards nothing now. But endings need witnesses. Be a kind one."',
+      'Echo-of-Maren smiles like sunrise through water. "Even I end up an echo here, it seems. Go on then, Dawncaller — the dark down there has never once met anyone like you."',
     objectives: [{ kind: 'reach', target: 'abyss' }],
     rewards: { xp: 20000, gold: 5000 },
   }),
   Q({
     id: 'm25_silence',
-    name: 'The Final Silence',
+    name: 'Before the Dawn',
     main: true,
     chapter: 7,
     level: 45,
     prereqQuest: 'm24_below',
-    summary: 'Face the Warden of the Void at the bottom of the Seam.',
+    summary:
+      'Face the Warden of the Void at the bottom of the Seam — and come back with the morning.',
     intro:
-      "The Warden doesn't threaten. It doesn't need to. The dark arranges itself, patient as arithmetic.",
+      "The Warden doesn't threaten. It doesn't need to. The dark arranges itself, patient as arithmetic. Above you, faint but stubborn, the memory of dawn holds the rope you climbed down.",
     outro:
-      "The silence, when it comes, is gentle. The Seam closes like a book finishing itself. Above, the world's flame burns steady — and this time, nobody is drinking it. You are the hero the Flame remembers.",
+      "The silence, when it comes, is gentle. The Seam closes like a book finishing itself — not an ending; a period before the next sentence. Above, the world's flame burns steady, and this time, nobody is drinking it. You came looking for tomorrow. You're standing in it.",
     objectives: [{ kind: 'kill', target: 'e_warden', count: 1 }],
     rewards: { xp: 90000, gold: 30000, items: { t_7: 1 }, flags: ['seamConquered'] },
   }),

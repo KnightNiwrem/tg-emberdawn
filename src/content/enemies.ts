@@ -66,7 +66,7 @@ const BITE = (n = 'Bite'): EnemyMove => mv(n, 1.0, 'phys', 3);
 const CLAW = (n = 'Claw'): EnemyMove => mv(n, 1.15, 'phys', 2);
 
 export const ENEMIES: readonly EnemyDef[] = [
-  // ── Emberfall / Whisperwood (ch1) ───────────────────────────────────
+  // ── Emberdawn Village / Whisperwood (ch1) ───────────────────────────────────
   mk({
     id: 'e_rat',
     name: 'Giant Rat',

@@ -1,20 +1,20 @@
-# 🔥 Emberfall
+# 🔥 Emberdawn
 
-A turn-based RPG played entirely inside a single Telegram message, built on
+A turn-based RPG about seeking hope for a future, played entirely inside a single Telegram message, built on
 **Bot API Rich Messages** — every button (explore, fight, skills, shop, forge,
 quests) lives in the message body itself and edits in place. No `reply_markup`
 anywhere.
 
-> The Great Flame is dying — drained by a king who split it in half.
-> Choose a class, fight through 6 chapters, mend the flame, and then see
-> what waits in the Seam below the world.
+> The Great Flame is guttering — a king split it in half and hoarded its
+> tomorrow. But embers are promises. Take up the last light, carry it through
+> six chapters of dark, and bring back the dawn. Then guard what you lit.
 
 ## Features
 
 - **4 classes** — Warrior, Mage, Rogue, Cleric — each with 8 unique skills learned by level.
 - **Turn-based combat** — attack, skills (MP + cooldowns), items, guard, flee; crits, stuns, buffs/debuffs, scripted boss specials.
-- **8 zones, 8 dungeons, 48 enemies** across 6 story chapters, plus a postgame endless-hunt zone.
-- **25 main quests + 16 side quests**, quest log with objective tracking and turn-ins.
+- **8 zones, 8 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the stolen dawn — plus a postgame hunt beneath the world.
+- **25 main quests + 16 side quests** (the player is a *Dawncaller*; the Sundered King is despair that stopped believing in morning), quest log with objective tracking and turn-ins.
 - **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
 - **Forge tempering** (+1…+5 per slot, permanent stat boosts), shops that scale by chapter.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death penalties, auto-revive trinket.

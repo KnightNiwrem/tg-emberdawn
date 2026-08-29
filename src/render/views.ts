@@ -362,7 +362,7 @@ export function renderDeath(p: PlayerState): InputRichMessage {
     blocks: [
       banner('💀 You have fallen…'),
       ...noticesBlocks(p),
-      quote('The Flame, however dim, is not yet done with you.'),
+      quote('The dawn you seek is still ahead — and the Flame is not done with you.'),
       buttonsRow([cbBtn('🕯️ Rise again', encodeCb({ v: 'death', a: 'ok' }), 'success')]),
     ],
   };
@@ -373,7 +373,7 @@ export function renderDeath(p: PlayerState): InputRichMessage {
 export function renderHelp(): InputRichMessage {
   return {
     blocks: [
-      heading('🔥 Emberfall — help', 3),
+      heading('🔥 Emberdawn — help', 3),
       para(
         'A turn-based RPG living inside this message.\n\n' +
           '🧭 Explore — wander the zone: battles, treasure, rest.\n' +
@@ -392,9 +392,9 @@ export function renderHelp(): InputRichMessage {
 
 export function renderClassPicker(): InputRichMessage {
   const blocks: Block[] = [
-    heading('🔥 Emberfall', 2),
+    heading('🔥 Emberdawn', 2),
     para(
-      'The Great Flame is dying — drained by a king who split it in half. Choose who you will be when you set out to mend it:',
+      'The Great Flame is guttering — a king split it in half and hoarded its tomorrow. But embers are promises: someone has to carry the last light up the road and find the dawn. Choose who you will be on that road:',
     ),
   ];
   for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {

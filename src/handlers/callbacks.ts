@@ -153,7 +153,9 @@ async function handleMeta(
 
   // Character created (pick) or reset (resetYes): fresh state, fresh message.
   player.notices = [
-    cb.a === 'pick' ? 'Your tale begins. Welcome to Emberfall.' : 'A new tale begins.',
+    cb.a === 'pick'
+      ? 'Your tale begins, Dawncaller. The dawn is out there, waiting to be found.'
+      : 'A new tale begins. The dawn is waiting to be found.',
   ];
   player.scene = { view: 'zone' };
   if (cb.a === 'pick' && ctx.callbackQuery?.message && ctx.chat) {

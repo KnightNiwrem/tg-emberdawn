@@ -8,11 +8,12 @@ import type { ZoneDef } from './types.ts';
 export const ZONES: readonly ZoneDef[] = [
   {
     id: 'emberfall',
-    name: 'Emberfall Village',
+    name: 'Emberdawn Village',
     emoji: '🏮',
     chapter: 1,
     levels: [1, 5],
-    desc: 'A quiet village huddled around the last lit ember of the Great Flame.',
+    desc:
+      'A village huddled around the last lit ember of the Great Flame — small, stubborn, and still planning for spring.',
     safeHaven: true,
     explore: [
       { kind: 'battle', enemy: 'e_rat', weight: 3 },
@@ -49,13 +50,13 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_maren',
         name: 'Elder Maren',
         greeting:
-          "The Flame dims a little more each season, traveler. If you've come to help, the Warden's board has work.",
+          "The Flame dims a little more each season, traveler — but dim is not dark, and we are not done. If you've come to help, the Warden's board has work.",
       },
       {
         id: 'npc_bram',
         name: 'Blacksmith Bram',
         greeting:
-          "Bring me ore and coin, and I'll keep your edge true. The forge misses proper work.",
+          "Bring me ore and coin, and I'll keep your edge true. A forge is a promise that tomorrow needs tools.",
       },
       {
         id: 'npc_lyra',
@@ -71,7 +72,7 @@ export const ZONES: readonly ZoneDef[] = [
     chapter: 1,
     levels: [3, 9],
     desc:
-      "An ancient forest whose roots once carried the Flame's warmth. The whispers have turned sour.",
+      "An ancient forest whose roots still carry the Flame's warmth. The whispers have turned sour — but roots remember.",
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_wolf', weight: 3 },
@@ -132,7 +133,8 @@ export const ZONES: readonly ZoneDef[] = [
     emoji: '🌫️',
     chapter: 2,
     levels: [9, 16],
-    desc: 'A drowned lowland where the water burns cold with toxin. Something crowned itself here.',
+    desc:
+      'A drowned lowland where the water burns cold with toxin. Something crowned itself here — but crowns come off.',
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_boglin', weight: 3 },
@@ -199,7 +201,8 @@ export const ZONES: readonly ZoneDef[] = [
     emoji: '🏛️',
     chapter: 3,
     levels: [16, 23],
-    desc: 'A desert city of solar clockwork, abandoned by its people and inherited by a cult.',
+    desc:
+      'A desert city of solar clockwork, abandoned by its people and inherited by a cult. The gears still turn. So will tomorrow.',
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_scarab', weight: 3 },
@@ -316,7 +319,8 @@ export const ZONES: readonly ZoneDef[] = [
     emoji: '🌋',
     chapter: 5,
     levels: [31, 39],
-    desc: "Ash dunes around a dying caldera. The Flame's greatest child hides here, starving.",
+    desc:
+      "Ash dunes around a dying caldera. The Flame's greatest child hides here, starving — and a heart that starves is a heart that hasn't stopped.",
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_magmaslime', weight: 3 },
@@ -383,7 +387,8 @@ export const ZONES: readonly ZoneDef[] = [
     emoji: '🌑',
     chapter: 6,
     levels: [39, 45],
-    desc: 'A tower standing in the space between flame and shadow, where the Sundered King waits.',
+    desc:
+      'A tower standing in the space between flame and shadow, where the Sundered King waits — and where the seam lets in one thin, stubborn light.',
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_shade', weight: 3 },
@@ -447,7 +452,7 @@ export const ZONES: readonly ZoneDef[] = [
     chapter: 7,
     levels: [45, 45],
     desc:
-      'The seam beneath the world, exposed when the crown was sundered. Postgame hunting grounds.',
+      'The seam beneath the world, exposed when the crown was sundered. Postgame hunting grounds — someone has to guard the morning.',
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_voidspawn', weight: 3 },

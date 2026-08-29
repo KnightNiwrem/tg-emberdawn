@@ -1,11 +1,11 @@
-# AGENTS.md — Emberfall
+# AGENTS.md — Emberdawn
 
 Operating manual for any fresh agentic session working on this repo. Read this
 before changing anything.
 
 ## What this is
 
-**Emberfall** — a turn-based RPG played entirely inside a single Telegram
+**Emberdawn** — a turn-based RPG about seeking hope for a future, played entirely inside a single Telegram
 message per player, built on **Bot API Rich Messages** (buttons live in the
 message *body*, never `reply_markup`). Runtime is **Deno** + **grammY**.
 One game message per player is edited in place on every action.
@@ -91,9 +91,13 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   deliberately grindy. Enemy stats derive from level in `mk()`
   (`content/enemies.ts`); bosses multiply HP/xp/gold and have scripted
   specials every N turns.
-- **Story:** 25 main quests across 6 chapters + postgame Abyss. Chapter
-  flags: `chapter1Done`…`chapter6Done`; game-clear moment = defeating
-  King Aldric (flag set via dungeon first-clear `crownRestored`).
+- **Story & theme:** the game is about *seeking hope for a future* — the
+  player is a **Dawncaller**, the Sundered King is despair hoarding tomorrow,
+  and each chapter recovers a piece of the dawn. 25 main quests across
+  6 chapters + postgame Abyss. Chapter flags: `chapter1Done`…`chapter6Done`;
+  game-clear moment = defeating King Aldric (flag set via dungeon first-clear
+  `crownRestored`). Keep new writing in this register: setbacks are real but
+  framed as "not yet", never "never".
 - **Quest state machine:** unavailable → available → active → turnIn → done.
   `syncAvailability` is idempotent; call it after xp gains, zone entry and
   turn-ins. Kill/reach/talk objectives tick via engine hooks (`onKill`,
@@ -114,6 +118,9 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 
 ## Known trade-offs (evaluated fallow findings)
 
+- Internal zone id `'emberfall'` predates the Emberdawn rename (display name
+  is "Emberdawn Village"). Do NOT rename the id casually: persisted player
+  state (`currentZone`, `unlockedZones`) references it.
 - `deno.json` is the dependency manifest; fallow's "unlisted dependencies"
   (grammy, grammy-testing) is a Node-only heuristic — ignore.
 - One residual ~12-line clone pair in `render/views.ts` (shop buy vs sell

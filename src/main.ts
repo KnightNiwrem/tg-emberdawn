@@ -20,7 +20,7 @@ const bot = createBot({ token, store });
 const secretToken = Deno.env.get('WEBHOOK_SECRET') || undefined;
 
 if (Deno.env.get('BOT_POLLING') === '1') {
-  console.log('Emberfall bot starting in polling mode…');
+  console.log('Emberdawn bot starting in polling mode…');
   await bot.init();
   bot.start({ drop_pending_updates: false });
 } else {
