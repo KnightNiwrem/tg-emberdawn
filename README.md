@@ -18,7 +18,7 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 - **25 main quests + 16 side quests** (the player is a _Dawncaller_; the Sundered King is despair
   that stopped believing in morning), quest log with objective tracking and turn-ins.
 - **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
-- **Forge tempering** (+1…+5 per slot, permanent stat boosts), shops that scale by chapter.
+- **Forge tempering** (+1…+5, bound to the item itself), shops that scale with your level.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
   penalties, auto-revive trinket.
 - **One live message per player**: staleness-guarded, crash-safe, state persisted in Postgres
@@ -37,7 +37,7 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 
 ```bash
 deno task check   # typecheck
-deno task test    # 37 deterministic tests (engine + bot integration)
+deno task test    # 44 deterministic tests (engine + progression + bot integration)
 deno task lint
 ```
 

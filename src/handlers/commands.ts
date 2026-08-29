@@ -5,7 +5,7 @@ import type { PlayerStore } from '../persistence/store.ts';
 import { commit } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
-import { createPlayer } from '../engine/character.ts';
+import { applyDeath, createPlayer } from '../engine/character.ts';
 import { syncAvailability } from '../engine/quests.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
@@ -16,8 +16,18 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
-  // Re-center the game on a fresh message (old copies go stale automatically).
+  // Re-center the game on a FRESH message — /start means "the live message
+  // is lost"; editing the old buried copy leaves it buried. Don't persist
+  // here: p.messageId is updated inside commit(), and the caller's store.set
+  // (below) captures it.
   existing.notices = ['🧭 The flame guides you back.'];
+  // /reset is the emergency exit: clear any live battle and treat the
+  // revival promise as kept, so a wilderness death can't recreate a dead-end.
+  if (existing.battle) {
+    existing.battle = undefined;
+    existing.notices.push(applyDeath(existing));
+  }
+  existing.messageId = undefined; // force a fresh message, never an edit
   await commit(ctx, existing);
   await store.set(from.id, existing);
 }
@@ -42,6 +52,9 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
   syncAvailability(fresh);
   fresh.notices = ['🧹 A clean slate. Your previous tale fades like smoke.'];
   fresh.scene = { view: 'zone' };
-  await store.set(from.id, fresh);
+  // Commit first so fresh.messageId points at the live message, THEN save —
+  // persisting before commit used to store a stale/missing pointer and
+  // orphan the game (every tap afterwards hit the staleness guard).
   await commit(ctx, fresh);
+  await store.set(from.id, fresh);
 }

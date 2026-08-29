@@ -138,7 +138,7 @@ Deno.test('forge tempering through the UI consumes resources', async () => {
   await user.sendCallbackQuery('z:fg');
   await user.sendCallbackQuery('f:w');
   const p1 = (await store.get(4242))!;
-  assertEquals(p1.flags['forge_weapon'], 1);
+  assertEquals(p1.flags['forge_i_w_warrior_1'], 1);
   assertEquals(p1.gold, 5000 - 200);
   assertEquals(p1.inventory.find((e) => e.id === 'm_ember_shard')?.qty, 9);
 });

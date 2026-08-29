@@ -7,7 +7,7 @@ import { item } from '../content/items.ts';
 import { statsOf } from '../engine/character.ts';
 import { consumables } from '../engine/inventory.ts';
 import { skillsForClass } from '../content/skills.ts';
-import { bar, buttonsRow, cbBtn, heading, para } from './rich.ts';
+import { bar, buttonsRow, cbBtn, disabledBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
 
@@ -81,10 +81,13 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
   const usable = all.filter((sk) => learned.has(sk.id));
   for (const sk of usable) {
     const cd = b.cooldowns[sk.id] ?? 0;
+    const ready = cd === 0 && p.mp >= sk.mpCost; // invalid taps never cost a turn
     const label = `${sk.name} — ${sk.mpCost} MP${cd > 0 ? ` (CD ${cd})` : ''}`;
     blocks.push(para([{ type: 'italic', text: sk.desc } as RichText]));
     blocks.push(
-      buttonsRow([cbBtn(label, encodeCb({ v: 'battle', a: 'use', arg: sk.id }))], 'left'),
+      buttonsRow([
+        ready ? cbBtn(label, encodeCb({ v: 'battle', a: 'use', arg: sk.id })) : disabledBtn(label),
+      ], 'left'),
     );
   }
   if (usable.length === 0) {
@@ -99,7 +102,13 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
 export function renderItemMenu(p: PlayerState): InputRichMessage {
   const b = p.battle!;
   void b;
-  const items = consumables(p);
+  // Auto-trigger items (Phoenix Cinder) are never manually usable.
+  const manual = (id: string): boolean => {
+    const eff = item(id)?.effect;
+    if (!eff) return true;
+    return Boolean(eff.healHp || eff.healMp || eff.cureStatus || eff.flee);
+  };
+  const items = consumables(p).filter((e) => manual(e.id));
   const blocks: InputRichBlock[] = [heading('🎒 Battle items', 4)];
   if (items.length === 0) {
     blocks.push(para('Your bag is empty of usable items.'));

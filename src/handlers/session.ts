@@ -66,36 +66,41 @@ export function renderFor(p: PlayerState): InputRichMessage {
   }
 }
 
-/** Commit: edit the live message in place; fall back to sending a new one. */
+/** Edit failures that mean the live message is gone or uneditable — only
+ * these fall back to resending. Content errors (MESSAGE_TOO_LONG) and rate
+ * limits surface instead: resending would fail identically or duplicate
+ * the live message. */
+const RESENDABLE = [
+  'MESSAGE_ID_INVALID',
+  'message to edit not found',
+  "message can't be edited",
+];
+
+/** Commit: edit the live message in place; fall back to sending a new one.
+ * On success, drains p.notices (the renderer itself stays pure). */
 export async function commit(ctx: Context, p: PlayerState): Promise<void> {
   const msg = renderFor(p);
   const editId = p.messageId;
   if (editId && ctx.chat) {
     try {
       await ctx.api.editMessageText(ctx.chat.id, editId, msg);
+      p.notices = [];
       return;
     } catch (e) {
-      if (e instanceof GrammyError) {
-        const d = e.description;
-        if (d.includes('message is not modified')) return;
-        if (
-          d.includes('MESSAGE_ID_INVALID') ||
-          d.includes('message to edit not found') ||
-          d.includes("message can't be edited") ||
-          d.includes('MESSAGE_TOO_LONG') === false
-        ) {
-          // fall through to resend
-        } else {
-          throw e;
-        }
-      } else {
-        throw e;
+      if (!(e instanceof GrammyError)) throw e;
+      const d = e.description;
+      if (d.includes('message is not modified')) {
+        p.notices = [];
+        return;
       }
+      if (!RESENDABLE.some((frag) => d.includes(frag))) throw e;
+      // fall through to resend
     }
   }
   if (!ctx.chat) return;
   const sent = await ctx.api.sendRichMessage(ctx.chat.id, msg);
   p.messageId = sent.message_id;
+  p.notices = [];
 }
 
 /** Answer the tap (toast) and commit the new view. */
@@ -124,8 +129,11 @@ export async function withPlayer(
   backfillPlayer(p); // idempotent save migration (skills, starting zones)
   const result = (await mutate(p)) ?? {};
   p.stats.lastPlayed = Date.now();
-  await store.set(from.id, p);
+  // Respond FIRST: commit may update p.messageId (resend fallback), and the
+  // save must capture that pointer. Saving before commit used to strand the
+  // live-message id, breaking every later tap after a resend.
   await respond(ctx, p, result.toast);
+  await store.set(from.id, p);
 }
 
 /** Guard used inside mutations: is this tap on the live game message? */

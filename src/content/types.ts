@@ -32,7 +32,14 @@ export interface ItemDef {
   /** Sell price is derived as floor(price * SELL_RATIO). */
   stats?: ItemStats;
   /** Consumable effect. */
-  effect?: { healHp?: number; healMp?: number; cureStatus?: true; revivePct?: number };
+  effect?: {
+    healHp?: number;
+    healMp?: number;
+    cureStatus?: true;
+    revivePct?: number;
+    /** Battle-only: guaranteed escape from non-boss fights. */
+    flee?: true;
+  };
   /** short flavor / description line */
   desc?: string;
   /** Tier for shop/loot organization (1..8). 0 = special. */
@@ -165,6 +172,10 @@ export interface DungeonDef {
   /** Final floor boss. */
   boss: string;
   floors: DungeonFloor[];
+  /** Story gate for the BOSS floor: named quest must be done (or, without
+   * requireDone, at least active) before the boss can be faced. Normal
+   * floors stay open as soon as the zone is unlocked. */
+  bossGate?: { quest: string; requireDone?: boolean };
   /** First-clear rewards, granted when the boss falls. */
   firstClear?: { xp: number; gold: number; item?: string; flags?: string[]; unlockZone?: string };
 }

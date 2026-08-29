@@ -7,7 +7,7 @@
 import type { PlayerState, QuestProgress } from './types.ts';
 import type { Objective, QuestDef } from '../content/types.ts';
 import { quest, QUESTS } from '../content/quests.ts';
-import { addItem, countOf } from './inventory.ts';
+import { addItem, countOf, removeItem } from './inventory.ts';
 import { itemName } from '../content/items.ts';
 import { enemyName } from '../content/enemies.ts';
 import { zone as zoneDef } from '../content/zones.ts';
@@ -40,6 +40,9 @@ export function syncAvailability(p: PlayerState): string[] {
       }
     }
   }
+  // Pre-owned collectibles can complete a quest the moment it becomes
+  // available; without this it sits unready until the next event hook.
+  refreshProgress(p);
   return newly;
 }
 
@@ -50,6 +53,9 @@ export function acceptQuest(p: PlayerState, id: string): { ok: boolean; msg: str
   if (qp.status !== 'available') return { ok: false, msg: "That quest isn't available right now." };
   qp.status = 'active';
   qp.counts = q.objectives.map(() => 0);
+  // Collect objectives read the bag live — a player may already own
+  // the goods when accepting (e.g. m22 after m21's Crownsworn kills).
+  refreshProgress(p);
   return { ok: true, msg: `📜 Quest accepted: ${q.name}` };
 }
 
@@ -77,6 +83,7 @@ function questComplete(p: PlayerState, id: string): boolean {
 }
 
 /** Call after any kill/reach/event; flips completed active quests to turnIn. */
+/** Recomputes live progress; returns quests that just became turn-in-ready. */
 function refreshProgress(p: PlayerState): string[] {
   const ready: string[] = [];
   for (const [id, qp] of Object.entries(p.quests)) {
@@ -86,6 +93,13 @@ function refreshProgress(p: PlayerState): string[] {
     }
   }
   return ready;
+}
+
+/** Item-acquisition hook for paths outside battle (shops, treasure):
+ * collect objectives read the bag, so a purchase or cache can complete a
+ * quest on the spot. Returns newly turn-in-ready quest ids. */
+export function onItemGain(p: PlayerState): string[] {
+  return refreshProgress(p);
 }
 
 function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number): string {
@@ -144,6 +158,14 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
   }
   qp.status = 'done';
   const lines: string[] = [q.outro];
+  // Collect objectives hand their goods over — samples, sigils and keys
+  // leave the bag at turn-in instead of lingering as dead weight.
+  for (const obj of q.objectives) {
+    if (obj.kind === 'collect') {
+      removeItem(p, obj.target, obj.count ?? 1);
+      lines.push(`📦 Handed over: ${itemName(obj.target)} ×${obj.count ?? 1}`);
+    }
+  }
   const r = q.rewards;
   p.gold += r.gold;
   lines.push(`💰 +${r.gold} gold · ✨ +${r.xp} XP`);

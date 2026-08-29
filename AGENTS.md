@@ -92,10 +92,16 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 - **Quest state machine:** unavailable → available → active → turnIn → done. `syncAvailability` is
   idempotent; call it after xp gains, zone entry and turn-ins. Kill/reach/talk objectives tick via
   engine hooks (`onKill`, `onZoneEnter`, `onTalk`); collect objectives read the bag live.
-- **Economy:** sell = 40% of price. Shop stock derives from zone chapter via `shopStock()`. Forge
-  tempers up to +5 (+8%/level of item base stats), costs gold + the tier-appropriate material.
-- **Death:** −10% gold, revive at 50% HP at the current zone. Phoenix Cinder auto-revives once per
-  battle at 50%.
+- **Economy:** sell = 40% of price. Shop stock tier derives from PLAYER level, clamped to the zone's
+  level band (`shopTierFor()`), so the Abyss stocks tier-8 gear. Forge tempers up to +5 are bound to
+  the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the temper material
+  is chosen by the item's tier, not the player's location.
+- **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
+  Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
+- **Battles carry structured provenance** (`BattleOrigin`): `explore`/`elite`/`dungeon` with floor +
+  boss flags. Dungeon floors advance on VICTORY only; boss floors are story-gated via `bossGate`
+  (kill-quest bosses use `requireDone: false`). Victory bookkeeping routes through
+  `resolveVictory()` in world.ts — overworld kills never touch dungeon state.
 
 ## Adding content (checklist)
 
@@ -110,6 +116,9 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
    `unlockZone` reward — the zone-reachability test enforces this.
 8. `learnLevel: 1` skills are granted at creation; `backfillPlayer` (called on every load) migrates
    older saves — extend it whenever the starting kit or starting zones change.
+9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
+   enough dungeon floor slots — `tests/progression_test.ts` enforces encounter capacity, and the
+   full m1→m25 simulation walks the entire quest graph through the pure engine.
 
 ## Known trade-offs (evaluated fallow findings)
 

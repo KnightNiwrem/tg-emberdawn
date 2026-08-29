@@ -16,7 +16,7 @@ import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine } from '../engine/world.ts';
 import { questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
-import { forgeMaterial, MAX_TEMPER, temperCost, temperLevel } from '../engine/forge.ts';
+import { MAX_TEMPER, temperCost, temperLevel } from '../engine/forge.ts';
 import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
@@ -207,15 +207,20 @@ function defEmoji(kind: string): string {
 export function renderForge(p: PlayerState): InputRichMessage {
   const wc = temperCost(p, 'weapon');
   const ac = temperCost(p, 'armor');
-  const mat = forgeMaterial(p);
   const blocks: Block[] = [
     heading('⚒️ The Forge', 3),
-    para("Temper your gear. Each temper grants +8% to the item's base stats. Max +5."),
+    para(
+      "Temper your equipped gear. Each temper grants +8% to that item's own base stats. Max +5 — and the temper stays with the item.",
+    ),
     ...noticesBlocks(p),
     para(
-      `🗡️ Weapon: +${temperLevel(p, 'weapon')}/${MAX_TEMPER}\n` +
-        `🛡️ Armor: +${temperLevel(p, 'armor')}/${MAX_TEMPER}\n` +
-        `💰 ${p.gold} gold · 🧱 ${countOf(p, mat)}× ${itemName(mat)}`,
+      `🗡️ ${p.equipment.weapon ? itemName(p.equipment.weapon) : '—'}: +${
+        temperLevel(p, 'weapon')
+      }/${MAX_TEMPER}\n` +
+        `🛡️ ${p.equipment.armor ? itemName(p.equipment.armor) : '—'}: +${
+          temperLevel(p, 'armor')
+        }/${MAX_TEMPER}\n` +
+        `💰 ${p.gold} gold`,
     ),
   ];
   blocks.push(

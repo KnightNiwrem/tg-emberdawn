@@ -41,6 +41,12 @@ export interface EnemyInstance {
 
 export type BattlePhase = 'active' | 'won' | 'lost' | 'fled';
 
+/** Where a battle came from — decides what victory bookkeeping applies. */
+export type BattleOrigin =
+  | { kind: 'explore'; zoneId: string }
+  | { kind: 'elite'; zoneId: string }
+  | { kind: 'dungeon'; zoneId: string; dungeonId: string; floor: number; boss: boolean };
+
 export interface BattleState {
   enemy: EnemyInstance;
   phase: BattlePhase;
@@ -54,8 +60,10 @@ export interface BattleState {
   log: string[];
   /** Rewards staged on victory. */
   rewards?: { xp: number; gold: number; drops: string[] };
-  /** Zone that spawned this battle (for return-after-battle). */
-  origin: string;
+  /** Phoenix Cinder already spent this battle (revive is once per battle). */
+  phoenixUsed?: boolean;
+  /** Structured provenance: for return-after-battle and victory hooks. */
+  origin: BattleOrigin;
 }
 
 export interface CombatBuffs {
@@ -69,6 +77,9 @@ export interface CombatBuffs {
   /** Player-side weaken (from enemy debuffs), with turns left. */
   weakenedPct: number;
   weakenTurns: number;
+  /** Enemy-side weaken (player debuffs like Venom Cut), with turns left. */
+  enemyWeakenedPct: number;
+  enemyWeakenTurns: number;
   /** Player skips next action. */
   stunnedTurns: number;
   /** Enemy skips its next action. */

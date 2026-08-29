@@ -275,7 +275,7 @@ const CONSUMABLES: ConsumableDef[] = [
     name: 'Smoke Bomb',
     lvl: 3,
     price: 150,
-    effect: { cureStatus: true },
+    effect: { cureStatus: true, flee: true },
     desc: 'Guaranteed escape from normal fights.',
   },
   {
@@ -476,6 +476,11 @@ export function shopStock(zoneId: string, zoneTier: number): string[] {
   }
   const trinketCount = Math.min(TRINKET_TIERS.length, Math.max(2, t + 1));
   for (let i = 0; i < trinketCount; i++) stock.push(`t_${i + 1}`);
+  // Endgame shops carry the full trinket table so late pieces (Thorn Ring,
+  // Moon Pendant, Ember Locket) always have an acquisition path.
+  if (t >= 7) {
+    for (let i = trinketCount; i < TRINKET_TIERS.length; i++) stock.push(`t_${i + 1}`);
+  }
   stock.push('c_minor_potion', 'c_minor_ether');
   if (t >= 2) stock.push('c_potion', 'c_ether', 'c_antidote');
   if (t >= 3) stock.push('c_greater_potion', 'c_smoke_bomb');

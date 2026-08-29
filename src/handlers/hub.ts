@@ -5,7 +5,7 @@
 
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { diveDungeon, dungeonOf, explore, travel } from '../engine/world.ts';
+import { bossGateBlock, diveDungeon, dungeonOf, explore, travel } from '../engine/world.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { buy, sell } from '../engine/shops.ts';
 import { temper } from '../engine/forge.ts';
@@ -59,7 +59,7 @@ function diveAction(p: PlayerState): MutationResult {
   const res = diveDungeon(p, d);
   if (!res.ok || !res.battle) {
     p.notices = res.lines;
-    return { toast: res.lines[0] };
+    return { toast: res.lines[0] ?? bossGateBlock(p, d) };
   }
   p.battle = res.battle;
   p.scene = { view: 'battle' };

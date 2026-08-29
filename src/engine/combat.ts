@@ -4,7 +4,7 @@
  * survive across messages.
  */
 
-import type { BattlePhase, BattleState, CombatBuffs, PlayerState } from './types.ts';
+import type { BattleOrigin, BattlePhase, BattleState, CombatBuffs, PlayerState } from './types.ts';
 import type { EnemyDef, EnemyMove, SkillDef } from '../content/types.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { skill } from '../content/skills.ts';
@@ -22,12 +22,14 @@ export function newBuffs(): CombatBuffs {
     durations: {},
     weakenedPct: 0,
     weakenTurns: 0,
+    enemyWeakenedPct: 0,
+    enemyWeakenTurns: 0,
     stunnedTurns: 0,
     stunnedEnemy: false,
   };
 }
 
-export function startBattle(enemyId: string, origin: string): BattleState | undefined {
+export function startBattle(enemyId: string, origin: BattleOrigin): BattleState | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
   const battle: BattleState = {
@@ -121,12 +123,18 @@ function tickBuffTurns(buffs: CombatBuffs): void {
     buffs.weakenTurns--;
     if (buffs.weakenTurns === 0) buffs.weakenedPct = 0;
   }
+  if (buffs.enemyWeakenTurns > 0) {
+    buffs.enemyWeakenTurns--;
+    if (buffs.enemyWeakenTurns === 0) buffs.enemyWeakenedPct = 0;
+  }
 }
 
 /** Applies the player's action, then the enemy's response. Mutates state. */
 interface PlayerPhaseResult {
   lines: string[];
   skipped: boolean;
+  /** False when the action was invalid (cooldown/MP/unusable) — no enemy phase. */
+  consumedTurn: boolean;
 }
 
 /** Player half of a round: stun check, then the chosen action. */
@@ -138,15 +146,13 @@ function playerPhase(
 ): PlayerPhaseResult {
   const buffs = battle.buffs;
   const lines: string[] = [];
-  let skipped = false;
   if (buffs.stunnedTurns > 0) {
     buffs.stunnedTurns--;
     lines.push('💫 You are stunned and lose your turn!');
-    skipped = true;
-  } else {
-    lines.push(...applyPlayerAction(p, battle, action, rng));
+    return { lines, skipped: true, consumedTurn: true };
   }
-  return { lines, skipped };
+  const res = applyPlayerAction(p, battle, action, rng);
+  return { lines: res.lines, skipped: false, consumedTurn: res.consumedTurn };
 }
 
 export function performAction(
@@ -165,6 +171,9 @@ export function performAction(
 
   // Player won without retaliation (enemy felled by the action)…
   if (battle.enemy.hp <= 0) return { battle, lines, skipped };
+  // Invalid action (cooldown/MP/unusable item): no turn consumed, no enemy
+  // phase. The UI disables these; the engine stays safe for forged taps.
+  if (!phase.consumedTurn) return { battle, lines, skipped };
   // …or escaped cleanly (no parting shot after a successful flee).
   if ((battle.phase as BattlePhase) === 'fled') return { battle, lines, skipped };
 
@@ -217,16 +226,19 @@ function strike(
   return { lines, dmg: res.dmg };
 }
 
-/** Applies one player action (attack/skill/item/guard/flee). */
+/** Applies one player action (attack/skill/item/guard/flee). Returns the
+ * log lines plus whether the action actually consumed the turn — invalid
+ * actions (cooldown/MP/unusable item) never do, so they never hand the
+ * enemy a free round. */
 function applyPlayerAction(
   p: PlayerState,
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
-): string[] {
+): { lines: string[]; consumedTurn: boolean } {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
-  if (!def) return lines;
+  if (!def) return { lines, consumedTurn: false };
   const buffs = battle.buffs;
   switch (action.kind) {
     case 'attack': {
@@ -235,57 +247,77 @@ function applyPlayerAction(
       lines.push(
         `⚔️ You strike ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical hit!' : ''}`,
       );
-      break;
+      return { lines, consumedTurn: true };
     }
     case 'skill': {
       const sk = skill(action.skillId);
       if (!sk) {
         lines.push('…nothing happens.');
-        break;
+        return { lines, consumedTurn: false };
       }
       if ((battle.cooldowns[sk.id] ?? 0) > 0) {
         lines.push('⏳ That skill is still on cooldown.');
-        break;
+        return { lines, consumedTurn: false };
       }
       if (p.mp < sk.mpCost) {
         lines.push('💧 Not enough MP.');
-        break;
+        return { lines, consumedTurn: false };
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
       lines.push(...applySkill(p, battle, sk, rng));
-      break;
+      return { lines, consumedTurn: true };
     }
     case 'item': {
+      const eff = itemDefLookup(action.itemId)?.effect;
+      // Auto-trigger-only items (Phoenix Cinder) can never be spent by hand.
+      if (eff?.revivePct && !eff.healHp && !eff.healMp && !eff.cureStatus && !eff.flee) {
+        lines.push('🔥 The Cinder smolders — it will spark on its own when you fall.');
+        return { lines, consumedTurn: false };
+      }
+      // Smoke Bomb: guaranteed escape from non-boss fights (never wasted).
+      if (eff?.flee) {
+        if (battle.enemy.isBoss) {
+          lines.push('🚫 No smoke clouds this fight — there is no escape.');
+          return { lines, consumedTurn: false };
+        }
+        const used = consumeItem(p, action.itemId);
+        if (!used) {
+          lines.push('You rummage through your bag and find nothing useful.');
+          return { lines, consumedTurn: false };
+        }
+        battle.phase = 'fled';
+        lines.push(...used, '💨 Smoke floods the field — you slip away safely!');
+        return { lines, consumedTurn: true };
+      }
       const consumed = consumeItem(p, action.itemId);
       if (!consumed) {
         lines.push('You rummage through your bag and find nothing useful.');
-        break;
+        return { lines, consumedTurn: false };
       }
       lines.push(...consumed);
-      break;
+      return { lines, consumedTurn: true };
     }
     case 'guard': {
       battle.guarding = true;
       p.mp = Math.min(statsOf(p).maxMp, p.mp + Math.ceil(statsOf(p).maxMp * 0.08));
       lines.push('🛡️ You brace behind your guard (+MP).');
-      break;
+      return { lines, consumedTurn: true };
     }
     case 'flee': {
-      const s = statsOf(p);
+      // Effective SPD (buffs included) drives escape odds — Rogue identity.
+      const spd = effStat(statsOf(p).spd, buffs.spdPct);
       if (battle.enemy.isBoss) {
         lines.push('🚫 There is no escape from this fight.');
-      } else if (chance(rng, Math.min(0.9, Math.max(0.15, 0.5 + (s.spd - def.spd) * 0.03)))) {
+      } else if (chance(rng, Math.min(0.9, Math.max(0.15, 0.5 + (spd - def.spd) * 0.03)))) {
         battle.phase = 'fled';
         lines.push('🏃 You slip away safely.');
       } else {
         lines.push('🚫 You try to flee — but the way is blocked!');
       }
-      break;
+      return { lines, consumedTurn: true };
     }
   }
-
-  return lines;
 }
 
 function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng): string[] {
@@ -354,10 +386,12 @@ function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng)
     case 'debuff': {
       const res = strike(p, battle, sk, rng, 'phys');
       lines.push(...res.lines);
-      if (sk.potency) {
-        buffs.weakenedPct = sk.potency;
-        buffs.weakenTurns = sk.duration ?? 3;
-        lines.push(`🩸 ${battle.enemy.name} is weakened by ${Math.round(sk.potency * 100)}%.`);
+      // Player-applied debuffs weaken the ENEMY's offense (P1-6), never the
+      // caster. Skipped if the strike already felled the target.
+      if (sk.potency && battle.enemy.hp > 0) {
+        buffs.enemyWeakenedPct = sk.potency;
+        buffs.enemyWeakenTurns = sk.duration ?? 3;
+        lines.push(`🩸 ${battle.enemy.name} is weakened by ${Math.round(sk.potency * 100)}%!`);
       }
       break;
     }
@@ -413,7 +447,9 @@ function enemyAct(
     return lines;
   }
   const s = statsOf(p);
-  const offense = move.kind === 'phys' ? def.atk : def.mag;
+  // Player-applied weaken (Venom Cut et al.) cuts ENEMY offense.
+  const offense = (move.kind === 'phys' ? def.atk : def.mag) *
+    (1 - buffs.enemyWeakenedPct);
   const guard = battle.guarding ? 0.5 : 1;
   const mitig = move.kind === 'phys'
     ? effStat(s.def, buffs.defPct) * 0.85
@@ -427,17 +463,20 @@ function enemyAct(
     buffs.weakenTurns = 2;
     lines.push('🩸 Your strength is sapped!');
   }
-  if (p.hp <= 0) {
-    // Phoenix Cinder auto-revive
-    const feather = p.inventory.find((e) => e.id === 'c_phoenix_feather');
-    if (feather) {
-      feather.qty--;
-      if (feather.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== feather.id);
-      p.hp = Math.floor(s.maxHp * 0.5);
-      lines.push('🔥 The Phoenix Cinder blazes — you rise again at half health!');
-    }
-  }
+  if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
   return lines;
+}
+
+/** Lethal-hit handling: Phoenix Cinder auto-revives ONCE per battle, then
+ * defeat stands no matter how many Cinders are left in the bag. */
+export function onLethalHit(p: PlayerState, battle: BattleState): string[] {
+  const feather = p.inventory.find((e) => e.id === 'c_phoenix_feather');
+  if (!feather || battle.phoenixUsed) return [];
+  battle.phoenixUsed = true;
+  feather.qty--;
+  if (feather.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== feather.id);
+  p.hp = Math.floor(statsOf(p).maxHp * 0.5);
+  return ['🔥 The Phoenix Cinder blazes — you rise again at half health!'];
 }
 
 /** Rolls battle rewards from the enemy definition. Mutates nothing. */

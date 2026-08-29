@@ -4,14 +4,11 @@
 
 import type { BattlePhase, PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { performAction, type PlayerAction, rollRewards } from '../engine/combat.ts';
-import { enemy as enemyDef } from '../content/enemies.ts';
-import { grantXp, statsOf } from '../engine/character.ts';
-import { addItem, grantDropRewards, removeItem } from '../engine/inventory.ts';
+import { performAction, type PlayerAction } from '../engine/combat.ts';
+import { statsOf } from '../engine/character.ts';
+import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
-import { onKill, syncAvailability } from '../engine/quests.ts';
-import { dungeonOf, onDungeonVictory } from '../engine/world.ts';
-import { zone as zoneDef } from '../content/zones.ts';
+import { resolveVictory } from '../engine/world.ts';
 import type { MutationResult } from './session.ts';
 
 /** Runs one player action and resolves the round. */
@@ -76,30 +73,10 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
     return {};
   }
 
-  // Victory resolution
+  // Victory resolution — routed through the engine so the battle's origin
+  // (explore/elite/dungeon) decides rewards, quest hooks and bookkeeping.
   if (phase === 'active' && b.enemy.hp <= 0) {
-    const def = enemyDef(b.enemy.id);
-    if (def) {
-      const rewards = rollRewards(def);
-      p.gold += rewards.gold;
-      lines.push(`🏆 ${b.enemy.name} is defeated!`);
-      lines.push(`✨ +${rewards.xp} XP · 💰 +${rewards.gold} gold`);
-      lines.push(...grantXp(p, rewards.xp));
-      lines.push(...grantDropRewards(p, rewards.drops));
-      p.stats.kills++;
-      p.stats.battlesWon++;
-      if (def.boss) p.stats.bossesSlain++;
-      onKill(p, def.id);
-      syncAvailability(p);
-      // Dungeon boss bookkeeping
-      const z = zoneDef(p.currentZone);
-      const d = z ? dungeonOf(z) : undefined;
-      if (d && def.id === d.boss) {
-        const fc = onDungeonVictory(p, d);
-        lines.push(...fc.lines);
-      }
-      b.rewards = rewards;
-    }
+    lines.push(...resolveVictory(p, b));
     b.phase = 'won';
   }
 

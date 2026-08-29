@@ -1,5 +1,5 @@
 /**
- * Quest catalog: the main storyline (24 quests, 6 chapters + postgame) and
+ * Quest catalog: the main storyline (25 quests, 6 chapters + postgame) and
  * side quests. Availability is derived from prereqs, level and zone flags.
  */
 
@@ -122,7 +122,7 @@ export const QUESTS: readonly QuestDef[] = [
     outro:
       "Vosk deflates with a sound like a dying bell. The water around the Shrine clears a hand's breadth — the first clean light in years, and the frogs sing like it's spring.",
     objectives: [{ kind: 'kill', target: 'e_vosk', count: 1 }],
-    rewards: { xp: 1400, gold: 700, flags: ['chapter2Done'], unlockZone: 'sunspire' },
+    rewards: { xp: 1400, gold: 700, flags: ['chapter2Done'] },
   }),
   Q({
     id: 'm8_passage',
@@ -137,7 +137,7 @@ export const QUESTS: readonly QuestDef[] = [
     outro:
       '"Take the east road," the Ferryman says. "And mind the sentinels. They only remember half their orders — the half worth keeping, with luck."',
     objectives: [{ kind: 'talk', target: 'npc_ferryman' }],
-    rewards: { xp: 500, gold: 250 },
+    rewards: { xp: 500, gold: 250, unlockZone: 'sunspire' },
   }),
 
   // ══ Chapter 3 — The City of Gears ════════════════════════════════════

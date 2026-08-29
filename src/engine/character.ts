@@ -6,17 +6,18 @@
 import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
+import { countOf, removeItem } from './inventory.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
 import { STARTING_ZONES, ZONES } from '../content/zones.ts';
-import { forgeBonus } from './forge.ts';
+import { temperBonusOf } from './forge.ts';
 
 export function createPlayer(userId: number, name: string, classId: ClassId): PlayerState {
   const c = CLASSES[classId];
   const gear = { ...itemStats(c.startingGear.weapon), ...itemStats(c.startingGear.armor) };
   const stats = derivedStats(classId, 1, gear);
+  // Equipped gear lives ONLY in equipment slots — bag copies would double
+  // it in derived stats and let players sell their own shirt twice.
   const inv = Object.entries(c.startingItems).map(([id, qty]) => ({ id, qty }));
-  inv.push({ id: c.startingGear.weapon, qty: 1 });
-  inv.push({ id: c.startingGear.armor, qty: 1 });
   const now = Date.now();
   return {
     userId,
@@ -51,27 +52,23 @@ function equippedGearStats(p: PlayerState): {
   luck?: number;
 } {
   const acc: Record<string, number> = {};
-  const add = (itemId: string | undefined): void => {
+  // Temper is bound to the ITEM and multiplies THAT item's own base stats
+  // before aggregation — a trinket's stats are never scaled, and one
+  // slot's temper can no longer bleed into other gear.
+  const addTempered = (itemId: string | undefined): void => {
     if (!itemId) return;
     const s = itemStats(itemId);
     if (!s) return;
-    for (const [k, v] of Object.entries(s)) acc[k] = (acc[k] ?? 0) + (v ?? 0);
+    const tb = temperBonusOf(p, itemId);
+    for (const [k, v] of Object.entries(s)) {
+      let val = v ?? 0;
+      if (tb > 0 && val > 0) val = Math.round(val * (1 + tb));
+      acc[k] = (acc[k] ?? 0) + val;
+    }
   };
-  add(p.equipment.weapon);
-  add(p.equipment.armor);
-  add(p.equipment.trinket);
-  // Forge temper bonuses: +8% of the slot's relevant base stats per level.
-  const wb = forgeBonus(p, 'weapon');
-  if (wb > 0) {
-    acc.atk = Math.round((acc.atk ?? 0) * (1 + wb));
-    acc.mag = Math.round((acc.mag ?? 0) * (1 + wb));
-  }
-  const ab = forgeBonus(p, 'armor');
-  if (ab > 0) {
-    acc.def = Math.round((acc.def ?? 0) * (1 + ab));
-    acc.res = Math.round((acc.res ?? 0) * (1 + ab));
-    acc.hp = Math.round((acc.hp ?? 0) * (1 + ab));
-  }
+  addTempered(p.equipment.weapon);
+  addTempered(p.equipment.armor);
+  addTempered(p.equipment.trinket);
   return acc;
 }
 
@@ -85,6 +82,23 @@ export function statsOf(p: PlayerState): DerivedStats {
  * starting-zone access (Whisperwood was never unlockable before).
  */
 export function backfillPlayer(p: PlayerState): void {
+  // Pre-dedup saves carried equipped gear twice (slots + bag). Idempotent:
+  // once the bag copy is gone this becomes a no-op.
+  for (const slot of ['weapon', 'armor'] as const) {
+    const eq = p.equipment[slot];
+    if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
+  }
+  // Legacy slot-bound temper flags move onto the currently equipped items
+  // (temper is item-bound now). Idempotent: legacy keys are consumed once.
+  for (const slot of ['weapon', 'armor'] as const) {
+    const legacy = p.flags[`forge_${slot}`];
+    const eq = p.equipment[slot];
+    if (typeof legacy === 'number' && legacy > 0 && eq) {
+      const key = `forge_i_${eq}`;
+      p.flags[key] = Math.max(typeof p.flags[key] === 'number' ? p.flags[key]! : 0, legacy);
+    }
+    delete p.flags[`forge_${slot}`];
+  }
   const known = new Set(p.skills);
   for (const sk of skillsForClass(p.classId, p.level)) {
     if (!known.has(sk.id)) p.skills.push(sk.id);
@@ -92,12 +106,22 @@ export function backfillPlayer(p: PlayerState): void {
   for (const zid of STARTING_ZONES) {
     if (!p.unlockedZones.includes(zid)) p.unlockedZones.push(zid);
   }
+  // Legacy battles carried a plain zone string as origin; normalize so
+  // structured-origin victory bookkeeping never crashes on old saves.
+  const b = p.battle;
+  if (b) {
+    const o = b.origin as unknown;
+    if (typeof o === 'string') b.origin = { kind: 'explore', zoneId: o };
+  }
 }
 
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */
 export function grantXp(p: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
-  if (p.level >= MAX_LEVEL) return msgs;
+  if (p.level >= MAX_LEVEL) {
+    // Honest no-op: postgame XP was silently vanishing; say so instead.
+    return xp > 0 ? ["✨ You stand at the Flame's summit — XP means nothing now."] : msgs;
+  }
   p.xp += xp;
   while (p.level < MAX_LEVEL && p.xp >= xpForNextLevel(p.level)) {
     p.xp -= xpForNextLevel(p.level);

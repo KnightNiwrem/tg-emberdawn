@@ -23,7 +23,7 @@ import { acceptQuest, onKill, syncAvailability, turnInQuest } from '../src/engin
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, currentStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
-import { diveDungeon, dungeonOf, explore, travel } from '../src/engine/world.ts';
+import { diveDungeon, dungeonOf, explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { item, ITEMS } from '../src/content/items.ts';
@@ -49,8 +49,10 @@ Deno.test('character creation gives class kit and full pools', () => {
   assertEquals(p.classId, 'warrior');
   assertEquals(p.hp, statsOf(p).maxHp);
   assertEquals(p.mp, statsOf(p).maxMp);
-  assert(countOf(p, 'w_warrior_1') === 1);
-  assert(p.equipment.weapon !== undefined);
+  assertEquals(p.equipment.weapon, 'w_warrior_1');
+  assertEquals(p.equipment.armor, 'a_warrior_1');
+  // Gear lives ONLY in equipment slots — no duplicate bag copy (P1-11).
+  assertEquals(countOf(p, 'w_warrior_1'), 0);
   assert(p.gold > 0);
   assertEquals(p.skills, skillsForClass('warrior', 1).map((sk) => sk.id));
 });
@@ -89,7 +91,7 @@ Deno.test('grantXp levels up, restores pools and learns skills', () => {
 Deno.test('combat: deterministic battle to victory with rewards', () => {
   const rng = seeded(42);
   const p = createPlayer(4, 'T', 'warrior');
-  const battle = startBattle('e_rat', 'emberfall')!;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
   const attack: PlayerAction = { kind: 'attack' };
   let rounds = 0;
   while (battle.enemy.hp > 0 && rounds < 100) {
@@ -107,7 +109,7 @@ Deno.test('combat: deterministic battle to victory with rewards', () => {
 Deno.test('combat: player deals damage and takes damage in a real fight', () => {
   const rng = seeded(7);
   const p = createPlayer(5, 'T', 'warrior');
-  const battle = startBattle('e_wolf', 'emberfall')!;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
   const s0 = statsOf(p);
   const hpBefore = p.hp;
   const enemyHpBefore = battle.enemy.hp;
@@ -123,7 +125,7 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
   p.level = 13;
   p.skills.push('sk_arcane_surge', 'sk_firebolt');
   p.mp = statsOf(p).maxMp;
-  const battle = startBattle('e_rat', 'emberfall')!;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
   const mpBefore = p.mp;
   const r1 = performAction(p, battle, { kind: 'skill', skillId: 'sk_arcane_surge' }, rng);
   assert(p.mp < mpBefore, 'mp should be spent');
@@ -137,7 +139,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   const rng = seeded(99);
 
   function measure(useGuard: boolean): number {
-    const battle = startBattle('e_wolf', 'emberfall')!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
     const pc = createPlayer(8, 'T', 'cleric');
     if (useGuard) performAction(pc, battle, { kind: 'guard' }, rng);
     else performAction(pc, battle, { kind: 'attack' }, rng);
@@ -148,7 +150,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   // Simpler direct comparison: run two identical setups, one guarding.
   function runBattle(guard: boolean, seed: number): number {
     const r = seeded(seed);
-    const battle = startBattle('e_wolf', 'emberfall')!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
     const pc = createPlayer(9, 'T', 'cleric');
     performAction(pc, battle, guard ? { kind: 'guard' } : { kind: 'attack' }, r);
     return hpLost(pc, 0);
@@ -175,7 +177,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   );
 
   function play(action: 'guard' | 'attack') {
-    const battle = startBattle('e_wolf', 'emberfall')!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
     const pc = createPlayer(10, 'T', 'cleric');
     performAction(pc, battle, { kind: action }, seeded(5));
     return battle;
@@ -186,7 +188,13 @@ Deno.test('boss battles cannot be fled', () => {
   const rng = seeded(3);
   const p = createPlayer(9, 'T', 'rogue');
   p.level = 45;
-  const battle = startBattle('e_aldric', 'umbra')!;
+  const battle = startBattle('e_aldric', {
+    kind: 'dungeon',
+    zoneId: 'umbra',
+    dungeonId: 'd_throne',
+    floor: 4,
+    boss: true,
+  })!;
   const r = performAction(p, battle, { kind: 'flee' }, rng);
   assert(r.lines.some((l) => l.includes('no escape')));
   assertEquals(battle.phase, 'active');
@@ -247,13 +255,18 @@ Deno.test('economy: buy needs gold, sell returns ratio', () => {
   assert(p.gold > 1000 - 30);
 });
 
-Deno.test('shop stock scales with zone chapter', () => {
+Deno.test('shop stock scales with player level within the zone band', () => {
   const p = createPlayer(13, 'T', 'warrior');
   const early = currentStock(p);
   assert(early.includes('w_warrior_1'));
   p.currentZone = 'frostpeak';
   const late = currentStock(p);
   assert(late.includes('w_warrior_4'));
+  p.level = 45;
+  p.currentZone = 'abyss'; // tier-8 gear lives where level 45 actually is
+  const endgame = currentStock(p);
+  assert(endgame.includes('w_warrior_8'), 'abyss-tier gear must be purchasable at 45');
+  assert(endgame.includes('t_11'), 'late trinkets need an acquisition path');
   assert(late.includes('c_greater_potion'));
   assert(late.includes('c_smoke_bomb'));
 });
@@ -352,29 +365,45 @@ Deno.test('world: safe havens never spawn battles; the wilds do', () => {
   assert(sawBattle, 'whisperwood should spawn battles');
 });
 
-Deno.test('world: dungeon dive advances floors then boss, first-clear once', () => {
+Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () => {
   const rng = seeded(31);
   const p = createPlayer(18, 'T', 'warrior');
   p.level = 45;
   p.unlockedZones.push('hollowmere');
   travel(p, 'hollowmere');
   const d = dungeonOf(zone('hollowmere')!)!;
-  let firstClears = 0;
-  for (let step = 0; step < 12; step++) {
-    const res = diveDungeon(p, d, rng);
-    if (!res.ok || !res.battle) break;
-    if (res.battle.enemy.id === d.boss) {
-      const b = res.battle;
-      b.enemy.hp = 0; // simulate victory
-      const fc = onDungeonVictoryForTest(p, d);
-      if (fc) firstClears++;
-    }
-  }
-  assertEquals(firstClears, 1);
-});
 
-// direct import to avoid handler-layer dependencies
-import { onDungeonVictory as onDungeonVictoryForTest } from '../src/engine/world.ts';
+  // Normal floors are open; each victory (and ONLY victory) advances.
+  for (let f = 0; f < d.floors.length; f++) {
+    const res = diveDungeon(p, d, rng);
+    assert(res.ok && res.battle, `floor ${f + 1} should be open`);
+    const isBoss = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
+    assert(!isBoss, 'boss floor must stay sealed while the story quest is unavailable');
+    res.battle!.enemy.hp = 0; // simulate victory
+    resolveVictory(p, res.battle!);
+  }
+  const blocked = diveDungeon(p, d, rng);
+  assert(!blocked.ok, `boss floor sealed: ${blocked.lines[0]}`);
+
+  // The story hunt begins — the deepest chamber opens (d_sunken gates on m7).
+  p.quests['m6_toxin'] = { status: 'done', counts: [] };
+  syncAvailability(p);
+  assert(acceptQuest(p, 'm7_tyrant').ok);
+  const bossRun = diveDungeon(p, d, rng);
+  assert(bossRun.ok && bossRun.battle);
+  assertEquals(bossRun.battle!.enemy.id, d.boss);
+  bossRun.battle!.enemy.hp = 0;
+  const lines = resolveVictory(p, bossRun.battle!);
+  assert(lines.some((l) => l.includes('First clear')), 'first clear grants rewards');
+
+  // Rematch stays open; first-clear rewards never repeat.
+  const rematch = diveDungeon(p, d, rng);
+  assert(rematch.ok && rematch.battle);
+  assertEquals(rematch.battle!.enemy.id, d.boss);
+  rematch.battle!.enemy.hp = 0;
+  const lines2 = resolveVictory(p, rematch.battle!);
+  assert(!lines2.some((l) => l.includes('First clear')));
+});
 
 Deno.test("content integrity: every zone's dungeon/shop/npcs reference real ids", () => {
   for (const z of ZONES) {

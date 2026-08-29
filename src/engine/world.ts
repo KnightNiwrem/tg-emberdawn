@@ -7,10 +7,11 @@ import type { BattleState, PlayerState } from './types.ts';
 import type { DungeonDef, ExploreEvent, ZoneDef } from '../content/types.ts';
 import { zone } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
-import { addItem } from './inventory.ts';
-import { startBattle } from './combat.ts';
+import { quest } from '../content/quests.ts';
+import { addItem, grantDropRewards } from './inventory.ts';
+import { rollRewards, startBattle } from './combat.ts';
 import { grantXp, statsOf } from './character.ts';
-import { onZoneEnter } from './quests.ts';
+import { onItemGain, onKill, onZoneEnter, syncAvailability } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { itemName } from '../content/items.ts';
 
@@ -28,6 +29,7 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
     const s = statsOf(p);
     p.hp = s.maxHp;
     p.mp = s.maxMp;
+    delete p.flags[`forage_${zoneId}`]; // fresh visit, fresh forage
     lines.push('🔥 A safe haven. HP and MP fully restored.');
   }
   onZoneEnter(p, zoneId);
@@ -37,6 +39,42 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
 export type ExploreOutcome =
   | { kind: 'battle'; battle: BattleState; buffsNeeded: true; line: string }
   | { kind: 'result'; lines: string[] };
+
+/**
+ * Victory resolution for ANY battle, routed by structured origin:
+ * rewards → kills/stats → quest hooks → dungeon bookkeeping (only when the
+ * battle truly came from a dungeon). Pure engine, so tests can drive it.
+ */
+export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaultRng): string[] {
+  const def = enemyDef(b.enemy.id);
+  if (!def) return [];
+  const rewards = rollRewards(def, rng);
+  p.gold += rewards.gold;
+  const lines = [
+    `🏆 ${b.enemy.name} is defeated!`,
+    `✨ +${rewards.xp} XP · 💰 +${rewards.gold} gold`,
+  ];
+  lines.push(...grantXp(p, rewards.xp));
+  lines.push(...grantDropRewards(p, rewards.drops));
+  p.stats.kills++;
+  p.stats.battlesWon++;
+  if (def.boss) p.stats.bossesSlain++;
+  onKill(p, def.id);
+  syncAvailability(p);
+  if (b.origin.kind === 'dungeon') {
+    const z = zone(b.origin.zoneId);
+    const d = z ? dungeonOf(z) : undefined;
+    if (d && d.id === b.origin.dungeonId) {
+      if (b.origin.boss) {
+        lines.push(...onDungeonVictory(p, d).lines);
+      } else {
+        lines.push(...onDungeonFloorVictory(p, d, b.origin.floor));
+      }
+    }
+  }
+  b.rewards = rewards;
+  return lines;
+}
 
 export function explore(
   p: PlayerState,
@@ -48,13 +86,26 @@ export function explore(
 
   // Safe havens never spawn battles — content tables should already be
   // battle-free; this guard keeps them that way regardless of content.
-  const pool = z.safeHaven
+  let pool = z.safeHaven
     ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite')
     : z.explore;
+  // Safe-haven foraging is finite per visit (reset on arrival): after a few
+  // picks the caches stop appearing, so no infinite gold/potion faucet.
+  const forageKey = `forage_${z.id}`;
+  const foraged = typeof p.flags[forageKey] === 'number' ? p.flags[forageKey]! : 0;
+  if (z.safeHaven) {
+    if (foraged >= 3) pool = pool.filter((e) => e.kind !== 'treasure');
+    p.flags[forageKey] = foraged + 1;
+  }
   const weights = pool.map((e) => e.weight);
   const idx = weightedIndex(rng, weights);
   const ev = pool[idx];
-  if (!ev) return { kind: 'result', lines: ['Nothing stirs. The world holds its breath.'] };
+  if (!ev) {
+    return {
+      kind: 'result',
+      lines: ['🧺 Picked clean for now — the hearth still welcomes you.'],
+    };
+  }
   return applyExploreEvent(p, z, ev, rng);
 }
 
@@ -62,7 +113,10 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
   switch (ev.kind) {
     case 'battle':
     case 'elite': {
-      const battle = startBattle(ev.enemy, z.id);
+      const battle = startBattle(ev.enemy, {
+        kind: ev.kind === 'elite' ? 'elite' : 'explore',
+        zoneId: z.id,
+      });
       if (!battle) return { kind: 'result', lines: ['Nothing stirs.'] };
       return {
         kind: 'battle',
@@ -85,6 +139,9 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
       if (ev.item) {
         addItem(p, ev.item, 1);
         lines.push(`🎁 Found: ${itemName(ev.item)}`);
+        for (const qid of onItemGain(p)) {
+          lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
+        }
       }
       return { kind: 'result', lines };
     }
@@ -111,12 +168,46 @@ function floorKey(d: DungeonDef): string {
   return `dgn_${d.id}_floor`;
 }
 
+function bossKey(d: DungeonDef): string {
+  return `dgn_${d.id}_boss`;
+}
+
 /** Next floor the player will face (1-based); floors.length+1 = boss. */
 function nextFloor(p: PlayerState, d: DungeonDef): number {
   const f = p.flags[floorKey(d)];
   return typeof f === 'number' ? f : 1;
 }
 
+/** True once this dungeon's boss has been defeated (rematches stay open). */
+export function dungeonCleared(p: PlayerState, d: DungeonDef): boolean {
+  return p.flags[bossKey(d)] === true;
+}
+
+/** Narrative reason the boss floor is sealed, or undefined when open.
+ * A `requireDone: false` gate opens while the story quest is active or
+ * turn-in-ready (the boss IS the quest target); `done` always opens so
+ * rematches keep working after the story moves on. */
+export function bossGateBlock(p: PlayerState, d: DungeonDef): string | undefined {
+  const gate = d.bossGate;
+  if (!gate) return undefined;
+  const st = p.quests[gate.quest]?.status;
+  const open = st === 'done' ||
+    (gate.requireDone === false && (st === 'active' || st === 'turnIn'));
+  if (open) return undefined;
+  const q = quest(gate.quest);
+  const how = gate.requireDone === false ? 'begun' : 'completed';
+  return q
+    ? `⛔ Sealed. “${q.name}” must be ${how} before the deepest chamber opens.`
+    : '⛔ Sealed by powers beyond your understanding.';
+}
+
+/**
+ * Enters the dungeon: normal floors are open once the zone is; the boss
+ * floor (and rematches after clearing) are story-gated. Starting a fight
+ * NEVER advances progress — that happens only on victory (see
+ * `onDungeonFloorVictory` / `onDungeonVictory`), so fleeing or dying
+ * simply leaves the floor pending.
+ */
 export function diveDungeon(
   p: PlayerState,
   d: DungeonDef,
@@ -124,40 +215,85 @@ export function diveDungeon(
 ): { ok: boolean; battle?: BattleState; lines: string[] } {
   const bossFloor = d.floors.length + 1;
   const floor = nextFloor(p, d);
-  if (floor > bossFloor) {
+
+  if (floor >= bossFloor || dungeonCleared(p, d)) {
+    const block = bossGateBlock(p, d);
+    if (block) return { ok: false, lines: [block] };
+    const battle = startBattle(d.boss, {
+      kind: 'dungeon',
+      zoneId: p.currentZone,
+      dungeonId: d.id,
+      floor: bossFloor,
+      boss: true,
+    });
+    if (!battle) {
+      return {
+        ok: false,
+        lines: ['The way is blocked by nothing at all, which is somehow worse.'],
+      };
+    }
+    const again = dungeonCleared(p, d) ? ' again' : '';
     return {
-      ok: false,
+      ok: true,
+      battle,
       lines: [
-        "You've already bested this place. Its boss may be re-fought from the dungeon screen.",
+        `${d.emoji} You descend to the deepest chamber. ${
+          enemyDef(d.boss)?.name ?? d.boss
+        } awaits${again}.`,
       ],
     };
   }
 
-  const isBoss = floor === bossFloor;
-  const pool = isBoss ? [d.boss] : (d.floors[floor - 1]?.enemies ?? [d.boss]);
+  const pool = d.floors[floor - 1]?.enemies ?? [d.boss];
   const enemyId = pool[Math.floor(rng() * pool.length)] ?? d.boss;
-  const battle = startBattle(enemyId, p.currentZone);
+  const battle = startBattle(enemyId, {
+    kind: 'dungeon',
+    zoneId: p.currentZone,
+    dungeonId: d.id,
+    floor,
+    boss: false,
+  });
   if (!battle) {
     return { ok: false, lines: ['The way is blocked by nothing at all, which is somehow worse.'] };
   }
-
-  p.flags[floorKey(d)] = floor + 1;
-  const line = isBoss
-    ? `${d.emoji} You descend to the deepest chamber. ${enemyDef(d.boss)?.name ?? d.boss} awaits.`
-    : `${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} bars the way.`;
-  return { ok: true, battle, lines: [line] };
+  return {
+    ok: true,
+    battle,
+    lines: [`${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} bars the way.`],
+  };
 }
 
-/** Called after a dungeon battle victory; handles floor/boss bookkeeping. */
+/**
+ * Victory over a NORMAL dungeon floor: grants that floor's treasure (once)
+ * and advances the floor pointer. Fleeing or dying never routes here.
+ */
+export function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: number): string[] {
+  const lines: string[] = [];
+  if (floor >= d.floors.length + 1) return lines; // boss victories route elsewhere
+  if (nextFloor(p, d) !== floor) return lines; // floor already cleared
+  p.flags[floorKey(d)] = floor + 1;
+  const t = d.floors[floor - 1]?.treasure;
+  if (t) {
+    if (t.gold) {
+      p.gold += t.gold;
+      lines.push(`💰 Floor cache: +${t.gold} gold`);
+    }
+    if (t.item) {
+      addItem(p, t.item, 1);
+      lines.push(`🎁 Floor cache: ${itemName(t.item)}`);
+    }
+  }
+  return lines;
+}
+
+/** Called after a DUNGEON BOSS battle victory; handles clear/first-clear bookkeeping. */
 export function onDungeonVictory(
   p: PlayerState,
   d: DungeonDef,
 ): { firstClear: boolean; lines: string[] } {
-  const bossKey = `dgn_${d.id}_boss`;
   const lines: string[] = [];
-  const firstClear = p.flags[bossKey] === undefined;
-  p.flags[bossKey] = true;
-  p.flags[floorKey(d)] = d.floors.length + 2; // allow repeat boss fights
+  const firstClear = !dungeonCleared(p, d);
+  p.flags[bossKey(d)] = true;
   if (firstClear && d.firstClear) {
     const fc = d.firstClear;
     p.gold += fc.gold;
@@ -179,8 +315,7 @@ export function onDungeonVictory(
 }
 
 export function dungeonProgressLine(p: PlayerState, d: DungeonDef): string {
-  const bossKey = `dgn_${d.id}_boss`;
-  if (p.flags[bossKey]) return '🏆 Boss defeated — re-challenge available';
+  if (dungeonCleared(p, d)) return '🏆 Boss defeated — rematch available';
   const floor = nextFloor(p, d);
   return floor > d.floors.length
     ? '☠️ Boss floor ready'

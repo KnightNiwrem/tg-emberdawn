@@ -114,6 +114,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '🕸️',
       desc: "The forest's root-cathedral, now strangled in silk.",
       boss: 'e_aranya',
+      bossGate: { quest: 'm3_roots', requireDone: false },
       floors: [
         { enemies: ['e_spider', 'e_mycelid'], treasure: { gold: 60 } },
         { enemies: ['e_mycelid', 'e_thornling'] },
@@ -181,6 +182,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '🌊',
       desc: 'A temple to the Flame, drowned when the swamp crept in.',
       boss: 'e_vosk',
+      bossGate: { quest: 'm7_tyrant', requireDone: false },
       floors: [
         { enemies: ['e_drowned', 'e_boglin'], treasure: { gold: 140 } },
         { enemies: ['e_drowned', 'e_serpent'], treasure: { item: 'c_ether' } },
@@ -213,6 +215,7 @@ export const ZONES: readonly ZoneDef[] = [
       { kind: 'battle', enemy: 'e_vulture', weight: 2 },
       { kind: 'battle', enemy: 'e_cultist', weight: 3 },
       { kind: 'battle', enemy: 'e_spirelynx', weight: 2 },
+      { kind: 'battle', enemy: 'e_automaton', weight: 2 },
       {
         kind: 'treasure',
         gold: 220,
@@ -239,6 +242,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '⏳',
       desc: "The city's time-vault. Every hour stolen from the Flame is kept here.",
       boss: 'e_chronolich',
+      bossGate: { quest: 'm12_chronolich', requireDone: false },
       floors: [
         { enemies: ['e_chronowisp', 'e_automaton'], treasure: { gold: 260 } },
         { enemies: ['e_automaton', 'e_chronowisp', 'e_sentinel'] },
@@ -296,6 +300,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '🧊',
       desc: 'A blue cave that breathes. Deep inside, a heartbeat made of ice.',
       boss: 'e_jormunis',
+      bossGate: { quest: 'm15_wyrm', requireDone: false },
       floors: [
         { enemies: ['e_iceling', 'e_frostwraith'], treasure: { gold: 420 } },
         {
@@ -364,6 +369,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc:
         "The caldera's throat. At the bottom, the Last Flame gutters in a cage of its own making.",
       boss: 'e_ignivar',
+      bossGate: { quest: 'm19_ignivar', requireDone: false },
       floors: [
         { enemies: ['e_cinderhound', 'e_salamander'], treasure: { gold: 700 } },
         {
@@ -399,6 +405,7 @@ export const ZONES: readonly ZoneDef[] = [
       { kind: 'battle', enemy: 'e_shattered', weight: 3 },
       { kind: 'battle', enemy: 'e_horror', weight: 2 },
       { kind: 'battle', enemy: 'e_nightgaunt', weight: 2 },
+      { kind: 'battle', enemy: 'e_crownsworn', weight: 2 },
       {
         kind: 'elite',
         enemy: 'e_regalia',
@@ -431,6 +438,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '👑',
       desc: 'The throne room at the top of everything, split down the middle like its king.',
       boss: 'e_aldric',
+      bossGate: { quest: 'm23_aldric', requireDone: false },
       floors: [
         { enemies: ['e_crownsworn', 'e_shattered'], treasure: { gold: 1200 } },
         { enemies: ['e_nightgaunt', 'e_horror', 'e_regalia'], treasure: { item: 'c_elixir' } },
@@ -497,6 +505,7 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '🕳️',
       desc: "The void's own wound, crawling with what fell through. Cleared trials repeat.",
       boss: 'e_warden',
+      bossGate: { quest: 'm25_silence', requireDone: false },
       floors: [
         { enemies: ['e_voidspawn', 'e_nullhound'], treasure: { gold: 1800 } },
         { enemies: ['e_echo', 'e_voidspawn', 'e_nullhound'], treasure: { item: 'c_elixir' } },
