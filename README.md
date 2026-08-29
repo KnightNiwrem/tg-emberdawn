@@ -21,7 +21,8 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 - **Forge tempering** (+1…+5 per slot, permanent stat boosts), shops that scale by chapter.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
   penalties, auto-revive trinket.
-- **One live message per player**: staleness-guarded, crash-safe, state persisted in Deno KV.
+- **One live message per player**: staleness-guarded, crash-safe, state persisted in Postgres
+  (JSONB) — attached Prisma Postgres on Deno Deploy, any Postgres locally.
 
 ## Stack
 
@@ -61,8 +62,15 @@ deno task webhook delete  # unregister
 
 `GET /healthz` answers `emberfall bot: ok` for platform health checks.
 
-On Deno Deploy, Deno KV is built in — player saves survive redeploys with no configuration. Locally,
-Deno KV uses a managed sqlite file (set `BOT_KV_PATH` to place it explicitly).
+On Deno Deploy, attach a **Prisma Postgres** instance to the app (App settings → Databases → Attach
+Database). Deploy injects `DATABASE_URL` and the `PG*` variables automatically, and the app picks
+them up with zero configuration. Set the app's **Pre-Deploy Command** (Settings → App Config) to
+`deno task migrate:pg` so the `players` table exists before each revision serves traffic.
+
+Locally, `DATABASE_URL` is normally unset: persistence falls back to Deno KV backed by a managed
+sqlite file (set `BOT_KV_PATH` to place it), or point `DATABASE_URL` at any Postgres. If your
+Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the Postgres path with:
+`TEST_PG_URL=postgresql://… deno task test:pg`.
 
 ## Playing
 

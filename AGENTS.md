@@ -40,6 +40,7 @@ place on every action.
 ```bash
 deno task check   # typecheck everything (must pass before commit)
 deno task test    # engine + bot integration tests (must pass)
+deno task test:pg # Postgres round-trip (real DB; skipped unless TEST_PG_URL set)
 deno task fmt     # deno fmt (run before commit)
 deno task lint    # deno lint (must pass)
 npx fallow        # dead code / duplication / complexity audit (advisory)
@@ -73,7 +74,7 @@ src/
 │  ├─ session.ts       #   load → mutate → render → commit → save
 │  ├─ callbacks.ts     #   central router (staleness guard here)
 │  ├─ hub.ts battle.ts commands.ts
-└─ persistence/store.ts # PlayerStore: KvStore (Deno KV) | MemoryStore (tests)
+└─ persistence/store.ts # PlayerStore: PgStore (Postgres/JSONB) | KvStore (local Deno KV) | MemoryStore (tests)
 tests/                 # deno test; engine tests are seeded/deterministic
 scripts/webhook.ts     # deno task webhook <set|info|delete>
 ```

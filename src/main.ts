@@ -6,7 +6,8 @@
 
 import { webhookCallback } from 'grammy';
 import { createBot } from './bot.ts';
-import { KvStore } from './persistence/store.ts';
+import { KvStore, PgStore } from './persistence/store.ts';
+import type { PlayerStore } from './persistence/store.ts';
 
 const token = Deno.env.get('BOT_TOKEN');
 if (!token) {
@@ -14,7 +15,13 @@ if (!token) {
   Deno.exit(1);
 }
 
-const store = await KvStore.open(Deno.env.get('BOT_KV_PATH') || undefined);
+// Attached Prisma Postgres on Deno Deploy injects DATABASE_URL / PG* env vars
+// (docs.deno.com/deploy/reference/databases). Fall back to local Deno KV.
+const dbUrl = Deno.env.get('DATABASE_URL');
+const store: PlayerStore = dbUrl
+  ? await PgStore.open(dbUrl)
+  : await KvStore.open(Deno.env.get('BOT_KV_PATH') || undefined);
+console.log(dbUrl ? 'store: postgres (DATABASE_URL)' : 'store: local deno kv');
 const bot = createBot({ token, store });
 
 const secretToken = Deno.env.get('WEBHOOK_SECRET') || undefined;
@@ -36,7 +43,7 @@ if (Deno.env.get('BOT_POLLING') === '1') {
       }
     }
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/healthz')) {
-      return new Response('emberfall bot: ok');
+      return new Response('emberdawn bot: ok');
     }
     return new Response('not found', { status: 404 });
   });
