@@ -17,7 +17,6 @@ import {
 } from '../render/menus.ts';
 import {
   renderCharacter,
-  renderClassPicker,
   renderDeath,
   renderForge,
   renderHelp,

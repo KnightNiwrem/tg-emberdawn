@@ -6,9 +6,8 @@
 import { assert, assertEquals, assertGreater } from '@std/assert';
 import { applyDeath, createPlayer, grantXp, statsOf } from '../src/engine/character.ts';
 import { xpForNextLevel } from '../src/engine/classes.ts';
-import { CLASSES, derivedStats, MAX_LEVEL } from '../src/engine/classes.ts';
+import { derivedStats, MAX_LEVEL } from '../src/engine/classes.ts';
 import {
-  newBuffs,
   performAction,
   type PlayerAction,
   rollRewards,
@@ -82,7 +81,6 @@ Deno.test('combat: deterministic battle to victory with rewards', () => {
   const rng = seeded(42);
   const p = createPlayer(4, 'T', 'warrior');
   const battle = startBattle('e_rat', 'emberfall')!;
-  const buffs = newBuffs();
   const attack: PlayerAction = { kind: 'attack' };
   let rounds = 0;
   while (battle.enemy.hp > 0 && rounds < 100) {
@@ -128,7 +126,6 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
 
 Deno.test('combat: guard halves incoming damage', () => {
   const rng = seeded(99);
-  const p = createPlayer(7, 'T', 'cleric');
 
   function measure(useGuard: boolean): number {
     const battle = startBattle('e_wolf', 'emberfall')!;

@@ -160,7 +160,7 @@ export function performAction(
 
   const phase = playerPhase(p, battle, action, rng);
   const lines = [...phase.lines];
-  let skipped = phase.skipped;
+  const skipped = phase.skipped;
   const buffs = battle.buffs;
 
   // Player won without retaliation (enemy felled by the action)…

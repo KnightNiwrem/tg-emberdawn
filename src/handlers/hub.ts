@@ -17,8 +17,7 @@ import {
   turnInQuest,
 } from '../engine/quests.ts';
 import { quest, QUESTS } from '../content/quests.ts';
-import { applyDeath, grantXp } from '../engine/character.ts';
-import { startBattle } from '../engine/combat.ts';
+import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
 import type { MutationResult } from './session.ts';
