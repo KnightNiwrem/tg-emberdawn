@@ -4,7 +4,13 @@
  */
 
 import { assert, assertEquals, assertGreater } from '@std/assert';
-import { applyDeath, createPlayer, grantXp, statsOf } from '../src/engine/character.ts';
+import {
+  applyDeath,
+  backfillPlayer,
+  createPlayer,
+  grantXp,
+  statsOf,
+} from '../src/engine/character.ts';
 import { xpForNextLevel } from '../src/engine/classes.ts';
 import { derivedStats, MAX_LEVEL } from '../src/engine/classes.ts';
 import {
@@ -18,7 +24,7 @@ import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, currentStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { diveDungeon, dungeonOf, explore, travel } from '../src/engine/world.ts';
-import { zone, ZONES } from '../src/content/zones.ts';
+import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
@@ -46,6 +52,7 @@ Deno.test('character creation gives class kit and full pools', () => {
   assert(countOf(p, 'w_warrior_1') === 1);
   assert(p.equipment.weapon !== undefined);
   assert(p.gold > 0);
+  assertEquals(p.skills, skillsForClass('warrior', 1).map((sk) => sk.id));
 });
 
 Deno.test('all four classes start with legal kits', () => {
@@ -53,6 +60,8 @@ Deno.test('all four classes start with legal kits', () => {
     const p = createPlayer(2, 'T', cid);
     assert(p.equipment.weapon && item(p.equipment.weapon));
     assert(p.equipment.armor && item(p.equipment.armor));
+    assertEquals(p.skills, skillsForClass(cid, 1).map((sk) => sk.id));
+    assert(p.skills.length > 0, `${cid} should start with a level-1 skill`);
     assertEquals(statsOf(p).maxHp > 0, true);
   }
 });
@@ -269,7 +278,6 @@ Deno.test('forge: tempering requires materials and caps at +5', () => {
 Deno.test('world: travel requires unlock, safe haven restores', () => {
   const p = createPlayer(16, 'T', 'mage');
   p.hp = 1;
-  p.unlockedZones.push('whisperwood');
   const fail = travel(p, 'sunspire');
   assert(!fail.ok);
   const ok = travel(p, 'whisperwood');
@@ -281,17 +289,67 @@ Deno.test('world: travel requires unlock, safe haven restores', () => {
   assertEquals(p.hp, statsOf(p).maxHp);
 });
 
-Deno.test('world: explore never leaves a stale battle', () => {
+Deno.test('death revives at a safe haven, not where you fell', () => {
+  const p = createPlayer(33, 'T', 'warrior');
+  p.gold = 1000;
+  p.currentZone = 'whisperwood';
+  p.hp = 0;
+  const line = applyDeath(p);
+  assert(line.includes('black out'));
+  assertEquals(p.stats.deaths, 1);
+  assertEquals(p.gold, 900);
+  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
+  assertEquals(p.currentZone, 'emberfall');
+});
+
+Deno.test('backfillPlayer migrates legacy saves (skills + starting zones)', () => {
+  const p = createPlayer(21, 'T', 'mage');
+  // Simulate a pre-fix save: no starting skill, no Whisperwood access.
+  p.skills = [];
+  p.unlockedZones = ['emberfall'];
+  backfillPlayer(p);
+  assertEquals(p.skills, skillsForClass('mage', 1).map((sk) => sk.id));
+  for (const zid of STARTING_ZONES) assert(p.unlockedZones.includes(zid));
+  // Idempotent: a second pass changes nothing.
+  backfillPlayer(p);
+  assertEquals(p.skills, skillsForClass('mage', 1).map((sk) => sk.id));
+  // Leveled players keep what they know; nothing is removed.
+  p.skills.push('sk_frost_lance');
+  backfillPlayer(p);
+  assert(p.skills.includes('sk_frost_lance'));
+});
+
+Deno.test('world: every zone is reachable from the starting zones', () => {
+  const granted = new Set<string>(STARTING_ZONES);
+  for (const q of QUESTS) {
+    const u = q.rewards.unlockZone;
+    if (u) granted.add(u);
+  }
+  for (const z of ZONES) {
+    const u = z.dungeon?.firstClear?.unlockZone;
+    if (u) granted.add(u);
+  }
+  for (const z of ZONES) {
+    assert(granted.has(z.id), `zone ${z.id} cannot be unlocked by any content`);
+  }
+});
+
+Deno.test('world: safe havens never spawn battles; the wilds do', () => {
   const rng = seeded(21);
   const p = createPlayer(17, 'T', 'warrior');
+  // Village explore: treasure/rest/flavor only — never a battle.
   for (let i = 0; i < 200; i++) {
-    if (p.battle) break;
     const outcome = explore(p, rng);
-    if (outcome.kind === 'battle') {
-      assertEquals(p.battle, undefined); // explore doesn't attach; caller does
-      break;
-    }
+    assert(outcome.kind !== 'battle', 'safe haven must not spawn battles');
+    assertEquals(p.battle, undefined); // explore never attaches; caller does
   }
+  // The wilds: battles are common (weighted tables) — find one.
+  assert(travel(p, 'whisperwood').ok);
+  let sawBattle = false;
+  for (let i = 0; i < 50 && !sawBattle; i++) {
+    if (explore(p, rng).kind === 'battle') sawBattle = true;
+  }
+  assert(sawBattle, 'whisperwood should spawn battles');
 });
 
 Deno.test('world: dungeon dive advances floors then boss, first-clear once', () => {
@@ -380,17 +438,6 @@ Deno.test('codec: roundtrip for every callback shape', () => {
   }
   assertEquals(decodeCb('garbage'), undefined);
   assertEquals(decodeCb('x:zz:1'), undefined);
-});
-
-Deno.test('death: penalties applied, player revived at half hp', () => {
-  const p = createPlayer(19, 'T', 'warrior');
-  p.gold = 1000;
-  p.hp = 0;
-  const line = applyDeath(p);
-  assert(line.includes('black out'));
-  assertEquals(p.stats.deaths, 1);
-  assertEquals(p.gold, 900);
-  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
 });
 
 Deno.test('derived stats scale with level and gear', () => {

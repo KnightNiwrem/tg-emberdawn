@@ -6,7 +6,8 @@
 import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
-import { skillsLearnedAt } from '../content/skills.ts';
+import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
+import { STARTING_ZONES, ZONES } from '../content/zones.ts';
 import { forgeBonus } from './forge.ts';
 
 export function createPlayer(userId: number, name: string, classId: ClassId): PlayerState {
@@ -29,10 +30,10 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     inventory: inv,
     equipment: { weapon: c.startingGear.weapon, armor: c.startingGear.armor },
     quests: {},
-    unlockedZones: ['emberfall'],
+    unlockedZones: [...STARTING_ZONES],
     currentZone: 'emberfall',
     flags: {},
-    skills: [],
+    skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'home' },
     notices: [],
     stats: { kills: 0, deaths: 0, bossesSlain: 0, battlesWon: 0, createdAt: now, lastPlayed: now },
@@ -78,6 +79,21 @@ export function statsOf(p: PlayerState): DerivedStats {
   return derivedStats(p.classId, p.level, equippedGearStats(p));
 }
 
+/**
+ * Idempotent save migration: grants any skills the player should know at
+ * their current level (level-1 skills predate the creation fix) and ensures
+ * starting-zone access (Whisperwood was never unlockable before).
+ */
+export function backfillPlayer(p: PlayerState): void {
+  const known = new Set(p.skills);
+  for (const sk of skillsForClass(p.classId, p.level)) {
+    if (!known.has(sk.id)) p.skills.push(sk.id);
+  }
+  for (const zid of STARTING_ZONES) {
+    if (!p.unlockedZones.includes(zid)) p.unlockedZones.push(zid);
+  }
+}
+
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */
 export function grantXp(p: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
@@ -104,7 +120,7 @@ export function xpProgress(p: PlayerState): { current: number; needed: number } 
   return { current: p.xp, needed: xpForNextLevel(p.level) };
 }
 
-/** Applies death penalties; player revives at their zone with 50% HP. */
+/** Applies death penalties; the player wakes at a safe haven with 50% HP. */
 export function applyDeath(p: PlayerState): string {
   p.stats.deaths++;
   const lost = Math.floor(p.gold * 0.1);
@@ -112,6 +128,7 @@ export function applyDeath(p: PlayerState): string {
   const s = statsOf(p);
   p.hp = Math.max(1, Math.floor(s.maxHp * 0.5));
   p.mp = Math.floor(s.maxMp * 0.5);
+  p.currentZone = ZONES.find((z) => z.safeHaven)?.id ?? 'emberfall';
   return lost > 0
     ? `💀 You black out and wake at a safe haven. ${lost} gold slipped from your pockets.`
     : '💀 You black out and wake at a safe haven, somehow poorer in spirit only.';

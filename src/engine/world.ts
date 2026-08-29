@@ -46,9 +46,14 @@ export function explore(
   if (!z) return { kind: 'result', lines: ['You are nowhere. Somehow.'] };
   if (p.battle) return { kind: 'result', lines: ['⚔️ Finish the fight in front of you first.'] };
 
-  const weights = z.explore.map((e) => e.weight);
+  // Safe havens never spawn battles — content tables should already be
+  // battle-free; this guard keeps them that way regardless of content.
+  const pool = z.safeHaven
+    ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite')
+    : z.explore;
+  const weights = pool.map((e) => e.weight);
   const idx = weightedIndex(rng, weights);
-  const ev = z.explore[idx];
+  const ev = pool[idx];
   if (!ev) return { kind: 'result', lines: ['Nothing stirs. The world holds its breath.'] };
   return applyExploreEvent(p, z, ev, rng);
 }

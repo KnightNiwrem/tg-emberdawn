@@ -7,6 +7,7 @@ import type { Context } from 'grammy';
 import type { InputRichMessage } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
+import { backfillPlayer } from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -120,6 +121,7 @@ export async function withPlayer(
   if (!from || !ctx.chat) return;
   const p = await store.get(from.id);
   if (!p) return; // no character yet — commands handle onboarding
+  backfillPlayer(p); // idempotent save migration (skills, starting zones)
   const result = (await mutate(p)) ?? {};
   p.stats.lastPlayed = Date.now();
   await store.set(from.id, p);

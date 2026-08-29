@@ -5,6 +5,11 @@
 
 import type { ZoneDef } from './types.ts';
 
+/** Zones a fresh character can already reach. Everything else must be
+ * unlocked by quest rewards or dungeon first-clears (reachability is
+ * test-guarded). */
+export const STARTING_ZONES: readonly string[] = ['emberfall', 'whisperwood'];
+
 export const ZONES: readonly ZoneDef[] = [
   {
     id: 'emberfall',
@@ -16,10 +21,6 @@ export const ZONES: readonly ZoneDef[] = [
       'A village huddled around the last lit ember of the Great Flame — small, stubborn, and still planning for spring.',
     safeHaven: true,
     explore: [
-      { kind: 'battle', enemy: 'e_rat', weight: 3 },
-      { kind: 'battle', enemy: 'e_boar', weight: 2 },
-      { kind: 'battle', enemy: 'e_bandit', weight: 2 },
-      { kind: 'battle', enemy: 'e_wolf', weight: 2 },
       {
         kind: 'treasure',
         gold: 30,
@@ -78,7 +79,9 @@ export const ZONES: readonly ZoneDef[] = [
       { kind: 'battle', enemy: 'e_wolf', weight: 3 },
       { kind: 'battle', enemy: 'e_spider', weight: 3 },
       { kind: 'battle', enemy: 'e_sprite', weight: 2 },
-      { kind: 'battle', enemy: 'e_boar', weight: 1 },
+      { kind: 'battle', enemy: 'e_boar', weight: 2 },
+      { kind: 'battle', enemy: 'e_rat', weight: 2 },
+      { kind: 'battle', enemy: 'e_bandit', weight: 1 },
       {
         kind: 'elite',
         enemy: 'e_stag',

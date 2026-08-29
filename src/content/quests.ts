@@ -421,8 +421,9 @@ export const QUESTS: readonly QuestDef[] = [
     main: false,
     chapter: 1,
     level: 1,
-    summary: 'Cull the village rats.',
-    intro: 'Lyra sighs. "Rats in the grain again. Six fewer would be medicinal."',
+    summary: 'Cull the rats haunting field and wood.',
+    intro:
+      'Lyra sighs. "Rats in the grain, rats at the wood\'s edge. Six fewer would be medicinal."',
     outro: '"Cleaner streets and calmer granaries," Lyra says. "The village thanks you."',
     objectives: [{ kind: 'kill', target: 'e_rat', count: 6 }],
     rewards: { xp: 90, gold: 60, items: { c_minor_potion: 1 } },

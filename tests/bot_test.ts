@@ -42,6 +42,8 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await user.sendCallbackQuery('m:pk:warrior');
+  // Battles live in the wilds now — head to the Whisperwood first.
+  await user.sendCallbackQuery('t:go:whisperwood');
   // Explore until a battle starts (weighted tables guarantee battles often).
   let started = false;
   for (let i = 0; i < 30 && !started; i++) {

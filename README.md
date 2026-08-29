@@ -37,7 +37,7 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 
 ```bash
 deno task check   # typecheck
-deno task test    # 35 deterministic tests (engine + bot integration)
+deno task test    # 37 deterministic tests (engine + bot integration)
 deno task lint
 ```
 
@@ -76,9 +76,10 @@ Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the store 
 ## Playing
 
 `/start` → pick a class → the game message becomes your zone hub. From there, everything is buttons:
-**Explore** (battles/treasure/rest), **Dive** into the zone dungeon, **Travel**, **Shop**,
-**Forge**, **Quests**, **Skills**, **Character**. `/help` explains; `/reset` starts over. If the
-game message ever gets buried, `/start` re-centers it and old copies go stale safely.
+**Explore** (battles, treasure, rest — towns are battle-free safe havens; arriving in one fully
+heals you), **Dive** into the zone dungeon, **Travel**, **Shop**, **Forge**, **Quests**, **Skills**,
+**Character**. `/help` explains; `/reset` starts over. If the game message ever gets buried,
+`/start` re-centers it and old copies go stale safely.
 
 ## Project layout
 

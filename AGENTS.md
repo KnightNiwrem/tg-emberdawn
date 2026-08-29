@@ -104,6 +104,12 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 3. Wire drops ≤ sensible probabilities (bosses 0.4–1.0, field 0.1–0.6).
 4. Quest rewards should cover ~2–3 shop tiers of gear at that level.
 5. Run the content-integrity tests; they catch dangling ids.
+6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
+   engine also filters them); battles belong in the wilds players travel to.
+7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
+   `unlockZone` reward — the zone-reachability test enforces this.
+8. `learnLevel: 1` skills are granted at creation; `backfillPlayer` (called on every load) migrates
+   older saves — extend it whenever the starting kit or starting zones change.
 
 ## Known trade-offs (evaluated fallow findings)
 

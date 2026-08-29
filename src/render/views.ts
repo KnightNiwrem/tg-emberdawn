@@ -45,7 +45,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
 
   blocks.push(
     buttonsRow([
-      cbBtn('🧭 Explore', encodeCb({ v: 'zone', a: 'ex' }), 'success'),
+      cbBtn(z.safeHaven ? '🌾 Forage' : '🧭 Explore', encodeCb({ v: 'zone', a: 'ex' }), 'success'),
       d
         ? cbBtn(`${d.emoji} Dive`, encodeCb({ v: 'zone', a: 'dg' }), 'primary')
         : disabledBtn('🗺️ —'),
@@ -376,7 +376,8 @@ export function renderHelp(): InputRichMessage {
       heading('🔥 Emberdawn — help', 3),
       para(
         'A turn-based RPG living inside this message.\n\n' +
-          '🧭 Explore — wander the zone: battles, treasure, rest.\n' +
+          '🧭 Explore — seek battles, treasure and rest in the wilds.\n' +
+          '🛖 Towns are safe havens: no battles, and arriving fully heals you.\n' +
           '⚔️ Battles — Attack, Skills, Items, Guard, Flee.\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
           '⚒️ Forge — temper gear to +5 for permanent stat boosts.\n' +
