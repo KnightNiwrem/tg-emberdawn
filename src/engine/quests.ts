@@ -1,0 +1,194 @@
+/**
+ * Quest state machine: availability, acceptance, objective progress,
+ * completion and turn-in. Status transitions:
+ *   unavailable → available → active → turnIn → done
+ */
+
+import type { PlayerState, QuestProgress } from './types.ts';
+import type { Objective, QuestDef } from '../content/types.ts';
+import { quest, QUESTS } from '../content/quests.ts';
+import { addItem, countOf } from './inventory.ts';
+import { itemName } from '../content/items.ts';
+import { enemyName } from '../content/enemies.ts';
+import { zone as zoneDef } from '../content/zones.ts';
+import { grantXp } from './character.ts';
+
+function progress(p: PlayerState, id: string): QuestProgress {
+  let q = p.quests[id];
+  if (!q) {
+    q = { status: 'unavailable', counts: [] };
+    p.quests[id] = q;
+  }
+  return q;
+}
+
+function prereqsMet(p: PlayerState, q: QuestDef): boolean {
+  if (q.prereqQuest && p.quests[q.prereqQuest]?.status !== 'done') return false;
+  if (q.prereqFlags && !q.prereqFlags.some((f) => p.flags[f] !== undefined)) return false;
+  return p.level >= q.level;
+}
+
+/** Recomputes availability for every quest; returns ids newly available. */
+export function syncAvailability(p: PlayerState): string[] {
+  const newly: string[] = [];
+  for (const q of QUESTS) {
+    const cur = p.quests[q.id]?.status;
+    if (cur === undefined || cur === 'unavailable') {
+      if (prereqsMet(p, q)) {
+        progress(p, q.id).status = 'available';
+        newly.push(q.id);
+      }
+    }
+  }
+  return newly;
+}
+
+export function acceptQuest(p: PlayerState, id: string): { ok: boolean; msg: string } {
+  const q = quest(id);
+  if (!q) return { ok: false, msg: 'Unknown quest.' };
+  const qp = progress(p, id);
+  if (qp.status !== 'available') return { ok: false, msg: "That quest isn't available right now." };
+  qp.status = 'active';
+  qp.counts = q.objectives.map(() => 0);
+  return { ok: true, msg: `📜 Quest accepted: ${q.name}` };
+}
+
+/** Live progress of one objective (collect objectives read the bag). */
+function objectiveProgress(
+  p: PlayerState,
+  qp: QuestProgress,
+  obj: Objective,
+  index: number,
+): number {
+  if (obj.kind === 'collect') return Math.min(obj.count ?? 1, countOf(p, obj.target));
+  if (
+    obj.kind === 'kill' || obj.kind === 'dungeon' || obj.kind === 'talk' || obj.kind === 'reach'
+  ) {
+    return Math.min(obj.count ?? 1, qp.counts[index] ?? 0);
+  }
+  return 0;
+}
+
+function questComplete(p: PlayerState, id: string): boolean {
+  const q = quest(id);
+  const qp = p.quests[id];
+  if (!q || !qp || qp.status !== 'active') return false;
+  return q.objectives.every((o, i) => objectiveProgress(p, qp, o, i) >= (o.count ?? 1));
+}
+
+/** Call after any kill/reach/event; flips completed active quests to turnIn. */
+function refreshProgress(p: PlayerState): string[] {
+  const ready: string[] = [];
+  for (const [id, qp] of Object.entries(p.quests)) {
+    if (qp.status === 'active' && questComplete(p, id)) {
+      qp.status = 'turnIn';
+      ready.push(id);
+    }
+  }
+  return ready;
+}
+
+function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number): string {
+  const o = q.objectives[i]!;
+  const need = o.count ?? 1;
+  const have = objectiveProgress(p, qp, o, i);
+  let label: string;
+  switch (o.kind) {
+    case 'kill':
+      label = `Slay ${enemyName(o.target)}`;
+      break;
+    case 'collect':
+      label = `Collect ${itemName(o.target)}`;
+      break;
+    case 'reach':
+      label = `Travel to ${zoneDef(o.target)?.name ?? o.target}`;
+      break;
+    case 'talk':
+      label = `Speak with ${npcName(o.target)}`;
+      break;
+    case 'dungeon':
+      label = `Clear ${o.target}`;
+      break;
+  }
+  return need > 1 ? `${label} — ${have}/${need}` : `${label}${have >= 1 ? ' ✓' : ''}`;
+}
+
+import { npc } from '../content/quests.ts';
+function npcName(id: string): string {
+  return npc(id)?.name ?? id;
+}
+
+export function questStatusLine(p: PlayerState, id: string): string {
+  const q = quest(id);
+  const qp = p.quests[id];
+  if (!q) return '';
+  if (!qp || qp.status === 'unavailable' || qp.status === 'available') {
+    return qp?.status === 'available' ? '🟢 Available' : '🔒 Locked';
+  }
+  if (qp.status === 'done') return '✅ Completed';
+  if (qp.status === 'turnIn') return '🏁 Ready to turn in';
+  return q.objectives.map((_, i) => objectiveLine(p, q, qp, i)).join('\n');
+}
+
+export interface TurnInResult {
+  ok: boolean;
+  lines: string[];
+}
+
+/** Turns a ready quest in: grants rewards, sets flags, unlocks zones. */
+export function turnInQuest(p: PlayerState, id: string): TurnInResult {
+  const q = quest(id);
+  const qp = p.quests[id];
+  if (!q || !qp || qp.status !== 'turnIn') {
+    return { ok: false, lines: ["That quest isn't ready to turn in."] };
+  }
+  qp.status = 'done';
+  const lines: string[] = [q.outro];
+  const r = q.rewards;
+  p.gold += r.gold;
+  lines.push(`💰 +${r.gold} gold · ✨ +${r.xp} XP`);
+  lines.push(...grantXp(p, r.xp));
+  for (const [itemId, qty] of Object.entries(r.items ?? {})) {
+    addItem(p, itemId, qty);
+    lines.push(`🎁 Received: ${itemName(itemId)}${qty > 1 ? ` ×${qty}` : ''}`);
+  }
+  for (const f of r.flags ?? []) p.flags[f] = true;
+  if (r.unlockZone && !p.unlockedZones.includes(r.unlockZone)) {
+    p.unlockedZones.push(r.unlockZone);
+    lines.push(`🗺️ New area unlocked: ${zoneDef(r.unlockZone)?.name ?? r.unlockZone}`);
+  }
+  return { ok: true, lines };
+}
+
+/**
+ * Progresses every active quest with an objective matching (kind, target).
+ * +1 per event, capped at the objective's required count.
+ */
+function progressObjective(p: PlayerState, kind: Objective['kind'], target: string): void {
+  for (const q of QUESTS) {
+    const qp = p.quests[q.id];
+    if (!qp || qp.status !== 'active') continue;
+    q.objectives.forEach((o, i) => {
+      if (o.kind === kind && o.target === target) {
+        qp.counts[i] = Math.min(o.count ?? 1, (qp.counts[i] ?? 0) + 1);
+      }
+    });
+  }
+  refreshProgress(p);
+}
+
+/** Kill-objective hook: called for every enemy the player defeats. */
+export function onKill(p: PlayerState, enemyId: string): void {
+  progressObjective(p, 'kill', enemyId);
+}
+
+/** Reach-objective hook: called on zone entry. */
+export function onZoneEnter(p: PlayerState, zoneId: string): void {
+  p.flags[`zone_${zoneId}`] = true;
+  progressObjective(p, 'reach', zoneId);
+}
+
+/** Talk-objective hook: called when the player speaks to an NPC. */
+export function onTalk(p: PlayerState, npcId: string): void {
+  progressObjective(p, 'talk', npcId);
+}

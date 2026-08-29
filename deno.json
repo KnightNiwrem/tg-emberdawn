@@ -1,0 +1,26 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read --allow-write --allow-import src/main.ts",
+    "webhook": "deno run --allow-net --allow-env --allow-import scripts/webhook.ts",
+    "check": "deno check --allow-import src/main.ts scripts/webhook.ts tests/",
+    "test": "deno test --allow-import --allow-env --allow-read --allow-write tests/",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  },
+  "unstable": ["kv"],
+  "imports": {
+    "grammy": "npm:grammy@^1.46.0",
+    "grammy/types": "npm:grammy@^1.46.0/types",
+    "@grammyjs/storage-denokv": "jsr:@grammyjs/storage-denokv@^2.6.0",
+    "@std/assert": "jsr:@std/assert@^1.0.13",
+    "grammy-testing": "npm:grammy-testing@^0.26.0"
+  },
+  "lock": true,
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true
+  },
+  "fmt": { "singleQuote": true, "lineWidth": 100 },
+  "lint": { "rules": { "include": ["no-explicit-any", "no-slow-types"] } }
+}
