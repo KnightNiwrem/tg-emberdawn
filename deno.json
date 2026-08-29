@@ -5,6 +5,7 @@
     "check": "deno check --allow-import src/main.ts scripts/webhook.ts tests/",
     "test": "deno test --allow-import --allow-env --allow-read --allow-write tests/",
     "fmt": "deno fmt",
+    "fmt:check": "deno fmt --check",
     "lint": "deno lint"
   },
   "unstable": ["kv"],
