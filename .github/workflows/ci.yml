@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: ["fmt:check", "lint", "check", "test"]
+        task: ['fmt:check', 'lint', 'check', 'test']
     steps:
       - uses: actions/checkout@v4
 

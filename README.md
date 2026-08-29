@@ -1,31 +1,36 @@
 # 🔥 Emberdawn
 
-A turn-based RPG about seeking hope for a future, played entirely inside a single Telegram message, built on
-**Bot API Rich Messages** — every button (explore, fight, skills, shop, forge,
-quests) lives in the message body itself and edits in place. No `reply_markup`
-anywhere.
+A turn-based RPG about seeking hope for a future, played entirely inside a single Telegram message,
+built on **Bot API Rich Messages** — every button (explore, fight, skills, shop, forge, quests)
+lives in the message body itself and edits in place. No `reply_markup` anywhere.
 
-> The Great Flame is guttering — a king split it in half and hoarded its
-> tomorrow. But embers are promises. Take up the last light, carry it through
-> six chapters of dark, and bring back the dawn. Then guard what you lit.
+> The Great Flame is guttering — a king split it in half and hoarded its tomorrow. But embers are
+> promises. Take up the last light, carry it through six chapters of dark, and bring back the dawn.
+> Then guard what you lit.
 
 ## Features
 
 - **4 classes** — Warrior, Mage, Rogue, Cleric — each with 8 unique skills learned by level.
-- **Turn-based combat** — attack, skills (MP + cooldowns), items, guard, flee; crits, stuns, buffs/debuffs, scripted boss specials.
-- **8 zones, 8 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the stolen dawn — plus a postgame hunt beneath the world.
-- **25 main quests + 16 side quests** (the player is a *Dawncaller*; the Sundered King is despair that stopped believing in morning), quest log with objective tracking and turn-ins.
+- **Turn-based combat** — attack, skills (MP + cooldowns), items, guard, flee; crits, stuns,
+  buffs/debuffs, scripted boss specials.
+- **8 zones, 8 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the
+  stolen dawn — plus a postgame hunt beneath the world.
+- **25 main quests + 16 side quests** (the player is a _Dawncaller_; the Sundered King is despair
+  that stopped believing in morning), quest log with objective tracking and turn-ins.
 - **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
 - **Forge tempering** (+1…+5 per slot, permanent stat boosts), shops that scale by chapter.
-- **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death penalties, auto-revive trinket.
+- **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
+  penalties, auto-revive trinket.
 - **One live message per player**: staleness-guarded, crash-safe, state persisted in Deno KV.
 
 ## Stack
 
-- **Deno 2** (`deno.json` is the manifest; tasks: `start`, `webhook`, `check`, `test`, `fmt`, `lint`)
+- **Deno 2** (`deno.json` is the manifest; tasks: `start`, `webhook`, `check`, `test`, `fmt`,
+  `lint`)
 - **grammY 1.46** (rich messages: `sendRichMessage`, in-body `RichMessageButton`)
 - **grammy-testing** for in-process integration tests; **fallow** for dead-code/complexity audits
-- Pure engine (`src/engine`, `src/content`) — zero Telegram imports; renderers and handlers are the only I/O-aware layers
+- Pure engine (`src/engine`, `src/content`) — zero Telegram imports; renderers and handlers are the
+  only I/O-aware layers
 
 ## Getting started
 
@@ -44,7 +49,8 @@ BOT_TOKEN=123:abc BOT_POLLING=1 deno task start
 ### Deploy (webhook, Deno Deploy friendly)
 
 1. Create the bot with @BotFather, copy the token.
-2. Deploy this repo with entrypoint `src/main.ts`; set `BOT_TOKEN` (and optionally `WEBHOOK_SECRET`).
+2. Deploy this repo with entrypoint `src/main.ts`; set `BOT_TOKEN` (and optionally
+   `WEBHOOK_SECRET`).
 3. Register the webhook once:
 
 ```bash
@@ -55,20 +61,17 @@ deno task webhook delete  # unregister
 
 `GET /healthz` answers `emberfall bot: ok` for platform health checks.
 
-On Deno Deploy, Deno KV is built in — player saves survive redeploys with no
-configuration. Locally, Deno KV uses a managed sqlite file (set
-`BOT_KV_PATH` to place it explicitly).
+On Deno Deploy, Deno KV is built in — player saves survive redeploys with no configuration. Locally,
+Deno KV uses a managed sqlite file (set `BOT_KV_PATH` to place it explicitly).
 
 ## Playing
 
-`/start` → pick a class → the game message becomes your zone hub. From there,
-everything is buttons: **Explore** (battles/treasure/rest), **Dive** into the
-zone dungeon, **Travel**, **Shop**, **Forge**, **Quests**, **Skills**,
-**Character**. `/help` explains; `/reset` starts over. If the game message
-ever gets buried, `/start` re-centers it and old copies go stale safely.
+`/start` → pick a class → the game message becomes your zone hub. From there, everything is buttons:
+**Explore** (battles/treasure/rest), **Dive** into the zone dungeon, **Travel**, **Shop**,
+**Forge**, **Quests**, **Skills**, **Character**. `/help` explains; `/reset` starts over. If the
+game message ever gets buried, `/start` re-centers it and old copies go stale safely.
 
 ## Project layout
 
-See **[AGENTS.md](AGENTS.md)** — the full architecture manual, invariants
-(pure engine, single live message, callback budget), content authoring
-checklist, and the evaluated fallow audit notes.
+See **[AGENTS.md](AGENTS.md)** — the full architecture manual, invariants (pure engine, single live
+message, callback budget), content authoring checklist, and the evaluated fallow audit notes.
