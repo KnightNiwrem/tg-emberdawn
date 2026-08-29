@@ -44,6 +44,7 @@ deno task lint
 ### Run locally (long polling — no public URL needed)
 
 ```bash
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
 BOT_TOKEN=123:abc BOT_POLLING=1 deno task start
 ```
 
@@ -60,16 +61,16 @@ deno task webhook info    # Telegram's view of the webhook
 deno task webhook delete  # unregister
 ```
 
-`GET /healthz` answers `emberfall bot: ok` for platform health checks.
+`GET /healthz` answers `emberdawn bot: ok` for platform health checks.
 
 On Deno Deploy, attach a **Prisma Postgres** instance to the app (App settings → Databases → Attach
 Database). Deploy injects `DATABASE_URL` and the `PG*` variables automatically, and the app picks
 them up with zero configuration. Set the app's **Pre-Deploy Command** (Settings → App Config) to
 `deno task migrate:pg` so the `players` table exists before each revision serves traffic.
 
-Locally, `DATABASE_URL` is normally unset: persistence falls back to Deno KV backed by a managed
-sqlite file (set `BOT_KV_PATH` to place it), or point `DATABASE_URL` at any Postgres. If your
-Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the Postgres path with:
+`DATABASE_URL` is required everywhere. On Deno Deploy the attached instance injects it; locally,
+point it at any Postgres (e.g. `postgresql://postgres:postgres@localhost:5432/postgres`). If your
+Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the store with:
 `TEST_PG_URL=postgresql://… deno task test:pg`.
 
 ## Playing

@@ -178,7 +178,6 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@grammyjs/storage-denokv@^2.6.0",
       "jsr:@std/assert@^1.0.13",
       "npm:@types/pg@8",
       "npm:grammy-testing@0.26",

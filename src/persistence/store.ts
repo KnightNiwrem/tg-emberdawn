@@ -3,8 +3,6 @@
  * - PgStore: Postgres via npm:pg. On Deno Deploy, an attached Prisma Postgres
  *   instance injects DATABASE_URL / PG* env vars (see docs.deno.com/deploy/
  *   reference/databases); any standard Postgres works locally too.
- * - KvStore: Deno KV (local dev fallback; managed KV needs a Deploy plan
- *   with KV provisioning).
  * - MemoryStore: in-memory (tests).
  */
 
@@ -47,32 +45,6 @@ export class MemoryStore implements PlayerStore {
   // deno-lint-ignore require-await
   async delete(userId: number): Promise<void> {
     this.map.delete(userId);
-  }
-}
-
-export class KvStore implements PlayerStore {
-  private kv: Deno.Kv;
-
-  private constructor(kv: Deno.Kv) {
-    this.kv = kv;
-  }
-
-  static async open(path?: string): Promise<KvStore> {
-    const kv = await Deno.openKv(path);
-    return new KvStore(kv);
-  }
-
-  async get(userId: number): Promise<PlayerState | undefined> {
-    const res = await this.kv.get<PlayerState>(['player', userId]);
-    return res.value ?? undefined;
-  }
-
-  async set(userId: number, state: PlayerState): Promise<void> {
-    await this.kv.set(['player', userId], state);
-  }
-
-  async delete(userId: number): Promise<void> {
-    await this.kv.delete(['player', userId]);
   }
 }
 

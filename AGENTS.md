@@ -74,7 +74,7 @@ src/
 │  ├─ session.ts       #   load → mutate → render → commit → save
 │  ├─ callbacks.ts     #   central router (staleness guard here)
 │  ├─ hub.ts battle.ts commands.ts
-└─ persistence/store.ts # PlayerStore: PgStore (Postgres/JSONB) | KvStore (local Deno KV) | MemoryStore (tests)
+└─ persistence/store.ts # PlayerStore: PgStore (Postgres/JSONB) | MemoryStore (tests)
 tests/                 # deno test; engine tests are seeded/deterministic
 scripts/webhook.ts     # deno task webhook <set|info|delete>
 ```
@@ -122,5 +122,5 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 
 1. `deno task check && deno task test && deno task lint` — all green?
 2. `git status` — clean tree expected; work on branches/commits per change.
-3. Never commit `.env`, tokens, or local KV files (see `.gitignore`).
+3. Never commit `.env`, tokens, or local database files (see `.gitignore`).
 4. BOT_TOKEN comes from the environment; never write it into the repo.
