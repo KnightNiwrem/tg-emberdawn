@@ -30,10 +30,10 @@ import {
   syncAvailability,
   turnInQuest,
 } from '../src/engine/quests.ts';
-import { currentStock, tierForLevel } from '../src/engine/shops.ts';
+import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
-import { item } from '../src/content/items.ts';
+import { isEquippable, item } from '../src/content/items.ts';
 import { renderInventory } from '../src/render/menus.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
@@ -586,4 +586,64 @@ Deno.test('reach quests credit the zone you already occupy or visited (#23)', ()
   assertEquals(fresh.quests['m5_fen']?.counts[0], 0);
   assert(travel(fresh, 'hollowmere').ok);
   assertEquals(fresh.quests['m5_fen']?.status, 'turnIn', 'arrival completes it');
+});
+
+Deno.test('shop stocks only the shopping class, only immediately usable gear (#22)', () => {
+  // The four audit boundaries: L4/Hollowmere stocked T2 (req 7), L25/Cinder
+  // T6 (req 31), L34/Umbra T7 (req 37), L41/Abyss T8 (req 43) — all bait.
+  const boundaries: [number, string][] = [
+    [4, 'hollowmere'],
+    [25, 'cinder'],
+    [34, 'umbra'],
+    [41, 'abyss'],
+  ];
+  for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    for (const [level, zoneId] of boundaries) {
+      const p = createPlayer(950, 'T', cls);
+      p.level = level;
+      p.currentZone = zoneId;
+      const stock = currentStock(p);
+      for (const other of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+        if (other === cls) continue;
+        assert(
+          !stock.some((id) => id.startsWith(`w_${other}_`) || id.startsWith(`a_${other}_`)),
+          `${other} gear must not sit on a ${cls}'s shelf (L${level} ${zoneId})`,
+        );
+      }
+      for (const id of stock) {
+        const d = item(id)!;
+        if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
+          assertEquals(
+            isEquippable(id, cls, level).ok,
+            true,
+            `${id} must be usable at L${level} in ${zoneId}`,
+          );
+        }
+      }
+    }
+  }
+
+  // Tier pins at two boundaries: the bait tier is gone, the usable one is
+  // shelved.
+  const l4 = createPlayer(951, 'T', 'warrior');
+  l4.level = 4;
+  l4.currentZone = 'hollowmere';
+  const s4 = currentStock(l4);
+  assert(!s4.includes('w_warrior_2'), 'level-7 tier-2 gear is not bait at L4');
+  assert(s4.includes('w_warrior_1'));
+
+  const l41 = createPlayer(952, 'T', 'warrior');
+  l41.level = 41;
+  l41.currentZone = 'abyss';
+  const s41 = currentStock(l41);
+  assert(!s41.includes('w_warrior_8'), 'level-43 tier-8 gear is not bait at L41');
+  assert(s41.includes('w_warrior_7'), 'tier-7 (level 37) is shelved at L41');
+
+  // The counter revalidates before charging (#22): wrong-class gear is
+  // refused with the purse untouched.
+  const mage = createPlayer(953, 'T', 'mage');
+  mage.gold = 100;
+  const r = buy(mage, 'w_warrior_1', 1);
+  assertEquals(r.ok, false);
+  assertEquals(mage.gold, 100, 'no charge on a refused sale');
 });

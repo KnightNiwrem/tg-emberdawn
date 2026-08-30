@@ -1,7 +1,7 @@
 /** Shop economy: buying and selling. Pure over PlayerState. */
 
 import type { PlayerState } from './types.ts';
-import { item, itemName, sellPrice, shopStock } from '../content/items.ts';
+import { isEquippable, item, itemName, sellPrice, shopStock } from '../content/items.ts';
 import { removeItem } from './inventory.ts';
 import { grantItem } from './quests.ts';
 import { quest } from '../content/quests.ts';
@@ -21,13 +21,18 @@ function shopTierFor(p: PlayerState): number {
   if (!z) return levelTier;
   const loTier = Math.min(8, Math.floor((z.levels[0] - 1) / 6) + 1);
   const hiTier = Math.min(8, Math.floor((z.levels[1] - 1) / 6) + 1);
+  // The band clamp still governs the SHOP's identity (consumables and
+  // materials are always usable, so the local tier is pure flavor). Gear
+  // usability is NOT decided here anymore: shopStock filters every shelved
+  // piece against the shopper's class and level, so the old clamp-up can
+  // no longer bait a low-level traveler with level-locked gear (#22).
   return Math.min(hiTier, Math.max(loTier, levelTier));
 }
 
 export function currentStock(p: PlayerState): string[] {
   // Player level gates what's on the shelf (#6): nothing unequippable is
   // offered, so a purchase is always immediately usable.
-  return shopStock(p.currentZone, shopTierFor(p), p.level);
+  return shopStock(p.currentZone, shopTierFor(p), { level: p.level, classId: p.classId });
 }
 
 export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lines: string[] } {
@@ -35,6 +40,15 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
   if (!def) return { ok: false, lines: ['The shopkeeper blinks. "Never heard of it."'] };
   if (!currentStock(p).includes(itemId)) {
     return { ok: false, lines: ['"Not stocking that today."'] };
+  }
+  // Defense in depth (#22): the shelf is already class/level-filtered, but
+  // the counter revalidates before charging — a purchase can never hand
+  // over gear the buyer cannot equip.
+  if (
+    (def.kind === 'weapon' || def.kind === 'armor' || def.kind === 'trinket') &&
+    !isEquippable(itemId, p.classId, p.level).ok
+  ) {
+    return { ok: false, lines: ['"You could not use that, friend."'] };
   }
   const cost = def.price * qty;
   if (p.gold < cost) return { ok: false, lines: ['💰 Not enough gold.'] };

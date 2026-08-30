@@ -105,11 +105,14 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   engine hooks (`onKill`, `onZoneEnter`, `onTalk`); collect objectives read the bag live. Random
   quest-item drops are relevance-capped (`questDropAllowed`): they flow only while an open
   (available/active) quest still needs them, and stop permanently once it's done.
-- **Economy:** sell = 40% of price. Shop stock tier derives from PLAYER level, clamped to the zone's
-  level band (`shopTierFor()`), so the Abyss stocks tier-8 gear; trinkets additionally stock only
-  what the player can currently equip (`item.level ≤ player level`, #6). Forge tempers up to +5 are
-  bound to the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the temper
-  material is chosen by the item's tier, not the player's location.
+- **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
+  (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
+  flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip
+  (`def.level ≤ player level`) — the old clamp-up baited low-level travelers with level-locked gear
+  (#22). The counter revalidates `isEquippable` before charging (defense in depth). Trinkets stock
+  only what the player can currently equip (`item.level ≤ player level`, #6). Forge tempers up to +5
+  are bound to the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the
+  temper material is chosen by the item's tier, not the player's location. location.
 - **Save schema:** `stateVersion` (default 0) gates one-time migrations; v2 migrated slot-bound
   tempers + old battle shape (string origin, missing buff fields → neutral defaults, so combat can
   never see NaN). Unversioned saves are GRANDFATHERED, never gear-destructive: the old v0→v1

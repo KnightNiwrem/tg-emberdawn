@@ -35,7 +35,7 @@ import { temper, temperLevel } from '../src/engine/forge.ts';
 import { diveDungeon, dungeonOf, explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
-import { item, ITEMS } from '../src/content/items.ts';
+import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
@@ -256,20 +256,30 @@ Deno.test('economy: buy needs gold, sell returns ratio', () => {
   assert(p.gold > 1000 - 30);
 });
 
-Deno.test('shop stock scales with player level within the zone band', () => {
+Deno.test('shop stock: zone consumables by band, gear only what you can equip (#22)', () => {
   const p = createPlayer(13, 'T', 'warrior');
   const early = currentStock(p);
   assert(early.includes('w_warrior_1'));
   p.currentZone = 'frostpeak';
   const late = currentStock(p);
-  assert(late.includes('w_warrior_4'));
+  // Zone identity for always-usable goods: a frostpeak shop carries
+  // frostpeak consumables whoever walks in.
+  assert(late.includes('c_greater_potion'));
+  assert(late.includes('c_smoke_bomb'));
+  // Equipment is filtered to the shopper (#22): tier-4 gear (level 19) is
+  // bait for a level-1 traveler and must not be shelved.
+  assert(!late.includes('w_warrior_4'), 'level-19 gear is not bait at L1');
+  for (const id of late) {
+    const d = item(id)!;
+    if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
+      assertEquals(isEquippable(id, 'warrior', 1).ok, true, `${id} must be usable at L1`);
+    }
+  }
   p.level = 45;
   p.currentZone = 'abyss'; // tier-8 gear lives where level 45 actually is
   const endgame = currentStock(p);
   assert(endgame.includes('w_warrior_8'), 'abyss-tier gear must be purchasable at 45');
   assert(endgame.includes('t_11'), 'late trinkets need an acquisition path');
-  assert(late.includes('c_greater_potion'));
-  assert(late.includes('c_smoke_bomb'));
 });
 
 Deno.test('forge: tempering requires materials and caps at +5', () => {
