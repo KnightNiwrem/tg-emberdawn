@@ -349,17 +349,6 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
   assert(restored, 'cooldown expiry resets the faucet');
 });
 
-Deno.test('forage: legacy exhausted save without a timer stamps from its next visit', () => {
-  const p = createPlayer(911, 'T', 'mage');
-  p.flags['forage_emberfall'] = 3; // pre-#3 save: no forageResetAt
-  const t0 = 5_000_000;
-  explore(p, seeded(17), t0);
-  assertEquals(p.flags['forageResetAt'], t0 + 6 * 3_600_000);
-  // And it is NOT re-stamped on subsequent visits while still charging.
-  explore(p, seeded(17), t0 + 1000);
-  assertEquals(p.flags['forageResetAt'], t0 + 6 * 3_600_000);
-});
-
 Deno.test('shops only stock trinkets the player can actually equip (#6)', () => {
   const p = createPlayer(35, 'T', 'mage');
   const s1 = currentStock(p);

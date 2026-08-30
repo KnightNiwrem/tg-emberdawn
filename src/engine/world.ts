@@ -137,11 +137,6 @@ export function explore(
     }
     if (foraged >= MAX_FORAGE_CHARGES) {
       pool = pool.filter((e) => e.kind !== 'treasure');
-      if (p.flags['forageResetAt'] === undefined) {
-        // Legacy exhausted save without a timer: stamp from THIS visit —
-        // the true exhaustion moment is unknowable in retrospect.
-        p.flags['forageResetAt'] = now + FORAGE_COOLDOWN_MS;
-      }
     } else {
       const left = foraged + 1;
       p.flags[forageKey] = left;
