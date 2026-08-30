@@ -32,6 +32,7 @@ import {
   turnInQuest,
 } from '../src/engine/quests.ts';
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
+import { shopAction } from '../src/handlers/hub.ts';
 import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { isEquippable, item } from '../src/content/items.ts';
@@ -675,4 +676,37 @@ Deno.test('temper is item-pattern mastery: reacquired copies carry the forge-wor
   addItem(p, 'w_warrior_2', 1);
   assertEquals(itemAction(p, 'eq', 'w_warrior_2').toast, undefined);
   assertEquals(temperLevel(p, 'weapon'), 0);
+});
+
+Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () => {
+  const p = createPlayer(961, 'T', 'warrior');
+  p.level = 9;
+  p.currentZone = 'hollowmere'; // tier ≥ 2: m_iron_chunk on the shelf
+  p.gold = 5000;
+  // sq_ore active at 2/3 iron: one purchase completes it (collect
+  // objectives read the bag live).
+  p.quests['sq_ore'] = { status: 'active', counts: [2] };
+  addItem(p, 'm_iron_chunk', 2);
+  const buyRes = shopAction(p, { v: 'shop', a: 'buy', arg: 'm_iron_chunk' });
+  assertEquals(buyRes.toast, undefined, 'a successful buy is not a failure toast');
+  assert(p.notices.some((l) => l.includes('Bought')), 'purchase confirmation surfaces');
+  assert(
+    p.notices.some((l) => l.includes('ready to turn in')),
+    'quest readiness from the purchase is visible',
+  );
+  assertEquals(p.quests['sq_ore']?.status, 'turnIn');
+
+  // Sell success surfaces too.
+  const sellRes = shopAction(p, { v: 'shop', a: 'sell', arg: 'm_iron_chunk' });
+  assertEquals(sellRes.toast, undefined);
+  assert(p.notices.some((l) => l.includes('Sold')), 'sale confirmation surfaces');
+
+  // Failure remains a non-mutating toast.
+  const broke = createPlayer(962, 'T', 'mage');
+  broke.level = 9;
+  broke.currentZone = 'hollowmere';
+  broke.gold = 0;
+  const failRes = shopAction(broke, { v: 'shop', a: 'buy', arg: 'm_iron_chunk' });
+  assertEquals(failRes.toast, '💰 Not enough gold.');
+  assertEquals(broke.notices.length, 0, 'failure keeps notices untouched');
 });

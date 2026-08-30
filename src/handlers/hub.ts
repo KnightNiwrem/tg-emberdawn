@@ -150,11 +150,18 @@ export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResu
   }
   if (cb.a === 'buy') {
     const res = buy(p, cb.arg, 1);
-    return { toast: res.ok ? undefined : res.lines[0] };
+    if (!res.ok) return { toast: res.lines[0] };
+    // Success lines — the purchase confirmation plus any quest-ready
+    // callout from grantItem — surface on the redrawn shop screen (#30)
+    // instead of a silent redraw.
+    p.notices = res.lines;
+    return {};
   }
   // sell
   const res = sell(p, cb.arg, 1);
-  return { toast: res.ok ? undefined : res.lines[0] };
+  if (!res.ok) return { toast: res.lines[0] };
+  p.notices = res.lines;
+  return {};
 }
 
 export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationResult {
