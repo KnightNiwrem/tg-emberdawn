@@ -91,30 +91,30 @@ export function encodeCb(c: Cb): string {
   }
 }
 
+/** Typed wire-action guard: narrows `a` to one of a view's known action
+ * tokens, else undefined — replaces per-case `.includes` + cast blocks. */
+function act<A extends string>(a: string, known: readonly A[]): A | undefined {
+  return (known as readonly string[]).includes(a) ? (a as A) : undefined;
+}
+
 function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
   switch (v) {
-    case 'z':
+    case 'z': {
       if (a === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
-      if (['hm', 'ex', 'dg', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg'].includes(a)) {
-        return {
-          v: 'zone',
-          a: a as 'hm' | 'ex' | 'dg' | 'tv' | 'ch' | 'inv' | 'sk' | 'q' | 'sh' | 'fg',
-        };
-      }
-      return undefined;
-    case 'b':
+      const z = act(a, ['hm', 'ex', 'dg', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg'] as const);
+      return z ? { v: 'zone', a: z } : undefined;
+    }
+    case 'b': {
       if (a === 'us') return { v: 'battle', a: 'use', arg };
-      if (['atk', 'gd', 'fl', 'go', 'sk', 'it'].includes(a)) {
-        return { v: 'battle', a: a as 'atk' | 'gd' | 'fl' | 'go' | 'sk' | 'it' };
-      }
-      return undefined;
-    case 'i':
+      const b = act(a, ['atk', 'gd', 'fl', 'go', 'sk', 'it'] as const);
+      return b ? { v: 'battle', a: b } : undefined;
+    }
+    case 'i': {
       if (a === 'pg') return { v: 'inventory', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'inventory', a: 'bk' };
-      if (['v', 'u', 'eq', 'sell', 'drop'].includes(a)) {
-        return { v: 'inventory', a: a as 'v' | 'u' | 'eq' | 'sell' | 'drop', arg };
-      }
-      return undefined;
+      const i = act(a, ['v', 'u', 'eq', 'sell', 'drop'] as const);
+      return i ? { v: 'inventory', a: i, arg } : undefined;
+    }
     case 'e':
       if (a === 'op') return { v: 'equipment', a: 'open' };
       if (a === 'bk') return { v: 'equipment', a: 'bk' };
@@ -123,20 +123,23 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
     case 's':
       if (a === 'bk') return { v: 'skills', a: 'bk' };
       return undefined;
-    case 'q':
+    case 'q': {
       if (a === 'op') return { v: 'quests', a: 'open', arg: arg || undefined };
       if (a === 'pg') return { v: 'quests', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'quests', a: 'bk' };
-      if (['q', 'a', 't'].includes(a)) return { v: 'quests', a: a as 'q' | 'a' | 't', arg };
-      return undefined;
-    case 'h':
+      const qa = act(a, ['q', 'a', 't'] as const);
+      return qa ? { v: 'quests', a: qa, arg } : undefined;
+    }
+    case 'h': {
       if (a === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'shop', a: 'bk' };
-      if (['buy', 'sell'].includes(a)) return { v: 'shop', a: a as 'buy' | 'sell', arg };
-      return undefined;
-    case 'f':
-      if (['w', 'a', 'bk'].includes(a)) return { v: 'forge', a: a as 'w' | 'a' | 'bk' };
-      return undefined;
+      const h = act(a, ['buy', 'sell'] as const);
+      return h ? { v: 'shop', a: h, arg } : undefined;
+    }
+    case 'f': {
+      const f = act(a, ['w', 'a', 'bk'] as const);
+      return f ? { v: 'forge', a: f } : undefined;
+    }
     case 't':
       if (a === 'bk') return { v: 'travel', a: 'bk' };
       if (a === 'go') return { v: 'travel', a: 'go', arg };

@@ -9,6 +9,7 @@ import { createBot } from '../src/bot.ts';
 import { withRev } from '../src/codec.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
+import type { PlayerState } from '../src/engine/types.ts';
 
 async function setup() {
   const store = new MemoryStore();
@@ -27,6 +28,17 @@ async function tap(
 ): Promise<void> {
   const rev = (await store.get(user.id))?.uiRev ?? 0;
   await user.sendCallbackQuery(withRev(rev, data));
+}
+
+/** /start → pick warrior → apply direct mutations and save. */
+async function startWarrior(mutate: (p: PlayerState) => void) {
+  const { user, store } = await setup();
+  await user.sendCommand('/start');
+  await tap(store, user, 'm:pk:warrior');
+  const p0 = (await store.get(4242))!;
+  mutate(p0);
+  await store.set(4242, p0);
+  return { user, store };
 }
 
 Deno.test('/start with no character sends the class picker', async () => {
@@ -123,14 +135,11 @@ Deno.test('travel view navigates and back returns to zone', async () => {
 });
 
 Deno.test('inventory equip flow swaps gear', async () => {
-  const { user, store } = await setup();
-  await user.sendCommand('/start');
-  await tap(store, user, 'm:pk:warrior');
   // Give a better weapon directly, then equip it through the UI.
-  const p0 = (await store.get(4242))!;
-  p0.level = 7;
-  p0.inventory.push({ id: 'w_warrior_2', qty: 1 });
-  await store.set(4242, p0);
+  const { user, store } = await startWarrior((p) => {
+    p.level = 7;
+    p.inventory.push({ id: 'w_warrior_2', qty: 1 });
+  });
   await tap(store, user, 'z:inv');
   await tap(store, user, 'i:v:w_warrior_2');
   await tap(store, user, 'i:eq:w_warrior_2');
@@ -143,13 +152,10 @@ Deno.test('inventory equip flow swaps gear', async () => {
 });
 
 Deno.test('forge tempering through the UI consumes resources', async () => {
-  const { user, store } = await setup();
-  await user.sendCommand('/start');
-  await tap(store, user, 'm:pk:warrior');
-  const p0 = (await store.get(4242))!;
-  p0.gold = 5000;
-  p0.inventory.push({ id: 'm_ember_shard', qty: 10 });
-  await store.set(4242, p0);
+  const { user, store } = await startWarrior((p) => {
+    p.gold = 5000;
+    p.inventory.push({ id: 'm_ember_shard', qty: 10 });
+  });
   await tap(store, user, 'z:fg');
   await tap(store, user, 'f:w');
   const p1 = (await store.get(4242))!;
@@ -172,14 +178,11 @@ Deno.test('full player persists across bot instance using the same store', async
 });
 
 Deno.test('death flow: felling the player routes through death view and revives', async () => {
-  const { user, store } = await setup();
-  await user.sendCommand('/start');
-  await tap(store, user, 'm:pk:warrior');
   // Force a hopeless fight against a boss.
-  const p0 = (await store.get(4242))!;
-  p0.unlockedZones.push('umbra');
-  p0.currentZone = 'umbra';
-  await store.set(4242, p0);
+  const { user, store } = await startWarrior((p) => {
+    p.unlockedZones.push('umbra');
+    p.currentZone = 'umbra';
+  });
   await tap(store, user, 'z:dg'); // dive into Sundered Throne → floor 1 enemy
   let p = (await store.get(4242))!;
   if (!p.battle) return; // explore rolls may differ; skip if no battle (defensive)

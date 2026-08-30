@@ -4,7 +4,6 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
-import type { Context } from 'grammy';
 import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
@@ -41,23 +40,7 @@ import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
-import { seeded } from './helpers.ts';
-
-/** Minimal grammy Context stand-in: edits succeed, sends return a fresh id. */
-function fakeCtx(userId: number, tapped?: number, data?: string): Context {
-  return {
-    from: { id: userId, first_name: 'T' },
-    chat: { id: userId },
-    callbackQuery: tapped === undefined
-      ? undefined
-      : { data: data ?? 'i:bk', message: { message_id: tapped } },
-    answerCallbackQuery: () => Promise.resolve(),
-    api: {
-      editMessageText: () => Promise.resolve(),
-      sendRichMessage: () => Promise.resolve({ message_id: 424242 }),
-    },
-  } as unknown as Context;
-}
+import { fakeCtx, seeded } from './helpers.ts';
 
 // ── /start is pure re-centering (P0-2) ───────────────────────────────────
 
@@ -131,7 +114,7 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
   await store.set(900, p);
 
   // Tap lands on a copy NEWER than our pointer → adopted as live, persisted.
-  await handleCallback(fakeCtx(900, 101), store);
+  await handleCallback(fakeCtx(900, 101, 'i:bk'), store);
   const after = await store.get(900);
   assertEquals(after?.messageId, 101, 'adoption must persist through the save');
 });
@@ -516,7 +499,7 @@ Deno.test('/reset stages a confirmation; No preserves the whole save (#19)', asy
   p.uiRev = 2;
   await store.set(930, p);
 
-  await handleReset(fakeCtx(930, 600), store);
+  await handleReset(fakeCtx(930, 600, 'i:bk'), store);
   let cur = (await store.get(930))!;
   assertEquals(cur.scene.view, 'reset', 'command stages the confirmation');
   assertEquals(cur.gold, 777, 'nothing destroyed by staging');
@@ -542,7 +525,7 @@ Deno.test('/reset → Yes rebuilds a fully initialized hero (#19)', async () => 
   p.uiRev = 1;
   await store.set(931, p);
 
-  await handleReset(fakeCtx(931, 610), store);
+  await handleReset(fakeCtx(931, 610, 'i:bk'), store);
   let cur = (await store.get(931))!;
   await handleCallback(fakeCtx(931, 610, withRev(cur.uiRev ?? 0, 'm:ry')), store);
   cur = (await store.get(931))!;
