@@ -226,9 +226,8 @@ export function tapIsCurrent(p: PlayerState, ctx: Context, rev: number | undefin
   const newer = tapped !== undefined && p.messageId !== undefined && tapped > p.messageId;
   if (!isLiveMessage(p, ctx)) return false;
   if (newer) {
-    if (rev === undefined) return false;
     p.uiRev = rev;
     return true;
   }
-  return rev !== undefined && rev === p.uiRev;
+  return rev === p.uiRev;
 }
