@@ -389,6 +389,47 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
   assert(howlSeen, 'Howl must appear within 60 rounds');
 });
 
+Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', () => {
+  const p = createPlayer(68, 'T', 'warrior');
+  p.level = 45;
+
+  // Overworld elite: smokeable, and its kills do not inflate boss stats.
+  const elite = startBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
+  p.battle = elite;
+  assert(!elite.enemy.isBoss, 'the overworld Warden is an elite, not a boss');
+  addItem(p, 'c_smoke_bomb', 1);
+  performAction(p, elite, { kind: 'item', itemId: 'c_smoke_bomb' }, seeded(81));
+  assertEquals(elite.phase, 'fled', 'elites can be smoked out of');
+
+  const afterElite = p.stats.bossesSlain;
+  const elite2 = startBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
+  elite2.enemy.hp = 0;
+  resolveVictory(p, elite2, seeded(82));
+  assertEquals(
+    p.stats.bossesSlain,
+    afterElite,
+    'elite Warden kills do not count as bosses slain',
+  );
+
+  // Dungeon boss floor: inescapable and boss-counted.
+  const boss = startBattle('e_warden', {
+    kind: 'dungeon',
+    zoneId: 'abyss',
+    dungeonId: 'd_seam',
+    floor: 5,
+    boss: true,
+  })!;
+  p.battle = boss;
+  assert(boss.enemy.isBoss, 'the d_seam Warden is boss-classified');
+  addItem(p, 'c_smoke_bomb', 1);
+  const res2 = performAction(p, boss, { kind: 'item', itemId: 'c_smoke_bomb' }, seeded(83));
+  assert(res2.lines.some((l) => l.includes('no escape')), 'dungeon Warden refuses Smoke Bomb');
+  assertEquals(boss.phase, 'active', 'smoke refused → battle continues');
+  boss.enemy.hp = 0;
+  resolveVictory(p, boss, seeded(84));
+  assertEquals(p.stats.bossesSlain, afterElite + 1, 'dungeon Warden counts as a boss slain');
+});
+
 Deno.test('economy: buy needs gold, sell returns ratio', () => {
   const p = createPlayer(12, 'T', 'warrior');
   p.gold = 0;

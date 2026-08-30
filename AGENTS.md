@@ -155,6 +155,9 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   boss flags. Dungeon floors advance on VICTORY only; boss floors are story-gated via `bossGate`
   (kill-quest bosses use `requireDone: false`). Victory bookkeeping routes through
   `resolveVictory()` in world.ts — overworld kills never touch dungeon state.
+- **Encounter classification (#28):** boss semantics (no flee, Smoke Bomb refused, `bossesSlain`)
+  come from the ENCOUNTER — only a dungeon boss floor (`origin.boss`) is boss-classified. The Abyss
+  overworld Warden is a farmable ELITE: fleeable, smokeable, not counted.
 
 ## Adding content (checklist)
 

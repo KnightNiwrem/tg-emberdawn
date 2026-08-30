@@ -70,7 +70,7 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   lines.push(...grantDropRewards(p, rewards.drops));
   p.stats.kills++;
   p.stats.battlesWon++;
-  if (def.boss) p.stats.bossesSlain++;
+  if (b.enemy.isBoss) p.stats.bossesSlain++;
   onKill(p, def.id);
   syncAvailability(p);
   if (b.origin.kind === 'dungeon') {

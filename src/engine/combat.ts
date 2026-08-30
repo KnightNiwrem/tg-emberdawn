@@ -32,13 +32,19 @@ function newBuffs(): CombatBuffs {
 export function startBattle(enemyId: string, origin: BattleOrigin): BattleState | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
+  // Boss semantics are decided by the ENCOUNTER, not the catalog (#28):
+  // the Abyss presents e_warden as a farmable overworld elite, so only a
+  // dungeon boss floor confers boss classification (inescapable, Smoke
+  // Bomb-proof, counted in bossesSlain). Quest provenance was already
+  // origin-based; combat and statistics now agree with it.
+  const isBoss = origin.kind === 'dungeon' && origin.boss === true;
   const battle: BattleState = {
     enemy: {
       id: def.id,
       name: def.name,
       hp: def.hp,
       maxHp: def.hp,
-      isBoss: def.boss === true,
+      isBoss,
       turn: 0,
     },
     phase: 'active',
