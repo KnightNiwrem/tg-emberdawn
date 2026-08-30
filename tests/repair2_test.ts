@@ -120,6 +120,7 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
       backing.delete(id);
       return Promise.resolve();
     },
+    withLock: (_id, fn) => fn(),
   };
   const p = createPlayer(900, 'T', 'warrior');
   p.messageId = 100;

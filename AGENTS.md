@@ -31,12 +31,18 @@ place on every action.
 4. **Persistence shape.** `PlayerState` (`src/engine/types.ts`) is plain JSON — no class instances,
    no Maps, no functions. Anything you add must survive `JSON.stringify`. Runtime-only state (e.g.
    battle buffs) lives on `BattleState`, not the player.
-5. **callback_data budget.** 64 bytes max, built/parsed only via `src/codec.ts`
+5. **Cross-instance consistency (#18).** Every update runs inside `PlayerStore.withLock(user)`: the
+   bot's per-user promise chain serializes within a process, and `PgStore.withLock` holds a Postgres
+   session advisory lock on a dedicated connection around the WHOLE load→mutate→save — two bot
+   instances can never interleave read-modify-write for one player (no lost updates).
+   `MemoryStore.withLock` is a passthrough (single process). Never mutate player state outside the
+   lock; never hold the lock across user input.
+6. **callback_data budget.** 64 bytes max, built/parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Add new controls there, never inline raw strings in renderers/handlers.
-6. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
+7. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
    content modules. The integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce
    this — keep them green when adding content.
-7. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
+8. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
    `{ type: 'italic', text }`). HTML tags like `<b>` render literally. Rows of `RichMessageButton`
    go through `src/render/rich.ts` helpers (`buttonsRow`, `cbBtn`, `disabledBtn`).
 

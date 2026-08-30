@@ -17,18 +17,20 @@ export interface BotOptions {
 export function createBot(opts: BotOptions): Bot<Context> {
   const bot = new Bot<Context>(opts.token);
 
-  // Webhook updates can arrive concurrently — serialize per user so each
-  // load/mutate/save cycle is atomic.
+  // Layer 1 (in-process): serialize per user so each load/mutate/save cycle
+  // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a
+  // session advisory lock around the whole update, so a second bot instance
+  // waits instead of racing a lost-update against this one.
   const chains = new Map<number, Promise<void>>();
   bot.use(async (ctx, next) => {
-    const id = ctx.from?.id ?? 0;
-    const prev = chains.get(id) ?? Promise.resolve();
-    const run = prev.then(next);
-    chains.set(id, run);
+    const id = ctx.from?.id;
+    const prev = chains.get(id ?? 0) ?? Promise.resolve();
+    const run = prev.then(() => (id === undefined ? next() : opts.store.withLock(id, next)));
+    chains.set(id ?? 0, run);
     try {
       await run;
     } finally {
-      if (chains.get(id) === run) chains.delete(id);
+      if (chains.get(id ?? 0) === run) chains.delete(id ?? 0);
     }
   });
 

@@ -14,6 +14,14 @@ export interface PlayerStore {
   get(userId: number): Promise<PlayerState | undefined>;
   set(userId: number, state: PlayerState): Promise<void>;
   delete(userId: number): Promise<void>;
+  /** Serializes load → mutate → render → save for one user ACROSS bot
+   * instances (#18): Postgres holds a session advisory lock keyed by the
+   * user id on a dedicated connection for the duration of `fn`, so two
+   * instances can never interleave read-modify-write cycles for the same
+   * player and a committed update is never silently lost. The in-memory
+   * store is a passthrough — a single process serializes per-user work via
+   * the bot's promise chain and has no cross-instance race. */
+  withLock<T>(userId: number, fn: () => Promise<T>): Promise<T>;
 }
 
 const SCHEMA = `
@@ -45,6 +53,13 @@ export class MemoryStore implements PlayerStore {
   // deno-lint-ignore require-await
   async delete(userId: number): Promise<void> {
     this.map.delete(userId);
+  }
+
+  // deno-lint-ignore require-await
+  async withLock<T>(_userId: number, fn: () => Promise<T>): Promise<T> {
+    // Single process: the bot's per-user promise chain already serializes
+    // load→mutate→save; there is no cross-instance race to guard (#18).
+    return fn();
   }
 }
 
@@ -97,5 +112,28 @@ export class PgStore implements PlayerStore {
   // fallow-ignore-next-line unused-class-member
   close(): Promise<void> {
     return this.pool.end();
+  }
+
+  /** Cross-instance serialization (#18): a SESSION advisory lock on a
+   * DEDICATED connection encloses the whole load→mutate→save cycle, so two
+   * bot instances can never interleave read-modify-write for one player —
+   * the second instance waits, then works on the freshly saved state.
+   * Same key on one connection would no-op, hence the dedicated client;
+   * the in-process promise chain guarantees one lock per user at a time
+   * locally, so waiting is the only cross-instance behavior ever seen. */
+  async withLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      // Telegram user ids fit int64 comfortably; advisory locks are
+      // session-scoped and released explicitly (or on connection close).
+      await client.query('SELECT pg_advisory_lock($1)', [userId]);
+      try {
+        return await fn();
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1)', [userId]);
+      }
+    } finally {
+      client.release();
+    }
   }
 }

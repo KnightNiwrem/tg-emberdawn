@@ -5,7 +5,7 @@
  * CI runs it via a postgres service container.
  */
 
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
 import { PgStore } from '../src/persistence/store.ts';
 
@@ -33,6 +33,33 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     assertEquals(await store.get(-1), undefined);
     await store.delete(p.userId);
     assertEquals(await store.get(p.userId), undefined);
+
+    // ── cross-instance serialization (#18) ────────────────────────────────
+    // Two concurrent withLock sections must NOT interleave: a passthrough
+    // (broken) lock would let both bodies run before either finishes —
+    // events would interleave and one +gold update would be lost.
+    const events: string[] = [];
+    const seed = createPlayer(424243, 'Locks', 'warrior');
+    seed.gold = 20; // 20 + 10 + 20 = 50 when BOTH updates survive
+    await store.set(424243, seed);
+    const earn = (delta: number, tag: string) => async () => {
+      events.push(`${tag}:load`);
+      const cur = (await store.get(424243))!;
+      await new Promise((r) => setTimeout(r, 20)); // widen the race window
+      cur.gold += delta;
+      await store.set(424243, cur);
+      events.push(`${tag}:save`);
+    };
+    await Promise.all([
+      store.withLock(424243, earn(10, 'A')),
+      store.withLock(424243, earn(20, 'B')),
+    ]);
+    const seq = events.join(',');
+    assert(
+      seq === 'A:load,A:save,B:load,B:save' || seq === 'B:load,B:save,A:load,A:save',
+      `lock sections must not interleave, got: ${seq}`,
+    );
+    assertEquals((await store.get(424243))?.gold, 50, 'both updates survive (20+10+20)');
   } finally {
     await store.close();
   }
