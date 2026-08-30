@@ -48,7 +48,11 @@ function renderFor(p: PlayerState): InputRichMessage {
     case 'skills':
       return renderSkills(p);
     case 'quests':
-      return p.scene.arg ? renderQuestDetail(p, p.scene.arg) : renderQuests(p);
+      // arg selects a quest detail; arg2 carries the log's side-quest page
+      // (#21) so Back from a detail returns to the same page.
+      return p.scene.arg
+        ? renderQuestDetail(p, p.scene.arg)
+        : renderQuests(p, Number(p.scene.arg2 ?? 0));
     case 'shop':
       return p.scene.arg === 'sell'
         ? renderSell(p, Number(p.scene.arg2 ?? 0))

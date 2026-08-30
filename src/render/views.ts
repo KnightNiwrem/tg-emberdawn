@@ -292,7 +292,9 @@ export function renderCharacter(p: PlayerState): InputRichMessage {
 
 // ── Quest log ─────────────────────────────────────────────────────────────
 
-export function renderQuests(p: PlayerState): InputRichMessage {
+const QUESTS_PAGE_SIZE = 8;
+
+export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
   const blocks: Block[] = [heading('📜 Quest Log', 3), ...noticesBlocks(p)];
   const mains = QUESTS.filter((q) => q.main);
   const sides = QUESTS.filter((q) => !q.main);
@@ -332,8 +334,14 @@ export function renderQuests(p: PlayerState): InputRichMessage {
   const liveSides = sides.filter((q) =>
     ['available', 'active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
   );
+  // Pagination (#21): 16 side quests exist and a completionist save can have
+  // 9+ live at once — the old slice(0, 8) stranded every later quest (several
+  // have no NPC giver, so the log was their only door).
+  const pages = Math.max(1, Math.ceil(liveSides.length / QUESTS_PAGE_SIZE));
+  const pg = Math.min(Math.max(0, page), pages - 1);
+  const start = pg * QUESTS_PAGE_SIZE;
   blocks.push(para(`Side quests (${liveSides.length})`));
-  for (const q of liveSides.slice(0, 8)) {
+  for (const q of liveSides.slice(start, start + QUESTS_PAGE_SIZE)) {
     const status = p.quests[q.id]?.status;
     const label = status === 'turnIn' ? '✅ ' : status === 'active' ? '⏳ ' : '🟢 ';
     blocks.push(
@@ -342,6 +350,9 @@ export function renderQuests(p: PlayerState): InputRichMessage {
         'left',
       ),
     );
+  }
+  if (pages > 1) {
+    blocks.push(pageNav(pg, pages, (n) => encodeCb({ v: 'quests', a: 'p', arg: n })));
   }
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]));
   return { blocks };

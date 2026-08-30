@@ -26,6 +26,7 @@ export type Cb =
   | { v: 'skills'; a: 'bk' }
   | { v: 'quests'; a: 'open'; arg?: string }
   | { v: 'quests'; a: 'q' | 'a' | 't'; arg: string }
+  | { v: 'quests'; a: 'p'; arg: number }
   | { v: 'quests'; a: 'bk' }
   | { v: 'shop'; a: 'p'; arg: number }
   | { v: 'shop'; a: 'buy' | 'sell'; arg: string }
@@ -71,6 +72,7 @@ export function encodeCb(c: Cb): string {
       return 's:bk';
     case 'quests':
       if (c.a === 'open') return `q:op${c.arg ? `:${c.arg}` : ''}`;
+      if (c.a === 'p') return `q:pg:${c.arg}`;
       if (c.a === 'bk') return 'q:bk';
       return `q:${c.a}:${c.arg}`;
     case 'shop':
@@ -123,6 +125,7 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       return undefined;
     case 'q':
       if (a === 'op') return { v: 'quests', a: 'open', arg: arg || undefined };
+      if (a === 'pg') return { v: 'quests', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'quests', a: 'bk' };
       if (['q', 'a', 't'].includes(a)) return { v: 'quests', a: a as 'q' | 'a' | 't', arg };
       return undefined;

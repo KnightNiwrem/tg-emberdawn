@@ -168,16 +168,22 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
 }
 
 export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): MutationResult {
+  if (cb.a === 'p') {
+    // Side-quest page switch (#21); the detail selector stays clear.
+    p.scene = { view: 'quests', arg2: String(cb.arg) };
+    return {};
+  }
   if (cb.a === 'bk') {
-    p.scene = { view: 'quests' };
+    // Back to the log on the SAME page the detail was opened from (#21).
+    p.scene = { view: 'quests', arg2: p.scene.arg2 };
     return {};
   }
   if (cb.a === 'open') {
-    p.scene = { view: 'quests', arg: cb.arg };
+    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
     return {};
   }
   if (cb.a === 'q') {
-    p.scene = { view: 'quests', arg: cb.arg };
+    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
     return {};
   }
   if (cb.a === 'a') {
@@ -185,14 +191,14 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
     if (!res.ok) return { toast: res.msg };
     const q = quest(cb.arg);
     p.notices = res.msg ? [res.msg, q?.intro ?? ''].filter(Boolean) : [];
-    p.scene = { view: 'quests', arg: cb.arg };
+    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
     return {};
   }
   // turn in
   const res = turnInQuest(p, cb.arg);
   if (!res.ok) return { toast: res.lines[0] };
   p.notices = res.lines;
-  p.scene = { view: 'quests' };
+  p.scene = { view: 'quests', arg2: p.scene.arg2 };
   syncAvailability(p);
   return {};
 }
