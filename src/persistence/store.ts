@@ -7,20 +7,29 @@
  */
 
 // @ts-types="npm:@types/pg"
-import { Pool } from 'pg';
+import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from 'pg';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { PlayerState } from '../engine/types.ts';
+
+/** Inside a `withLock` section (#37) this carries the section's dedicated
+ * client, so get/set/delete route through the connection that already holds
+ * the advisory lock. A lock holder must never wait on the pool it is
+ * occupying — at the pool limit that deadlocks the entire bot. */
+const lockClient = new AsyncLocalStorage<PoolClient>();
 
 export interface PlayerStore {
   get(userId: number): Promise<PlayerState | undefined>;
   set(userId: number, state: PlayerState): Promise<void>;
   delete(userId: number): Promise<void>;
   /** Serializes load → mutate → render → save for one user ACROSS bot
-   * instances (#18): Postgres holds a session advisory lock keyed by the
-   * user id on a dedicated connection for the duration of `fn`, so two
-   * instances can never interleave read-modify-write cycles for the same
-   * player and a committed update is never silently lost. The in-memory
-   * store is a passthrough — a single process serializes per-user work via
-   * the bot's promise chain and has no cross-instance race. */
+   * instances (#18): Postgres holds a transaction-scoped advisory lock keyed
+   * by the user id on a dedicated connection for the duration of `fn`, and
+   * fn's state queries run on that SAME connection (#37) — so two instances
+   * can never interleave read-modify-write cycles for the same player, a
+   * committed update is never silently lost, and concurrent distinct-user
+   * updates can never starve the pool. The in-memory store is a passthrough
+   * — a single process serializes per-user work via the bot's promise chain
+   * and has no cross-instance race. */
   withLock<T>(userId: number, fn: () => Promise<T>): Promise<T>;
 }
 
@@ -75,17 +84,36 @@ export class PgStore implements PlayerStore {
     this.pool = pool;
   }
 
-  static async open(connectionString?: string): Promise<PgStore> {
+  static async open(
+    connectionString?: string,
+    poolOpts?: { max?: number },
+  ): Promise<PgStore> {
     // No args → pg reads PGHOST/PGPORT/PGUSER/… env vars, which is exactly
     // what Deno Deploy injects for attached Postgres instances.
-    const pool = new Pool(connectionString ? { connectionString } : {});
+    const pool = new Pool(
+      connectionString ? { connectionString, ...poolOpts } : { ...poolOpts },
+    );
     await pool.query('SELECT 1'); // fail fast with a clear error if unreachable
     await ensureSchema(pool);
     return new PgStore(pool);
   }
 
+  /** Every state query flows through here: inside a withLock section it
+   * MUST use the section's own client (#37) — a lock holder waiting on
+   * `pool.query()` while pinning the last pool client deadlocks all
+   * concurrent updates. Outside the lock, the pool is fine. */
+  private query<R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ): Promise<QueryResult<R>> {
+    const client = lockClient.getStore();
+    return client
+      ? client.query<R>(text, values as never[])
+      : this.pool.query<R>(text, values as never[]);
+  }
+
   async get(userId: number): Promise<PlayerState | undefined> {
-    const res = await this.pool.query<{ data: PlayerState }>(
+    const res = await this.query<{ data: PlayerState }>(
       'SELECT data FROM players WHERE user_id = $1',
       [userId],
     );
@@ -93,7 +121,7 @@ export class PgStore implements PlayerStore {
   }
 
   async set(userId: number, state: PlayerState): Promise<void> {
-    await this.pool.query(
+    await this.query(
       `INSERT INTO players (user_id, data, updated_at)
        VALUES ($1, $2::jsonb, now())
        ON CONFLICT (user_id) DO UPDATE
@@ -103,7 +131,7 @@ export class PgStore implements PlayerStore {
   }
 
   async delete(userId: number): Promise<void> {
-    await this.pool.query('DELETE FROM players WHERE user_id = $1', [userId]);
+    await this.query('DELETE FROM players WHERE user_id = $1', [userId]);
   }
 
   /** Release connections — used by tests; Deploy tears isolates down itself. */
@@ -114,24 +142,35 @@ export class PgStore implements PlayerStore {
     return this.pool.end();
   }
 
-  /** Cross-instance serialization (#18): a SESSION advisory lock on a
-   * DEDICATED connection encloses the whole load→mutate→save cycle, so two
-   * bot instances can never interleave read-modify-write for one player —
-   * the second instance waits, then works on the freshly saved state.
-   * Same key on one connection would no-op, hence the dedicated client;
-   * the in-process promise chain guarantees one lock per user at a time
-   * locally, so waiting is the only cross-instance behavior ever seen. */
+  /** Cross-instance serialization (#18, #37): the whole load→mutate→save
+   * cycle runs inside a TRANSACTION on a dedicated client, under a
+   * transaction-scoped advisory lock — COMMIT/ROLLBACK releases the lock
+   * itself, so there is no explicit unlock step whose failure could hand a
+   * pooled session back with the lock still attached. fn's get/set/delete
+   * route through that same client (async-local scope), so a lock holder
+   * never needs a second pool connection: N concurrent distinct-user
+   * updates can never starve the pool. A failed section rolls back
+   * atomically — half-applied state can never commit. */
   async withLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
-      // Telegram user ids fit int64 comfortably; advisory locks are
-      // session-scoped and released explicitly (or on connection close).
-      await client.query('SELECT pg_advisory_lock($1)', [userId]);
+      let result: T;
       try {
-        return await fn();
-      } finally {
-        await client.query('SELECT pg_advisory_unlock($1)', [userId]);
+        await client.query('BEGIN');
+        // Telegram user ids fit int64 comfortably; the lock lives until the
+        // transaction ends — release is tied to commit/rollback, not to a
+        // separate unlock query that could itself fail (#37).
+        await client.query('SELECT pg_advisory_xact_lock($1)', [userId]);
+        result = await lockClient.run(client, fn);
+        await client.query('COMMIT');
+      } catch (err) {
+        // Never return a session to the pool inside an open transaction
+        // holding the advisory lock: roll back first. If the connection is
+        // too broken to roll back, pg discards it on the error anyway.
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
       }
+      return result;
     } finally {
       client.release();
     }

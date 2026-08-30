@@ -19,8 +19,10 @@ export function createBot(opts: BotOptions): Bot<Context> {
 
   // Layer 1 (in-process): serialize per user so each load/mutate/save cycle
   // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a
-  // session advisory lock around the whole update, so a second bot instance
-  // waits instead of racing a lost-update against this one.
+  // transaction-scoped advisory lock around the whole update, so a second
+  // bot instance waits instead of racing a lost-update against this one.
+  // The locked section runs on its own connection (#37) — concurrent
+  // distinct-user updates can never starve the connection pool.
   const chains = new Map<number, Promise<void>>();
   bot.use(async (ctx, next) => {
     const id = ctx.from?.id;

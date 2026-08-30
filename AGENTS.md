@@ -33,10 +33,12 @@ place on every action.
    battle buffs) lives on `BattleState`, not the player.
 5. **Cross-instance consistency (#18).** Every update runs inside `PlayerStore.withLock(user)`: the
    bot's per-user promise chain serializes within a process, and `PgStore.withLock` holds a Postgres
-   session advisory lock on a dedicated connection around the WHOLE load→mutate→save — two bot
-   instances can never interleave read-modify-write for one player (no lost updates).
-   `MemoryStore.withLock` is a passthrough (single process). Never mutate player state outside the
-   lock; never hold the lock across user input.
+   TRANSACTION-scoped advisory lock on a dedicated connection around the WHOLE load→mutate→save —
+   which runs entirely on that same connection (#37): two bot instances can never interleave
+   read-modify-write for one player (no lost writes), concurrent distinct-user updates can never
+   starve the connection pool, and a failed section rolls back atomically (the lock releases with
+   the transaction — no explicit unlock to leak). `MemoryStore.withLock` is a passthrough (single
+   process). Never mutate player state outside the lock; never hold the lock across user input.
 6. **callback_data budget.** 64 bytes max, built/parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Add new controls there, never inline raw strings in renderers/handlers.
 7. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
