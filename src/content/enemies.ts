@@ -275,7 +275,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '☀️',
     level: 18,
     moves: [mv('Solar Dart', 1.2, 'mag', 3), mv('Fanatic Strike', 1.1, 'phys', 2)],
-    drops: { c_ether: 0.2, q_sunspire_key: 0.06 },
+    drops: { c_ether: 0.2 },
   }),
   mk({
     id: 'e_spirelynx',
@@ -300,7 +300,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 20,
     mul: { def: 1.35, spd: 0.7 },
     moves: [mv('Piston Punch', 1.3, 'phys', 3), mv('Steam Vent', 1.1, 'mag', 2)],
-    drops: { m_mystic_dust: 0.55, q_sunspire_key: 0.1 },
+    drops: { m_mystic_dust: 0.55 },
   }),
   mk({
     id: 'e_chronolich',

@@ -585,6 +585,33 @@ Deno.test('questDropAllowed: quest items drop only while an open quest needs the
   assertEquals(questDropAllowed(p, 'q_toxin_sample'), false, 'done → never again');
 });
 
+Deno.test('Sunspire Key: enemies never drop it in any quest/gate state — m11 reward is the sole source (#20)', () => {
+  // Content data itself carries no key drops anymore — catalog and runtime agree.
+  for (const e of ENEMIES) {
+    assertEquals(e.drops?.['q_sunspire_key'], undefined, `${e.id} must not drop the key`);
+  }
+
+  const p = createPlayer(33, 'T', 'warrior');
+  const hammer = (tag: string) => {
+    const rng = seeded(40 + tag.length);
+    for (let i = 0; i < 80; i++) {
+      resolveVictory(p, startBattle('e_automaton', { kind: 'explore', zoneId: 'sunspire' })!, rng);
+    }
+  };
+  // Quest-relevant state (m11 open, gate pending): kills never mint a key.
+  p.quests['m11_toll'] = { status: 'active', counts: [0] };
+  hammer('active');
+  assertEquals(countOf(p, 'q_sunspire_key'), 0, 'no enemy-sourced key while m11 is open');
+  // Gate-pending WITH the key already held: no surplus duplicates.
+  addItem(p, 'q_sunspire_key', 1);
+  hammer('held');
+  assertEquals(countOf(p, 'q_sunspire_key'), 1, 'a held key is never duplicated');
+  // Story moved on (m11 done, gate open forever): still nothing.
+  p.quests['m11_toll']!.status = 'done';
+  hammer('done');
+  assertEquals(countOf(p, 'q_sunspire_key'), 1, 'post-story kills mint nothing');
+});
+
 Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', () => {
   const p = createPlayer(32, 'T', 'warrior');
   const rng = seeded(31);

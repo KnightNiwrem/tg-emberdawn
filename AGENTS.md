@@ -123,9 +123,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
-  never refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry;
-  boss first-clears award boss trinkets `t_12`–`t_18` (never stocked; `unique` — unsellable and
-  un-droppable: earned trophies, #5).
+  never refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry
+  (its SOLE source is the m11_toll reward — the enemy key-drop entries were unreachable dead code
+  and are retired, #20); boss first-clears award boss trinkets `t_12`–`t_18` (never stocked;
+  `unique` — unsellable and un-droppable: earned trophies, #5).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
 - **Reset (#19):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit Yes/No
