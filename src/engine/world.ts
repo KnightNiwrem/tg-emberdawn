@@ -10,7 +10,8 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { quest } from '../content/quests.ts';
 import { countOf, grantDropRewards, removeItem } from './inventory.ts';
 import { rollRewards, startBattle } from './combat.ts';
-import { grantXp, statsOf } from './character.ts';
+import { grantXp, statsOf, xpToGoldAtCap } from './character.ts';
+import { MAX_LEVEL } from './classes.ts';
 import {
   grantItem,
   onDungeonClear,
@@ -62,9 +63,14 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   // further drops are suppressed instead of piling up as clutter.
   rewards.drops = rewards.drops.filter((id) => questDropAllowed(p, id));
   p.gold += rewards.gold;
+  // At the summit the headline must not advertise XP the player cannot
+  // receive (#36): show the conversion inline. Pre-cap unchanged.
+  const capped = p.level >= MAX_LEVEL;
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,
-    `✨ +${rewards.xp} XP · 💰 +${rewards.gold} gold`,
+    capped
+      ? `✨ ${rewards.xp} XP → +${xpToGoldAtCap(rewards.xp)} gold · 💰 +${rewards.gold} gold`
+      : `✨ +${rewards.xp} XP · 💰 +${rewards.gold} gold`,
   ];
   lines.push(...grantXp(p, rewards.xp));
   lines.push(...grantDropRewards(p, rewards.drops));

@@ -189,6 +189,12 @@ export function migratePlayer(p: PlayerState): void {
 }
 
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */
+/** Post-cap conversion rate (#14; display-shared since #36): at the summit
+ * XP means nothing — valor converts to gold at ceil(xp / 8). */
+export function xpToGoldAtCap(xp: number): number {
+  return Math.max(1, Math.ceil(xp / 8));
+}
+
 export function grantXp(p: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
   if (p.level >= MAX_LEVEL) {
@@ -198,7 +204,7 @@ export function grantXp(p: PlayerState, xp: number): string[] {
     // gold, so postgame income runs ~2x design gold — pays without
     // tripling (inflation review, #14).
     if (xp <= 0) return msgs;
-    const gold = Math.max(1, Math.ceil(xp / 8));
+    const gold = xpToGoldAtCap(xp);
     p.gold += gold;
     return [`✨ The Flame converts your valor: +${gold} gold (XP means nothing at the summit).`];
   }

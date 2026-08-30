@@ -4,7 +4,8 @@ import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { item } from '../content/items.ts';
-import { statsOf } from '../engine/character.ts';
+import { statsOf, xpToGoldAtCap } from '../engine/character.ts';
+import { MAX_LEVEL } from '../engine/classes.ts';
 import { consumables } from '../engine/inventory.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { bar, buttonsRow, cbBtn, disabledBtn, heading, para } from './rich.ts';
@@ -64,7 +65,13 @@ export function renderBattle(p: PlayerState): InputRichMessage {
     });
   }
   if (won && b.rewards) {
-    blocks.push(para(`🎁 Spoils: ✨ ${b.rewards.xp} XP · 💰 ${b.rewards.gold} gold`));
+    blocks.push(para(
+      p.level >= MAX_LEVEL
+        ? `🎁 Spoils: ✨ ${b.rewards.xp} XP → +${
+          xpToGoldAtCap(b.rewards.xp)
+        } gold · 💰 ${b.rewards.gold} gold`
+        : `🎁 Spoils: ✨ ${b.rewards.xp} XP · 💰 ${b.rewards.gold} gold`,
+    ));
   }
   blocks.push(buttonsRow([cbBtn('➡️ Continue', encodeCb({ v: 'battle', a: 'go' }), 'success')]));
   return { blocks };

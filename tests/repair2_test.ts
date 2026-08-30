@@ -34,7 +34,7 @@ import {
 } from '../src/engine/quests.ts';
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { shopAction } from '../src/handlers/hub.ts';
-import { explore, travel } from '../src/engine/world.ts';
+import { explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { isEquippable, item } from '../src/content/items.ts';
 import { renderInventory } from '../src/render/menus.ts';
@@ -796,4 +796,40 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
   for (const q of QUESTS.filter((x) => x.main)) done.quests[q.id] = { status: 'done', counts: [] };
   const doneLog = JSON.stringify(renderQuests(done));
   assert(doneLog.includes('story is complete'), 'post-campaign message');
+});
+
+Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', () => {
+  const p44 = createPlayer(968, 'T', 'warrior');
+  p44.level = 44;
+  const b44 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  b44.enemy.hp = 0;
+  const r44 = resolveVictory(p44, b44, seeded(91));
+  assert(
+    r44.some((l) => l.includes('XP') && l.includes('+') && !l.includes('→')),
+    'pre-cap headline unchanged',
+  );
+  assert(!r44.some((l) => l.includes('converts your valor')), 'no conversion line at 44');
+
+  const p45 = createPlayer(969, 'T', 'warrior');
+  p45.level = 45;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  b45.enemy.hp = 0;
+  const r45 = resolveVictory(p45, b45, seeded(92));
+  assert(r45.some((l) => l.includes('XP → +')), 'cap headline shows the conversion');
+
+  // Quest turn-in at cap explains the conversion too.
+  const pq = createPlayer(970, 'T', 'warrior');
+  pq.level = 45;
+  pq.quests['sq_rats'] = { status: 'turnIn', counts: [6] };
+  const tq = turnInQuest(pq, 'sq_rats');
+  assertEquals(tq.ok, true);
+  assert(tq.lines.some((l) => l.includes('XP → +')), 'turn-in shows the conversion');
+
+  // Spoils renderer: converted at cap, nominal pre-cap.
+  b45.phase = 'won';
+  pq.battle = b45;
+  assert(JSON.stringify(renderBattle(pq)).includes('→ +'), 'spoils show converted gold at cap');
+  b44.phase = 'won';
+  p44.battle = b44;
+  assert(!JSON.stringify(renderBattle(p44)).includes('→ +'), 'spoils stay nominal pre-cap');
 });
