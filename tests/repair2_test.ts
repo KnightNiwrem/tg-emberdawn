@@ -32,6 +32,7 @@ import { currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { item } from '../src/content/items.ts';
+import { renderInventory } from '../src/render/menus.ts';
 import { renderQuestDetail, renderQuests } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { seeded } from './helpers.ts';
@@ -389,4 +390,25 @@ Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns i
   assertEquals(cur.quests['m3_roots'].status, 'done');
   assert(cur.gold >= 300, 'turn-in gold granted');
   assertEquals(countOf(cur, 'm_iron_chunk'), 1, 'turn-in item granted');
+});
+
+Deno.test('inventory Equipment button opens equipment; Back returns (#17)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(921, 'T', 'warrior');
+  p.messageId = 400;
+  p.scene = { view: 'inventory', arg: '0' };
+  await store.set(921, p);
+
+  // The rendered button must carry the OPEN action, not the back code.
+  const inv = JSON.stringify(renderInventory(p, 0));
+  assert(inv.includes('e:op'), 'Equipment button encodes e:op');
+
+  await handleCallback(fakeCtx(921, 400, 'e:op'), store);
+  let cur = (await store.get(921))!;
+  assertEquals(cur.scene.view, 'equipment', 'Equipment opens the equipment screen');
+
+  // Equipment's own Back still returns to the inventory.
+  await handleCallback(fakeCtx(921, 400, 'e:bk'), store);
+  cur = (await store.get(921))!;
+  assertEquals(cur.scene.view, 'inventory');
 });

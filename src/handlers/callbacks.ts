@@ -91,6 +91,13 @@ function dispatch(
       return itemAction(player, cb.a, cb.arg);
     }
     case 'equipment': {
+      if (cb.a === 'open') {
+        // Distinct open action (#17): the inventory menu's Equipment button
+        // used to encode the BACK code, so tapping it just redrew Inventory
+        // and the unequip screen was unreachable.
+        player.scene = { view: 'equipment' };
+        return {};
+      }
       if (cb.a === 'bk') {
         player.scene = { view: 'inventory', arg: '0' };
         return {};

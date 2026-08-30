@@ -51,7 +51,7 @@ export function renderInventory(p: PlayerState, page: number): InputRichMessage 
   if (pg < pages - 1) nav.push(cbBtn('Next ➡️', encodeCb({ v: 'inventory', a: 'p', arg: pg + 1 })));
   if (nav.length > 0) blocks.push(buttonsRow(nav));
   blocks.push(buttonsRow([
-    cbBtn('🛠️ Equipment', encodeCb({ v: 'equipment', a: 'bk' })),
+    cbBtn('🛠️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
     cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' })),
   ]));
   return { blocks };

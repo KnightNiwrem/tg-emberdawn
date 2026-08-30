@@ -21,6 +21,7 @@ export type Cb =
   | { v: 'inventory'; a: 'v' | 'u' | 'eq' | 'sell' | 'drop'; arg: string }
   | { v: 'inventory'; a: 'bk' }
   | { v: 'equipment'; a: 'rm'; arg: string }
+  | { v: 'equipment'; a: 'open' }
   | { v: 'equipment'; a: 'bk' }
   | { v: 'skills'; a: 'bk' }
   | { v: 'quests'; a: 'open'; arg?: string }
@@ -50,7 +51,7 @@ export function encodeCb(c: Cb): string {
       if (c.a === 'bk') return 'i:bk';
       return `i:${c.a}:${c.arg}`;
     case 'equipment':
-      return c.a === 'bk' ? 'e:bk' : `e:rm:${c.arg}`;
+      return c.a === 'bk' ? 'e:bk' : c.a === 'open' ? 'e:op' : `e:rm:${c.arg}`;
     case 'skills':
       return 's:bk';
     case 'quests':
@@ -104,6 +105,7 @@ export function decodeCb(data: string): Cb | undefined {
       }
       return undefined;
     case 'e':
+      if (a === 'op') return { v: 'equipment', a: 'open' };
       if (a === 'bk') return { v: 'equipment', a: 'bk' };
       if (a === 'rm') return { v: 'equipment', a: 'rm', arg };
       return undefined;
