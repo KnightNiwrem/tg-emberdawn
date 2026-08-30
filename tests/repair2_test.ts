@@ -20,11 +20,19 @@ import {
 import { MAX_LEVEL } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
-import { grantItem, onItemGain, turnInQuest } from '../src/engine/quests.ts';
+import {
+  acceptQuest,
+  grantItem,
+  onItemGain,
+  onKill,
+  syncAvailability,
+  turnInQuest,
+} from '../src/engine/quests.ts';
 import { currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { item } from '../src/content/items.ts';
+import { renderQuestDetail, renderQuests } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { seeded } from './helpers.ts';
 
@@ -348,4 +356,37 @@ Deno.test('boss first-clear trinkets are earned trophies — not sellable or dro
   grantItem(p, 't_1', 1);
   assertEquals(itemAction(p, 'drop', 't_1').toast, undefined);
   assertEquals(countOf(p, 't_1'), 0);
+});
+
+Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns in via UI (#15)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(920, 'T', 'warrior');
+  p.level = 5; // m3 requires level 3
+  p.quests['m2_letter'] = { status: 'done', counts: [] };
+  syncAvailability(p);
+  assert(acceptQuest(p, 'm3_roots').ok);
+  onKill(p, 'e_aranya'); // m3 has no giver — the log is the ONLY turn-in path
+  assertEquals(p.quests['m3_roots']?.status, 'turnIn');
+  p.messageId = 300; // pin the live message so both taps edit in place
+  await store.set(920, p);
+
+  // The log must keep the turnIn quest as the primary card, with a button.
+  const log = JSON.stringify(renderQuests(p));
+  assert(log.includes('Ready — view & turn in'), 'turnIn main stays primary');
+  assert(log.includes('q:q:m3_roots'));
+
+  // Follow ONLY buttons the UI actually renders: log → detail → turn in.
+  await handleCallback(fakeCtx(920, 300, 'q:q:m3_roots'), store);
+  let cur = (await store.get(920))!;
+  assertEquals(cur.scene.view, 'quests');
+  assertEquals(cur.scene.arg, 'm3_roots');
+  const detail = JSON.stringify(renderQuestDetail(cur, 'm3_roots'));
+  assert(detail.includes('🏁 Turn in'));
+  assert(detail.includes('q:t:m3_roots'));
+
+  await handleCallback(fakeCtx(920, 300, 'q:t:m3_roots'), store);
+  cur = (await store.get(920))!;
+  assertEquals(cur.quests['m3_roots'].status, 'done');
+  assert(cur.gold >= 300, 'turn-in gold granted');
+  assertEquals(countOf(cur, 'm_iron_chunk'), 1, 'turn-in item granted');
 });

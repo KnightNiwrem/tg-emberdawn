@@ -295,12 +295,26 @@ export function renderQuests(p: PlayerState): InputRichMessage {
   const blocks: Block[] = [heading('📜 Quest Log', 3), ...noticesBlocks(p)];
   const mains = QUESTS.filter((q) => q.main);
   const sides = QUESTS.filter((q) => !q.main);
-  const activeMain = mains.find((q) => p.quests[q.id]?.status === 'active');
+  // A main quest ready to turn in stays the primary card (#15): dropping it
+  // hid the only turn-in path for giverless quests (m3 onward) — the log
+  // fell through to a prerequisite-locked "next" quest and dead-ended.
+  const activeMain = mains.find((q) =>
+    ['active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
+  );
   if (activeMain) {
+    const ready = p.quests[activeMain.id]?.status === 'turnIn';
     blocks.push(para([{ type: 'bold', text: `🏅 Main: ${activeMain.name}` } as RichText]));
     blocks.push(para(questStatusLine(p, activeMain.id)));
     blocks.push(
-      buttonsRow([cbBtn('View', encodeCb({ v: 'quests', a: 'q', arg: activeMain.id }))], 'left'),
+      buttonsRow(
+        [
+          cbBtn(
+            ready ? '🏁 Ready — view & turn in' : 'View',
+            encodeCb({ v: 'quests', a: 'q', arg: activeMain.id }),
+          ),
+        ],
+        'left',
+      ),
     );
   } else {
     const next = mains.find((q) => p.quests[q.id]?.status === 'available');
