@@ -11,6 +11,7 @@ import {
   deathAction,
   forgeAction,
   metaAction,
+  pickClass,
   questsAction,
   shopAction,
   travelAction,
@@ -143,10 +144,9 @@ async function handleMeta(
       await ctx.answerCallbackQuery({ text: 'You already have a character.' });
       return;
     }
-    const outcome = metaAction(undefined, cb, userId, name);
-    const fresh = outcome.player;
+    const fresh = pickClass(cb, userId, name);
     if (!fresh) {
-      await ctx.answerCallbackQuery({ text: outcome.toast ?? 'Unknown class.' });
+      await ctx.answerCallbackQuery({ text: 'Unknown class.' });
       return;
     }
     fresh.notices = ['Your tale begins, Dawncaller. The dawn is out there, waiting to be found.'];
@@ -173,10 +173,9 @@ async function handleMeta(
     return;
   }
 
-  const outcome = metaAction(existing, cb, userId, name);
-  const player = outcome.player;
+  const player = metaAction(existing, cb, userId);
 
-  if (cb.a === 'resetYes' && player) {
+  if (cb.a === 'resetYes') {
     // Full reset: brand-new state in a brand-new message.
     player.notices = ['A new tale begins. The dawn is waiting to be found.'];
     player.scene = { view: 'zone' };
@@ -186,11 +185,6 @@ async function handleMeta(
     return;
   }
 
-  if (player) {
-    // help / resetNo: scene-only changes on the already-loaded player.
-    await withLoadedPlayer(ctx, store, existing, () => {});
-    return;
-  }
-
-  await ctx.answerCallbackQuery(outcome.toast ? { text: outcome.toast } : undefined);
+  // help / reset / resetNo: scene-only changes on the already-loaded player.
+  await withLoadedPlayer(ctx, store, existing, () => {});
 }

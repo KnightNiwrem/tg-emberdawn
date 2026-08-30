@@ -220,48 +220,48 @@ export function deathAction(p: PlayerState): MutationResult {
 
 // ── Meta: class pick, help, reset ────────────────────────────────────────
 
-export function metaAction(
-  p: PlayerState | undefined,
-  cb: Cb & { v: 'meta' },
+/** The class picker is the ONLY meta action available without a save —
+ * handleMeta refuses it whenever a character already exists, so a stale
+ * picker can never overwrite a hero. */
+export function pickClass(
+  cb: Extract<Cb, { v: 'meta'; a: 'pick' }>,
   userId: number,
   name: string,
-): { player?: PlayerState; toast?: string; helpOnly?: boolean } {
+): PlayerState | undefined {
+  const cid = CLASS_IDS.find((c) => c === cb.arg);
+  if (!cid) return undefined;
+  const fresh = createPlayer(userId, name, cid);
+  syncAvailability(fresh);
+  return fresh;
+}
+
+/** Meta actions that require an existing hero (help / reset confirmations).
+ * The type excludes 'pick': class creation is the only no-player meta path
+ * and lives in pickClass() — a new meta action must choose its renderer in
+ * this switch and its precondition here, at compile time. */
+export function metaAction(
+  p: PlayerState,
+  cb: Extract<Cb, { v: 'meta'; a: 'help' | 'reset' | 'resetYes' | 'resetNo' }>,
+  userId: number,
+): PlayerState {
   switch (cb.a) {
     case 'help':
-      if (p) {
-        p.scene = { view: 'help' };
-        return { player: p };
-      }
-      return { helpOnly: true };
-    case 'pick': {
-      const cid = CLASS_IDS.find((c) => c === cb.arg);
-      if (!cid) return { toast: 'Unknown class.' };
-      const fresh = createPlayer(userId, name, cid);
-      syncAvailability(fresh);
-      return { player: fresh };
-    }
+      p.scene = { view: 'help' };
+      return p;
     case 'reset':
       // Stage the confirmation — nothing is destroyed here (#19).
-      if (p) {
-        p.scene = { view: 'reset' };
-        return { player: p };
-      }
-      return {};
+      p.scene = { view: 'reset' };
+      return p;
     case 'resetNo':
-      if (p) {
-        // Cancel: resume whatever was live — a pending fight stays a fight.
-        p.scene = p.battle
-          ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
-          : { view: 'zone' };
-        return { player: p };
-      }
-      return {};
-    case 'resetYes':
-      if (p) {
-        const fresh = createPlayer(userId, p.name, p.classId);
-        syncAvailability(fresh); // fully initialized state, quests unlocked (#19)
-        return { player: fresh };
-      }
-      return {};
+      // Cancel: resume whatever was live — a pending fight stays a fight.
+      p.scene = p.battle
+        ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
+        : { view: 'zone' };
+      return p;
+    case 'resetYes': {
+      const fresh = createPlayer(userId, p.name, p.classId);
+      syncAvailability(fresh); // fully initialized state, quests unlocked (#19)
+      return fresh;
+    }
   }
 }
