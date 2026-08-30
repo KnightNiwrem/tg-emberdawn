@@ -62,6 +62,11 @@ export interface BattleState {
   rewards?: { xp: number; gold: number; drops: string[] };
   /** Phoenix Cinder already spent this battle (revive is once per battle). */
   phoenixUsed?: boolean;
+  /** Enemy-side guard (Guard Stance et al., #25): mitigation multiplier and
+   * rounds left. Optional so pre-#25 saves caught mid-battle still load —
+   * read sites treat missing as 0. */
+  enemyGuardPct?: number;
+  enemyGuardTurns?: number;
   /** Structured provenance: for return-after-battle and victory hooks. */
   origin: BattleOrigin;
 }

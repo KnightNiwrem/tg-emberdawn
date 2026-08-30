@@ -336,6 +336,59 @@ Deno.test('buff durations: offensive keys defer the cast-round decay (#27)', () 
   assertEquals(d.b.buffs.defPct > 0, true, 'protection active during the cast-round response');
 });
 
+Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip damage (#25)', () => {
+  const rng = seeded(75);
+  const p = createPlayer(66, 'T', 'warrior');
+  p.level = 45;
+  // Ruin Sentinel: Guard Stance (weight 1 vs Stone Fist 3).
+  const b = startBattle('e_sentinel', { kind: 'explore', zoneId: 'sunspire' })!;
+  p.battle = b;
+  b.enemy.hp = 99999;
+  b.enemy.maxHp = 99999;
+  let guardSeen = false;
+  for (let i = 0; i < 40 && !guardSeen; i++) {
+    const before = p.hp;
+    const res = performAction(p, b, { kind: 'guard' }, rng);
+    if (res.lines.some((l) => l.includes('Guard Stance'))) {
+      guardSeen = true;
+      assertEquals(p.hp, before, 'Guard Stance must not deal damage');
+      assertEquals(b.enemyGuardPct, 0.4, 'guard raises the enemy mitigation');
+      assertEquals(b.enemyGuardTurns, 2, 'the cast round does not consume the guard');
+    }
+  }
+  assert(guardSeen, 'Guard Stance must appear within 40 rounds');
+  // Two protected rounds, then the guard expires (seed is fixed, so the
+  // sentinel's move sequence — including any re-cast — is deterministic).
+  performAction(p, b, { kind: 'attack' }, rng);
+  assertEquals(b.enemyGuardTurns, 1, 'one protected round consumed');
+  performAction(p, b, { kind: 'attack' }, rng);
+  assertEquals(b.enemyGuardPct, 0, 'guard expired after its turns');
+  assertEquals(b.enemyGuardTurns, 0);
+
+  // Grey Wolf's Howl (power 0, weaken rider): pure status, no chip damage.
+  const rng2 = seeded(76);
+  const w = createPlayer(67, 'T', 'warrior');
+  w.level = 45;
+  const wb = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  w.battle = wb;
+  wb.enemy.hp = 99999;
+  wb.enemy.maxHp = 99999;
+  let howlSeen = false;
+  for (let i = 0; i < 60 && !howlSeen; i++) {
+    const res = performAction(w, wb, { kind: 'guard' }, rng2);
+    if (res.lines.some((l) => l.includes('Howl'))) {
+      howlSeen = true;
+      assert(
+        !res.lines.some((l) => l.includes('damage to you')),
+        `Howl must not chip: ${res.lines.join(' | ')}`,
+      );
+      assert(res.lines.some((l) => l.includes('sapped')), 'the weaken rider still lands');
+      assertEquals(wb.buffs.weakenedPct, 0.15);
+    }
+  }
+  assert(howlSeen, 'Howl must appear within 60 rounds');
+});
+
 Deno.test('economy: buy needs gold, sell returns ratio', () => {
   const p = createPlayer(12, 'T', 'warrior');
   p.gold = 0;

@@ -258,7 +258,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🗿',
     level: 17,
     mul: { hp: 1.35, spd: 0.6, def: 1.3 },
-    moves: [mv('Stone Fist', 1.25, 'phys', 3), mv('Guard Stance', 0.4, 'phys', 1)],
+    moves: [
+      mv('Stone Fist', 1.25, 'phys', 3),
+      mv('Guard Stance', 0, 'phys', 1, { guardPct: 0.4, guardTurns: 2 }),
+    ],
   }),
   mk({
     id: 'e_vulture',
@@ -357,7 +360,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🧊',
     level: 26,
     mul: { def: 1.3 },
-    moves: [mv('Icicle Volley', 1.2, 'mag', 3), mv('Frost Shell', 0.4, 'phys', 1)],
+    moves: [
+      mv('Icicle Volley', 1.2, 'mag', 3),
+      mv('Frost Shell', 0, 'phys', 1, { guardPct: 0.4, guardTurns: 2 }),
+    ],
   }),
   mk({
     id: 'e_yeti',
@@ -388,7 +394,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🌋',
     level: 31,
     mul: { hp: 1.3, spd: 0.6 },
-    moves: [mv('Lava Engulf', 1.3, 'mag', 3), mv('Cooled Crust', 0.4, 'phys', 1)],
+    moves: [
+      mv('Lava Engulf', 1.3, 'mag', 3),
+      mv('Cooled Crust', 0, 'phys', 1, { guardPct: 0.4, guardTurns: 2 }),
+    ],
     drops: { m_cinder_heart: 0.3 },
   }),
   mk({
@@ -431,7 +440,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '⚒️',
     level: 35,
     mul: { def: 1.35, hp: 1.2 },
-    moves: [mv('Hammer Fall', 1.4, 'phys', 3), mv('Molten Guard', 0.5, 'phys', 1)],
+    moves: [
+      mv('Hammer Fall', 1.4, 'phys', 3),
+      mv('Molten Guard', 0, 'phys', 1, { guardPct: 0.5, guardTurns: 2 }),
+    ],
     drops: { m_cinder_heart: 0.5 },
   }),
   mk({

@@ -81,6 +81,10 @@ export interface EnemyMove {
   selfHealPct?: number;
   /** Applies a temporary debuff to the player (pct atk/mag reduction). */
   weakenPct?: number;
+  /** Defensive move (#25): raises the enemy's own mitigation for the next
+   * `guardTurns` rounds instead of dealing damage. */
+  guardPct?: number;
+  guardTurns?: number;
 }
 
 export interface EnemyDef {

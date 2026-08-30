@@ -45,6 +45,8 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     round: 1,
     cooldowns: {},
     guarding: false,
+    enemyGuardPct: 0,
+    enemyGuardTurns: 0,
     buffs: newBuffs(),
     log: [`${def.emoji} ${def.name} blocks your path!`],
     origin,
@@ -192,16 +194,25 @@ export function performAction(
 
   // ── Enemy phase ─────────────────────────────────────────────────────
   battle.enemy.turn++;
+  let guardCast = false;
   if (buffs.stunnedEnemy) {
     buffs.stunnedEnemy = false;
     lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
   } else {
     const move = enemyChooseMove(def, battle.enemy, rng);
-    lines.push(...enemyAct(p, battle, def, move, rng));
+    const acted = enemyAct(p, battle, def, move, rng);
+    lines.push(...acted.lines);
+    guardCast = acted.guardCast;
   }
 
   // ── End of round bookkeeping ────────────────────────────────────────
   battle.guarding = false;
+  // Enemy guard (#25): the casting round doesn't consume it — it shields
+  // the NEXT `guardTurns` rounds of player attacks.
+  if (!guardCast && battle.enemyGuardTurns && battle.enemyGuardTurns > 0) {
+    battle.enemyGuardTurns--;
+    if (battle.enemyGuardTurns === 0) battle.enemyGuardPct = 0;
+  }
   battle.round++;
   tickBuffTurns(buffs, freshOffense);
   for (const [k, v] of Object.entries(battle.cooldowns)) {
@@ -225,7 +236,8 @@ function strike(
   if (!def) return { lines: [], dmg: 0 };
   const buffs = battle.buffs;
   const offense = kind === 'phys' ? playerEffectiveAtk(p, buffs) : playerEffectiveMag(p, buffs);
-  const mitigation = kind === 'phys' ? def.def : def.res;
+  const mitigation = (kind === 'phys' ? def.def : def.res) *
+    (1 + (battle.enemyGuardPct ?? 0));
   const res = dealDamage(sk.power, offense, mitigation, rng, statsOf(p).luck);
   battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
   const verb = kind === 'phys' ? 'hits' : 'sears';
@@ -256,7 +268,13 @@ function applyPlayerAction(
   const buffs = battle.buffs;
   switch (action.kind) {
     case 'attack': {
-      const res = dealDamage(1.0, playerEffectiveAtk(p, buffs), def.def, rng, statsOf(p).luck);
+      const res = dealDamage(
+        1.0,
+        playerEffectiveAtk(p, buffs),
+        def.def * (1 + (battle.enemyGuardPct ?? 0)),
+        rng,
+        statsOf(p).luck,
+      );
       battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
       lines.push(
         `⚔️ You strike ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical hit!' : ''}`,
@@ -467,14 +485,33 @@ function enemyAct(
   def: EnemyDef,
   move: EnemyMove,
   rng: Rng,
-): string[] {
+): { lines: string[]; guardCast: boolean } {
   const lines: string[] = [];
   const buffs = battle.buffs;
   if (move.selfHealPct) {
     const heal = Math.floor(battle.enemy.maxHp * move.selfHealPct);
     battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + heal);
     lines.push(`💚 ${battle.enemy.name} uses ${move.name} and recovers ${heal} HP!`);
-    return lines;
+    return { lines, guardCast: false };
+  }
+  // Defensive moves actually defend (#25): they raise the enemy's own
+  // mitigation for the next few rounds instead of swinging.
+  if (move.guardPct) {
+    battle.enemyGuardPct = move.guardPct;
+    battle.enemyGuardTurns = move.guardTurns ?? 2;
+    lines.push(`🛡️ ${battle.enemy.name} braces behind ${move.name}!`);
+    return { lines, guardCast: true };
+  }
+  if (move.power <= 0) {
+    // Zero-power status moves carry only their rider (#25) — no implicit
+    // chip damage from the min-1 strike clamp below.
+    lines.push(`🌀 ${battle.enemy.name} uses ${move.name}.`);
+    if (move.weakenPct) {
+      buffs.weakenedPct = move.weakenPct;
+      buffs.weakenTurns = 2;
+      lines.push('🩸 Your strength is sapped!');
+    }
+    return { lines, guardCast: false };
   }
   const s = statsOf(p);
   // Player-applied weaken (Venom Cut et al.) cuts ENEMY offense.
@@ -494,7 +531,7 @@ function enemyAct(
     lines.push('🩸 Your strength is sapped!');
   }
   if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
-  return lines;
+  return { lines, guardCast: false };
 }
 
 /** Lethal-hit handling: Phoenix Cinder auto-revives ONCE per battle, then
