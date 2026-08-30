@@ -1,9 +1,10 @@
 # Emberdawn Final Audit Handoff
 
-**Repository:** `KnightNiwrem/tg-emberdawn`  
-**Reviewed head:** `c88efd9454f6dfff003f8d53b9540b84fda290c4`  
-**Previous repair baseline:** `af337b46a6162288c8c2eebe2d7b64cda69f0380`  
-**Purpose:** final re-review of the implementation after two repair passes against the original game-design, progression, dungeon, combat, economy, persistence, and lifecycle audits.
+**Repository:** `KnightNiwrem/tg-emberdawn`\
+**Reviewed head:** `c88efd9454f6dfff003f8d53b9540b84fda290c4`\
+**Previous repair baseline:** `af337b46a6162288c8c2eebe2d7b64cda69f0380`\
+**Purpose:** final re-review of the implementation after two repair passes against the original
+game-design, progression, dungeon, combat, economy, persistence, and lifecycle audits.
 
 ---
 
@@ -15,7 +16,9 @@ The project is no longer in the state it was during the first audit.
 
 At the current reviewed head:
 
-> **The main campaign appears structurally completable, the final quest is provenance-correct, dungeon state is coherent, and the previously identified P0 lifecycle/combat blockers are resolved.**
+> **The main campaign appears structurally completable, the final quest is provenance-correct,
+> dungeon state is coherent, and the previously identified P0 lifecycle/combat blockers are
+> resolved.**
 
 The remaining findings are now narrower:
 
@@ -30,7 +33,8 @@ This means the next agent should **not perform another broad rewrite**.
 
 A focused cleanup pass is appropriate.
 
-After the remaining items in this document are addressed, the correctness portion of the audit can reasonably be considered complete and future work can move toward:
+After the remaining items in this document are addressed, the correctness portion of the audit can
+reasonably be considered complete and future work can move toward:
 
 - real playtesting;
 - class balance;
@@ -45,17 +49,21 @@ After the remaining items in this document are addressed, the correctness portio
 
 ## High
 
-1. Legacy gear dedup migration is still unsafe and does not correctly repair all actual old-save shapes.
-2. Surplus quest-drop items can become permanent dead inventory because quest items cannot be sold or dropped.
+1. Legacy gear dedup migration is still unsafe and does not correctly repair all actual old-save
+   shapes.
+2. Surplus quest-drop items can become permanent dead inventory because quest items cannot be sold
+   or dropped.
 
 ## Medium
 
 3. Forage's six-hour cooldown starts one interaction too late.
 4. Future save-schema versions can be silently downgraded by an older binary.
-5. Boss first-clear trinkets are described as unique one-time loot but remain permanently sellable/droppable.
+5. Boss first-clear trinkets are described as unique one-time loot but remain permanently
+   sellable/droppable.
 6. Trinket shop availability still follows tier-band ceiling rather than actual player level.
 7. Final `m25` item reward is immediately obsolete relative to the Seam first-clear reward.
-8. Collect turn-in validation is not fully atomic for duplicate same-item objectives inside one quest.
+8. Collect turn-in validation is not fully atomic for duplicate same-item objectives inside one
+   quest.
 
 ## Low / content integrity
 
@@ -63,13 +71,15 @@ After the remaining items in this document are addressed, the correctness portio
 10. `q_sealed_letter` and `q_village_charm` remain effectively orphan/dead definitions.
 11. Rogue copy still promises first-strike/dodge behavior that the combat system does not implement.
 12. `m22_umbral_key` is very likely pre-completed by `m21` and remains a weak story beat.
-13. Free safe-haven full healing between dungeon floors still removes dungeon attrition if endurance was intended.
+13. Free safe-haven full healing between dungeon floors still removes dungeon attrition if endurance
+    was intended.
 
 ---
 
 # Findings that are now resolved
 
-The following items from the previous audits appear correctly addressed and should not be reopened unless later regression tests prove otherwise.
+The following items from the previous audits appear correctly addressed and should not be reopened
+unless later regression tests prove otherwise.
 
 ## Campaign progression
 
@@ -97,7 +107,8 @@ The following items from the previous audits appear correctly addressed and shou
 - Overworld enemies sharing a boss ID do not trigger dungeon clear.
 - Story boss floors are gated.
 - Sunspire Key now mechanically gates the Vault boss.
-- Sunspire Key is consumed only after the first victorious keyed descent, preserving retryability after a loss.
+- Sunspire Key is consumed only after the first victorious keyed descent, preserving retryability
+  after a loss.
 
 ## Combat
 
@@ -136,7 +147,8 @@ The following items from the previous audits appear correctly addressed and shou
   - tier 3 at level 13;
   - etc.
 - `t_9`–`t_11` are no longer hidden until endgame by array-position logic.
-- Dungeon first-clear rewards now use dedicated boss trinkets `t_12`–`t_18` tuned near encounter level.
+- Dungeon first-clear rewards now use dedicated boss trinkets `t_12`–`t_18` tuned near encounter
+  level.
 - Post-cap XP now converts into gold rather than disappearing.
 
 ## Telegram lifecycle / persistence
@@ -157,7 +169,8 @@ The following items from the previous audits appear correctly addressed and shou
 
 - README now says 7 dungeons rather than 8.
 - Phoenix Cinder wording is clearer.
-- Campaign graph test is now named honestly as a quest-graph traversal test rather than a complete pacing simulation.
+- Campaign graph test is now named honestly as a quest-graph traversal test rather than a complete
+  pacing simulation.
 
 ---
 
@@ -170,7 +183,7 @@ The following items from the previous audits appear correctly addressed and shou
 Current version:
 
 ```ts
-CURRENT_STATE_VERSION = 2
+CURRENT_STATE_VERSION = 2;
 ```
 
 The migration approximately does:
@@ -179,16 +192,16 @@ The migration approximately does:
 const from = p.stateVersion ?? 0;
 
 if (from < 1) {
-    for (const slot of ['weapon', 'armor']) {
-        const eq = p.equipment[slot];
-        if (eq && countOf(p, eq) > 0) {
-            removeItem(p, eq, 1);
-        }
+  for (const slot of ['weapon', 'armor']) {
+    const eq = p.equipment[slot];
+    if (eq && countOf(p, eq) > 0) {
+      removeItem(p, eq, 1);
     }
+  }
 }
 
 if (from < 2) {
-    // forge/battle migrations
+  // forge/battle migrations
 }
 
 p.stateVersion = CURRENT_STATE_VERSION;
@@ -221,7 +234,7 @@ Created after the starting-equipment duplication fix but before `stateVersion` w
 These are also deserialized as:
 
 ```ts
-stateVersion === undefined
+stateVersion === undefined;
 ```
 
 and therefore treated as v0.
@@ -253,7 +266,8 @@ The old creation bug put starting gear in:
 - equipment;
 - inventory.
 
-Then when the player equipped a new weapon, the equip path also returned the previous equipped starter weapon to inventory.
+Then when the player equipped a new weapon, the equip path also returned the previous equipped
+starter weapon to inventory.
 
 A realistic legacy state can therefore look like:
 
@@ -265,7 +279,7 @@ inventory:
   Rusty Blade ×2
 ```
 
-The duplicated item is the *old starter weapon*, not the currently equipped weapon.
+The duplicated item is the _old starter weapon_, not the currently equipped weapon.
 
 The migration examines only the current equipped ID:
 
@@ -348,7 +362,7 @@ Also add:
 
 ```ts
 if (from > CURRENT_STATE_VERSION) {
-    return;
+  return;
 }
 ```
 
@@ -391,7 +405,8 @@ equipped = w_warrior_2
 inventory = w_warrior_1 ×2
 ```
 
-The test should model the actual old creation + first-swap sequence rather than simply manually putting the currently equipped item into the bag.
+The test should model the actual old creation + first-swap sequence rather than simply manually
+putting the currently equipped item into the bag.
 
 ### Empty-slot temper
 
@@ -510,9 +525,9 @@ Example:
 
 ```ts
 function canDropQuestItem(
-    p: PlayerState,
-    itemId: string,
-): boolean
+  p: PlayerState,
+  itemId: string,
+): boolean;
 ```
 
 Rules might include:
@@ -569,7 +584,8 @@ Once exhausted, the intended design is:
 
 Free travel no longer resets the allowance, which correctly fixes the previous infinite travel loop.
 
-However, `forageResetAt` is currently created only when the player performs another Explore/Forage action *after* the counter is already at 3.
+However, `forageResetAt` is currently created only when the player performs another Explore/Forage
+action _after_ the counter is already at 3.
 
 ---
 
@@ -621,7 +637,7 @@ foraged++;
 p.flags[forageKey] = foraged;
 
 if (foraged >= MAX_FORAGE_CHARGES) {
-    p.flags[resetKey] = now + FORAGE_COOLDOWN;
+  p.flags[resetKey] = now + FORAGE_COOLDOWN;
 }
 ```
 
@@ -634,7 +650,7 @@ Then subsequent interactions simply check expiry.
 `src/engine/world.ts` currently calls:
 
 ```ts
-Date.now()
+Date.now();
 ```
 
 directly.
@@ -644,7 +660,7 @@ The rest of the engine is designed to be deterministic/pure.
 Prefer:
 
 ```ts
-explore(p, rng, now = Date.now())
+explore(p, rng, now = Date.now());
 ```
 
 or a small clock abstraction.
@@ -686,9 +702,9 @@ At migration entry:
 
 ```ts
 if (from > CURRENT_STATE_VERSION) {
-    throw new Error(
-        `Save version ${from} is newer than supported ${CURRENT_STATE_VERSION}`
-    );
+  throw new Error(
+    `Save version ${from} is newer than supported ${CURRENT_STATE_VERSION}`,
+  );
 }
 ```
 
@@ -723,7 +739,7 @@ However, the code comments and AGENTS documentation describe them as:
 but their `ItemDef`s do not set:
 
 ```ts
-unique: true
+unique: true;
 ```
 
 Therefore players can:
@@ -739,7 +755,8 @@ and because first-clear is one-time, they can never obtain the item again.
 
 ### If disposable one-time rewards are intentional
 
-Keep current mechanics but avoid calling them "unique" in a way that implies permanent collectible protection.
+Keep current mechanics but avoid calling them "unique" in a way that implies permanent collectible
+protection.
 
 ### If they are collectible trophies
 
@@ -748,7 +765,7 @@ Protect them.
 Possible approaches:
 
 ```ts
-unique: true
+unique: true;
 ```
 
 but note the current `unique` field is overloaded and currently mainly means:
@@ -774,7 +791,8 @@ maxOwned?: number
 
 The previous bug was:
 
-> low-level trinkets `t_9`–`t_11` only appeared in endgame because array order was used as progression order.
+> low-level trinkets `t_9`–`t_11` only appeared in endgame because array order was used as
+> progression order.
 
 That is fixed.
 
@@ -812,7 +830,7 @@ Buying is allowed even though equipping later rejects the item.
 Filter equipment to:
 
 ```ts
-item.level <= p.level
+item.level <= p.level;
 ```
 
 unless deliberately allowing players to buy ahead.
@@ -855,7 +873,8 @@ level 32
 +10 Luck
 ```
 
-So immediately after receiving `t_18`, the final quest gives a strictly worse physical-offense trinket.
+So immediately after receiving `t_18`, the final quest gives a strictly worse physical-offense
+trinket.
 
 That makes the last item reward anticlimactic.
 
@@ -894,7 +913,8 @@ which could later tie into:
 
 ### Option C — true final capstone
 
-Give a different level-45 reward not directly dominated by `t_18`, e.g. defensive/utility build alternative.
+Give a different level-45 reward not directly dominated by `t_18`, e.g. defensive/utility build
+alternative.
 
 ---
 
@@ -912,7 +932,7 @@ Future quest:
 [
   { kind: 'collect', target: 'm_iron_chunk', count: 3 },
   { kind: 'collect', target: 'm_iron_chunk', count: 3 },
-]
+];
 ```
 
 Player owns only:
@@ -937,7 +957,8 @@ remove 3 → failure
 
 The quest can still be completed despite only having half the total required supply.
 
-No current quest appears to use duplicate same-item collect objectives, so this is not a live campaign blocker.
+No current quest appears to use duplicate same-item collect objectives, so this is not a live
+campaign blocker.
 
 ---
 
@@ -949,11 +970,11 @@ Aggregate requirements first:
 const required = new Map<string, number>();
 
 for (const obj of q.objectives) {
-    if (obj.kind !== 'collect') continue;
-    required.set(
-        obj.target,
-        (required.get(obj.target) ?? 0) + (obj.count ?? 1),
-    );
+  if (obj.kind !== 'collect') continue;
+  required.set(
+    obj.target,
+    (required.get(obj.target) ?? 0) + (obj.count ?? 1),
+  );
 }
 ```
 
@@ -1109,7 +1130,8 @@ It is simply a weak progression beat.
 - remove `m22`;
 - make `m22` require a named elite/captain;
 - make the key guaranteed from a specific post-`m21` encounter;
-- convert `m22` into an NPC/story handoff rather than pretending collection is a meaningful new task.
+- convert `m22` into an NPC/story handoff rather than pretending collection is a meaningful new
+  task.
 
 ---
 
@@ -1331,7 +1353,8 @@ The remaining highest-value work is now:
 
 rather than campaign architecture.
 
-Once the legacy migration issue, quest-item accumulation, forage timing, and the remaining medium/low integrity items are addressed, this audit can be considered substantially complete.
+Once the legacy migration issue, quest-item accumulation, forage timing, and the remaining
+medium/low integrity items are addressed, this audit can be considered substantially complete.
 
 At that point, further effort should shift from correctness auditing toward:
 
