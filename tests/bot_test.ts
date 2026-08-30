@@ -64,12 +64,15 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
     started = p.battle !== undefined;
   }
   assert(started, 'a battle should have started within 30 explores');
-  // Fight: attack until the battle is no longer active.
+  // Fight: attack until the battle resolves. If it ends in death, the UI is
+  // the death screen — rise again (applyDeath + revive) like a player would.
   for (let i = 0; i < 100; i++) {
-    const p = (await store.get(4242))!;
-    if (!p.battle) break;
-    if (p.battle.phase === 'active') {
+    const cur = (await store.get(4242))!;
+    if (!cur.battle) break;
+    if (cur.battle.phase === 'active') {
       await tap(store, user, 'b:atk');
+    } else if (cur.battle.phase === 'lost') {
+      await tap(store, user, 'd:ok');
     } else {
       await tap(store, user, 'b:go');
     }
@@ -78,7 +81,7 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
   assertEquals(p.battle, undefined, 'battle should be resolved and cleared');
   assertEquals(p.scene.view, 'zone');
   // A resolved battle means either victory (stats) or death (revived).
-  assert(p.hp > 0);
+  assert(p.hp > 0, 'alive after the fight — revived if it was lost');
 });
 
 Deno.test('shop buy/sell flow updates gold and inventory', async () => {
