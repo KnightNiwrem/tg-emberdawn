@@ -695,21 +695,6 @@ export function quest(id: string): QuestDef | undefined {
 }
 
 export function npc(id: string): NpcDef | undefined {
-  for (
-    const z of [
-      'emberdawn',
-      'whisperwood',
-      'hollowmere',
-      'sunspire',
-      'frostpeak',
-      'cinder',
-      'umbra',
-      'abyss',
-    ]
-  ) {
-    // NPCs are looked up via zones to keep a single source of truth.
-    void z;
-  }
   return NPC_INDEX.get(id);
 }
 
