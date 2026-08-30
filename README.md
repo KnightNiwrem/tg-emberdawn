@@ -51,9 +51,16 @@ BOT_TOKEN=123:abc BOT_POLLING=1 deno task start
 ### Deploy (webhook, Deno Deploy friendly)
 
 1. Create the bot with @BotFather, copy the token.
-2. Deploy this repo with entrypoint `src/main.ts`; set `BOT_TOKEN` (and optionally
-   `WEBHOOK_SECRET`).
-3. Register the webhook once:
+2. Generate a webhook secret and deploy this repo with entrypoint `src/main.ts`:
+
+```bash
+openssl rand -hex 32   # → WEBHOOK_SECRET (REQUIRED in webhook mode — the app fails closed without it)
+```
+
+Set `BOT_TOKEN` and `WEBHOOK_SECRET` as app environment variables. Polling mode (`BOT_POLLING=1`)
+does not need the secret. Telegram signs every update with the value registered via `setWebhook`;
+the app verifies the `X-Telegram-Bot-Api-Secret-Token` header before parsing anything, so the
+registered value and the app env must stay identical. 3. Register the webhook once:
 
 ```bash
 BOT_TOKEN=123:abc WEBHOOK_SECRET=*** deno task webhook set https://<your-app>/webhook
@@ -62,6 +69,11 @@ deno task webhook delete  # unregister
 ```
 
 `GET /healthz` answers `emberdawn bot: ok` for platform health checks.
+
+**Rotating the webhook secret:** generate a new value, update the app's `WEBHOOK_SECRET` env, re-run
+`deno task webhook set <url>` with the new value, and restart the app. Do it in that order and the
+window where signatures and verification disagree stays seconds-wide; a mismatched window only
+yields 401s (Telegram retries webhook deliveries), never lost saves.
 
 On Deno Deploy, attach a **Prisma Postgres** instance to the app (App settings → Databases → Attach
 Database). Deploy injects `DATABASE_URL` and the `PG*` variables automatically, and the app picks
@@ -78,8 +90,8 @@ Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the store 
 `/start` → pick a class → the game message becomes your zone hub. From there, everything is buttons:
 **Explore** (battles, treasure, rest — towns are battle-free safe havens; arriving in one fully
 heals you), **Dive** into the zone dungeon, **Travel**, **Shop**, **Forge**, **Quests**, **Skills**,
-**Character**. `/help` explains; `/reset` starts over. If the game message ever gets buried,
-`/start` re-centers it and old copies go stale safely.
+**Character**. `/help` explains; `/reset` asks before it erases anything. If the game message ever
+gets buried, `/start` re-centers it and old copies go stale safely.
 
 ## Project layout
 

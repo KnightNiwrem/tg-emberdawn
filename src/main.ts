@@ -7,6 +7,7 @@
 import { webhookCallback } from 'grammy';
 import { createBot } from './bot.ts';
 import { PgStore } from './persistence/store.ts';
+import { createWebhookHandler } from './webhook-server.ts';
 
 const token = Deno.env.get('BOT_TOKEN');
 if (!token) {
@@ -28,27 +29,23 @@ const store = await PgStore.open(dbUrl);
 console.log('store: postgres');
 const bot = createBot({ token, store });
 
-const secretToken = Deno.env.get('WEBHOOK_SECRET') || undefined;
-
 if (Deno.env.get('BOT_POLLING') === '1') {
   console.log('Emberdawn bot starting in polling mode…');
   await bot.init();
   bot.start({ drop_pending_updates: false });
 } else {
+  // FAIL CLOSED (#29): a public POST /webhook without request authentication
+  // would let anyone forge updates (saves are keyed by from.id, so a forged
+  // update mutates another player's game). Polling mode exposes no endpoint
+  // and needs no secret.
+  const secretToken = Deno.env.get('WEBHOOK_SECRET');
+  if (!secretToken) {
+    console.error(
+      'WEBHOOK_SECRET is required in webhook mode (polling with BOT_POLLING=1 does not need it).\n' +
+        'Generate one: openssl rand -hex 32 — then register the SAME value: deno task webhook set <url>',
+    );
+    Deno.exit(1);
+  }
   const handleUpdate = webhookCallback(bot, 'std/http', { secretToken });
-  Deno.serve(async (req: Request) => {
-    const url = new URL(req.url);
-    if (req.method === 'POST' && url.pathname === '/webhook') {
-      try {
-        return await handleUpdate(req);
-      } catch (err) {
-        console.error('webhook error', err);
-        return new Response('internal error', { status: 500 });
-      }
-    }
-    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/healthz')) {
-      return new Response('emberdawn bot: ok');
-    }
-    return new Response('not found', { status: 404 });
-  });
+  Deno.serve(createWebhookHandler({ handleUpdate, secretToken }));
 }

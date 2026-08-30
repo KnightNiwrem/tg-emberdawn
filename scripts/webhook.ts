@@ -23,13 +23,23 @@ async function call(method: string, body?: Record<string, unknown>): Promise<voi
 }
 
 switch (cmd) {
-  case 'set':
+  case 'set': {
+    // Refuse to register an UNAUTHENTICATED webhook (#29): Telegram would
+    // deliver unsigned updates the app (rightly) rejects.
+    const secret = Deno.env.get('WEBHOOK_SECRET');
+    if (!secret) {
+      console.error(
+        'WEBHOOK_SECRET is required to register a webhook — the same value the app verifies. Generate: openssl rand -hex 32',
+      );
+      Deno.exit(1);
+    }
     await call('setWebhook', {
       url: Deno.args[1],
-      secret_token: Deno.env.get('WEBHOOK_SECRET') || undefined,
+      secret_token: secret,
       allowed_updates: ['message', 'callback_query'],
     });
     break;
+  }
   case 'info':
     await call('getWebhookInfo');
     break;

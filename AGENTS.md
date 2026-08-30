@@ -126,6 +126,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   confirmation (`reset` view); state is destroyed solely by `resetYes`, which builds a fully
   initialized fresh state (`syncAvailability` included). No/✋ resumes the live scene (a pending
   fight stays a fight).
+- **Webhook auth (#29):** webhook mode FAILS CLOSED without `WEBHOOK_SECRET`; the
+  `X-Telegram-Bot-Api-Secret-Token` header is verified constant-time in `src/webhook-server.ts`
+  BEFORE grammY parses the update. Polling mode needs no secret. Rotate: new secret → update app env
+  → `deno task webhook set <url>` with the same value → restart.
 - **Dungeon design (#13):** floors are INDEPENDENT dives — leaving to heal at a safe haven between
   floors is intended play, not an exploit. Attrition mechanics (run-reset on leaving, travel locks,
   between-floor heal limits) are a deliberate non-goal; if future tuning wants endurance runs, make
