@@ -64,8 +64,12 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   rewards.drops = rewards.drops.filter((id) => questDropAllowed(p, id));
   p.gold += rewards.gold;
   // At the summit the headline must not advertise XP the player cannot
-  // receive (#36): show the conversion inline. Pre-cap unchanged.
+  // receive (#36): show the conversion inline. Pre-cap unchanged. The
+  // decision is made BEFORE the grant and stamped onto the reward record
+  // (#40): a 44→45 victory is a pre-cap grant, so it records no conversion
+  // even though the player ends the fight at the summit.
   const capped = p.level >= MAX_LEVEL;
+  if (capped && rewards.xp > 0) rewards.xpConvertedGold = xpToGoldAtCap(rewards.xp);
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,
     capped

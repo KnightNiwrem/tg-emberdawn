@@ -17,8 +17,9 @@ import {
   grantXp,
   migratePlayer,
   statsOf,
+  xpToGoldAtCap,
 } from '../src/engine/character.ts';
-import { MAX_LEVEL } from '../src/engine/classes.ts';
+import { MAX_LEVEL, xpForNextLevel } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
@@ -815,6 +816,42 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   b44.phase = 'won';
   p44.battle = b44;
   assert(!JSON.stringify(renderBattle(p44)).includes('→ +'), 'spoils stay nominal pre-cap');
+});
+
+Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', () => {
+  // One XP short of the summit: the kill itself reaches level 45, but the
+  // reward was granted pre-cap — nominal XP spoils, no phantom gold.
+  const p = createPlayer(973, 'T', 'warrior');
+  p.level = 44;
+  p.xp = xpForNextLevel(44) - 1;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  b.enemy.hp = 0;
+  const goldBefore = p.gold;
+  const lines = resolveVictory(p, b, seeded(93));
+  assertEquals(p.level, 45, 'the kill itself reaches the summit');
+  assert(!lines.some((l) => l.includes('→')), 'headline claims no conversion');
+  assertEquals(p.gold, goldBefore + b.rewards!.gold, 'no conversion gold was granted');
+  b.phase = 'won';
+  p.battle = b;
+  const spoils = JSON.stringify(renderBattle(p));
+  assert(!spoils.includes('→ +'), '44→45 spoils must not show unawarded gold');
+
+  // A victory begun at the cap shows exactly the gold actually granted.
+  const p45 = createPlayer(974, 'T', 'warrior');
+  p45.level = 45;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  b45.enemy.hp = 0;
+  const g45 = p45.gold;
+  resolveVictory(p45, b45, seeded(94));
+  const converted = xpToGoldAtCap(b45.rewards!.xp);
+  assertEquals(b45.rewards!.xpConvertedGold, converted, 'grant outcome stamped');
+  assertEquals(p45.gold, g45 + b45.rewards!.gold + converted, 'conversion actually paid');
+  b45.phase = 'won';
+  p45.battle = b45;
+  assert(
+    JSON.stringify(renderBattle(p45)).includes(`XP → +${converted} gold`),
+    'spoils match the granted conversion',
+  );
 });
 
 Deno.test('item menus only advertise actions that can succeed (#35)', () => {

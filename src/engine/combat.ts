@@ -564,7 +564,7 @@ export function onLethalHit(p: PlayerState, battle: BattleState): string[] {
 export function rollRewards(
   def: EnemyDef,
   rng: Rng = defaultRng,
-): { xp: number; gold: number; drops: string[] } {
+): { xp: number; gold: number; drops: string[]; xpConvertedGold?: number } {
   const drops: string[] = [];
   for (const [id, dropChance] of Object.entries(def.drops ?? {})) {
     if (chance(rng, dropChance)) drops.push(id);

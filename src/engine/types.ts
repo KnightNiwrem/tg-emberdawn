@@ -58,8 +58,11 @@ export interface BattleState {
   buffs: CombatBuffs;
   /** Rolling log lines, newest last. Rendered inside the battle screen. */
   log: string[];
-  /** Rewards staged on victory. */
-  rewards?: { xp: number; gold: number; drops: string[] };
+  /** Rewards staged on victory. `xpConvertedGold` is the amount actually
+   * granted by post-cap conversion (stamped by `resolveVictory` BEFORE the
+   * XP grant, #40) — renderers must never re-infer it from the player's
+   * current level, or a 44→45 victory advertises unawarded gold. */
+  rewards?: { xp: number; gold: number; drops: string[]; xpConvertedGold?: number };
   /** Phoenix Cinder already spent this battle (revive is once per battle). */
   phoenixUsed?: boolean;
   /** Enemy-side guard (Guard Stance et al., #25): mitigation multiplier and
