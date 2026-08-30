@@ -136,8 +136,6 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
 });
 
 Deno.test('combat: guard halves incoming damage', () => {
-  const rng = seeded(99);
-
   // Track damage via a spy: run guarded vs unguarded with same seed and
   // compare enemy-phase damage parsed from the log.
   const guarded = play('guard');
