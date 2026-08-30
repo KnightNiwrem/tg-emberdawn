@@ -11,7 +11,14 @@ import { quest } from '../content/quests.ts';
 import { countOf, grantDropRewards, removeItem } from './inventory.ts';
 import { rollRewards, startBattle } from './combat.ts';
 import { grantXp, statsOf } from './character.ts';
-import { grantItem, onDungeonClear, onKill, onZoneEnter, syncAvailability } from './quests.ts';
+import {
+  grantItem,
+  onDungeonClear,
+  onKill,
+  onZoneEnter,
+  questDropAllowed,
+  syncAvailability,
+} from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { itemName } from '../content/items.ts';
 
@@ -50,6 +57,10 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   const def = enemyDef(b.enemy.id);
   if (!def) return [];
   const rewards = rollRewards(def, rng);
+  // Quest items only drop while they still matter (#2): once every quest
+  // that needs one is done — or the bag already holds the relevant amount —
+  // further drops are suppressed instead of piling up as clutter.
+  rewards.drops = rewards.drops.filter((id) => questDropAllowed(p, id));
   p.gold += rewards.gold;
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,

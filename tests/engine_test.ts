@@ -21,7 +21,14 @@ import {
   rollRewards,
   startBattle,
 } from '../src/engine/combat.ts';
-import { acceptQuest, onKill, syncAvailability, turnInQuest } from '../src/engine/quests.ts';
+import {
+  acceptQuest,
+  onKill,
+  onTalk,
+  questDropAllowed,
+  syncAvailability,
+  turnInQuest,
+} from '../src/engine/quests.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, currentStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
@@ -359,6 +366,21 @@ Deno.test('migratePlayer: grandfathering — legit duplicates and legacy shapes 
   assertEquals(statsOf(withExtra).atk, statsOf(plain).atk, 'bag copies never affect stats');
 });
 
+Deno.test('migratePlayer: v3 purges retired catalog ids, keeps known items', () => {
+  const p = createPlayer(28, 'T', 'mage');
+  // q_umbra_key no longer exists in the catalog (m22 rework); a legacy bag
+  // copy is unusable dead weight. Known items are never touched.
+  p.inventory = [
+    { id: 'q_umbra_key', qty: 2 },
+    { id: 'c_minor_potion', qty: 3 },
+  ];
+  p.stateVersion = 2;
+  migratePlayer(p);
+  assertEquals(p.inventory.length, 1);
+  assertEquals(p.inventory[0]!.id, 'c_minor_potion');
+  assertEquals(p.inventory[0]!.qty, 3);
+});
+
 Deno.test('migratePlayer: refuses to downgrade saves from a newer binary', () => {
   const p = createPlayer(25, 'T', 'rogue');
   p.stateVersion = CURRENT_STATE_VERSION + 1;
@@ -572,4 +594,71 @@ Deno.test('content integrity: item catalog is large, unique and priced', () => {
     if (i.kind === 'quest') assertEquals(i.price, 0);
     else assert(i.price > 0, `${i.id} should be priced`);
   }
+});
+
+// ── quest-item lifecycle (#2 / #10 / #12) ────────────────────────────────
+
+Deno.test('questDropAllowed: quest items drop only while an open quest needs them', () => {
+  const p = createPlayer(31, 'T', 'mage');
+  assertEquals(questDropAllowed(p, 'q_toxin_sample'), false, 'no open quest → no drop');
+  assertEquals(questDropAllowed(p, 'm_iron_chunk'), true, 'materials are never capped');
+  p.quests['m6_toxin'] = { status: 'active', counts: [0] };
+  addItem(p, 'q_toxin_sample', 3);
+  assertEquals(questDropAllowed(p, 'q_toxin_sample'), true);
+  addItem(p, 'q_toxin_sample', 1);
+  assertEquals(questDropAllowed(p, 'q_toxin_sample'), false, 'cap reached');
+  p.quests['m6_toxin']!.status = 'done';
+  removeItem(p, 'q_toxin_sample', 4);
+  assertEquals(questDropAllowed(p, 'q_toxin_sample'), false, 'done → never again');
+});
+
+Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', () => {
+  const p = createPlayer(32, 'T', 'warrior');
+  const rng = seeded(31);
+  for (let i = 0; i < 40; i++) {
+    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+  }
+  assertEquals(countOf(p, 'q_toxin_sample'), 0, 'no open quest → drops suppressed');
+  p.quests['m6_toxin'] = { status: 'active', counts: [0] };
+  for (let i = 0; i < 60; i++) {
+    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+  }
+  const got = countOf(p, 'q_toxin_sample');
+  assert(got >= 1 && got <= 4, `expected 1..4 samples while m6 open, got ${got}`);
+  // Deterministic turn-in: top up to the exact requirement and ready it.
+  addItem(p, 'q_toxin_sample', 4 - got);
+  p.quests['m6_toxin']!.status = 'turnIn';
+  assertEquals(turnInQuest(p, 'm6_toxin').ok, true);
+  assertEquals(countOf(p, 'q_toxin_sample'), 0, 'turn-in consumes the goods');
+  for (let i = 0; i < 20; i++) {
+    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+  }
+  assertEquals(countOf(p, 'q_toxin_sample'), 0, 'done quest → the tap stays shut');
+});
+
+Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => {
+  const p = createPlayer(34, 'T', 'warrior');
+  syncAvailability(p);
+  assertEquals(acceptQuest(p, 'm1_embers').ok, true);
+  for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
+  assertEquals(turnInQuest(p, 'm1_embers').ok, true);
+  assertEquals(countOf(p, 'q_sealed_letter'), 1, 'm1 hands over the letter');
+  syncAvailability(p);
+  assertEquals(acceptQuest(p, 'm2_letter').ok, true);
+  onTalk(p, 'npc_bram'); // the letter satisfies the collect half; Bram the rest
+  const t2 = turnInQuest(p, 'm2_letter');
+  assertEquals(t2.ok, true);
+  assertEquals(countOf(p, 'q_sealed_letter'), 0, 'letter handed to Bram');
+  assertEquals(p.quests['m2_letter'].status, 'done');
+});
+
+Deno.test('m22 is an Archivist handoff; retired keys are gone from the catalog', () => {
+  assert(item('q_umbra_key') === undefined, 'umbra key retired');
+  assert(item('q_village_charm') === undefined, 'village charm retired');
+  const p = createPlayer(33, 'T', 'mage');
+  p.quests['m22_umbral_key'] = { status: 'active', counts: [0] };
+  onTalk(p, 'npc_archivist');
+  assertEquals(p.quests['m22_umbral_key'].status, 'turnIn');
+  assertEquals(turnInQuest(p, 'm22_umbral_key').ok, true);
+  assertEquals(p.quests['m22_umbral_key'].status, 'done');
 });

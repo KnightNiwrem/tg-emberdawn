@@ -8,7 +8,7 @@ import type { PlayerState, QuestProgress } from './types.ts';
 import type { Objective, QuestDef } from '../content/types.ts';
 import { quest, QUESTS } from '../content/quests.ts';
 import { addItem, countOf, removeItem } from './inventory.ts';
-import { itemName } from '../content/items.ts';
+import { item, itemName } from '../content/items.ts';
 import { enemyName } from '../content/enemies.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp } from './character.ts';
@@ -113,6 +113,26 @@ export function grantItem(p: PlayerState, itemId: string, qty = 1): string[] {
 /** Dungeon-objective hook: called when a dungeon's boss falls for the first
  * time. Location-specific story objectives key on THIS, never on enemy ids —
  * an overworld echo of a boss must not substitute for the real fight. */
+/** Whether a rolled enemy drop may enter the bag. Quest-kind items only
+ * drop while an OPEN quest (available/active/turnIn) still needs them and
+ * the bag holds fewer than the requirement — surplus keys/samples/emblems
+ * can never pile up as permanent unsellable clutter (#2). Materials and
+ * consumables are never capped. */
+export function questDropAllowed(p: PlayerState, itemId: string): boolean {
+  if (item(itemId)?.kind !== 'quest') return true;
+  let cap = 0;
+  for (const q of QUESTS) {
+    const st = p.quests[q.id]?.status;
+    if (st !== 'available' && st !== 'active' && st !== 'turnIn') continue;
+    for (const o of q.objectives) {
+      if (o.kind === 'collect' && o.target === itemId) {
+        cap = Math.max(cap, o.count ?? 1);
+      }
+    }
+  }
+  return countOf(p, itemId) < cap;
+}
+
 export function onDungeonClear(p: PlayerState, dungeonId: string): void {
   progressObjective(p, 'dungeon', dungeonId);
 }

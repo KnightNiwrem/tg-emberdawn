@@ -496,7 +496,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '⚔️',
     level: 42,
     moves: [mv('Loyal Edge', 1.4, 'phys', 3), mv("King's Command", 1.2, 'mag', 2)],
-    drops: { m_void_fragment: 0.45, q_umbra_key: 0.25 },
+    drops: { m_void_fragment: 0.45 },
   }),
   mk({
     id: 'e_regalia',

@@ -21,7 +21,7 @@ export const QUESTS: readonly QuestDef[] = [
     outro:
       '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. The road you\'ll walk starts at his forge."',
     objectives: [{ kind: 'kill', target: 'e_wolf', count: 4 }],
-    rewards: { xp: 120, gold: 80 },
+    rewards: { xp: 120, gold: 80, items: { q_sealed_letter: 1 } },
     giver: 'npc_maren',
   }),
   Q({
@@ -36,7 +36,10 @@ export const QUESTS: readonly QuestDef[] = [
       '"Take this to Bram," Maren says, pressing a wax-sealed letter into your hands. "His forge was the last to touch the Great Flame. If tomorrow can be found, his fire knows where to look."',
     outro:
       'Bram breaks the seal, reads, and hope flickers across his face. "The Flame isn\'t just dying — its tomorrow was stolen and scattered. The Whisperwood roots still carry warmth. Follow it. Find where the light went."',
-    objectives: [{ kind: 'talk', target: 'npc_bram' }],
+    objectives: [
+      { kind: 'collect', target: 'q_sealed_letter', count: 1 },
+      { kind: 'talk', target: 'npc_bram' },
+    ],
     rewards: { xp: 150, gold: 100, items: { c_potion: 1 } },
     giver: 'npc_maren',
   }),
@@ -346,17 +349,17 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm22_umbral_key',
-    name: 'The Umbral Key',
+    name: 'The Unlocked Door',
     main: true,
     chapter: 6,
     level: 40,
     prereqQuest: 'm21_loyalty',
-    summary: 'Claim the Umbral Key from the Crownsworn elite.',
+    summary: 'Take counsel with the Archivist before climbing to the throne.',
     intro:
-      '"The throne room opens for the Umbral Key," the Archivist says. "The Crownsworn carry it in pieces of duty. Relieve them of it — gently, if you can manage."',
+      '"The Crownsworn carried a key out of habit," the Archivist says, "but grief was the only lock. Before you climb — let me tell you what the last king chose to forget."',
     outro:
-      'The key is cold, and it opens what should stay locked. The throne room doors swing inward on a room split down the middle — half ember, half ash, and one thin line of light running down the seam.',
-    objectives: [{ kind: 'collect', target: 'q_umbra_key', count: 1 }],
+      '"The door was never locked," the Archivist says, "only mourned shut." The throne room doors swing inward on a room split down the middle — half ember, half ash, and one thin line of light running down the seam.',
+    objectives: [{ kind: 'talk', target: 'npc_archivist' }],
     rewards: { xp: 10000, gold: 3500, items: { c_elixir: 1 } },
   }),
   Q({

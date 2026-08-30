@@ -5,7 +5,7 @@
 
 import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
-import { itemStats } from '../content/items.ts';
+import { item, itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
 import { STARTING_ZONES, ZONES } from '../content/zones.ts';
 import { temperBonusOf } from './forge.ts';
@@ -89,7 +89,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 2;
+export const CURRENT_STATE_VERSION = 3;
 
 /**
  * Save migration. Destructive legacy cleanups run ONCE, gated by an explicit
@@ -152,6 +152,12 @@ export function migratePlayer(p: PlayerState): void {
       b.buffs.stunnedEnemy ??= false;
       b.phoenixUsed ??= false;
     }
+  }
+  if (from < 3) {
+    // Catalog pruning (v3): retired items (e.g. q_umbra_key after the m22
+    // rework) are unusable dead weight in legacy bags — purge anything the
+    // current catalog no longer defines. Known items are never touched.
+    p.inventory = p.inventory.filter((e) => item(e.id));
   }
   // Legacy slot-bound temper adoption (every-load, non-destructive): a
   // deferred temper follows the next UNTempered item equipped in its slot,

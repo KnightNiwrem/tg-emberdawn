@@ -322,11 +322,6 @@ const MATERIALS: { id: string; name: string; lvl: number; price: number; desc: s
 ];
 
 const QUEST_ITEMS: { id: string; name: string; desc: string }[] = [
-  {
-    id: 'q_village_charm',
-    name: 'Village Charm',
-    desc: 'A woven knot of straw and ribbon, given for luck.',
-  },
   { id: 'q_sealed_letter', name: 'Sealed Letter', desc: "Wax stamp bearing the Warden's crest." },
   { id: 'q_toxin_sample', name: 'Toxin Sample', desc: "Swamp water that fizzes when it's angry." },
   { id: 'q_sunspire_key', name: 'Sunspire Key', desc: 'A key of solid gold light, somehow cold.' },
@@ -336,7 +331,6 @@ const QUEST_ITEMS: { id: string; name: string; desc: string }[] = [
     name: 'Cinder Sigil',
     desc: 'Branded into the air more than any object.',
   },
-  { id: 'q_umbra_key', name: 'Umbral Key', desc: 'Unlocks what should stay locked.' },
   {
     id: 'q_sundered_crown',
     name: 'The Sundered Crown',
