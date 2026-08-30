@@ -27,6 +27,8 @@ import {
 import { onLethalHit, performAction, startBattle } from '../src/engine/combat.ts';
 import { renderItemMenu } from '../src/render/battle.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
+import { ENEMIES } from '../src/content/enemies.ts';
+import { shopStock } from '../src/content/items.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 
 /** Deterministic RNG (mulberry32). */
@@ -345,4 +347,65 @@ Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo'
   }
   assertEquals(p.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
   assertEquals(dungeonCleared(p, seam), true);
+});
+
+// ── static collect-source reachability (#9) ─────────────────────────────
+
+Deno.test('campaign: every collect objective has a reachable source (#9)', () => {
+  // A drop from a farmable enemy (wilds spawn or any dungeon floor, both
+  // infinitely repeatable) is a repeatable source; explore-table treasures
+  // re-roll forever; shop stock is repeatable. Only guaranteed finite
+  // supplies (quest rewards, first-clears, one-time floor caches) must
+  // actually cover the requirement — and only from BEFORE the quest.
+  const farmableDrops = new Set<string>();
+  const wilds = new Set<string>();
+  const floors = new Set<string>();
+  for (const z of ZONES) {
+    for (const ev of z.explore) {
+      if (ev.kind === 'battle' || ev.kind === 'elite') wilds.add(ev.enemy);
+      if (ev.kind === 'treasure' && ev.item) farmableDrops.add(ev.item);
+    }
+    const d = z.dungeon;
+    if (!d) continue;
+    floors.add(d.boss); // bosses are always rematchable in their own dungeon
+    for (const f of d.floors) for (const e of f.enemies) floors.add(e);
+  }
+  for (const e of ENEMIES) {
+    if (!wilds.has(e.id) && !floors.has(e.id)) continue;
+    for (const id of Object.keys(e.drops ?? {})) farmableDrops.add(id);
+  }
+  const shopItems = new Set<string>();
+  for (const z of ZONES) {
+    for (let t = 1; t <= 8; t++) for (const id of shopStock(z.id, t)) shopItems.add(id);
+  }
+
+  const problems: string[] = [];
+  QUESTS.forEach((q, qi) => {
+    for (const o of q.objectives) {
+      if (o.kind !== 'collect') continue;
+      const need = o.count ?? 1;
+      if (farmableDrops.has(o.target) || shopItems.has(o.target)) continue;
+
+      // Finite guaranteed supply, from strictly earlier content only —
+      // a quest can never source its own goods, and later quests or
+      // higher-chapter dungeons can't be relied upon.
+      let supply = 0;
+      for (const pq of QUESTS.slice(0, qi)) {
+        supply += pq.rewards.items?.[o.target] ?? 0;
+      }
+      for (const z of ZONES) {
+        if (z.chapter > q.chapter) continue;
+        if (z.dungeon?.firstClear?.item === o.target) supply += 1;
+        for (const f of z.dungeon?.floors ?? []) {
+          if (f.treasure?.item === o.target) supply += 1;
+        }
+      }
+      if (supply < need) {
+        problems.push(
+          `${q.id} needs ${o.target} ×${need} but no reachable source exists (guaranteed supply before it: ${supply})`,
+        );
+      }
+    }
+  });
+  assertEquals(problems, [], `unreachable collect sources:\n${problems.join('\n')}`);
 });
