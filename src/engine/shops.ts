@@ -25,7 +25,9 @@ export function shopTierFor(p: PlayerState): number {
 }
 
 export function currentStock(p: PlayerState): string[] {
-  return shopStock(p.currentZone, shopTierFor(p));
+  // Player level gates what's on the shelf (#6): nothing unequippable is
+  // offered, so a purchase is always immediately usable.
+  return shopStock(p.currentZone, shopTierFor(p), p.level);
 }
 
 export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lines: string[] } {

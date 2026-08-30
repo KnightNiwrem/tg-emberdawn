@@ -540,7 +540,7 @@ export function isEquippable(
   return { ok: true };
 }
 
-export function shopStock(zoneId: string, zoneTier: number): string[] {
+export function shopStock(zoneId: string, zoneTier: number, playerLevel?: number): string[] {
   const stock: string[] = [];
   const t = zoneTier;
   for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as ClassId[]) {
@@ -550,7 +550,11 @@ export function shopStock(zoneId: string, zoneTier: number): string[] {
   // Trinkets stock by their ACTUAL level, not array position — the table
   // isn't sorted by level, so index math once sold a level-5 ring only in
   // endgame shops. Cap = highest equippable level for this tier.
-  const trinketCap = t * 6; // levels reachable within this tier band
+  // Trinkets stock by what the player can actually EQUIP (#6): the zone
+  // tier band governs gear tiers, but offering items the counter knows you
+  // cannot wear yet is bait. Without a level (static callers) the tier-band
+  // ceiling applies as before.
+  const trinketCap = playerLevel ?? t * 6;
   TRINKET_TIERS.forEach((tk, i) => {
     if (tk.lvl <= trinketCap) stock.push(`t_${i + 1}`);
   });

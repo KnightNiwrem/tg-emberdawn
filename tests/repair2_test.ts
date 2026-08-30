@@ -21,9 +21,10 @@ import { MAX_LEVEL } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { grantItem, onItemGain, turnInQuest } from '../src/engine/quests.ts';
-import { tierForLevel } from '../src/engine/shops.ts';
+import { currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
+import { item } from '../src/content/items.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 /** Deterministic RNG (mulberry32). */
@@ -322,4 +323,26 @@ Deno.test('forage: legacy exhausted save without a timer stamps from its next vi
   // And it is NOT re-stamped on subsequent visits while still charging.
   explore(p, seeded(17), t0 + 1000);
   assertEquals(p.flags['forageResetAt'], t0 + 6 * 3_600_000);
+});
+
+Deno.test('shops only stock trinkets the player can actually equip (#6)', () => {
+  const p = createPlayer(35, 'T', 'mage');
+  const s1 = currentStock(p);
+  assert(!s1.includes('t_1'), 'Lucky Coin is level 3 — not at level 1');
+  assert(!s1.includes('t_9'), 'Thorn Ring is level 5 — not at level 1');
+  assert(s1.includes('w_mage_1'), 'gear tiers unchanged');
+  p.level = 5;
+  const s5 = currentStock(p);
+  assert(s5.includes('t_1') && s5.includes('t_9'), 'Thorn Ring unlocks at its level');
+  assert(!s5.includes('t_2'), 'Feather Charm is level 7');
+  p.level = 7;
+  assert(currentStock(p).includes('t_2'));
+});
+
+Deno.test('m25 finale rewards no equipment — t_18 already crowned the fight (#7)', () => {
+  const m25 = QUESTS.find((q) => q.id === 'm25_silence')!;
+  for (const id of Object.keys(m25.rewards.items ?? {})) {
+    assert(item(id)!.kind !== 'trinket', `${id} would be instantly dominated by t_18`);
+  }
+  assert((m25.rewards.items?.m_void_fragment ?? 0) >= 3, 'forge materials keep endgame relevant');
 });
