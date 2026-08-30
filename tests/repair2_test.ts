@@ -21,6 +21,7 @@ import {
 } from '../src/engine/character.ts';
 import { MAX_LEVEL } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
+import { temper, temperLevel } from '../src/engine/forge.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import {
   acceptQuest,
@@ -646,4 +647,32 @@ Deno.test('shop stocks only the shopping class, only immediately usable gear (#2
   const r = buy(mage, 'w_warrior_1', 1);
   assertEquals(r.ok, false);
   assertEquals(mage.gold, 100, 'no charge on a refused sale');
+});
+
+Deno.test('temper is item-pattern mastery: reacquired copies carry the forge-work (#24)', () => {
+  const p = createPlayer(960, 'T', 'warrior');
+  p.level = 10;
+  addItem(p, 'm_ember_shard', 30);
+  p.gold = 100000;
+  assert(temper(p, 'weapon').ok); // w_warrior_1, equipped at creation
+  assert(temper(p, 'weapon').ok);
+  assertEquals(temperLevel(p, 'weapon'), 2);
+  const boostedAtk = statsOf(p).atk;
+
+  // Dispose of the physical copy, then reacquire the same pattern. The
+  // real unequip route returns the copy to the bag; mirror it here.
+  p.equipment.weapon = undefined;
+  addItem(p, 'w_warrior_1', 1);
+  assertEquals(itemAction(p, 'drop', 'w_warrior_1').toast, undefined);
+  assertEquals(countOf(p, 'w_warrior_1'), 0);
+  grantItem(p, 'w_warrior_1', 1);
+  assertEquals(itemAction(p, 'eq', 'w_warrior_1').toast, undefined);
+  // Mastery is bound to the pattern (#24): the replacement is born +2.
+  assertEquals(temperLevel(p, 'weapon'), 2);
+  assertEquals(statsOf(p).atk, boostedAtk);
+
+  // A different pattern never inherited it.
+  addItem(p, 'w_warrior_2', 1);
+  assertEquals(itemAction(p, 'eq', 'w_warrior_2').toast, undefined);
+  assertEquals(temperLevel(p, 'weapon'), 0);
 });

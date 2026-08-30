@@ -216,7 +216,7 @@ export function renderForge(p: PlayerState): InputRichMessage {
   const blocks: Block[] = [
     heading('⚒️ The Forge', 3),
     para(
-      "Temper your equipped gear. Each temper grants +8% to that item's own base stats. Max +5 — and the temper stays with the item.",
+      "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. Mastery binds to the pattern: every copy of this gear you ever own — forged, bought or looted — carries your forge-work.",
     ),
     ...noticesBlocks(p),
     para(

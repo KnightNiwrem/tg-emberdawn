@@ -1,7 +1,10 @@
 /**
- * The Forge: temper the EQUIPPED weapon/armor. Temper level is bound to the
- * item id (flags `forge_i_<itemId>`), so it travels with the gear when you
- * swap slots, and boosts only that item's own stats in derived stats.
+ * The Forge: temper the EQUIPPED weapon/armor. Ownership model (#24, made
+ * explicit): temper is ITEM-PATTERN MASTERY — state lives in flags
+ * `forge_i_<itemId>`, keyed by CATALOG id, so every copy of that pattern
+ * shares it. Tempering one sword to +5 means every future copy of the same
+ * pattern (bought, looted, re-forged) fights at +5: the forge is a bounded
+ * per-pattern sink, and replacement loot inherits your forge-work.
  * Material tier derives from the ITEM's tier — no more tempering endgame
  * gear with cheap chapter-1 shards after a quick trip back to the village.
  */

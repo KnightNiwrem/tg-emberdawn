@@ -111,8 +111,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   (`def.level ≤ player level`) — the old clamp-up baited low-level travelers with level-locked gear
   (#22). The counter revalidates `isEquippable` before charging (defense in depth). Trinkets stock
   only what the player can currently equip (`item.level ≤ player level`, #6). Forge tempers up to +5
-  are bound to the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the
-  temper material is chosen by the item's tier, not the player's location. location.
+  are ITEM-PATTERN MASTERY (`forge_i_<itemId>` flags, #24 — documented design choice: every copy of
+  that catalog id carries the temper, replacement loot inherits your forge-work, and the forge is a
+  bounded per-pattern sink) and boost only that item's own base stats; the temper material is chosen
+  by the item's tier, not the player's location.
 - **Save schema:** `stateVersion` (default 0) gates one-time migrations; v2 migrated slot-bound
   tempers + old battle shape (string origin, missing buff fields → neutral defaults, so combat can
   never see NaN). Unversioned saves are GRANDFATHERED, never gear-destructive: the old v0→v1
