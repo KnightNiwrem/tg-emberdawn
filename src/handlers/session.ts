@@ -7,7 +7,7 @@ import type { Context } from 'grammy';
 import type { InputRichMessage } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
-import { migratePlayer } from '../engine/character.ts';
+import { migratePlayer, SaveTooNewError } from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -128,7 +128,20 @@ export async function withLoadedPlayer(
   mutate: (p: PlayerState) => MutationResult | void | Promise<MutationResult | void>,
 ): Promise<void> {
   if (!ctx.chat) return;
-  migratePlayer(p); // versioned save migration (destructive steps run once)
+  try {
+    migratePlayer(p); // versioned save migration (destructive steps run once)
+  } catch (e) {
+    if (!(e instanceof SaveTooNewError)) throw e;
+    // A NEWER binary wrote this save. Never read-mutate-write it: a rollback
+    // must not silently downgrade player data (#4).
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx
+      .reply(
+        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
+      )
+      .catch(() => {});
+    return;
+  }
   const result = (await mutate(p)) ?? {};
   p.stats.lastPlayed = Date.now();
   // Respond FIRST: commit may update p.messageId (resend fallback), and the

@@ -3,13 +3,14 @@
  * Covers: creation, progression, combat, quests, economy, forge, world.
  */
 
-import { assert, assertEquals, assertGreater } from '@std/assert';
+import { assert, assertEquals, assertGreater, assertThrows } from '@std/assert';
 import {
   applyDeath,
   createPlayer,
   CURRENT_STATE_VERSION,
   grantXp,
   migratePlayer,
+  SaveTooNewError,
   statsOf,
 } from '../src/engine/character.ts';
 import { xpForNextLevel } from '../src/engine/classes.ts';
@@ -319,9 +320,10 @@ Deno.test('death revives at a safe haven, not where you fell', () => {
   assertEquals(p.currentZone, 'emberfall');
 });
 
-Deno.test('migratePlayer: destructive cleanup runs once, then never again', () => {
+Deno.test('migratePlayer: grandfathering — legit duplicates and legacy shapes survive', () => {
+  // Intermediate save (post-equipment-fix, pre-stateVersion): the bag copy
+  // is a legitimate re-purchase. Grandfathered, never deleted.
   const p = createPlayer(21, 'T', 'mage');
-  // Pre-fix save: no starting skill, no Whisperwood, equipped gear ALSO in bag.
   p.skills = [];
   p.unlockedZones = ['emberfall'];
   addItem(p, 'w_mage_1', 2);
@@ -331,18 +333,69 @@ Deno.test('migratePlayer: destructive cleanup runs once, then never again', () =
   assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
   assertEquals(p.skills, skillsForClass('mage', 1).map((sk) => sk.id));
   for (const zid of STARTING_ZONES) assert(p.unlockedZones.includes(zid));
-  // The bag held TWO copies: the one-time migration removes exactly the
-  // legacy duplicate and leaves the second (legitimate) copy alone.
-  assertEquals(countOf(p, 'w_mage_1'), 1, 'legacy duplicate removed exactly once');
-  assertEquals(countOf(p, 'a_mage_1'), 0);
-  // A versioned save can hold legitimate re-purchased copies — untouchable.
-  addItem(p, 'w_mage_1', 2);
+  assertEquals(countOf(p, 'w_mage_1'), 2, 'nothing is deleted — grandfathered');
+  assertEquals(countOf(p, 'a_mage_1'), 1);
+
+  // Real legacy shape after a first swap: the OLD starter is what got
+  // duplicated into the bag; current gear is unrelated. The retired
+  // equipped-item heuristic missed this shape entirely.
+  const p2 = createPlayer(22, 'T', 'warrior');
+  p2.stateVersion = 0;
+  p2.equipment.weapon = 'w_warrior_2';
+  p2.equipment.armor = 'a_warrior_2';
+  p2.inventory = [
+    { id: 'w_warrior_1', qty: 2 },
+    { id: 'a_warrior_1', qty: 1 },
+  ];
+  migratePlayer(p2);
+  assertEquals(countOf(p2, 'w_warrior_1'), 2, 'swapped legacy duplicate survives');
+  assertEquals(countOf(p2, 'a_warrior_1'), 1);
+
+  // A grandfathered duplicate has NO stat side-effect: derived stats
+  // aggregate equipped slots only, never bag copies.
+  const plain = createPlayer(23, 'T', 'warrior');
+  const withExtra = createPlayer(24, 'T', 'warrior');
+  withExtra.inventory = [...withExtra.inventory, { id: withExtra.equipment.weapon!, qty: 1 }];
+  assertEquals(statsOf(withExtra).atk, statsOf(plain).atk, 'bag copies never affect stats');
+});
+
+Deno.test('migratePlayer: refuses to downgrade saves from a newer binary', () => {
+  const p = createPlayer(25, 'T', 'rogue');
+  p.stateVersion = CURRENT_STATE_VERSION + 1;
+  p.gold = 12345;
+  assertThrows(() => migratePlayer(p), SaveTooNewError);
+  // The refusal must be total: no rewrite, no stamp-down, no loss.
+  assertEquals(p.stateVersion, CURRENT_STATE_VERSION + 1);
+  assertEquals(p.gold, 12345);
+});
+
+Deno.test('migratePlayer: legacy slot tempers adopt losslessly onto the equipped item', () => {
+  // Normal path: slot-bound temper moves onto the equipped weapon.
+  const p = createPlayer(26, 'T', 'warrior');
+  p.flags['forge_weapon'] = 3;
+  p.stateVersion = 0;
   migratePlayer(p);
-  assertEquals(countOf(p, 'w_mage_1'), 3, 'versioned saves never lose gear');
-  // Leveled players keep what they know; nothing is removed.
-  p.skills.push('sk_frost_lance');
-  migratePlayer(p);
-  assert(p.skills.includes('sk_frost_lance'));
+  assertEquals(p.flags['forge_i_w_warrior_1'], 3, 'temper moved to the equipped item');
+  assertEquals(p.flags['forge_weapon'], undefined);
+
+  // Empty slot: the investment is DEFERRED, not deleted...
+  const p2 = createPlayer(27, 'T', 'warrior');
+  p2.flags['forge_weapon'] = 5;
+  delete p2.equipment.weapon;
+  p2.stateVersion = 0;
+  migratePlayer(p2);
+  assertEquals(p2.flags['forge_weapon'], 5, 'no temper is ever silently lost');
+  // ...and it follows the next UNTempered weapon equipped in that slot.
+  p2.equipment.weapon = 'w_warrior_2';
+  migratePlayer(p2);
+  assertEquals(p2.flags['forge_i_w_warrior_2'], 5);
+  assertEquals(p2.flags['forge_weapon'], undefined);
+  // An item with its OWN temper is never overwritten; the flag keeps waiting.
+  p2.flags['forge_weapon'] = 2;
+  p2.flags['forge_i_w_warrior_2'] = 4;
+  migratePlayer(p2);
+  assertEquals(p2.flags['forge_i_w_warrior_2'], 4, "item's own temper wins");
+  assertEquals(p2.flags['forge_weapon'], 2);
 });
 
 Deno.test('migratePlayer: legacy battle gains neutral buffs; combat stays finite', () => {

@@ -96,9 +96,15 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   level band (`shopTierFor()`), so the Abyss stocks tier-8 gear. Forge tempers up to +5 are bound to
   the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the temper material
   is chosen by the item's tier, not the player's location.
-- **Save schema:** `stateVersion` (default 0) gates one-time destructive migrations; v1 removed
-  legacy equipped-gear bag duplicates, v2 migrated slot-bound tempers + old battle shape (string
-  origin, missing buff fields → neutral defaults, so combat can never see NaN).
+- **Save schema:** `stateVersion` (default 0) gates one-time migrations; v2 migrated slot-bound
+  tempers + old battle shape (string origin, missing buff fields → neutral defaults, so combat can
+  never see NaN). Unversioned saves are GRANDFATHERED, never gear-destructive: the old v0→v1
+  bag-duplicate dedup was retired — it could not tell a real legacy duplicate from a legitimate
+  re-purchase, and missed the post-swap shape (old starter duplicated) anyway. Legacy slot-bound
+  tempers adopt losslessly onto the next UNTempered item equipped in their slot (every-load step; an
+  item's own temper always wins; nothing is ever deleted). Saves from NEWER binaries
+  (`stateVersion > CURRENT_STATE_VERSION`) throw `SaveTooNewError`; handlers refuse to
+  read-mutate-write rather than downgrade.
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 4)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`) — free travel never
   refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry; boss

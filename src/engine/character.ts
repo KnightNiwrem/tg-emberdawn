@@ -6,7 +6,6 @@
 import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
-import { countOf, removeItem } from './inventory.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
 import { STARTING_ZONES, ZONES } from '../content/zones.ts';
 import { temperBonusOf } from './forge.ts';
@@ -100,14 +99,29 @@ export const CURRENT_STATE_VERSION = 2;
  *   v0 → 2: slot-bound temper flags → item-bound; legacy battle shape
  *           (string origin, missing buff fields) normalized.
  */
+/** Thrown when a save was written by a NEWER binary (stateVersion ahead of
+ * what this build supports). Handlers must answer without mutating/saving. */
+export class SaveTooNewError extends Error {
+  constructor(from: number) {
+    super(`Save version ${from} is newer than supported ${CURRENT_STATE_VERSION}`);
+    this.name = 'SaveTooNewError';
+  }
+}
+
 export function migratePlayer(p: PlayerState): void {
   const from = typeof p.stateVersion === 'number' ? p.stateVersion : 0;
-  if (from < 1) {
-    for (const slot of ['weapon', 'armor'] as const) {
-      const eq = p.equipment[slot];
-      if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
-    }
+  if (from > CURRENT_STATE_VERSION) {
+    // Never downgrade: an older binary must not rewrite a newer save — it
+    // would drop fields it cannot understand on the next write.
+    throw new SaveTooNewError(from);
   }
+  // The v0→v1 gear dedup was RETIRED. `stateVersion === undefined` spans at
+  // least two cohorts: genuinely old saves with the starter-duplication bug,
+  // AND intermediate saves that may legitimately own a re-purchased copy of
+  // what they wear. The old heuristic (delete a bag copy of the currently
+  // equipped item) destroyed legitimate property and missed the real legacy
+  // shape anyway (the OLD starter duplicated after a swap). A grandfathered
+  // duplicate is harmless; deletion was not.
   if (from < 2) {
     for (const slot of ['weapon', 'armor'] as const) {
       const legacy = p.flags[`forge_${slot}`];
@@ -115,8 +129,10 @@ export function migratePlayer(p: PlayerState): void {
       if (typeof legacy === 'number' && legacy > 0 && eq) {
         const key = `forge_i_${eq}`;
         p.flags[key] = Math.max(typeof p.flags[key] === 'number' ? p.flags[key]! : 0, legacy);
+        delete p.flags[`forge_${slot}`];
       }
-      delete p.flags[`forge_${slot}`];
+      // else: slot empty → DEFER. The legacy flag survives (see the
+      // every-load adoption step below) so the investment is never lost.
     }
     const b = p.battle;
     if (b) {
@@ -135,6 +151,22 @@ export function migratePlayer(p: PlayerState): void {
       b.buffs.stunnedTurns ??= 0;
       b.buffs.stunnedEnemy ??= false;
       b.phoenixUsed ??= false;
+    }
+  }
+  // Legacy slot-bound temper adoption (every-load, non-destructive): a
+  // deferred temper follows the next UNTempered item equipped in its slot,
+  // matching old slot-global semantics. Items that already carry their own
+  // (newer) temper are left alone; the flag keeps waiting. Nothing here is
+  // ever deleted.
+  for (const slot of ['weapon', 'armor'] as const) {
+    const legacy = p.flags[`forge_${slot}`];
+    const eq = p.equipment[slot];
+    if (
+      typeof legacy === 'number' && legacy > 0 && eq &&
+      typeof p.flags[`forge_i_${eq}`] !== 'number'
+    ) {
+      p.flags[`forge_i_${eq}`] = legacy;
+      delete p.flags[`forge_${slot}`];
     }
   }
   // Non-destructive backfills stay every-load (cheap, self-healing):

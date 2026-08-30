@@ -5,7 +5,7 @@ import type { PlayerStore } from '../persistence/store.ts';
 import { commit } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
-import { createPlayer, migratePlayer } from '../engine/character.ts';
+import { createPlayer, migratePlayer, SaveTooNewError } from '../engine/character.ts';
 import { syncAvailability } from '../engine/quests.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
@@ -19,7 +19,18 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
   // Re-center ONLY: /start means "the live message is buried" — never a
   // gameplay action. Battles, gold, deaths and location are all preserved;
   // abandoning a fight is what /reset is for.
-  migratePlayer(existing); // versioned save migration runs here too
+  try {
+    migratePlayer(existing); // versioned save migration runs here too
+  } catch (e) {
+    if (!(e instanceof SaveTooNewError)) throw e;
+    // Newer-binary save: refuse to touch it rather than downgrade (#4).
+    await ctx
+      .reply(
+        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
+      )
+      .catch(() => {});
+    return;
+  }
   existing.notices = ['🧭 The flame guides you back.'];
   // Resume whatever was happening — a live fight resumes as a fight, a lost
   // one stays on the death screen. /start never mutates gameplay state.
