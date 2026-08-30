@@ -91,9 +91,14 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   return lines;
 }
 
+/** Safe-haven forage faucet: 3 charges, then a real-time recharge (#3). */
+const MAX_FORAGE_CHARGES = 3;
+const FORAGE_COOLDOWN_MS = 6 * 3_600_000;
+
 export function explore(
   p: PlayerState,
   rng: Rng = defaultRng,
+  now: number = Date.now(),
 ): ExploreOutcome {
   const z = zone(p.currentZone);
   if (!z) return { kind: 'result', lines: ['You are nowhere. Somehow.'] };
@@ -111,22 +116,30 @@ export function explore(
   let foraged = typeof p.flags[forageKey] === 'number' ? p.flags[forageKey]! : 0;
   if (z.safeHaven) {
     // The faucet recharges on a REAL-TIME cooldown — free travel never
-    // refreshes it, so the Emberdawn loop is a 6-hour wait, not 4 taps.
-    if (foraged >= 3) {
+    // refreshes it. `now` is injected so the engine stays deterministic (#3).
+    if (foraged >= MAX_FORAGE_CHARGES) {
       const resetAt = p.flags['forageResetAt'];
-      if (typeof resetAt === 'number' && Date.now() >= resetAt) {
+      if (typeof resetAt === 'number' && now >= resetAt) {
         foraged = 0;
         delete p.flags[forageKey];
         delete p.flags['forageResetAt'];
       }
     }
-    if (foraged >= 3) {
+    if (foraged >= MAX_FORAGE_CHARGES) {
       pool = pool.filter((e) => e.kind !== 'treasure');
       if (p.flags['forageResetAt'] === undefined) {
-        p.flags['forageResetAt'] = Date.now() + 6 * 3_600_000; // 6h recharge
+        // Legacy exhausted save without a timer: stamp from THIS visit —
+        // the true exhaustion moment is unknowable in retrospect.
+        p.flags['forageResetAt'] = now + FORAGE_COOLDOWN_MS;
       }
     } else {
-      p.flags[forageKey] = foraged + 1;
+      const left = foraged + 1;
+      p.flags[forageKey] = left;
+      if (left >= MAX_FORAGE_CHARGES) {
+        // Stamp the recharge the MOMENT the last charge is spent (#3) —
+        // never one interaction later, or idle time gets re-charged.
+        p.flags['forageResetAt'] = now + FORAGE_COOLDOWN_MS;
+      }
     }
   }
   const weights = pool.map((e) => e.weight);

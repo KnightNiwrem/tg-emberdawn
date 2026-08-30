@@ -109,9 +109,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   read-mutate-write rather than downgrade. v3 purges retired catalog ids (e.g. q_umbra_key) from
   legacy bags — known items are never touched.
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 4)`) instead of vanishing;
-  safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`) — free travel never
-  refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry; boss
-  first-clears award unique boss trinkets `t_12`–`t_18` (never stocked).
+  safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
+  last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
+  never refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry;
+  boss first-clears award unique boss trinkets `t_12`–`t_18` (never stocked).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
 - **Battles carry structured provenance** (`BattleOrigin`): `explore`/`elite`/`dungeon` with floor +

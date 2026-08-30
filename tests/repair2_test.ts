@@ -282,30 +282,44 @@ Deno.test('postgame XP converts to gold instead of vanishing', () => {
   assertEquals(p.xp, 0);
 });
 
-Deno.test('safe-haven forage ignores free travel until its cooldown', () => {
+Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel never helps', () => {
   const p = createPlayer(910, 'T', 'mage');
-  p.flags['forage_emberfall'] = 3; // exhausted
-  p.flags['forageResetAt'] = Date.now() + 3_600_000; // still recharging
+  const t0 = 1_000_000;
+  // Burn the three charges.
+  for (let i = 0; i < 3; i++) explore(p, seeded(13), t0 + i * 1000);
+  assertEquals(p.flags['forage_emberfall'], 3);
+  // The 6h recharge is stamped the MOMENT the last charge is spent (#3) —
+  // not one interaction later.
+  assertEquals(p.flags['forageResetAt'], t0 + 2000 + 6 * 3_600_000);
   const gold0 = p.gold;
   const inv0 = structuredClone(p.inventory);
-  // Free-travel loop: away and back, over and over.
+  // Free-travel loop + explores before expiry: the faucet stays dry.
   for (let i = 0; i < 3; i++) {
     assert(travel(p, 'whisperwood').ok);
     assert(travel(p, 'emberfall').ok);
   }
-  for (let i = 0; i < 60; i++) explore(p, seeded(13));
+  for (let i = 0; i < 60; i++) explore(p, seeded(13), t0 + 100_000);
   assertEquals(p.gold, gold0, 'exhausted haven yields no gold');
   assertEquals(p.inventory, inv0, 'exhausted haven yields no items');
-  // Cooldown expiry restores the faucet (one rng across the loop so the
-  // weighted draw actually varies between explores).
-  p.flags['forageResetAt'] = Date.now() - 1;
+  // After expiry (one rng across the loop so draws actually vary).
   const rng2 = seeded(15);
   let restored = false;
   for (let i = 0; i < 40 && !restored; i++) {
-    const o = explore(p, rng2);
+    const o = explore(p, rng2, t0 + 6 * 3_600_000 + 60_000 + i * 1000);
     if (o.kind === 'result' && o.lines.some((l) => l.includes('Found') || l.startsWith('💰'))) {
       restored = true;
     }
   }
   assert(restored, 'cooldown expiry resets the faucet');
+});
+
+Deno.test('forage: legacy exhausted save without a timer stamps from its next visit', () => {
+  const p = createPlayer(911, 'T', 'mage');
+  p.flags['forage_emberfall'] = 3; // pre-#3 save: no forageResetAt
+  const t0 = 5_000_000;
+  explore(p, seeded(17), t0);
+  assertEquals(p.flags['forageResetAt'], t0 + 6 * 3_600_000);
+  // And it is NOT re-stamped on subsequent visits while still charging.
+  explore(p, seeded(17), t0 + 1000);
+  assertEquals(p.flags['forageResetAt'], t0 + 6 * 3_600_000);
 });
