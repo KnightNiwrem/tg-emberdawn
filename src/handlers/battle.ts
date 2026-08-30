@@ -76,8 +76,13 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // Victory resolution — routed through the engine so the battle's origin
   // (explore/elite/dungeon) decides rewards, quest hooks and bookkeeping.
   if (phase === 'active' && b.enemy.hp <= 0) {
-    lines.push(...resolveVictory(p, b));
+    // Kill rounds return before the log push, so the round's lines are NOT
+    // in the battle log — notices carry them plus the victory resolution
+    // (#32 keeps ordinary rounds single-presented).
+    p.notices = [...lines, ...resolveVictory(p, b)];
     b.phase = 'won';
+    p.scene = { view: 'battle' };
+    return {};
   }
 
   // Defeat resolution
@@ -88,7 +93,11 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
     return {};
   }
 
-  p.notices = lines;
+  // Non-terminal round: the log is the single presentation of the round's
+  // lines (#32) — the redraw no longer repeats them as notices. Invalid
+  // actions (no turn consumed, no enemy phase) never reach the log, so
+  // they keep their feedback.
+  p.notices = res.consumedTurn ? [] : lines;
   p.scene = { view: 'battle' };
   return {};
 }

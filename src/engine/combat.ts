@@ -97,6 +97,10 @@ export interface ActionResult {
   lines: string[];
   /** True when the player was stunned and lost the turn. */
   skipped: boolean;
+  /** False when the action was invalid (cooldown/MP/unusable item): no
+   * enemy phase ran and the lines are NOT in the battle log — handlers
+   * must surface them via notices (#32). */
+  consumedTurn: boolean;
 }
 
 function enemyChooseMove(def: EnemyDef, e: BattleState['enemy'], rng: Rng): EnemyMove {
@@ -182,7 +186,9 @@ export function performAction(
   rng: Rng = defaultRng,
 ): ActionResult {
   const def = enemyDef(battle.enemy.id);
-  if (!def || battle.phase !== 'active') return { battle, lines: [], skipped: false };
+  if (!def || battle.phase !== 'active') {
+    return { battle, lines: [], skipped: false, consumedTurn: false };
+  }
 
   const freshOffense = new Set<'atk' | 'mag'>();
   const phase = playerPhase(p, battle, action, rng, freshOffense);
@@ -191,12 +197,14 @@ export function performAction(
   const buffs = battle.buffs;
 
   // Player won without retaliation (enemy felled by the action)…
-  if (battle.enemy.hp <= 0) return { battle, lines, skipped };
+  if (battle.enemy.hp <= 0) return { battle, lines, skipped, consumedTurn: true };
   // Invalid action (cooldown/MP/unusable item): no turn consumed, no enemy
   // phase. The UI disables these; the engine stays safe for forged taps.
-  if (!phase.consumedTurn) return { battle, lines, skipped };
+  if (!phase.consumedTurn) return { battle, lines, skipped, consumedTurn: false };
   // …or escaped cleanly (no parting shot after a successful flee).
-  if ((battle.phase as BattlePhase) === 'fled') return { battle, lines, skipped };
+  if ((battle.phase as BattlePhase) === 'fled') {
+    return { battle, lines, skipped, consumedTurn: true };
+  }
 
   // ── Enemy phase ─────────────────────────────────────────────────────
   battle.enemy.turn++;
@@ -227,7 +235,7 @@ export function performAction(
   }
   battle.log.push(...lines);
   if (battle.log.length > 12) battle.log.splice(0, battle.log.length - 12);
-  return { battle, lines, skipped };
+  return { battle, lines, skipped, consumedTurn: true };
 }
 
 /** Shared physical/magical strike: damage roll, crit text, stun roll. */

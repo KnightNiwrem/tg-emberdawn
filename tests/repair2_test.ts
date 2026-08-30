@@ -10,7 +10,7 @@ import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleReset } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
-import { itemAction } from '../src/handlers/battle.ts';
+import { battleAction, itemAction } from '../src/handlers/battle.ts';
 import {
   clampPools,
   createPlayer,
@@ -37,6 +37,7 @@ import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { isEquippable, item } from '../src/content/items.ts';
 import { renderInventory } from '../src/render/menus.ts';
+import { renderBattle } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { seeded } from './helpers.ts';
@@ -709,4 +710,30 @@ Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () =>
   const failRes = shopAction(broke, { v: 'shop', a: 'buy', arg: 'm_iron_chunk' });
   assertEquals(failRes.toast, '💰 Not enough gold.');
   assertEquals(broke.notices.length, 0, 'failure keeps notices untouched');
+});
+
+Deno.test('battle round lines render once — the log is authoritative (#32)', () => {
+  const p = createPlayer(963, 'T', 'warrior');
+  p.level = 20;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
+  p.battle = b;
+  b.enemy.hp = 99999;
+  b.enemy.maxHp = 99999;
+
+  battleAction(p, { v: 'battle', a: 'atk' });
+  const line = b.log.find((l) => l.includes('You strike'))!;
+  assert(line, 'the attack reached the log');
+  const rendered = JSON.stringify(renderBattle(p));
+  assertEquals(
+    rendered.split(line).length - 1,
+    1,
+    'the round line must render exactly once',
+  );
+
+  // Invalid actions (no turn consumed, never logged) keep their feedback.
+  battleAction(p, { v: 'battle', a: 'use', arg: 'sk_cataclysm' });
+  assert(
+    p.notices.some((l) => l.includes("haven't learned")),
+    'invalid-action feedback is preserved',
+  );
 });
