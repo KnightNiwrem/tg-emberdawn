@@ -37,8 +37,8 @@ import { shopAction } from '../src/handlers/hub.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { isEquippable, item } from '../src/content/items.ts';
-import { renderInventory } from '../src/render/menus.ts';
-import { renderBattle } from '../src/render/battle.ts';
+import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
+import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { seeded } from './helpers.ts';
@@ -832,4 +832,52 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   b44.phase = 'won';
   p44.battle = b44;
   assert(!JSON.stringify(renderBattle(p44)).includes('→ +'), 'spoils stay nominal pre-cap');
+});
+
+Deno.test('item menus only advertise actions that can succeed (#35)', () => {
+  const p = createPlayer(971, 'T', 'warrior');
+  p.level = 10;
+  grantItem(p, 'q_sealed_letter', 1);
+  grantItem(p, 'c_minor_potion', 1);
+  grantItem(p, 'c_smoke_bomb', 1);
+  grantItem(p, 'c_antidote', 1);
+  grantItem(p, 'c_phoenix_feather', 1);
+
+  // Quest items: no Drop, no Sell — the handler refused both already.
+  const questDetail = JSON.stringify(renderItemDetail(p, 'q_sealed_letter'));
+  assert(!questDetail.includes('i:drop:q_sealed_letter'), 'quest items render no Drop');
+  assert(!questDetail.includes('i:sell:q_sealed_letter'), 'quest items render no Sell');
+
+  // Out-of-battle Use only for consumables it actually helps with.
+  const potion = JSON.stringify(renderItemDetail(p, 'c_minor_potion'));
+  assert(potion.includes('i:u:c_minor_potion'), 'healing consumables keep Use');
+  const smoke = JSON.stringify(renderItemDetail(p, 'c_smoke_bomb'));
+  assert(!smoke.includes('i:u:c_smoke_bomb'), 'Smoke Bomb has no out-of-battle Use');
+  const anti = JSON.stringify(renderItemDetail(p, 'c_antidote'));
+  assert(!anti.includes('i:u:c_antidote'), 'Antidote has no out-of-battle Use');
+  const cinder = JSON.stringify(renderItemDetail(p, 'c_phoenix_feather'));
+  assert(!cinder.includes('i:u:c_phoenix_feather'), 'the Cinder stays auto-trigger-only');
+
+  // Battle menu context: Smoke Bomb disabled vs a boss; Antidote disabled
+  // with nothing to cleanse; both usable in a normal debuffed fight.
+  // (Wire form: the codec shortens battle-use to 'b:us:<id>'. Boss origin:
+  // per #28, only dungeon-boss origins set isBoss — explore spawns flee.)
+  const boss = startBattle('e_vosk', {
+    kind: 'dungeon',
+    zoneId: 'umbra',
+    dungeonId: 'd_throne',
+    floor: 4,
+    boss: true,
+  })!;
+  p.battle = boss;
+  const bossMenu = JSON.stringify(renderItemMenu(p));
+  assert(!bossMenu.includes('b:us:c_smoke_bomb'), 'no Smoke Bomb button vs a boss');
+  assert(bossMenu.includes('no use here'), 'inapplicable items render disabled');
+
+  const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  wolf.buffs.weakenTurns = 2;
+  p.battle = wolf;
+  const wolfMenu = JSON.stringify(renderItemMenu(p));
+  assert(wolfMenu.includes('b:us:c_antidote'), 'Antidote usable when a debuff is active');
+  assert(wolfMenu.includes('b:us:c_smoke_bomb'), 'Smoke Bomb usable vs a normal enemy');
 });

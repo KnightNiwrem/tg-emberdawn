@@ -108,24 +108,39 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
 
 export function renderItemMenu(p: PlayerState): InputRichMessage {
   const b = p.battle!;
-  void b;
   // Auto-trigger items (Phoenix Cinder) are never manually usable.
   const manual = (id: string): boolean => {
     const eff = item(id)?.effect;
     if (!eff) return true;
     return Boolean(eff.healHp || eff.healMp || eff.cureStatus || eff.flee);
   };
+  // Context checks (#35): a button that cannot do anything renders
+  // disabled instead of promising an action the handler must refuse.
+  const applicable = (id: string): boolean => {
+    const eff = item(id)?.effect;
+    if (!eff) return true;
+    if (eff.flee) return !b.enemy.isBoss; // Smoke Bomb never touches bosses
+    if (eff.cureStatus && !eff.healHp && !eff.healMp) return b.buffs.weakenTurns > 0;
+    return true;
+  };
   const items = consumables(p).filter((e) => manual(e.id));
   const blocks: InputRichBlock[] = [heading('🎒 Battle items', 4)];
-  if (items.length === 0) {
-    blocks.push(para('Your bag is empty of usable items.'));
+  if (!items.some((e) => applicable(e.id))) {
+    blocks.push(para(
+      items.length > 0
+        ? 'Nothing in your bag helps right now.'
+        : 'Your bag is empty of usable items.',
+    ));
   }
   for (const entry of items) {
     const def = item(entry.id)!;
+    const ok = applicable(def.id);
     blocks.push(para(`${def.name} ×${entry.qty}`));
     blocks.push(
       buttonsRow([
-        cbBtn(`Use ${def.name}`, encodeCb({ v: 'battle', a: 'use', arg: def.id }), 'success'),
+        ok
+          ? cbBtn(`Use ${def.name}`, encodeCb({ v: 'battle', a: 'use', arg: def.id }), 'success')
+          : disabledBtn(`${def.name} — no use here`),
       ], 'left'),
     );
   }

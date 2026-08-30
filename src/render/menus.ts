@@ -93,10 +93,13 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
   if (eq.ok) {
     row.push(cbBtn('⚔️ Equip', encodeCb({ v: 'inventory', a: 'eq', arg: itemId }), 'success'));
   }
-  if (def.kind === 'consumable') {
+  // Use only when it does something out of battle (#35): pure battle tools
+  // (Antidote's cleanse, Smoke Bomb's flee) and the auto-trigger Cinder
+  // would just burn the item on 'Nothing happened.' from the bag.
+  if (def.kind === 'consumable' && (def.effect?.healHp || def.effect?.healMp)) {
     row.push(cbBtn('🧪 Use', encodeCb({ v: 'inventory', a: 'u', arg: itemId }), 'success'));
   }
-  if (!def.unique) {
+  if (!def.unique && def.kind !== 'quest') {
     row.push(
       cbBtn(
         `💱 Sell (${Math.floor(def.price * 0.4)}g)`,
@@ -104,7 +107,11 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
       ),
     );
   }
-  row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
+  // Quest items and earned trophies have no Drop (#35) — the handler was
+  // already refusing them; now the button agrees.
+  if (!def.unique && def.kind !== 'quest') {
+    row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
+  }
   blocks.push(buttonsRow(row, 'left'));
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }))]));
   return { blocks };

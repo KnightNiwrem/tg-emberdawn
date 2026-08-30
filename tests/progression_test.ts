@@ -304,11 +304,14 @@ Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand
   assertEquals(countOf(p, 'c_phoenix_feather'), before);
   assertEquals(b.round, 1);
 
-  // The battle items menu no longer offers the Cinder by hand (P1-9 UI).
+  // The battle items menu no longer offers the Cinder by hand (P1-9 UI),
+  // and vs a boss the Smoke Bomb renders disabled (#35) instead of
+  // promising an escape the handler refuses.
   addItem(p, 'c_smoke_bomb', 1);
   const menu = JSON.stringify(renderItemMenu(p));
   assert(!menu.includes('Use Phoenix Cinder'));
-  assert(menu.includes('Use Smoke Bomb'));
+  assert(!menu.includes('Use Smoke Bomb'), 'Smoke Bomb is disabled vs a boss');
+  assert(menu.includes('no use here'), 'inapplicable items render disabled');
 });
 
 Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo', () => {
