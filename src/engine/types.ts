@@ -96,7 +96,6 @@ export interface CombatBuffs {
 }
 
 export type ViewId =
-  | 'home'
   | 'travel'
   | 'zone'
   | 'battle'

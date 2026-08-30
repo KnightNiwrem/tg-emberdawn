@@ -32,7 +32,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     currentZone: 'emberdawn',
     flags: {},
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
-    scene: { view: 'home' },
+    scene: { view: 'zone' },
     notices: [],
     uiRev: 0,
     stateVersion: CURRENT_STATE_VERSION,
