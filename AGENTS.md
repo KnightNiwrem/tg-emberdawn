@@ -117,6 +117,11 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   un-droppable: earned trophies, #5).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
+- **Dungeon design (#13):** floors are INDEPENDENT dives — leaving to heal at a safe haven between
+  floors is intended play, not an exploit. Attrition mechanics (run-reset on leaving, travel locks,
+  between-floor heal limits) are a deliberate non-goal; if future tuning wants endurance runs, make
+  that an explicit design change — and tune encounters assuming the player can realistically arrive
+  at full HP.
 - **Battles carry structured provenance** (`BattleOrigin`): `explore`/`elite`/`dungeon` with floor +
   boss flags. Dungeon floors advance on VICTORY only; boss floors are story-gated via `bossGate`
   (kill-quest bosses use `requireDone: false`). Victory bookkeeping routes through
