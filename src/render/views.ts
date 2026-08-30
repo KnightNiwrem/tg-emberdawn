@@ -9,7 +9,7 @@ import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
 import { quest, QUESTS } from '../content/quests.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
-import { statsOf, xpProgress } from '../engine/character.ts';
+import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { currentStock } from '../engine/shops.ts';
 import { zone } from '../content/zones.ts';
@@ -395,7 +395,13 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
   const itemRewards = Object.entries(q.rewards.items ?? {})
     .map(([iid, n]) => ` · ${itemName(iid)}${n > 1 ? ` ×${n}` : ''}`)
     .join('');
-  blocks.push(para(`🎁 Rewards: ${q.rewards.xp} XP · ${q.rewards.gold} gold${itemRewards}`));
+  // Reward preview reflects the real economy (#42): at the summit the XP
+  // portion renders as its conversion, never XP the player cannot receive.
+  blocks.push(
+    para(
+      `🎁 Rewards: ${xpRewardLabel(p.level, q.rewards.xp)} · ${q.rewards.gold} gold${itemRewards}`,
+    ),
+  );
   const row = [];
   if (status === 'available') {
     row.push(cbBtn('🤝 Accept', encodeCb({ v: 'quests', a: 'a', arg: id }), 'success'));

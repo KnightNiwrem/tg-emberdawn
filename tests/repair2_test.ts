@@ -854,6 +854,70 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   );
 });
 
+Deno.test('every level-cap reward surface shows the conversion (#42)', () => {
+  // Quest detail preview: nominal pre-cap, converted at the summit.
+  const pre = createPlayer(977, 'T', 'warrior');
+  pre.level = 44;
+  const preDetail = JSON.stringify(renderQuestDetail(pre, 'sq_rats'));
+  assert(preDetail.includes('+90 XP'), 'pre-cap quest preview keeps nominal XP');
+  assert(!preDetail.includes('→'), 'pre-cap quest preview claims no conversion');
+
+  const cap = createPlayer(978, 'T', 'warrior');
+  cap.level = 45;
+  const capDetail = JSON.stringify(renderQuestDetail(cap, 'sq_rats'));
+  assert(
+    capDetail.includes(`90 XP → +${xpToGoldAtCap(90)} gold`),
+    'level-45 quest preview shows the converted amount',
+  );
+
+  // Dungeon first-clear headline: same shared economy (#42).
+  const pd = createPlayer(979, 'T', 'warrior');
+  pd.level = 45;
+  const b = startBattle('e_aranya', {
+    kind: 'dungeon',
+    zoneId: 'whisperwood',
+    dungeonId: 'd_rootbound',
+    floor: 4,
+    boss: true,
+  })!;
+  b.enemy.hp = 0;
+  const lines = resolveVictory(pd, b, seeded(95));
+  assert(
+    lines.some((l) => l.includes(`400 XP → +${xpToGoldAtCap(400)} gold`)),
+    'level-45 first-clear headline shows the converted amount',
+  );
+});
+
+Deno.test('44→45 dungeon first clear remains nominal (#42)', () => {
+  const p = createPlayer(980, 'T', 'warrior');
+  p.level = 44;
+  // The kill rewards alone must NOT reach the summit; the first-clear grant
+  // (400 XP) is what crosses 44→45 — so its headline must stay nominal.
+  p.xp = xpForNextLevel(44) - 2151 - 100;
+  const b = startBattle('e_aranya', {
+    kind: 'dungeon',
+    zoneId: 'whisperwood',
+    dungeonId: 'd_rootbound',
+    floor: 4,
+    boss: true,
+  })!;
+  b.enemy.hp = 0;
+  const goldBefore = p.gold;
+  const lines = resolveVictory(p, b, seeded(96));
+  assertEquals(p.level, 45, 'the first-clear reward itself reaches the summit');
+  assert(
+    lines.some((l) => l.includes('+250 gold · ✨ +400 XP')),
+    'first-clear headline stays nominal for a pre-cap grant',
+  );
+  assert(!lines.some((l) => l.includes('→')), 'no unawarded conversion is claimed');
+  b.phase = 'won';
+  p.battle = b;
+  const spoils = JSON.stringify(renderBattle(p));
+  assert(!spoils.includes('→ +'), 'staged spoils stay nominal too');
+  // Direct first-clear gold + battle gold only — no conversion gold.
+  assertEquals(p.gold, goldBefore + b.rewards!.gold + 250);
+});
+
 Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   const p = createPlayer(971, 'T', 'warrior');
   p.level = 10;

@@ -195,6 +195,16 @@ export function xpToGoldAtCap(xp: number): number {
   return Math.max(1, Math.ceil(xp / 8));
 }
 
+/** Shared reward-line XP segment (#42): the XP portion of ANY reward
+ * preview or headline — battle spoils, quest previews/turn-ins and dungeon
+ * first clears all render the same economy. At the summit the conversion is
+ * shown inline; pre-cap stays nominal. Callers must evaluate `level`
+ * BEFORE the grant (#40): a reward that itself reaches the cap is a pre-cap
+ * grant and must not claim unawarded conversion gold. */
+export function xpRewardLabel(level: number, xp: number): string {
+  return level >= MAX_LEVEL ? `✨ ${xp} XP → +${xpToGoldAtCap(xp)} gold` : `✨ +${xp} XP`;
+}
+
 export function grantXp(p: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
   if (p.level >= MAX_LEVEL) {

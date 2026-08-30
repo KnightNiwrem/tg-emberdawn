@@ -10,7 +10,7 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { quest } from '../content/quests.ts';
 import { countOf, grantDropRewards, removeItem } from './inventory.ts';
 import { rollRewards, startBattle } from './combat.ts';
-import { grantXp, statsOf, xpToGoldAtCap } from './character.ts';
+import { grantXp, statsOf, xpRewardLabel, xpToGoldAtCap } from './character.ts';
 import { MAX_LEVEL } from './classes.ts';
 import {
   grantItem,
@@ -70,11 +70,11 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   // even though the player ends the fight at the summit.
   const capped = p.level >= MAX_LEVEL;
   if (capped && rewards.xp > 0) rewards.xpConvertedGold = xpToGoldAtCap(rewards.xp);
+  // Reward headline uses the SHARED label (#42) — same economy line as
+  // quest turn-ins and dungeon first clears.
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,
-    capped
-      ? `✨ ${rewards.xp} XP → +${xpToGoldAtCap(rewards.xp)} gold · 💰 +${rewards.gold} gold`
-      : `✨ +${rewards.xp} XP · 💰 +${rewards.gold} gold`,
+    `${xpRewardLabel(p.level, rewards.xp)} · 💰 +${rewards.gold} gold`,
   ];
   lines.push(...grantXp(p, rewards.xp));
   lines.push(...grantDropRewards(p, rewards.drops));
@@ -368,9 +368,12 @@ function onDungeonVictory(
   if (firstClear && d.firstClear) {
     const fc = d.firstClear;
     p.gold += fc.gold;
+    // The headline is evaluated BEFORE the grant (#40 semantics, #42): a
+    // 44→45 clear is a pre-cap reward — nominal XP, no unawarded gold.
+    const xpLabel = xpRewardLabel(p.level, fc.xp);
     const xpLines = grantXp(p, fc.xp);
     lines.push(`🏆 First clear of ${d.name}!`);
-    lines.push(`💰 +${fc.gold} gold · ✨ +${fc.xp} XP`);
+    lines.push(`💰 +${fc.gold} gold · ${xpLabel}`);
     if (fc.item) {
       lines.push(`🎁 Received: ${itemName(fc.item)}`);
       for (const qid of grantItem(p, fc.item, 1)) {

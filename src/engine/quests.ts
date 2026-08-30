@@ -11,8 +11,7 @@ import { addItem, countOf, removeItem } from './inventory.ts';
 import { item, itemName } from '../content/items.ts';
 import { enemyName } from '../content/enemies.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
-import { grantXp, xpToGoldAtCap } from './character.ts';
-import { MAX_LEVEL } from './classes.ts';
+import { grantXp, xpRewardLabel } from './character.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
   let q = p.quests[id];
@@ -248,12 +247,8 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
   const r = q.rewards;
   p.gold += r.gold;
   // Post-cap (#36): the reward line shows the conversion instead of
-  // advertising XP the player cannot receive.
-  lines.push(
-    p.level >= MAX_LEVEL
-      ? `💰 +${r.gold} gold · ✨ ${r.xp} XP → +${xpToGoldAtCap(r.xp)} gold`
-      : `💰 +${r.gold} gold · ✨ +${r.xp} XP`,
-  );
+  // advertising XP the player cannot receive. Shared label (#42).
+  lines.push(`💰 +${r.gold} gold · ${xpRewardLabel(p.level, r.xp)}`);
   lines.push(...grantXp(p, r.xp));
   for (const [itemId, qty] of Object.entries(r.items ?? {})) {
     addItem(p, itemId, qty);
