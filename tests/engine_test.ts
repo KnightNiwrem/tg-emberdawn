@@ -275,6 +275,67 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   assertEquals(collapseRounds, [4, 8, 12], 'every:4 → actions 4/8/12');
 });
 
+Deno.test('buff durations: offensive keys defer the cast-round decay (#27)', () => {
+  // Fixture sanity: the content contract advertises these durations.
+  assertEquals(SKILLS.find((s) => s.id === 'sk_war_cry')!.duration, 3);
+  assertEquals(SKILLS.find((s) => s.id === 'sk_time_warp')!.duration, 3);
+  // (Adrenaline's 2 turns are set by the engine's heal branch, not content.)
+
+  const mkBattle = (cls: 'warrior' | 'mage', userId: number, skillId: string) => {
+    const p = createPlayer(userId, 'T', cls);
+    p.level = 40;
+    p.skills.push(skillId);
+    p.mp = 999;
+    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+    b.enemy.hp = 99999;
+    b.enemy.maxHp = 99999;
+    p.battle = b;
+    return { p, b };
+  };
+
+  // War Cry (atk, 3): cast round not consumed → exactly 3 empowered attacks.
+  const w = mkBattle('warrior', 62, 'sk_war_cry');
+  performAction(w.p, w.b, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(61));
+  assertEquals(w.b.buffs.durations.atk, 3, 'cast round must not tick the offensive buff');
+  performAction(w.p, w.b, { kind: 'attack' }, seeded(62)); // empowered 1
+  assertEquals(w.b.buffs.durations.atk, 2);
+  performAction(w.p, w.b, { kind: 'attack' }, seeded(63)); // empowered 2
+  assertEquals(w.b.buffs.durations.atk, 1);
+  performAction(w.p, w.b, { kind: 'attack' }, seeded(64)); // empowered 3
+  assertEquals(w.b.buffs.durations.atk, 0, 'exactly the advertised 3 empowered actions');
+  assertEquals(w.b.buffs.atkPct, 0);
+
+  // Time Warp (mage: mag + spd): mag defers; spd ticks on the cast round
+  // (defensive-utility — it already guards this round's enemy response).
+  const m = mkBattle('mage', 63, 'sk_time_warp');
+  performAction(m.p, m.b, { kind: 'skill', skillId: 'sk_time_warp' }, seeded(66));
+  assertEquals(m.b.buffs.durations.mag, 3, 'mag deferred on the cast round');
+  assertEquals(m.b.buffs.durations.spd, 2, 'spd ticks on the cast round');
+  performAction(m.p, m.b, { kind: 'attack' }, seeded(67));
+  assertEquals(m.b.buffs.durations.mag, 2);
+  assertEquals(m.b.buffs.durations.spd, 1);
+  performAction(m.p, m.b, { kind: 'attack' }, seeded(68));
+  assertEquals(m.b.buffs.durations.mag, 1);
+
+  // Adrenaline Surge (heal + atk 2): defers like other offensive keys.
+  const a = mkBattle('warrior', 64, 'sk_adrenaline');
+  a.p.hp = 10; // let the heal component land
+  performAction(a.p, a.b, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(69));
+  assertEquals(a.b.buffs.durations.atk, 2);
+  performAction(a.p, a.b, { kind: 'attack' }, seeded(70));
+  assertEquals(a.b.buffs.durations.atk, 1);
+  performAction(a.p, a.b, { kind: 'attack' }, seeded(71));
+  assertEquals(a.b.buffs.durations.atk, 0, 'exactly the advertised 2 empowered actions');
+
+  // Iron Wall (def): RETAINS the cast-round tick — it protects against the
+  // enemy response on the casting round, exactly as before.
+  const wallDur = SKILLS.find((s) => s.id === 'sk_iron_wall')!.duration ?? 3;
+  const d = mkBattle('warrior', 65, 'sk_iron_wall');
+  performAction(d.p, d.b, { kind: 'skill', skillId: 'sk_iron_wall' }, seeded(72));
+  assertEquals(d.b.buffs.durations.def, wallDur - 1, 'defensive buffs tick on the cast round');
+  assertEquals(d.b.buffs.defPct > 0, true, 'protection active during the cast-round response');
+});
+
 Deno.test('economy: buy needs gold, sell returns ratio', () => {
   const p = createPlayer(12, 'T', 'warrior');
   p.gold = 0;

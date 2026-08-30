@@ -113,8 +113,14 @@ function pickWeighted(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-function tickBuffTurns(buffs: CombatBuffs): void {
+/** End-of-round decay. `skipOffense` carries the offensive keys (atk/mag)
+ * applied THIS round (#27): the casting action can't use its own buff, so
+ * the cast round doesn't consume it — the buff then delivers exactly its
+ * advertised number of empowered actions. Defensive keys keep ticking on
+ * the cast round, which is what makes them protect the enemy response. */
+function tickBuffTurns(buffs: CombatBuffs, skipOffense?: Set<'atk' | 'mag'>): void {
   for (const key of ['atk', 'def', 'res', 'mag', 'spd'] as const) {
+    if ((key === 'atk' || key === 'mag') && skipOffense?.has(key)) continue;
     const d = buffs.durations[key];
     if (d === undefined) continue;
     if (d <= 1) {
@@ -148,6 +154,7 @@ function playerPhase(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
+  freshOffense: Set<'atk' | 'mag'>,
 ): PlayerPhaseResult {
   const buffs = battle.buffs;
   const lines: string[] = [];
@@ -156,7 +163,7 @@ function playerPhase(
     lines.push('💫 You are stunned and lose your turn!');
     return { lines, skipped: true, consumedTurn: true };
   }
-  const res = applyPlayerAction(p, battle, action, rng);
+  const res = applyPlayerAction(p, battle, action, rng, freshOffense);
   return { lines: res.lines, skipped: false, consumedTurn: res.consumedTurn };
 }
 
@@ -169,7 +176,8 @@ export function performAction(
   const def = enemyDef(battle.enemy.id);
   if (!def || battle.phase !== 'active') return { battle, lines: [], skipped: false };
 
-  const phase = playerPhase(p, battle, action, rng);
+  const freshOffense = new Set<'atk' | 'mag'>();
+  const phase = playerPhase(p, battle, action, rng, freshOffense);
   const lines = [...phase.lines];
   const skipped = phase.skipped;
   const buffs = battle.buffs;
@@ -195,7 +203,7 @@ export function performAction(
   // ── End of round bookkeeping ────────────────────────────────────────
   battle.guarding = false;
   battle.round++;
-  tickBuffTurns(buffs);
+  tickBuffTurns(buffs, freshOffense);
   for (const [k, v] of Object.entries(battle.cooldowns)) {
     if (v <= 1) delete battle.cooldowns[k];
     else battle.cooldowns[k] = v - 1;
@@ -240,6 +248,7 @@ function applyPlayerAction(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
+  freshOffense: Set<'atk' | 'mag'>,
 ): { lines: string[]; consumedTurn: boolean } {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
@@ -276,7 +285,7 @@ function applyPlayerAction(
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng));
+      lines.push(...applySkill(p, battle, sk, rng, freshOffense));
       return { lines, consumedTurn: true };
     }
     case 'item': {
@@ -331,7 +340,13 @@ function applyPlayerAction(
   }
 }
 
-function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng): string[] {
+function applySkill(
+  p: PlayerState,
+  battle: BattleState,
+  sk: SkillDef,
+  rng: Rng,
+  freshOffense: Set<'atk' | 'mag'>,
+): string[] {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
   if (!def) return lines;
@@ -363,6 +378,7 @@ function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng)
         p.hp = Math.min(s.maxHp, p.hp + heal);
         buffs.atkPct += 0.2;
         buffs.durations.atk = Math.max(buffs.durations.atk ?? 0, 2);
+        freshOffense.add('atk'); // cast round doesn't consume it (#27)
         lines.push(`🩹 You recover ${heal} HP and feel the rush (+20% ATK).`);
       } else {
         const heal = Math.round(playerEffectiveMag(p, buffs) * sk.power * 2.0 + 20);
@@ -377,6 +393,9 @@ function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng)
       const apply = (key: 'atk' | 'def' | 'res' | 'mag' | 'spd', pct: number): void => {
         buffs[`${key}Pct`] = pct;
         buffs.durations[key] = dur;
+        // Offensive keys cast this round skip their first decay (#27): the
+        // buff then powers exactly `dur` empowered actions.
+        if (key === 'atk' || key === 'mag') freshOffense.add(key);
       };
       if (sk.id === 'sk_war_cry') apply('atk', potency);
       else if (sk.id === 'sk_iron_wall') apply('def', potency);
