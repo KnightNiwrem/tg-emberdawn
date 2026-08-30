@@ -495,6 +495,7 @@ function buildItems(): ItemDef[] {
       level: bt.lvl,
       price: bt.price,
       tier: 0,
+      unique: true, // earned trophies (#5): unsellable and un-droppable
       stats: bt.stats,
       desc: bt.desc,
     });

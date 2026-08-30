@@ -49,7 +49,7 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
 export function sell(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lines: string[] } {
   const def = item(itemId);
   if (!def) return { ok: false, lines: ["That item doesn't exist."] };
-  if (def.unique) return { ok: false, lines: ["🚫 Quest items can't be sold."] };
+  if (def.unique) return { ok: false, lines: ["🚫 That can't be sold."] };
   if (!removeItem(p, itemId, qty)) return { ok: false, lines: ["You don't have that many."] };
   const gain = sellPrice(itemId) * qty;
   p.gold += gain;

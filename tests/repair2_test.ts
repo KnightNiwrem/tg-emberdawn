@@ -347,3 +347,16 @@ Deno.test('m25 finale rewards no equipment — t_18 already crowned the fight (#
   }
   assert((m25.rewards.items?.m_void_fragment ?? 0) >= 3, 'forge materials keep endgame relevant');
 });
+
+Deno.test('boss first-clear trinkets are earned trophies — not sellable or droppable (#5)', () => {
+  const p = createPlayer(912, 'T', 'warrior');
+  grantItem(p, 't_12', 1);
+  assertEquals(countOf(p, 't_12'), 1);
+  assertEquals(itemAction(p, 'sell', 't_12').toast, "Can't sell that.");
+  assert(itemAction(p, 'drop', 't_12').toast, 'drop must be refused');
+  assertEquals(countOf(p, 't_12'), 1, 'nothing left the bag');
+  // Ordinary trinkets stay disposable — the guard is not a blanket ban.
+  grantItem(p, 't_1', 1);
+  assertEquals(itemAction(p, 'drop', 't_1').toast, undefined);
+  assertEquals(countOf(p, 't_1'), 0);
+});

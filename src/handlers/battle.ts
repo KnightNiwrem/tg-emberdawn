@@ -155,7 +155,9 @@ export function itemAction(
     return {};
   }
   // drop
-  if (item(itemId)?.kind === 'quest') return { toast: "That isn't yours to throw away." };
+  const def = item(itemId);
+  if (def?.kind === 'quest') return { toast: "That isn't yours to throw away." };
+  if (def?.unique) return { toast: "You've earned that — it stays with you." };
   if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
   p.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
   p.scene = { view: 'inventory', arg: '0' };
