@@ -92,7 +92,12 @@ export interface ActionResult {
 }
 
 function enemyChooseMove(def: EnemyDef, e: BattleState['enemy'], rng: Rng): EnemyMove {
-  const t = e.turn + 1;
+  // e.turn is ALREADY the count of enemy actions taken (performAction
+  // increments before the phase) — `every: N` fires on the Nth action:
+  // 3, 6, 9… with no extra offset (#26; it used to fire on 2, 5, 8…).
+  // Stunned turns advance the counter — time passes — but choose no move,
+  // so a stun never fires a special.
+  const t = e.turn;
   if (def.special && t % def.special.every === 0) return def.special.move;
   const idx = pickWeighted(def.moves.map((m) => m.weight), rng);
   return def.moves[idx] ?? def.moves[0]!;

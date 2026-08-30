@@ -132,6 +132,9 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   `unique` — unsellable and un-droppable: earned trophies, #5).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
+- **Boss specials (#26):** `special.every = N` fires the special on the Nth ACTUAL enemy action (3,
+  6, 9… for every:3). Stunned turns advance the counter — time passes — but choose no move, so a
+  stun never fires a special.
 - **Reset (#19):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit Yes/No
   confirmation (`reset` view); state is destroyed solely by `resetYes`, which builds a fully
   initialized fresh state (`syncAvailability` included). No/✋ resumes the live scene (a pending

@@ -241,6 +241,40 @@ Deno.test('inventory: add/remove/count roundtrip', () => {
   assertEquals(removeItem(p, 'c_minor_potion'), false);
 });
 
+Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
+  // Vosk: special every 3 ("Swallow Whole"). Guard-spam rounds and record
+  // which enemy actions fire the special — deterministic cadence, seeded
+  // RNG only varies the filler moves.
+  const rng = seeded(55);
+  const p = createPlayer(60, 'T', 'warrior');
+  p.level = 45;
+  const b = startBattle('e_vosk', { kind: 'explore', zoneId: 'hollowmere' })!;
+  p.battle = b;
+  b.enemy.hp = 99999;
+  b.enemy.maxHp = 99999;
+  const specialRounds: number[] = [];
+  for (let round = 1; round <= 9; round++) {
+    const res = performAction(p, b, { kind: 'guard' }, rng);
+    if (res.lines.some((l) => l.includes('Swallow Whole'))) specialRounds.push(round);
+  }
+  assertEquals(specialRounds, [3, 6, 9], 'every:3 → actions 3/6/9, not 2/5/8');
+
+  // Chronolich: special every 4 ("Temporal Collapse").
+  const rng2 = seeded(56);
+  const m = createPlayer(61, 'T', 'mage');
+  m.level = 45;
+  const b2 = startBattle('e_chronolich', { kind: 'explore', zoneId: 'sunspire' })!;
+  m.battle = b2;
+  b2.enemy.hp = 99999;
+  b2.enemy.maxHp = 99999;
+  const collapseRounds: number[] = [];
+  for (let round = 1; round <= 12; round++) {
+    const res = performAction(m, b2, { kind: 'guard' }, rng2);
+    if (res.lines.some((l) => l.includes('Temporal Collapse'))) collapseRounds.push(round);
+  }
+  assertEquals(collapseRounds, [4, 8, 12], 'every:4 → actions 4/8/12');
+});
+
 Deno.test('economy: buy needs gold, sell returns ratio', () => {
   const p = createPlayer(12, 'T', 'warrior');
   p.gold = 0;
