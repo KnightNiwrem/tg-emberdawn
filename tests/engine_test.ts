@@ -662,3 +662,31 @@ Deno.test('m22 is an Archivist handoff; retired keys are gone from the catalog',
   assertEquals(turnInQuest(p, 'm22_umbral_key').ok, true);
   assertEquals(p.quests['m22_umbral_key'].status, 'done');
 });
+
+Deno.test('turn-in aggregates duplicate same-item collect objectives (#8)', () => {
+  // Fixture: no shipped quest doubles an item, so temporarily give m6 a
+  // second collect objective on the SAME item. The QUEST_INDEX holds the
+  // same object reference, so an in-place mutation is what turnInQuest sees.
+  const m6 = QUESTS.find((q) => q.id === 'm6_toxin')!;
+  const original = m6.objectives;
+  m6.objectives = [
+    { kind: 'collect', target: 'm_iron_chunk', count: 3 },
+    { kind: 'collect', target: 'm_iron_chunk', count: 3 },
+  ];
+  try {
+    const p = createPlayer(36, 'T', 'warrior');
+    p.quests['m6_toxin'] = { status: 'turnIn', counts: [0, 0] };
+    // 3 in the bag: per-objective validation would pass BOTH objectives
+    // against the same three copies. Aggregated, it must refuse.
+    addItem(p, 'm_iron_chunk', 3);
+    assertEquals(turnInQuest(p, 'm6_toxin').ok, false, '3 < 3+3');
+    assertEquals(p.quests['m6_toxin'].status, 'active');
+    // Full supply: passes and consumes the aggregated total.
+    addItem(p, 'm_iron_chunk', 3);
+    p.quests['m6_toxin']!.status = 'turnIn';
+    assertEquals(turnInQuest(p, 'm6_toxin').ok, true);
+    assertEquals(countOf(p, 'm_iron_chunk'), 0, 'all six consumed');
+  } finally {
+    m6.objectives = original;
+  }
+});

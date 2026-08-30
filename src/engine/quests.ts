@@ -192,16 +192,21 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
     return { ok: false, lines: ["That quest isn't ready to turn in."] };
   }
   // Revalidate at the counter: goods may have been spent, forged away or
-  // dropped since the quest readied. Check EVERY collect objective before
-  // consuming anything — turn-in is all-or-nothing, never partial.
+  // dropped since the quest readied. Requirements are AGGREGATED per item
+  // first (#8) — two collect objectives on the same item must be covered by
+  // the TOTAL supply, never validated against the same copies twice. Check
+  // everything before consuming anything — turn-in is all-or-nothing.
+  const required = new Map<string, number>();
   for (const obj of q.objectives) {
     if (obj.kind !== 'collect') continue;
-    const need = obj.count ?? 1;
-    if (countOf(p, obj.target) < need) {
+    required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
+  }
+  for (const [itemId, need] of required) {
+    if (countOf(p, itemId) < need) {
       qp.status = 'active';
       return {
         ok: false,
-        lines: [`You no longer have enough ${itemName(obj.target)} — the quest stays open.`],
+        lines: [`You no longer have enough ${itemName(itemId)} — the quest stays open.`],
       };
     }
   }
@@ -209,11 +214,9 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
   const lines: string[] = [q.outro];
   // Collect objectives hand their goods over — samples, sigils and keys
   // leave the bag at turn-in instead of lingering as dead weight.
-  for (const obj of q.objectives) {
-    if (obj.kind === 'collect') {
-      removeItem(p, obj.target, obj.count ?? 1);
-      lines.push(`📦 Handed over: ${itemName(obj.target)} ×${obj.count ?? 1}`);
-    }
+  for (const [itemId, qty] of required) {
+    removeItem(p, itemId, qty);
+    lines.push(`📦 Handed over: ${itemName(itemId)} ×${qty}`);
   }
   const r = q.rewards;
   p.gold += r.gold;
