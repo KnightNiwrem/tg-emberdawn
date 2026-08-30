@@ -1,9 +1,5 @@
-/**
- * Progression & campaign integrity — the flagship suite from FINDINGS.md.
- * Drives the FULL main questline m1→m25 through the pure engine with a
- * seeded RNG, asserts every kill objective is obtainable (P0-1/P0-2
- * regression), and locks in the combat semantics fixes (P1-5/6/7/9/10).
- */
+/** Progression & campaign integrity — drives the FULL main questline m1→m25 through the pure engine,
+ * asserts every kill objective is obtainable, and locks in the combat/progression fixes. */
 
 import { assert, assertEquals } from '@std/assert';
 import {

@@ -193,6 +193,12 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 
 - `deno.json` is the dependency manifest; fallow's "unlisted dependencies" (grammy, grammy-testing)
   is a Node-only heuristic — ignore.
+- Boss first-clear trinkets (`t_12`–`t_18`) are EARNED TROPHIES, deliberately protected: they cannot
+  be sold or dropped (#5, one-time rewards), though `unique` here means "unrecoverable if lost" —
+  not a full collectible model.
+- Dungeon attrition is OPTIONAL by design: dungeon progress persists, travel is free and safe havens
+  fully heal, so clearing-floor-then-healing is legal play. Do not balance dungeon difficulty around
+  resource attrition unless a run-enforcement mechanic is added.
 - One residual ~12-line clone pair in `render/views.ts` (shop buy vs sell rows). The two rows differ
   in label/action/semantics; a shared abstraction would be more indirect than the duplication.
   Accepted.

@@ -1,4 +1,4 @@
-/** Repair-pass-2 regressions (FINDINGS.md second review): /start neutrality,
+/** Repair-pass-2 regressions: /start neutrality, meta-callback safety, save
  * meta-callback safety, save migration, engine authority checks, quest
  * delivery invariants, pool clamping, shop boundaries, forage cooldown. */
 
