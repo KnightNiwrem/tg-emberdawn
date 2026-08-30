@@ -26,6 +26,7 @@ import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import {
   acceptQuest,
   grantItem,
+  levelLockedMain,
   onItemGain,
   onKill,
   syncAvailability,
@@ -736,4 +737,63 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
     p.notices.some((l) => l.includes("haven't learned")),
     'invalid-action feedback is preserved',
   );
+});
+
+Deno.test('quest log names the level-locked next quest during grind gaps (#33)', () => {
+  // Level gap: the chapter chain m1–m4 is done, level 5 → m5 (req 9) is
+  // story-unlocked but locked. (m1 alone done wouldn't reach the gap card:
+  // m1 would still be 'available' and keep the await branch.)
+  const p = createPlayer(964, 'T', 'warrior');
+  p.level = 5;
+  for (const id of ['m1_embers', 'm2_letter', 'm3_roots', 'm4_blessing']) {
+    p.quests[id] = { status: 'done', counts: [] };
+  }
+  syncAvailability(p);
+  const log = JSON.stringify(renderQuests(p));
+  assert(log.includes('Into the Fen'), 'the next quest is named');
+  assert(log.includes('Requires level 9'), 'the requirement is shown');
+  assert(log.includes('you are 5'), 'the current level is shown');
+  assert(!log.includes('q:a:m5_fen'), 'no accept path for a locked quest');
+
+  // Story still gated: with m21 live, m22 is never revealed.
+  const mid = createPlayer(966, 'T', 'warrior');
+  mid.level = 45;
+  for (
+    const id of [
+      'm1_embers',
+      'm2_letter',
+      'm3_roots',
+      'm4_blessing',
+      'm5_fen',
+      'm6_toxin',
+      'm7_tyrant',
+      'm8_passage',
+      'm9_spire',
+      'm10_cult',
+      'm11_toll',
+      'm12_chronolich',
+      'm13_pass',
+      'm14_emblem',
+      'm15_wyrm',
+      'm16_ashes',
+      'm17_plea',
+      'm18_sigil',
+      'm19_ignivar',
+      'm20_seam',
+    ]
+  ) {
+    mid.quests[id] = { status: 'done', counts: [] };
+  }
+  mid.quests['m21_loyalty'] = { status: 'active', counts: [3] };
+  assertEquals(levelLockedMain(mid), undefined, 'm22 stays hidden while m21 is live');
+  const midLog = JSON.stringify(renderQuests(mid));
+  assert(!midLog.includes('The Unlocked Door'), 'm22 is not named');
+  assert(midLog.includes('Loyalty, Corrected'), 'the live main stays the primary card');
+
+  // Campaign complete: the log says so instead of dangling a fake target.
+  const done = createPlayer(967, 'T', 'warrior');
+  done.level = 45;
+  for (const q of QUESTS.filter((x) => x.main)) done.quests[q.id] = { status: 'done', counts: [] };
+  const doneLog = JSON.stringify(renderQuests(done));
+  assert(doneLog.includes('story is complete'), 'post-campaign message');
 });

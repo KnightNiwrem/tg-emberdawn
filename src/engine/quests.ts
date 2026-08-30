@@ -46,6 +46,22 @@ export function syncAvailability(p: PlayerState): string[] {
   return newly;
 }
 
+/** The next main quest the STORY has unlocked but the LEVEL still gates
+ * (#33): prerequisite quest done / flags set, player level short. The quest
+ * log names it during grind gaps — without an accept path. undefined while
+ * the story itself still gates the next quest (never reveal it early) and
+ * when the campaign is complete. */
+export function levelLockedMain(p: PlayerState): QuestDef | undefined {
+  for (const q of QUESTS) {
+    if (!q.main) continue;
+    if ((p.quests[q.id]?.status ?? 'unavailable') === 'done') continue;
+    if (q.prereqQuest && p.quests[q.prereqQuest]?.status !== 'done') return undefined;
+    if (q.prereqFlags && !q.prereqFlags.some((f) => p.flags[f] !== undefined)) return undefined;
+    return p.level >= q.level ? undefined : q;
+  }
+  return undefined;
+}
+
 export function acceptQuest(p: PlayerState, id: string): { ok: boolean; msg: string } {
   const q = quest(id);
   if (!q) return { ok: false, msg: 'Unknown quest.' };

@@ -14,7 +14,7 @@ import { item, itemName, sellPrice } from '../content/items.ts';
 import { currentStock } from '../engine/shops.ts';
 import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine } from '../engine/world.ts';
-import { questStatusLine } from '../engine/quests.ts';
+import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
 import { MAX_TEMPER, temperCost, temperLevel } from '../engine/forge.ts';
 import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
@@ -321,14 +321,30 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
     );
   } else {
     const next = mains.find((q) => p.quests[q.id]?.status === 'available');
-    blocks.push(para(next ? '🟢 A main quest awaits!' : '🏅 The story continues soon…'));
     if (next) {
+      blocks.push(para('🟢 A main quest awaits!'));
       blocks.push(
         buttonsRow(
           [cbBtn(`View: ${next.name}`, encodeCb({ v: 'quests', a: 'q', arg: next.id }))],
           'left',
         ),
       );
+    } else {
+      // Grind gaps are intentional, but invisible targets aren't (#33):
+      // when the STORY has unlocked the next main quest and only the level
+      // gates it, name it and show both numbers — with no accept path.
+      // Quests still story-gated are never revealed.
+      const locked = levelLockedMain(p);
+      if (locked) {
+        blocks.push(para([
+          { type: 'bold', text: `🔒 Next: ${locked.name}` } as RichText,
+          `\nRequires level ${locked.level} — you are ${p.level}. Train in the wilds: the dawn keeps.`,
+        ]));
+      } else if (mains.every((q) => p.quests[q.id]?.status === 'done')) {
+        blocks.push(para('🏅 The story is complete — and the dawn holds.'));
+      } else {
+        blocks.push(para('🏅 The story continues soon…'));
+      }
     }
   }
   const liveSides = sides.filter((q) =>
