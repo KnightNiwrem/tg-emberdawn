@@ -184,11 +184,6 @@ export interface DungeonDef {
   firstClear?: { xp: number; gold: number; item?: string; flags?: string[]; unlockZone?: string };
 }
 
-export interface ShopDef {
-  /** Item ids offered (in display order). */
-  stock: string[];
-}
-
 export interface ZoneDef {
   id: string;
   name: string;
@@ -199,7 +194,6 @@ export interface ZoneDef {
   desc: string;
   explore: ExploreEvent[];
   dungeon?: DungeonDef;
-  shop?: ShopDef;
   /** Friendly rest point: full heal on entering zone. */
   safeHaven: boolean;
   npcs: NpcDef[];

@@ -58,7 +58,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
       cbBtn('✨ Skills', encodeCb({ v: 'zone', a: 'sk' })),
     ]),
     buttonsRow([
-      z.shop ? cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })) : disabledBtn('🏪 —'),
+      cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })),
       cbBtn('⚒️ Forge', encodeCb({ v: 'zone', a: 'fg' })),
       cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
     ]),

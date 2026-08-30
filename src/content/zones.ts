@@ -45,7 +45,6 @@ export const ZONES: readonly ZoneDef[] = [
         text: 'Ember-light flickers over the fields. The village hums, uneasily.',
       },
     ],
-    shop: { stock: [] }, // stock generated via shopStock(zone, tier)
     npcs: [
       {
         id: 'npc_maren',
@@ -122,7 +121,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 400, gold: 250, item: 't_12', flags: ['rootboundCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_warden_tom',
@@ -190,7 +188,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 1400, gold: 700, item: 't_13', flags: ['sunkenCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_ferryman',
@@ -250,7 +247,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 3600, gold: 1600, item: 't_14', flags: ['vaultCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_curator',
@@ -311,7 +307,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 9000, gold: 3200, item: 't_15', flags: ['glacierCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_outcast',
@@ -380,7 +375,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 20000, gold: 6500, item: 't_16', flags: ['pyreCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_ashen',
@@ -446,7 +440,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 45000, gold: 15000, item: 't_17', flags: ['crownRestored'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_archivist',
@@ -513,7 +506,6 @@ export const ZONES: readonly ZoneDef[] = [
       ],
       firstClear: { xp: 90000, gold: 30000, item: 't_18', flags: ['seamCleared'] },
     },
-    shop: { stock: [] },
     npcs: [
       {
         id: 'npc_echo',
