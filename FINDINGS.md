@@ -1,9 +1,10 @@
 # Emberdawn Re-Review: Remaining Audit Findings After the First Repair Pass
 
-**Repository:** `KnightNiwrem/tg-emberdawn`  
-**Current reviewed head:** `af337b46a6162288c8c2eebe2d7b64cda69f0380`  
-**Previous audited baseline:** `53ecf548382a69f39288f19dda070eb816f3fc4b`  
-**Purpose:** verify completeness/correctness of the implementation intended to resolve the previous game-design/progression audit.
+**Repository:** `KnightNiwrem/tg-emberdawn`\
+**Current reviewed head:** `af337b46a6162288c8c2eebe2d7b64cda69f0380`\
+**Previous audited baseline:** `53ecf548382a69f39288f19dda070eb816f3fc4b`\
+**Purpose:** verify completeness/correctness of the implementation intended to resolve the previous
+game-design/progression audit.
 
 ---
 
@@ -11,7 +12,8 @@
 
 The repair pass is a **substantial improvement**.
 
-The previous deterministic main-story hardlocks in Chapter 3 and Chapter 6 are genuinely fixed, and the dungeon/combat changes are mostly implemented correctly rather than cosmetically.
+The previous deterministic main-story hardlocks in Chapter 3 and Chapter 6 are genuinely fixed, and
+the dungeon/combat changes are mostly implemented correctly rather than cosmetically.
 
 In particular, the following major systems are now materially better:
 
@@ -39,7 +41,9 @@ However:
 
 > **The previous audit should not yet be considered closed.**
 
-There are still several significant correctness gaps, including one final-story bypass, migration/data-loss bugs, message-lifecycle regressions, collect-quest delivery bugs, and multiple gameplay integrity checks still missing from the engine.
+There are still several significant correctness gaps, including one final-story bypass,
+migration/data-loss bugs, message-lifecycle regressions, collect-quest delivery bugs, and multiple
+gameplay integrity checks still missing from the engine.
 
 The project has moved from:
 
@@ -60,9 +64,12 @@ The remaining work is much narrower and more actionable than the original audit.
 1. `m25_silence` can still be completed from an overworld Warden without entering the Endless Seam.
 2. `/start` kills/abandons the player if any battle exists.
 3. `backfillPlayer()` can silently delete legitimate duplicate inventory gear on every load.
-4. Legacy active battles are not fully migrated for newly-added combat buff fields and can produce `NaN` combat values.
-5. Stale onboarding/meta callbacks can bypass the live-message staleness guard and potentially reset an existing character.
-6. Class-pick commit/save ordering still retains the old message-pointer persistence bug on that one path.
+4. Legacy active battles are not fully migrated for newly-added combat buff fields and can produce
+   `NaN` combat values.
+5. Stale onboarding/meta callbacks can bypass the live-message staleness guard and potentially reset
+   an existing character.
+6. Class-pick commit/save ordering still retains the old message-pointer persistence bug on that one
+   path.
 7. Newer-message adoption can be lost because the callback path loads the player twice.
 
 ## P1 — significant gameplay correctness / incomplete original fixes
@@ -71,9 +78,11 @@ The remaining work is much narrower and more actionable than the original audit.
 9. Dungeon/cache/first-clear item gains do not consistently trigger collect-objective refresh.
 10. Sunspire Key remains narrative-only and does not mechanically gate the Vault boss.
 11. Engine equip logic does not verify the player still owns the item.
-12. Engine skill execution does not verify the player has learned that skill or that it belongs to their class.
+12. Engine skill execution does not verify the player has learned that skill or that it belongs to
+    their class.
 13. Equipping/unequipping gear can leave current HP/MP above the new maximum.
-14. Cleric creation miscalculates starting HP because weapon/armor stat objects are shallow-merged instead of summed.
+14. Cleric creation miscalculates starting HP because weapon/armor stat objects are shallow-merged
+    instead of summed.
 15. Shop tier formula unlocks new gear one level too early.
 16. `t_9`–`t_11` trinkets now have a source, but their acquisition timing is badly wrong.
 17. Boss first-clear trinket rewards remain obsolete by the time they are earned.
@@ -85,7 +94,8 @@ The remaining work is much narrower and more actionable than the original audit.
 20. The flagship `m1→m25` test is useful but is not a true full progression simulation.
 21. There is still no systematic collect-item acquisition-source test.
 22. Free safe-haven healing between dungeon floors still removes dungeon attrition.
-23. Forge temper is bound to item ID/model, not an individual item instance; clarify whether that is intended.
+23. Forge temper is bound to item ID/model, not an individual item instance; clarify whether that is
+    intended.
 24. README still has stale dungeon/count/wording details.
 
 ---
@@ -157,7 +167,8 @@ Correctly improved:
 
 **Status:** core original bugs resolved.
 
-One semantic caveat remains later in this document: temper is really bound to **item ID/model**, not individual item instance.
+One semantic caveat remains later in this document: temper is really bound to **item ID/model**, not
+individual item instance.
 
 ---
 
@@ -188,7 +199,8 @@ There are still special-path issues in onboarding and `/start`.
 
 The Abyss exploration table still contains `e_warden` as an overworld elite.
 
-Structured battle provenance now correctly prevents an overworld Warden from setting the Endless Seam dungeon-clear flag.
+Structured battle provenance now correctly prevents an overworld Warden from setting the Endless
+Seam dungeon-clear flag.
 
 That is good.
 
@@ -234,8 +246,8 @@ Use the existing `dungeon` objective type:
 
 ```ts
 objectives: [
-  { kind: 'dungeon', target: 'd_seam' }
-]
+  { kind: 'dungeon', target: 'd_seam' },
+];
 ```
 
 Then add a dungeon-completion hook from actual first boss clear.
@@ -244,7 +256,7 @@ Conceptually:
 
 ```ts
 export function onDungeonClear(p: PlayerState, dungeonId: string): void {
-    progressObjective(p, 'dungeon', dungeonId);
+  progressObjective(p, 'dungeon', dungeonId);
 }
 ```
 
@@ -284,14 +296,15 @@ d_seam boss kill:
 
 ## Current implementation
 
-`handleStart()` re-centers to a fresh message, but before doing so it checks for any battle and calls death handling.
+`handleStart()` re-centers to a fresh message, but before doing so it checks for any battle and
+calls death handling.
 
 Equivalent behavior:
 
 ```ts
 if (existing.battle) {
-    existing.battle = undefined;
-    existing.notices.push(applyDeath(existing));
+  existing.battle = undefined;
+  existing.notices.push(applyDeath(existing));
 }
 ```
 
@@ -310,7 +323,8 @@ if (existing.battle) {
 
 It should not be a gameplay action.
 
-A user can issue `/start` in the middle of a perfectly healthy boss fight simply because the game message is far up the Telegram chat.
+A user can issue `/start` in the middle of a perfectly healthy boss fight simply because the game
+message is far up the Telegram chat.
 
 They then lose:
 
@@ -377,8 +391,8 @@ To clean up the old "equipped gear is also in inventory" bug:
 
 ```ts
 for (const slot of ['weapon', 'armor']) {
-    const eq = p.equipment[slot];
-    if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
+  const eq = p.equipment[slot];
+  if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
 }
 ```
 
@@ -424,17 +438,17 @@ Example:
 const CURRENT_STATE_VERSION = 2;
 
 export function migratePlayer(p: PlayerState): void {
-    const version = p.stateVersion ?? 0;
+  const version = p.stateVersion ?? 0;
 
-    if (version < 1) {
-        migrateLegacyStartingGearDuplication(p);
-    }
+  if (version < 1) {
+    migrateLegacyStartingGearDuplication(p);
+  }
 
-    if (version < 2) {
-        migrateBattleProvenanceAndBuffs(p);
-    }
+  if (version < 2) {
+    migrateBattleProvenanceAndBuffs(p);
+  }
 
-    p.stateVersion = CURRENT_STATE_VERSION;
+  p.stateVersion = CURRENT_STATE_VERSION;
 }
 ```
 
@@ -466,14 +480,14 @@ Use an explicit version.
 `CombatBuffs` now contains:
 
 ```ts
-enemyWeakenedPct
-enemyWeakenTurns
+enemyWeakenedPct;
+enemyWeakenTurns;
 ```
 
 Enemy damage uses:
 
 ```ts
-1 - buffs.enemyWeakenedPct
+1 - buffs.enemyWeakenedPct;
 ```
 
 ## Existing-save problem
@@ -483,7 +497,7 @@ An old persisted battle created before these fields existed has no such properti
 JavaScript behavior:
 
 ```ts
-1 - undefined === NaN
+1 - undefined === NaN;
 ```
 
 That can propagate into:
@@ -564,7 +578,8 @@ This can reset the player's character without `/reset`.
 
 ## Additional issue
 
-Old Help buttons also bypass ordinary staleness semantics and can change the current scene unexpectedly.
+Old Help buttons also bypass ordinary staleness semantics and can change the current scene
+unexpectedly.
 
 ## Fix
 
@@ -576,7 +591,7 @@ If a player already exists:
 
 ```ts
 if (cb.a === 'pick') {
-    return toast("You already have a character.");
+  return toast('You already have a character.');
 }
 ```
 
@@ -673,7 +688,8 @@ Then:
 
 3. `withPlayer()` calls `store.get()` again.
 
-With PostgreSQL, the second read creates a new object from persisted JSON and loses the in-memory adoption from step 2.
+With PostgreSQL, the second read creates a new object from persisted JSON and loses the in-memory
+adoption from step 2.
 
 ## Why tests can miss this
 
@@ -758,17 +774,17 @@ Before changing state:
 
 ```ts
 for (const obj of q.objectives) {
-    if (obj.kind !== 'collect') continue;
+  if (obj.kind !== 'collect') continue;
 
-    const need = obj.count ?? 1;
+  const need = obj.count ?? 1;
 
-    if (countOf(p, obj.target) < need) {
-        qp.status = 'active';
-        return {
-            ok: false,
-            lines: [`You no longer have enough ${itemName(obj.target)}.`],
-        };
-    }
+  if (countOf(p, obj.target) < need) {
+    qp.status = 'active';
+    return {
+      ok: false,
+      lines: [`You no longer have enough ${itemName(obj.target)}.`],
+    };
+  }
 }
 ```
 
@@ -808,7 +824,8 @@ Examples include:
 - quest rewards;
 - enemy reward pipeline indirectly.
 
-Some later action may call `syncAvailability()` and eventually refresh the quest, but the intended new invariant:
+Some later action may call `syncAvailability()` and eventually refresh the quest, but the intended
+new invariant:
 
 > acquiring the final required item immediately makes the quest ready
 
@@ -822,12 +839,12 @@ Add a helper:
 
 ```ts
 export function grantItem(
-    p: PlayerState,
-    itemId: string,
-    qty = 1,
+  p: PlayerState,
+  itemId: string,
+  qty = 1,
 ): string[] {
-    addItem(p, itemId, qty);
-    return onItemGain(p);
+  addItem(p, itemId, qty);
+  return onItemGain(p);
 }
 ```
 
@@ -895,8 +912,8 @@ For example:
 ```ts
 objectives: [
   { kind: 'collect', target: 'q_sunspire_key', count: 1 },
-  { kind: 'kill', target: 'e_chronolich', count: 1 }
-]
+  { kind: 'kill', target: 'e_chronolich', count: 1 },
+];
 ```
 
 The first approach fits the narrative better.
@@ -934,7 +951,7 @@ Two rapid taps can race:
 
 ```ts
 if (!removeItem(p, itemId, 1)) {
-    return { toast: "You don't have that." };
+  return { toast: "You don't have that." };
 }
 ```
 
@@ -961,11 +978,12 @@ Skill action checks:
 It does not check:
 
 ```ts
-p.skills.includes(sk.id)
-sk.classId === p.classId
+p.skills.includes(sk.id);
+sk.classId === p.classId;
 ```
 
-UI hides unlearned skills, but the engine explicitly claims to remain safe against stale/forged callbacks.
+UI hides unlearned skills, but the engine explicitly claims to remain safe against stale/forged
+callbacks.
 
 It currently is not.
 
@@ -981,8 +999,8 @@ Before cooldown/MP:
 
 ```ts
 if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
-    lines.push("You haven't learned that skill.");
-    return { lines, consumedTurn: false };
+  lines.push("You haven't learned that skill.");
+  return { lines, consumedTurn: false };
 }
 ```
 
@@ -1044,7 +1062,8 @@ Creation computes initial gear stats with shallow object spread:
 }
 ```
 
-If both weapon and armor define the same stat, the later object overwrites the earlier stat rather than adding them.
+If both weapon and armor define the same stat, the later object overwrites the earlier stat rather
+than adding them.
 
 Cleric starting weapon and armor both contribute HP.
 
@@ -1077,8 +1096,8 @@ Or extract a shared equipment-stat aggregator.
 For **all four classes**:
 
 ```ts
-p.hp === statsOf(p).maxHp
-p.mp === statsOf(p).maxMp
+p.hp === statsOf(p).maxHp;
+p.mp === statsOf(p).maxMp;
 ```
 
 Do not only test Warrior.
@@ -1103,7 +1122,7 @@ tier 8 → level 43
 Current shop level tier approximately:
 
 ```ts
-Math.floor(p.level / 6) + 1
+Math.floor(p.level / 6) + 1;
 ```
 
 This gives:
@@ -1120,7 +1139,7 @@ one level before the item can be equipped.
 ## Correct formula
 
 ```ts
-Math.floor((p.level - 1) / 6) + 1
+Math.floor((p.level - 1) / 6) + 1;
 ```
 
 clamped to 1..8.
@@ -1168,7 +1187,7 @@ Do not determine trinket shop availability from index.
 Filter by actual item level:
 
 ```ts
-TRINKET_ITEMS.filter(t => t.level <= shopLevelCap)
+TRINKET_ITEMS.filter((t) => t.level <= shopLevelCap);
 ```
 
 Potentially expose several level-appropriate trinkets across different zones.
@@ -1339,17 +1358,18 @@ Use a reset condition that costs meaningful progress:
 Example:
 
 ```ts
-forageResetAt: unixMillis
+forageResetAt: unixMillis;
 ```
 
 or:
 
 ```ts
-forageCharges
-forageRechargeAt
+forageCharges;
+forageRechargeAt;
 ```
 
-If infinite forage is actually acceptable, remove the complexity and document it as an intentional safety faucet.
+If infinite forage is actually acceptable, remove the complexity and document it as an intentional
+safety faucet.
 
 ---
 
@@ -1475,7 +1495,8 @@ Choose one:
 - healing only at explicit dungeon checkpoints;
 - dungeon completion must happen in one run.
 
-Do not accidentally balance bosses assuming players preserve attrition if full heal is always two taps away.
+Do not accidentally balance bosses assuming players preserve attrition if full heal is always two
+taps away.
 
 ---
 
@@ -1521,7 +1542,9 @@ Rewrite terminology toward:
 Requires inventory instances instead of:
 
 ```ts
-{ id, qty }
+{
+  id, qty;
+}
 ```
 
 which is a larger model change.
@@ -1878,7 +1901,8 @@ I would consider the original audit satisfactorily resolved when all of the foll
 
 # Final assessment
 
-The first repair pass successfully addressed most of the most serious **core dungeon and combat implementation errors**.
+The first repair pass successfully addressed most of the most serious **core dungeon and combat
+implementation errors**.
 
 The campaign is no longer blocked by the old Automaton/Crownsworn encounter-capacity failures.
 

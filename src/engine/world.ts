@@ -8,10 +8,10 @@ import type { DungeonDef, ExploreEvent, ZoneDef } from '../content/types.ts';
 import { zone } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { quest } from '../content/quests.ts';
-import { addItem, grantDropRewards } from './inventory.ts';
+import { countOf, grantDropRewards, removeItem } from './inventory.ts';
 import { rollRewards, startBattle } from './combat.ts';
 import { grantXp, statsOf } from './character.ts';
-import { onItemGain, onKill, onZoneEnter, syncAvailability } from './quests.ts';
+import { grantItem, onDungeonClear, onKill, onZoneEnter, syncAvailability } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { itemName } from '../content/items.ts';
 
@@ -29,7 +29,8 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
     const s = statsOf(p);
     p.hp = s.maxHp;
     p.mp = s.maxMp;
-    delete p.flags[`forage_${zoneId}`]; // fresh visit, fresh forage
+    // The forage counter intentionally persists across visits now — the
+    // real-time recharge (see explore) governs when the faucet refills.
     lines.push('🔥 A safe haven. HP and MP fully restored.');
   }
   onZoneEnter(p, zoneId);
@@ -67,6 +68,9 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
     if (d && d.id === b.origin.dungeonId) {
       if (b.origin.boss) {
         lines.push(...onDungeonVictory(p, d).lines);
+        // Location-specific story objectives key on the dungeon clear, never
+        // on the enemy id — an overworld echo of the boss can't substitute.
+        onDungeonClear(p, d.id);
       } else {
         lines.push(...onDungeonFloorVictory(p, d, b.origin.floor));
       }
@@ -89,13 +93,30 @@ export function explore(
   let pool = z.safeHaven
     ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite')
     : z.explore;
-  // Safe-haven foraging is finite per visit (reset on arrival): after a few
-  // picks the caches stop appearing, so no infinite gold/potion faucet.
+  // Safe-haven foraging is finite per REAL-TIME cooldown: a few picks and
+  // the caches dry up for hours — free travel can no longer refresh the
+  // faucet, so the Emberdawn loop is a 6-hour wait, not four taps.
   const forageKey = `forage_${z.id}`;
-  const foraged = typeof p.flags[forageKey] === 'number' ? p.flags[forageKey]! : 0;
+  let foraged = typeof p.flags[forageKey] === 'number' ? p.flags[forageKey]! : 0;
   if (z.safeHaven) {
-    if (foraged >= 3) pool = pool.filter((e) => e.kind !== 'treasure');
-    p.flags[forageKey] = foraged + 1;
+    // The faucet recharges on a REAL-TIME cooldown — free travel never
+    // refreshes it, so the Emberdawn loop is a 6-hour wait, not 4 taps.
+    if (foraged >= 3) {
+      const resetAt = p.flags['forageResetAt'];
+      if (typeof resetAt === 'number' && Date.now() >= resetAt) {
+        foraged = 0;
+        delete p.flags[forageKey];
+        delete p.flags['forageResetAt'];
+      }
+    }
+    if (foraged >= 3) {
+      pool = pool.filter((e) => e.kind !== 'treasure');
+      if (p.flags['forageResetAt'] === undefined) {
+        p.flags['forageResetAt'] = Date.now() + 6 * 3_600_000; // 6h recharge
+      }
+    } else {
+      p.flags[forageKey] = foraged + 1;
+    }
   }
   const weights = pool.map((e) => e.weight);
   const idx = weightedIndex(rng, weights);
@@ -137,9 +158,8 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
         lines.push(`💰 +${g} gold`);
       }
       if (ev.item) {
-        addItem(p, ev.item, 1);
         lines.push(`🎁 Found: ${itemName(ev.item)}`);
-        for (const qid of onItemGain(p)) {
+        for (const qid of grantItem(p, ev.item, 1)) {
           lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
         }
       }
@@ -193,12 +213,19 @@ export function bossGateBlock(p: PlayerState, d: DungeonDef): string | undefined
   const st = p.quests[gate.quest]?.status;
   const open = st === 'done' ||
     (gate.requireDone === false && (st === 'active' || st === 'turnIn'));
-  if (open) return undefined;
-  const q = quest(gate.quest);
-  const how = gate.requireDone === false ? 'begun' : 'completed';
-  return q
-    ? `⛔ Sealed. “${q.name}” must be ${how} before the deepest chamber opens.`
-    : '⛔ Sealed by powers beyond your understanding.';
+  if (!open) {
+    const q = quest(gate.quest);
+    const how = gate.requireDone === false ? 'begun' : 'completed';
+    return q
+      ? `⛔ Sealed. “${q.name}” must be ${how} before the deepest chamber opens.`
+      : '⛔ Sealed by powers beyond your understanding.';
+  }
+  // A keyed gate demands its story key for the first descent — rematches
+  // after clearing stay open.
+  if (gate.item && !dungeonCleared(p, d) && countOf(p, gate.item) < 1) {
+    return '⛔ Sealed. The deepest chamber only opens for its own key.';
+  }
+  return undefined;
 }
 
 /**
@@ -279,8 +306,10 @@ export function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: numb
       lines.push(`💰 Floor cache: +${t.gold} gold`);
     }
     if (t.item) {
-      addItem(p, t.item, 1);
       lines.push(`🎁 Floor cache: ${itemName(t.item)}`);
+      for (const qid of grantItem(p, t.item, 1)) {
+        lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
+      }
     }
   }
   return lines;
@@ -294,6 +323,14 @@ export function onDungeonVictory(
   const lines: string[] = [];
   const firstClear = !dungeonCleared(p, d);
   p.flags[bossKey(d)] = true;
+  if (firstClear) {
+    // A keyed gate's story key is spent by the FIRST VICTORIOUS descent —
+    // entry alone never consumes it, so a lost fight stays retryable.
+    const key = d.bossGate?.item;
+    if (key && removeItem(p, key, 1)) {
+      lines.push(`🔑 The ${itemName(key)} dissolves into the seal.`);
+    }
+  }
   if (firstClear && d.firstClear) {
     const fc = d.firstClear;
     p.gold += fc.gold;
@@ -301,8 +338,10 @@ export function onDungeonVictory(
     lines.push(`🏆 First clear of ${d.name}!`);
     lines.push(`💰 +${fc.gold} gold · ✨ +${fc.xp} XP`);
     if (fc.item) {
-      addItem(p, fc.item, 1);
       lines.push(`🎁 Received: ${itemName(fc.item)}`);
+      for (const qid of grantItem(p, fc.item, 1)) {
+        lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
+      }
     }
     for (const f of fc.flags ?? []) p.flags[f] = true;
     if (fc.unlockZone && !p.unlockedZones.includes(fc.unlockZone)) {

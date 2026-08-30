@@ -5,7 +5,7 @@ import type { PlayerStore } from '../persistence/store.ts';
 import { commit } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
-import { applyDeath, createPlayer } from '../engine/character.ts';
+import { createPlayer, migratePlayer } from '../engine/character.ts';
 import { syncAvailability } from '../engine/quests.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
@@ -16,16 +16,15 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
-  // Re-center the game on a FRESH message — /start means "the live message
-  // is lost"; editing the old buried copy leaves it buried. Don't persist
-  // here: p.messageId is updated inside commit(), and the caller's store.set
-  // (below) captures it.
+  // Re-center ONLY: /start means "the live message is buried" — never a
+  // gameplay action. Battles, gold, deaths and location are all preserved;
+  // abandoning a fight is what /reset is for.
+  migratePlayer(existing); // versioned save migration runs here too
   existing.notices = ['🧭 The flame guides you back.'];
-  // /reset is the emergency exit: clear any live battle and treat the
-  // revival promise as kept, so a wilderness death can't recreate a dead-end.
+  // Resume whatever was happening — a live fight resumes as a fight, a lost
+  // one stays on the death screen. /start never mutates gameplay state.
   if (existing.battle) {
-    existing.battle = undefined;
-    existing.notices.push(applyDeath(existing));
+    existing.scene = { view: existing.battle.phase === 'lost' ? 'death' : 'battle' };
   }
   existing.messageId = undefined; // force a fresh message, never an edit
   await commit(ctx, existing);

@@ -145,6 +145,8 @@ export interface PlayerState {
   battle?: BattleState;
   /** Message id of the live game message (staleness guard). */
   messageId?: number;
+  /** Save-schema version; drives one-time destructive migrations. */
+  stateVersion?: number;
   /** Transient result lines rendered as a banner on the current view. */
   notices: string[];
   stats: PlayerStats;

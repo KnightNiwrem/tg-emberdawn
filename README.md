@@ -13,14 +13,14 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 - **4 classes** — Warrior, Mage, Rogue, Cleric — each with 8 unique skills learned by level.
 - **Turn-based combat** — attack, skills (MP + cooldowns), items, guard, flee; crits, stuns,
   buffs/debuffs, scripted boss specials.
-- **8 zones, 8 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the
+- **8 zones, 7 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the
   stolen dawn — plus a postgame hunt beneath the world.
 - **25 main quests + 16 side quests** (the player is a _Dawncaller_; the Sundered King is despair
   that stopped believing in morning), quest log with objective tracking and turn-ins.
 - **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
 - **Forge tempering** (+1…+5, bound to the item itself), shops that scale with your level.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
-  penalties, auto-revive trinket.
+  penalties, a Phoenix Cinder auto-revive.
 - **One live message per player**: staleness-guarded, crash-safe, state persisted in Postgres
   (JSONB) — attached Prisma Postgres on Deno Deploy, any Postgres locally.
 
@@ -37,7 +37,7 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 
 ```bash
 deno task check   # typecheck
-deno task test    # 44 deterministic tests (engine + progression + bot integration)
+deno task test    # deterministic tests: engine, progression, bot integration, repair regressions
 deno task lint
 ```
 

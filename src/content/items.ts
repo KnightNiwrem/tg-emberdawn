@@ -426,6 +426,85 @@ function buildItems(): ItemDef[] {
       desc: q.desc,
     });
   }
+  // Boss first-clear trinkets: unique victory loot, never stocked (they are
+  // not in TRINKET_TIERS), level-tuned to the dungeon that awards them.
+  const BOSS_TRINKETS: {
+    id: string;
+    name: string;
+    lvl: number;
+    stats: ItemStats;
+    price: number;
+    desc: string;
+  }[] = [
+    {
+      id: 't_12',
+      name: 'Rootwoven Band',
+      lvl: 8,
+      stats: { def: 6, hp: 30 },
+      price: 260,
+      desc: 'Woven from living root; still faintly growing.',
+    },
+    {
+      id: 't_13',
+      name: "Tidecaller's Pearl",
+      lvl: 15,
+      stats: { mp: 45, res: 9 },
+      price: 640,
+      desc: "Hums with the drowned shrine's tide.",
+    },
+    {
+      id: 't_14',
+      name: 'Hourglass Charm',
+      lvl: 21,
+      stats: { spd: 12, mag: 10 },
+      price: 1150,
+      desc: 'Sand falls upward when you act.',
+    },
+    {
+      id: 't_15',
+      name: 'Rimeheart Locket',
+      lvl: 28,
+      stats: { res: 16, hp: 80 },
+      price: 1900,
+      desc: 'Cold that protects, not consumes.',
+    },
+    {
+      id: 't_16',
+      name: 'Cinderheart Braid',
+      lvl: 36,
+      stats: { atk: 30, hp: 100 },
+      price: 3100,
+      desc: "Plaited from the caldera's own temper.",
+    },
+    {
+      id: 't_17',
+      name: 'Regalia of the Dawn',
+      lvl: 44,
+      stats: { atk: 24, mag: 24, def: 18, res: 18, spd: 12, luck: 14 },
+      price: 5200,
+      desc: "A king's worth of morning, reclaimed.",
+    },
+    {
+      id: 't_18',
+      name: "Voidseeker's Lens",
+      lvl: 45,
+      stats: { atk: 34, mag: 34, luck: 18 },
+      price: 6600,
+      desc: 'Through it, the dark looks away first.',
+    },
+  ];
+  for (const bt of BOSS_TRINKETS) {
+    out.push({
+      id: bt.id,
+      name: bt.name,
+      kind: 'trinket',
+      level: bt.lvl,
+      price: bt.price,
+      tier: 0,
+      stats: bt.stats,
+      desc: bt.desc,
+    });
+  }
   return out;
 }
 
@@ -474,13 +553,13 @@ export function shopStock(zoneId: string, zoneTier: number): string[] {
     stock.push(`w_${cls}_${t}`, `a_${cls}_${t}`);
     if (t >= 2) stock.push(`w_${cls}_${t - 1}`, `a_${cls}_${t - 1}`);
   }
-  const trinketCount = Math.min(TRINKET_TIERS.length, Math.max(2, t + 1));
-  for (let i = 0; i < trinketCount; i++) stock.push(`t_${i + 1}`);
-  // Endgame shops carry the full trinket table so late pieces (Thorn Ring,
-  // Moon Pendant, Ember Locket) always have an acquisition path.
-  if (t >= 7) {
-    for (let i = trinketCount; i < TRINKET_TIERS.length; i++) stock.push(`t_${i + 1}`);
-  }
+  // Trinkets stock by their ACTUAL level, not array position — the table
+  // isn't sorted by level, so index math once sold a level-5 ring only in
+  // endgame shops. Cap = highest equippable level for this tier.
+  const trinketCap = t * 6; // levels reachable within this tier band
+  TRINKET_TIERS.forEach((tk, i) => {
+    if (tk.lvl <= trinketCap) stock.push(`t_${i + 1}`);
+  });
   stock.push('c_minor_potion', 'c_minor_ether');
   if (t >= 2) stock.push('c_potion', 'c_ether', 'c_antidote');
   if (t >= 3) stock.push('c_greater_potion', 'c_smoke_bomb');

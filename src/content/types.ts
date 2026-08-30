@@ -175,7 +175,7 @@ export interface DungeonDef {
   /** Story gate for the BOSS floor: named quest must be done (or, without
    * requireDone, at least active) before the boss can be faced. Normal
    * floors stay open as soon as the zone is unlocked. */
-  bossGate?: { quest: string; requireDone?: boolean };
+  bossGate?: { quest: string; requireDone?: boolean; item?: string };
   /** First-clear rewards, granted when the boss falls. */
   firstClear?: { xp: number; gold: number; item?: string; flags?: string[]; unlockZone?: string };
 }

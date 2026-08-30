@@ -13,21 +13,19 @@ import { temperBonusOf } from './forge.ts';
 
 export function createPlayer(userId: number, name: string, classId: ClassId): PlayerState {
   const c = CLASSES[classId];
-  const gear = { ...itemStats(c.startingGear.weapon), ...itemStats(c.startingGear.armor) };
-  const stats = derivedStats(classId, 1, gear);
   // Equipped gear lives ONLY in equipment slots — bag copies would double
   // it in derived stats and let players sell their own shirt twice.
   const inv = Object.entries(c.startingItems).map(([id, qty]) => ({ id, qty }));
   const now = Date.now();
-  return {
+  const p: PlayerState = {
     userId,
     name,
     classId,
     level: 1,
     xp: 0,
     gold: 50,
-    hp: stats.maxHp,
-    mp: stats.maxMp,
+    hp: 0,
+    mp: 0,
     inventory: inv,
     equipment: { weapon: c.startingGear.weapon, armor: c.startingGear.armor },
     quests: {},
@@ -37,8 +35,15 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'home' },
     notices: [],
+    stateVersion: CURRENT_STATE_VERSION,
     stats: { kills: 0, deaths: 0, bossesSlain: 0, battlesWon: 0, createdAt: now, lastPlayed: now },
   };
+  // Starting pools come from the SAME canonical aggregation gameplay uses —
+  // never a hand-rolled stat merge (that once under-counted Cleric HP).
+  const s = statsOf(p);
+  p.hp = s.maxHp;
+  p.mp = s.maxMp;
+  return p;
 }
 
 function equippedGearStats(p: PlayerState): {
@@ -76,29 +81,65 @@ export function statsOf(p: PlayerState): DerivedStats {
   return derivedStats(p.classId, p.level, equippedGearStats(p));
 }
 
+/** Keeps current pools within derived maximums — call after any equipment
+ * change, so swapping away +HP/+MP gear can't leave you over-capped. */
+export function clampPools(p: PlayerState): void {
+  const s = statsOf(p);
+  p.hp = Math.min(p.hp, s.maxHp);
+  p.mp = Math.min(p.mp, s.maxMp);
+}
+
+/** Current save-schema version. Bump when a destructive migration is added. */
+export const CURRENT_STATE_VERSION = 2;
+
 /**
- * Idempotent save migration: grants any skills the player should know at
- * their current level (level-1 skills predate the creation fix) and ensures
- * starting-zone access (Whisperwood was never unlockable before).
+ * Save migration. Destructive legacy cleanups run ONCE, gated by an explicit
+ * `stateVersion` on the save — never by "state looks old" sniffing, which
+ * used to delete legitimately re-purchased gear on every single load.
+ *   v0 → 1: pre-dedup saves carried equipped gear twice (slots + bag).
+ *   v0 → 2: slot-bound temper flags → item-bound; legacy battle shape
+ *           (string origin, missing buff fields) normalized.
  */
-export function backfillPlayer(p: PlayerState): void {
-  // Pre-dedup saves carried equipped gear twice (slots + bag). Idempotent:
-  // once the bag copy is gone this becomes a no-op.
-  for (const slot of ['weapon', 'armor'] as const) {
-    const eq = p.equipment[slot];
-    if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
-  }
-  // Legacy slot-bound temper flags move onto the currently equipped items
-  // (temper is item-bound now). Idempotent: legacy keys are consumed once.
-  for (const slot of ['weapon', 'armor'] as const) {
-    const legacy = p.flags[`forge_${slot}`];
-    const eq = p.equipment[slot];
-    if (typeof legacy === 'number' && legacy > 0 && eq) {
-      const key = `forge_i_${eq}`;
-      p.flags[key] = Math.max(typeof p.flags[key] === 'number' ? p.flags[key]! : 0, legacy);
+export function migratePlayer(p: PlayerState): void {
+  const from = typeof p.stateVersion === 'number' ? p.stateVersion : 0;
+  if (from < 1) {
+    for (const slot of ['weapon', 'armor'] as const) {
+      const eq = p.equipment[slot];
+      if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
     }
-    delete p.flags[`forge_${slot}`];
   }
+  if (from < 2) {
+    for (const slot of ['weapon', 'armor'] as const) {
+      const legacy = p.flags[`forge_${slot}`];
+      const eq = p.equipment[slot];
+      if (typeof legacy === 'number' && legacy > 0 && eq) {
+        const key = `forge_i_${eq}`;
+        p.flags[key] = Math.max(typeof p.flags[key] === 'number' ? p.flags[key]! : 0, legacy);
+      }
+      delete p.flags[`forge_${slot}`];
+    }
+    const b = p.battle;
+    if (b) {
+      const o = b.origin as unknown;
+      if (typeof o === 'string') b.origin = { kind: 'explore', zoneId: o };
+      // Buff fields added after a battle was persisted default to neutral,
+      // so old saves can never produce NaN combat math.
+      for (const k of ['atkPct', 'defPct', 'resPct', 'magPct', 'spdPct'] as const) {
+        b.buffs[k] ??= 0;
+      }
+      b.buffs.durations ??= {};
+      b.buffs.weakenedPct ??= 0;
+      b.buffs.weakenTurns ??= 0;
+      b.buffs.enemyWeakenedPct ??= 0;
+      b.buffs.enemyWeakenTurns ??= 0;
+      b.buffs.stunnedTurns ??= 0;
+      b.buffs.stunnedEnemy ??= false;
+      b.phoenixUsed ??= false;
+    }
+  }
+  // Non-destructive backfills stay every-load (cheap, self-healing):
+  // level-1 skills predate the creation fix; starting zones were once
+  // never unlockable.
   const known = new Set(p.skills);
   for (const sk of skillsForClass(p.classId, p.level)) {
     if (!known.has(sk.id)) p.skills.push(sk.id);
@@ -106,21 +147,19 @@ export function backfillPlayer(p: PlayerState): void {
   for (const zid of STARTING_ZONES) {
     if (!p.unlockedZones.includes(zid)) p.unlockedZones.push(zid);
   }
-  // Legacy battles carried a plain zone string as origin; normalize so
-  // structured-origin victory bookkeeping never crashes on old saves.
-  const b = p.battle;
-  if (b) {
-    const o = b.origin as unknown;
-    if (typeof o === 'string') b.origin = { kind: 'explore', zoneId: o };
-  }
+  p.stateVersion = CURRENT_STATE_VERSION;
 }
 
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */
 export function grantXp(p: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
   if (p.level >= MAX_LEVEL) {
-    // Honest no-op: postgame XP was silently vanishing; say so instead.
-    return xp > 0 ? ["✨ You stand at the Flame's summit — XP means nothing now."] : msgs;
+    // Postgame: XP has nowhere to go, so the Flame converts valor to gold —
+    // endgame kills and quests keep paying instead of silently vanishing.
+    if (xp <= 0) return msgs;
+    const gold = Math.max(1, Math.ceil(xp / 4));
+    p.gold += gold;
+    return [`✨ The Flame converts your valor: +${gold} gold (XP means nothing at the summit).`];
   }
   p.xp += xp;
   while (p.level < MAX_LEVEL && p.xp >= xpForNextLevel(p.level)) {

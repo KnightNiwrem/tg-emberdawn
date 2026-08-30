@@ -1,9 +1,12 @@
-/** Central callback router: decode → staleness guard → dispatch → render. */
+/** Central callback router: decode → load once → staleness guard → dispatch
+ * → render → persist. Meta callbacks (class pick, help, reset) obey the same
+ * live-message rules as everything else, and an existing character can never
+ * be replaced by a stale or forged button. */
 
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit, isLiveMessage, type MutationResult, withPlayer } from './session.ts';
+import { commit, isLiveMessage, type MutationResult, withLoadedPlayer } from './session.ts';
 import {
   deathAction,
   forgeAction,
@@ -15,7 +18,10 @@ import {
 } from './hub.ts';
 import { battleAction, itemAction } from './battle.ts';
 import { addItem } from '../engine/inventory.ts';
+import { clampPools } from '../engine/character.ts';
 import { itemName } from '../content/items.ts';
+
+const STALE = 'That message is stale — use the latest game message (/start re-centers).';
 
 export async function handleCallback(ctx: Context, store: PlayerStore): Promise<void> {
   const cb = ctx.callbackQuery?.data ? decodeCb(ctx.callbackQuery.data) : undefined;
@@ -26,12 +32,15 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   const from = ctx.from;
   if (!from) return;
 
-  // Meta flows that don't require an existing character.
+  // Meta flows: guarded inside handleMeta (they have their own rules).
   if (cb.v === 'meta') {
     await handleMeta(ctx, store, cb, from.id, from.first_name ?? 'Traveler');
     return;
   }
 
+  // Load exactly ONCE. Postgres re-deserializes on every get(), so a second
+  // load would silently drop in-memory changes such as newer-message
+  // adoption made by the staleness guard below.
   const p = await store.get(from.id);
   if (!p) {
     await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
@@ -40,13 +49,11 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
 
   // Staleness guard: taps on an old copy of the game message.
   if (!isLiveMessage(p, ctx)) {
-    await ctx.answerCallbackQuery({
-      text: 'That message is stale — use the latest game message (/start re-centers).',
-    });
+    await ctx.answerCallbackQuery({ text: STALE });
     return;
   }
 
-  await withPlayer(ctx, store, (player) => dispatch(player, cb));
+  await withLoadedPlayer(ctx, store, p, (player) => dispatch(player, cb));
 }
 
 function dispatch(
@@ -93,6 +100,8 @@ function dispatch(
       if (prev) {
         addItem(player, prev, 1);
         player.equipment[slot] = undefined;
+        // Un-equipping can lower max HP/MP — never leave pools over cap.
+        clampPools(player);
         player.notices = [`Unequipped ${itemName(prev)}.`];
       }
       player.scene = { view: 'equipment' };
@@ -115,17 +124,29 @@ async function handleMeta(
   name: string,
 ): Promise<void> {
   const existing = await store.get(userId);
-  const outcome = metaAction(existing, cb, userId, name);
 
-  if (cb.a === 'help') {
+  // Character creation is the ONLY meta action allowed without a save — and
+  // it is refused outright when a character exists, so a stale class picker
+  // can never overwrite an existing hero.
+  if (cb.a === 'pick') {
     if (existing) {
-      await withPlayer(ctx, store, (p) => {
-        p.scene = { view: 'help' };
-        return {};
-      });
+      await ctx.answerCallbackQuery({ text: 'You already have a character.' });
       return;
     }
-    await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
+    const outcome = metaAction(undefined, cb, userId, name);
+    const fresh = outcome.player;
+    if (!fresh) {
+      await ctx.answerCallbackQuery({ text: outcome.toast ?? 'Unknown class.' });
+      return;
+    }
+    fresh.notices = ['Your tale begins, Dawncaller. The dawn is out there, waiting to be found.'];
+    fresh.scene = { view: 'zone' };
+    if (ctx.callbackQuery?.message) fresh.messageId = ctx.callbackQuery.message.message_id;
+    await ctx.answerCallbackQuery();
+    // Deliver FIRST, then persist: commit may fall back to resending, and
+    // the save must capture the final live-message pointer.
+    if (ctx.chat) await commit(ctx, fresh);
+    await store.set(userId, fresh);
     return;
   }
 
@@ -133,45 +154,35 @@ async function handleMeta(
     await ctx.answerCallbackQuery({ text: 'Use /reset to confirm a full reset.' });
     return;
   }
-  if (cb.a === 'resetNo') {
-    if (existing) {
-      await withPlayer(ctx, store, (p) => {
-        p.scene = { view: 'zone' };
-        return {};
-      });
-      return;
-    }
-    await ctx.answerCallbackQuery();
+
+  if (!existing) {
+    await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
+    return;
+  }
+  // Everything else (help, reset confirmations) obeys the staleness guard.
+  if (!isLiveMessage(existing, ctx)) {
+    await ctx.answerCallbackQuery({ text: STALE });
     return;
   }
 
+  const outcome = metaAction(existing, cb, userId, name);
   const player = outcome.player;
-  if (!player) {
-    await ctx.answerCallbackQuery(outcome.toast ? { text: outcome.toast } : undefined);
+
+  if (cb.a === 'resetYes' && player) {
+    // Full reset: brand-new state in a brand-new message.
+    player.notices = ['A new tale begins. The dawn is waiting to be found.'];
+    player.scene = { view: 'zone' };
+    await ctx.answerCallbackQuery();
+    if (ctx.chat) await commit(ctx, player);
+    await store.set(userId, player);
     return;
   }
 
-  // Character created (pick) or reset (resetYes): fresh state, fresh message.
-  player.notices = [
-    cb.a === 'pick'
-      ? 'Your tale begins, Dawncaller. The dawn is out there, waiting to be found.'
-      : 'A new tale begins. The dawn is waiting to be found.',
-  ];
-  player.scene = { view: 'zone' };
-  if (cb.a === 'pick' && ctx.callbackQuery?.message && ctx.chat) {
-    player.messageId = ctx.callbackQuery.message.message_id;
-    await store.set(userId, player);
-    await ctx.answerCallbackQuery();
-    await commit(ctx, player);
+  if (player) {
+    // help / resetNo: scene-only changes on the already-loaded player.
+    await withLoadedPlayer(ctx, store, existing, () => {});
     return;
   }
-  // resetYes: send a brand-new game message.
-  await store.set(userId, player);
-  await ctx.answerCallbackQuery();
-  if (ctx.chat) {
-    const { renderFor } = await import('./session.ts');
-    const sent = await ctx.api.sendRichMessage(ctx.chat.id, renderFor(player));
-    player.messageId = sent.message_id;
-    await store.set(userId, player);
-  }
+
+  await ctx.answerCallbackQuery(outcome.toast ? { text: outcome.toast } : undefined);
 }

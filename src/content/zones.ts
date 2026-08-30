@@ -120,7 +120,7 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_mycelid', 'e_thornling'] },
         { enemies: ['e_thornling', 'e_spider', 'e_mycelid'], treasure: { item: 'c_potion' } },
       ],
-      firstClear: { xp: 400, gold: 250, item: 'm_iron_chunk', flags: ['rootboundCleared'] },
+      firstClear: { xp: 400, gold: 250, item: 't_12', flags: ['rootboundCleared'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -188,7 +188,7 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_drowned', 'e_serpent'], treasure: { item: 'c_ether' } },
         { enemies: ['e_serpent', 'e_drowned', 'e_leech'] },
       ],
-      firstClear: { xp: 1400, gold: 700, item: 'm_mystic_dust', flags: ['sunkenCleared'] },
+      firstClear: { xp: 1400, gold: 700, item: 't_13', flags: ['sunkenCleared'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -242,13 +242,13 @@ export const ZONES: readonly ZoneDef[] = [
       emoji: '⏳',
       desc: "The city's time-vault. Every hour stolen from the Flame is kept here.",
       boss: 'e_chronolich',
-      bossGate: { quest: 'm12_chronolich', requireDone: false },
+      bossGate: { quest: 'm12_chronolich', requireDone: false, item: 'q_sunspire_key' },
       floors: [
         { enemies: ['e_chronowisp', 'e_automaton'], treasure: { gold: 260 } },
         { enemies: ['e_automaton', 'e_chronowisp', 'e_sentinel'] },
         { enemies: ['e_automaton', 'e_chronowisp'], treasure: { item: 'c_greater_potion' } },
       ],
-      firstClear: { xp: 3600, gold: 1600, item: 't_2', flags: ['vaultCleared'] },
+      firstClear: { xp: 3600, gold: 1600, item: 't_14', flags: ['vaultCleared'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -309,7 +309,7 @@ export const ZONES: readonly ZoneDef[] = [
         },
         { enemies: ['e_yeti', 'e_marauder', 'e_iceling'] },
       ],
-      firstClear: { xp: 9000, gold: 3200, item: 't_3', flags: ['glacierCleared'] },
+      firstClear: { xp: 9000, gold: 3200, item: 't_15', flags: ['glacierCleared'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -378,7 +378,7 @@ export const ZONES: readonly ZoneDef[] = [
         },
         { enemies: ['e_magmaslime', 'e_forge_warden', 'e_revenant'] },
       ],
-      firstClear: { xp: 20000, gold: 6500, item: 't_4', flags: ['pyreCleared'] },
+      firstClear: { xp: 20000, gold: 6500, item: 't_16', flags: ['pyreCleared'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -444,7 +444,7 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_nightgaunt', 'e_horror', 'e_regalia'], treasure: { item: 'c_elixir' } },
         { enemies: ['e_crownsworn', 'e_regalia', 'e_watcher'] },
       ],
-      firstClear: { xp: 45000, gold: 15000, item: 't_5', flags: ['crownRestored'] },
+      firstClear: { xp: 45000, gold: 15000, item: 't_17', flags: ['crownRestored'] },
     },
     shop: { stock: [] },
     npcs: [
@@ -511,7 +511,7 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_echo', 'e_voidspawn', 'e_nullhound'], treasure: { item: 'c_elixir' } },
         { enemies: ['e_echo', 'e_nullhound', 'e_voidspawn'] },
       ],
-      firstClear: { xp: 90000, gold: 30000, item: 't_6', flags: ['seamCleared'] },
+      firstClear: { xp: 90000, gold: 30000, item: 't_18', flags: ['seamCleared'] },
     },
     shop: { stock: [] },
     npcs: [

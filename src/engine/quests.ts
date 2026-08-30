@@ -10,7 +10,7 @@ import { quest, QUESTS } from '../content/quests.ts';
 import { addItem, countOf, removeItem } from './inventory.ts';
 import { itemName } from '../content/items.ts';
 import { enemyName } from '../content/enemies.ts';
-import { zone as zoneDef } from '../content/zones.ts';
+import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp } from './character.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
@@ -102,6 +102,21 @@ export function onItemGain(p: PlayerState): string[] {
   return refreshProgress(p);
 }
 
+/** The ONE way to hand out items outside battle: grants, then refreshes
+ * collect-objective readiness. Every gain site routes through here so no
+ * source has to remember the quest hook. */
+export function grantItem(p: PlayerState, itemId: string, qty = 1): string[] {
+  addItem(p, itemId, qty);
+  return onItemGain(p);
+}
+
+/** Dungeon-objective hook: called when a dungeon's boss falls for the first
+ * time. Location-specific story objectives key on THIS, never on enemy ids —
+ * an overworld echo of a boss must not substitute for the real fight. */
+export function onDungeonClear(p: PlayerState, dungeonId: string): void {
+  progressObjective(p, 'dungeon', dungeonId);
+}
+
 function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number): string {
   const o = q.objectives[i]!;
   const need = o.count ?? 1;
@@ -121,7 +136,7 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
       label = `Speak with ${npcName(o.target)}`;
       break;
     case 'dungeon':
-      label = `Clear ${o.target}`;
+      label = `Clear ${ZONES.find((z) => z.dungeon?.id === o.target)?.dungeon?.name ?? o.target}`;
       break;
   }
   return need > 1 ? `${label} — ${have}/${need}` : `${label}${have >= 1 ? ' ✓' : ''}`;
@@ -156,6 +171,20 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
   if (!q || !qp || qp.status !== 'turnIn') {
     return { ok: false, lines: ["That quest isn't ready to turn in."] };
   }
+  // Revalidate at the counter: goods may have been spent, forged away or
+  // dropped since the quest readied. Check EVERY collect objective before
+  // consuming anything — turn-in is all-or-nothing, never partial.
+  for (const obj of q.objectives) {
+    if (obj.kind !== 'collect') continue;
+    const need = obj.count ?? 1;
+    if (countOf(p, obj.target) < need) {
+      qp.status = 'active';
+      return {
+        ok: false,
+        lines: [`You no longer have enough ${itemName(obj.target)} — the quest stays open.`],
+      };
+    }
+  }
   qp.status = 'done';
   const lines: string[] = [q.outro];
   // Collect objectives hand their goods over — samples, sigils and keys
@@ -173,6 +202,11 @@ export function turnInQuest(p: PlayerState, id: string): TurnInResult {
   for (const [itemId, qty] of Object.entries(r.items ?? {})) {
     addItem(p, itemId, qty);
     lines.push(`🎁 Received: ${itemName(itemId)}${qty > 1 ? ` ×${qty}` : ''}`);
+  }
+  // Reward items can complete OTHER active collect quests on the spot.
+  for (const id of onItemGain(p)) {
+    const rq = quest(id);
+    if (rq) lines.push(`🏁 ${rq.name} is ready to turn in!`);
   }
   for (const f of r.flags ?? []) p.flags[f] = true;
   if (r.unlockZone && !p.unlockedZones.includes(r.unlockZone)) {

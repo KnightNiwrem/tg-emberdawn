@@ -2,8 +2,8 @@
 
 import type { PlayerState } from './types.ts';
 import { item, itemName, sellPrice, shopStock } from '../content/items.ts';
-import { addItem, removeItem } from './inventory.ts';
-import { onItemGain } from './quests.ts';
+import { removeItem } from './inventory.ts';
+import { grantItem } from './quests.ts';
 import { quest } from '../content/quests.ts';
 import { zone } from '../content/zones.ts';
 
@@ -11,8 +11,12 @@ import { zone } from '../content/zones.ts';
  * so stock rises as you level instead of lagging a chapter behind — and
  * the Abyss (level 45) finally stocks tier-8 gear. Item tier t is legal at
  * level 1 + (t-1)*6. */
+export function tierForLevel(level: number): number {
+  return Math.min(8, Math.floor((level - 1) / 6) + 1);
+}
+
 export function shopTierFor(p: PlayerState): number {
-  const levelTier = Math.min(8, Math.floor(p.level / 6) + 1);
+  const levelTier = tierForLevel(p.level);
   const z = zone(p.currentZone);
   if (!z) return levelTier;
   const loTier = Math.min(8, Math.floor((z.levels[0] - 1) / 6) + 1);
@@ -33,9 +37,8 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
   const cost = def.price * qty;
   if (p.gold < cost) return { ok: false, lines: ['💰 Not enough gold.'] };
   p.gold -= cost;
-  addItem(p, itemId, qty);
   const lines = [`🛒 Bought ${def.name}${qty > 1 ? ` ×${qty}` : ''} for ${cost} gold.`];
-  for (const qid of onItemGain(p)) {
+  for (const qid of grantItem(p, itemId, qty)) {
     lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
   }
   return { ok: true, lines };

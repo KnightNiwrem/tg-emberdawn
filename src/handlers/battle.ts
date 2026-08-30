@@ -5,7 +5,7 @@
 import type { BattlePhase, PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { performAction, type PlayerAction } from '../engine/combat.ts';
-import { statsOf } from '../engine/character.ts';
+import { clampPools, statsOf } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
@@ -133,9 +133,13 @@ export function itemAction(
     const def = item(itemId)!;
     const slot = def.kind as 'weapon' | 'armor' | 'trinket';
     const prev = p.equipment[slot];
-    removeItem(p, itemId, 1);
+    // Ownership is verified by the engine, not the UI: removeItem must
+    // actually take a copy from the bag before anything is equipped.
+    if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
     if (prev) addItem(p, prev, 1);
     p.equipment[slot] = itemId;
+    // Swapping gear can lower max HP/MP — never leave pools over cap.
+    clampPools(p);
     p.notices = [`⚔️ Equipped ${def.name}.`];
     p.scene = { view: 'equipment' };
     return {};
@@ -151,6 +155,7 @@ export function itemAction(
     return {};
   }
   // drop
+  if (item(itemId)?.kind === 'quest') return { toast: "That isn't yours to throw away." };
   if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
   p.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
   p.scene = { view: 'inventory', arg: '0' };

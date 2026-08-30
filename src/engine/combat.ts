@@ -255,6 +255,12 @@ function applyPlayerAction(
         lines.push('…nothing happens.');
         return { lines, consumedTurn: false };
       }
+      // Engine-side authority: only learned, class-owned skills may fire.
+      // The UI hides the rest; forged or stale taps must not cast them.
+      if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
+        lines.push("You haven't learned that skill.");
+        return { lines, consumedTurn: false };
+      }
       if ((battle.cooldowns[sk.id] ?? 0) > 0) {
         lines.push('⏳ That skill is still on cooldown.');
         return { lines, consumedTurn: false };

@@ -7,7 +7,7 @@ import type { Context } from 'grammy';
 import type { InputRichMessage } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
-import { backfillPlayer } from '../engine/character.ts';
+import { migratePlayer } from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -117,23 +117,26 @@ export interface MutationResult {
  * Loads (or initializes) the player, runs the mutation, renders, saves.
  * The mutation sets p.scene/p.notices; this wrapper handles I/O only.
  */
-export async function withPlayer(
+/** Runs a mutation against an ALREADY-LOADED player and persists. Loading
+ * happens exactly once per tap: a second store.get() (Postgres) returns a
+ * fresh deserialized object and would silently drop in-memory state such
+ * as newer-message adoption. */
+export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,
+  p: PlayerState,
   mutate: (p: PlayerState) => MutationResult | void | Promise<MutationResult | void>,
 ): Promise<void> {
-  const from = ctx.from;
-  if (!from || !ctx.chat) return;
-  const p = await store.get(from.id);
-  if (!p) return; // no character yet — commands handle onboarding
-  backfillPlayer(p); // idempotent save migration (skills, starting zones)
+  if (!ctx.chat) return;
+  migratePlayer(p); // versioned save migration (destructive steps run once)
   const result = (await mutate(p)) ?? {};
   p.stats.lastPlayed = Date.now();
   // Respond FIRST: commit may update p.messageId (resend fallback), and the
   // save must capture that pointer. Saving before commit used to strand the
   // live-message id, breaking every later tap after a resend.
   await respond(ctx, p, result.toast);
-  await store.set(from.id, p);
+  const from = ctx.from;
+  if (from) await store.set(from.id, p);
 }
 
 /** Guard used inside mutations: is this tap on the live game message? */

@@ -96,6 +96,13 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   level band (`shopTierFor()`), so the Abyss stocks tier-8 gear. Forge tempers up to +5 are bound to
   the ITEM (`forge_i_<itemId>` flags) and boost only that item's own base stats; the temper material
   is chosen by the item's tier, not the player's location.
+- **Save schema:** `stateVersion` (default 0) gates one-time destructive migrations; v1 removed
+  legacy equipped-gear bag duplicates, v2 migrated slot-bound tempers + old battle shape (string
+  origin, missing buff fields → neutral defaults, so combat can never see NaN).
+- **Endgame economy:** postgame XP converts to gold (`ceil(xp / 4)`) instead of vanishing;
+  safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`) — free travel never
+  refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry; boss
+  first-clears award unique boss trinkets `t_12`–`t_18` (never stocked).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
 - **Battles carry structured provenance** (`BattleOrigin`): `explore`/`elite`/`dungeon` with floor +
@@ -114,8 +121,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
    engine also filters them); battles belong in the wilds players travel to.
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
    `unlockZone` reward — the zone-reachability test enforces this.
-8. `learnLevel: 1` skills are granted at creation; `backfillPlayer` (called on every load) migrates
-   older saves — extend it whenever the starting kit or starting zones change.
+8. `learnLevel: 1` skills are granted at creation; `migratePlayer` (called on every load) migrates
+   older saves. DESTRUCTIVE legacy cleanups must be gated by `stateVersion` — bump
+   `CURRENT_STATE_VERSION` and add a `< N` step; never sniff "state looks old". Non-destructive
+   backfills (starting kit, starting zones) run every load.
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
    enough dungeon floor slots — `tests/progression_test.ts` enforces encounter capacity, and the
    full m1→m25 simulation walks the entire quest graph through the pure engine.

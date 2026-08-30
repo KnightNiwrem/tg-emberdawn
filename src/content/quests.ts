@@ -410,7 +410,7 @@ export const QUESTS: readonly QuestDef[] = [
       "The Warden doesn't threaten. It doesn't need to. The dark arranges itself, patient as arithmetic. Above you, faint but stubborn, the memory of dawn holds the rope you climbed down.",
     outro:
       "The silence, when it comes, is gentle. The Seam closes like a book finishing itself — not an ending; a period before the next sentence. Above, the world's flame burns steady, and this time, nobody is drinking it. You came looking for tomorrow. You're standing in it.",
-    objectives: [{ kind: 'kill', target: 'e_warden', count: 1 }],
+    objectives: [{ kind: 'dungeon', target: 'd_seam' }],
     rewards: { xp: 90000, gold: 30000, items: { t_7: 1 }, flags: ['seamConquered'] },
   }),
 

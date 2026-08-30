@@ -6,9 +6,10 @@
 import { assert, assertEquals, assertGreater } from '@std/assert';
 import {
   applyDeath,
-  backfillPlayer,
   createPlayer,
+  CURRENT_STATE_VERSION,
   grantXp,
+  migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
 import { xpForNextLevel } from '../src/engine/classes.ts';
@@ -65,6 +66,9 @@ Deno.test('all four classes start with legal kits', () => {
     assertEquals(p.skills, skillsForClass(cid, 1).map((sk) => sk.id));
     assert(p.skills.length > 0, `${cid} should start with a level-1 skill`);
     assertEquals(statsOf(p).maxHp > 0, true);
+    // Every class starts at its ACTUAL full pools (Cleric once under-counted).
+    assertEquals(p.hp, statsOf(p).maxHp);
+    assertEquals(p.mp, statsOf(p).maxMp);
   }
 });
 
@@ -315,21 +319,52 @@ Deno.test('death revives at a safe haven, not where you fell', () => {
   assertEquals(p.currentZone, 'emberfall');
 });
 
-Deno.test('backfillPlayer migrates legacy saves (skills + starting zones)', () => {
+Deno.test('migratePlayer: destructive cleanup runs once, then never again', () => {
   const p = createPlayer(21, 'T', 'mage');
-  // Simulate a pre-fix save: no starting skill, no Whisperwood access.
+  // Pre-fix save: no starting skill, no Whisperwood, equipped gear ALSO in bag.
   p.skills = [];
   p.unlockedZones = ['emberfall'];
-  backfillPlayer(p);
+  addItem(p, 'w_mage_1', 2);
+  addItem(p, 'a_mage_1', 1);
+  p.stateVersion = 0; // a pre-versioning save deserializes as v0
+  migratePlayer(p);
+  assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
   assertEquals(p.skills, skillsForClass('mage', 1).map((sk) => sk.id));
   for (const zid of STARTING_ZONES) assert(p.unlockedZones.includes(zid));
-  // Idempotent: a second pass changes nothing.
-  backfillPlayer(p);
-  assertEquals(p.skills, skillsForClass('mage', 1).map((sk) => sk.id));
+  // The bag held TWO copies: the one-time migration removes exactly the
+  // legacy duplicate and leaves the second (legitimate) copy alone.
+  assertEquals(countOf(p, 'w_mage_1'), 1, 'legacy duplicate removed exactly once');
+  assertEquals(countOf(p, 'a_mage_1'), 0);
+  // A versioned save can hold legitimate re-purchased copies — untouchable.
+  addItem(p, 'w_mage_1', 2);
+  migratePlayer(p);
+  assertEquals(countOf(p, 'w_mage_1'), 3, 'versioned saves never lose gear');
   // Leveled players keep what they know; nothing is removed.
   p.skills.push('sk_frost_lance');
-  backfillPlayer(p);
+  migratePlayer(p);
   assert(p.skills.includes('sk_frost_lance'));
+});
+
+Deno.test('migratePlayer: legacy battle gains neutral buffs; combat stays finite', () => {
+  const p = createPlayer(22, 'T', 'warrior');
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  // Simulate a pre-update serialized battle: string origin, missing fields.
+  (b as unknown as { origin: unknown }).origin = 'whisperwood';
+  const bb = b.buffs as unknown as Record<string, unknown>;
+  for (const k of ['enemyWeakenedPct', 'enemyWeakenTurns', 'weakenedPct', 'stunnedTurns']) {
+    delete bb[k];
+  }
+  delete b.phoenixUsed;
+  p.battle = b;
+  p.stateVersion = 0; // a pre-versioning save deserializes as v0
+  migratePlayer(p);
+  assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
+  assertEquals(b.buffs.enemyWeakenedPct, 0);
+  assertEquals(b.phoenixUsed, false);
+  // Enemy math with migrated state stays finite — no NaN anywhere.
+  performAction(p, b, { kind: 'attack' }, seeded(5));
+  assert(Number.isFinite(p.hp), 'player hp finite');
+  assert(Number.isFinite(b.enemy.hp), 'enemy hp finite');
 });
 
 Deno.test('world: every zone is reachable from the starting zones', () => {

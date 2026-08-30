@@ -102,7 +102,7 @@ function killEnemy(p: PlayerState, enemyId: string, rng: () => number): void {
 
 // ── the flagship: full m1→m25 simulation ──────────────────────────────────
 
-Deno.test('campaign: full main questline m1→m25 completes via the pure engine', () => {
+Deno.test('campaign: quest graph m1→m25 is traversable (levels/pacing out of scope)', () => {
   const rng = seeded(2026);
   const p = createPlayer(77, 'Dawncaller', 'warrior');
   p.level = 45; // stat pacing is out of scope — the QUEST GRAPH is the subject
@@ -314,7 +314,7 @@ Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand
   assert(menu.includes('Use Smoke Bomb'));
 });
 
-Deno.test('campaign: overworld Warden kill counts the quest but never clears the Seam', () => {
+Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo', () => {
   const rng = seeded(23);
   const p = createPlayer(82, 'T', 'warrior');
   p.level = 45;
@@ -332,7 +332,17 @@ Deno.test('campaign: overworld Warden kill counts the quest but never clears the
     }
   }
   const qp = p.quests['m25_silence']!;
-  assertEquals(qp.counts[0], 1, 'the kill counts toward m25');
+  assertEquals(qp.counts[0], 0, 'an overworld echo must NOT count toward m25');
   const seam = dungeonOf(zone('abyss')!)!;
   assertEquals(dungeonCleared(p, seam), false, 'overworld elite must NOT clear the dungeon');
+  // The real fight: clearing the Endless Seam itself readies the finale.
+  for (;;) {
+    const res = diveDungeon(p, seam, rng);
+    assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
+    const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
+    winBattle(p, res.battle!, rng);
+    if (bossHit) break;
+  }
+  assertEquals(p.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
+  assertEquals(dungeonCleared(p, seam), true);
 });
