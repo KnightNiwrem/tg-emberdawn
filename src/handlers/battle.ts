@@ -41,6 +41,8 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
 
   if (b.phase !== 'active') return { toast: 'The battle is already over.' };
 
+  // The navigation actions (go/sk/it) returned above — only combat actions
+  // remain, so the switch is exhaustive with no silent default (#58).
   let action: PlayerAction;
   switch (cb.a) {
     case 'atk':
@@ -58,8 +60,6 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
       else action = { kind: 'skill', skillId: cb.arg };
       break;
     }
-    default:
-      return {};
   }
 
   const res = performAction(p, b, action);

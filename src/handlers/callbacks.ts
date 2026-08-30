@@ -62,7 +62,9 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
 
 function dispatch(
   player: NonNullable<Awaited<ReturnType<PlayerStore['get']>>>,
-  cb: NonNullable<ReturnType<typeof decodeCb>>,
+  // The router has already routed meta callbacks away (#58): dispatch sees
+  // only gameplay views, exhaustively — no silent default.
+  cb: Exclude<NonNullable<ReturnType<typeof decodeCb>>, { v: 'meta' }>,
 ): MutationResult {
   switch (cb.v) {
     case 'zone':
@@ -122,8 +124,6 @@ function dispatch(
       player.scene = { view: 'zone' };
       return {};
     }
-    default:
-      return {};
   }
 }
 
