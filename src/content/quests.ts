@@ -45,6 +45,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm3_roots',
+    giver: 'npc_bram',
     name: 'Root of the Rot',
     main: true,
     chapter: 1,
@@ -60,6 +61,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm4_blessing',
+    giver: 'npc_bram',
     name: "Whisperwood's Blessing",
     main: true,
     chapter: 1,
@@ -83,6 +85,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 2 — The Drowned Lowland ══════════════════════════════════
   Q({
     id: 'm5_fen',
+    giver: 'npc_ferryman',
     name: 'Into the Fen',
     main: true,
     chapter: 2,
@@ -98,6 +101,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm6_toxin',
+    giver: 'npc_ferryman',
     name: "The Water's Bane",
     main: true,
     chapter: 2,
@@ -113,6 +117,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm7_tyrant',
+    giver: 'npc_ferryman',
     name: 'The Bog Tyrant',
     main: true,
     chapter: 2,
@@ -129,6 +134,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm8_passage',
+    giver: 'npc_ferryman',
     name: "The Curator's Summons",
     main: true,
     chapter: 2,
@@ -146,6 +152,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 3 — The City of Gears ════════════════════════════════════
   Q({
     id: 'm9_spire',
+    giver: 'npc_curator',
     name: 'City of Gears',
     main: true,
     chapter: 3,
@@ -161,6 +168,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm10_cult',
+    giver: 'npc_curator',
     name: 'The Hoarded Sun',
     main: true,
     chapter: 3,
@@ -176,6 +184,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm11_toll',
+    giver: 'npc_curator',
     name: "The Vault's Toll",
     main: true,
     chapter: 3,
@@ -191,6 +200,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm12_chronolich',
+    giver: 'npc_curator',
     name: 'The Hour That Stole Itself',
     main: true,
     chapter: 3,
@@ -208,6 +218,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 4 — The Frozen Twin ══════════════════════════════════════
   Q({
     id: 'm13_pass',
+    giver: 'npc_outcast',
     name: 'The Frozen Road',
     main: true,
     chapter: 4,
@@ -223,6 +234,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm14_emblem',
+    giver: 'npc_outcast',
     name: "Warden's Marks",
     main: true,
     chapter: 4,
@@ -238,6 +250,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm15_wyrm',
+    giver: 'npc_outcast',
     name: 'Heart of the Glacier',
     main: true,
     chapter: 4,
@@ -256,6 +269,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 5 — The Starving Flame ══════════════════════════════════
   Q({
     id: 'm16_ashes',
+    giver: 'npc_ashen',
     name: 'Through the Ash',
     main: true,
     chapter: 5,
@@ -271,6 +285,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm17_plea',
+    giver: 'npc_ashen',
     name: "Sorrel's Plea",
     main: true,
     chapter: 5,
@@ -286,6 +301,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm18_sigil',
+    giver: 'npc_ashen',
     name: 'Brand of the Betrayed',
     main: true,
     chapter: 5,
@@ -301,6 +317,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm19_ignivar',
+    giver: 'npc_ashen',
     name: 'The Last Flame',
     main: true,
     chapter: 5,
@@ -319,6 +336,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 6 — The Dawncaller ══════════════════════════════════
   Q({
     id: 'm20_seam',
+    giver: 'npc_archivist',
     name: 'The Space Between',
     main: true,
     chapter: 6,
@@ -334,6 +352,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm21_loyalty',
+    giver: 'npc_archivist',
     name: 'Loyalty, Corrected',
     main: true,
     chapter: 6,
@@ -349,6 +368,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm22_umbral_key',
+    giver: 'npc_archivist',
     name: 'The Unlocked Door',
     main: true,
     chapter: 6,
@@ -387,6 +407,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Postgame — The Abyss ═════════════════════════════════════════════
   Q({
     id: 'm24_below',
+    giver: 'npc_echo',
     name: 'Below Everything',
     main: true,
     chapter: 7,
@@ -402,6 +423,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm25_silence',
+    giver: 'npc_echo',
     name: 'Before the Dawn',
     main: true,
     chapter: 7,
@@ -484,6 +506,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_stag',
+    giver: 'npc_warden_tom',
     name: 'The Old Guardian',
     main: false,
     chapter: 1,
@@ -499,6 +522,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_boglins',
+    giver: 'npc_ferryman',
     name: 'Boglin Cull',
     main: false,
     chapter: 2,
@@ -513,6 +537,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_hags',
+    giver: 'npc_ferryman',
     name: 'Cackle Season',
     main: false,
     chapter: 2,
@@ -527,6 +552,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_scarabs',
+    giver: 'npc_curator',
     name: 'Gilded Problem',
     main: false,
     chapter: 3,
@@ -541,6 +567,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_lynx',
+    giver: 'npc_curator',
     name: 'Spire Cats',
     main: false,
     chapter: 3,
@@ -556,6 +583,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_wraiths',
+    giver: 'npc_outcast',
     name: 'Laid to Rest',
     main: false,
     chapter: 4,
@@ -570,6 +598,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_yetis',
+    giver: 'npc_outcast',
     name: 'Snowbank Diplomacy',
     main: false,
     chapter: 4,
@@ -585,6 +614,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_imps',
+    giver: 'npc_ashen',
     name: 'Ember Management',
     main: false,
     chapter: 5,
@@ -599,6 +629,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_salamanders',
+    giver: 'npc_ashen',
     name: 'Fire Whips, Broken',
     main: false,
     chapter: 5,
@@ -613,6 +644,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_shades',
+    giver: 'npc_archivist',
     name: 'Naming the Nameless',
     main: false,
     chapter: 6,
@@ -626,6 +658,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_echoes',
+    giver: 'npc_echo',
     name: 'Heroes, Honored',
     main: false,
     chapter: 7,
@@ -640,6 +673,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_null',
+    giver: 'npc_echo',
     name: 'Quiet the Hounds',
     main: false,
     chapter: 7,

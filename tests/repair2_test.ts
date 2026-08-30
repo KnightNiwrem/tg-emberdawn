@@ -33,9 +33,9 @@ import {
   turnInQuest,
 } from '../src/engine/quests.ts';
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
-import { shopAction } from '../src/handlers/hub.ts';
+import { shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
-import { QUESTS } from '../src/content/quests.ts';
+import { npc, QUESTS } from '../src/content/quests.ts';
 import { isEquippable, item } from '../src/content/items.ts';
 import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
@@ -880,4 +880,25 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   const wolfMenu = JSON.stringify(renderItemMenu(p));
   assert(wolfMenu.includes('b:us:c_antidote'), 'Antidote usable when a debuff is active');
   assert(wolfMenu.includes('b:us:c_smoke_bomb'), 'Smoke Bomb usable vs a normal enemy');
+});
+
+Deno.test('quest givers resolve to real NPCs — talk discovery covers the campaign (#31)', () => {
+  let withGiver = 0;
+  for (const q of QUESTS) {
+    if (!q.giver) continue;
+    withGiver++;
+    assert(npc(q.giver), `${q.id}: giver ${q.giver} must be a real NPC`);
+  }
+  assert(withGiver >= 25, `the discovery model assigns givers broadly (got ${withGiver})`);
+});
+
+Deno.test('NPC talk opens their authored quest (#31)', () => {
+  const p = createPlayer(972, 'T', 'warrior');
+  p.level = 5;
+  p.quests['m2_letter'] = { status: 'done', counts: [] };
+  syncAvailability(p);
+  // Bram is the second NPC of Emberdawn Village (maren, bram, lyra).
+  zoneAction(p, { v: 'zone', a: 'tk', arg: 1 });
+  assertEquals(p.scene.arg, 'm3_roots', "talk opens the giver's quest");
+  assert(p.notices.length > 0, 'a greeting is shown');
 });
