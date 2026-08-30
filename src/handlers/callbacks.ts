@@ -160,11 +160,8 @@ async function handleMeta(
     return;
   }
 
-  if (cb.a === 'reset') {
-    await ctx.answerCallbackQuery({ text: 'Use /reset to confirm a full reset.' });
-    return;
-  }
-
+  // 'reset' now flows through the normal guarded path: metaAction stages the
+  // confirmation scene; only resetYes destroys state (#19).
   if (!existing) {
     await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
     return;

@@ -5,8 +5,7 @@ import type { PlayerStore } from '../persistence/store.ts';
 import { commit } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
-import { createPlayer, migratePlayer, SaveTooNewError } from '../engine/character.ts';
-import { syncAvailability } from '../engine/quests.ts';
+import { migratePlayer, SaveTooNewError } from '../engine/character.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
@@ -58,13 +57,22 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
-  const fresh = createPlayer(from.id, p.name, p.classId);
-  syncAvailability(fresh);
-  fresh.notices = ['🧹 A clean slate. Your previous tale fades like smoke.'];
-  fresh.scene = { view: 'zone' };
-  // Commit first so fresh.messageId points at the live message, THEN save —
-  // persisting before commit used to store a stale/missing pointer and
-  // orphan the game (every tap afterwards hit the staleness guard).
-  await commit(ctx, fresh);
-  await store.set(from.id, fresh);
+  try {
+    migratePlayer(p);
+  } catch (e) {
+    if (!(e instanceof SaveTooNewError)) throw e;
+    await ctx
+      .reply(
+        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
+      )
+      .catch(() => {});
+    return;
+  }
+  // DESTRUCTIVE — never act on the slash command alone (#19): stage the
+  // explicit Yes/No confirmation on the live message instead. State is
+  // only destroyed when the player taps resetYes (m:ry).
+  p.notices = ['⚠️ Confirm below: this erases your character for good.'];
+  p.scene = { view: 'reset' };
+  await commit(ctx, p);
+  await store.set(from.id, p);
 }

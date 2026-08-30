@@ -102,7 +102,8 @@ export type ViewId =
   | 'forge'
   | 'death'
   | 'character'
-  | 'help';
+  | 'help'
+  | 'reset';
 
 export interface SceneState {
   view: ViewId;

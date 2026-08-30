@@ -212,7 +212,7 @@ export function metaAction(
   cb: Cb & { v: 'meta' },
   userId: number,
   name: string,
-): { player?: PlayerState; toast?: string; helpOnly?: boolean; confirmReset?: boolean } {
+): { player?: PlayerState; toast?: string; helpOnly?: boolean } {
   switch (cb.a) {
     case 'help':
       if (p) {
@@ -228,16 +228,25 @@ export function metaAction(
       return { player: fresh };
     }
     case 'reset':
-      return { confirmReset: true };
+      // Stage the confirmation — nothing is destroyed here (#19).
+      if (p) {
+        p.scene = { view: 'reset' };
+        return { player: p };
+      }
+      return {};
     case 'resetNo':
       if (p) {
-        p.scene = { view: 'zone' };
+        // Cancel: resume whatever was live — a pending fight stays a fight.
+        p.scene = p.battle
+          ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
+          : { view: 'zone' };
         return { player: p };
       }
       return {};
     case 'resetYes':
       if (p) {
         const fresh = createPlayer(userId, p.name, p.classId);
+        syncAvailability(fresh); // fully initialized state, quests unlocked (#19)
         return { player: fresh };
       }
       return {};

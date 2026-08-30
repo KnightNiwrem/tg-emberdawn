@@ -122,6 +122,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   un-droppable: earned trophies, #5).
 - **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
   Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
+- **Reset (#19):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit Yes/No
+  confirmation (`reset` view); state is destroyed solely by `resetYes`, which builds a fully
+  initialized fresh state (`syncAvailability` included). No/✋ resumes the live scene (a pending
+  fight stays a fight).
 - **Dungeon design (#13):** floors are INDEPENDENT dives — leaving to heal at a safe haven between
   floors is intended play, not an exploit. Attrition mechanics (run-reset on leaving, travel locks,
   between-floor heal limits) are a deliberate non-goal; if future tuning wants endurance runs, make

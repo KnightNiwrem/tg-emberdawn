@@ -534,6 +534,7 @@ Deno.test('codec: roundtrip for every callback shape', () => {
     { v: 'travel', a: 'go', arg: 'abyss' },
     { v: 'death', a: 'ok' },
     { v: 'meta', a: 'pick', arg: 'mage' },
+    { v: 'meta', a: 'reset' },
     { v: 'meta', a: 'resetYes' },
   ] as const;
   for (const c of cases) {

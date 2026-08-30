@@ -8,6 +8,7 @@ import type { Context } from 'grammy';
 import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
+import { handleReset } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
 import { itemAction } from '../src/handlers/battle.ts';
 import {
@@ -34,7 +35,7 @@ import { explore, travel } from '../src/engine/world.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { item } from '../src/content/items.ts';
 import { renderInventory } from '../src/render/menus.ts';
-import { renderQuestDetail, renderQuests } from '../src/render/views.ts';
+import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { seeded } from './helpers.ts';
 
@@ -496,4 +497,54 @@ Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () 
   cur = (await store.get(924))!;
   assertEquals(cur.stats.deaths, 1, 'replay must not count a second death');
   assertEquals(cur.gold, 900, 'replay must not charge a second toll');
+});
+
+// ── reset confirmation (#19) ───────────────────────────────────────────
+
+Deno.test('/reset stages a confirmation; No preserves the whole save (#19)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(930, 'T', 'mage');
+  p.level = 9;
+  p.gold = 777;
+  p.quests['m1_embers'] = { status: 'done', counts: [3] };
+  p.messageId = 600;
+  p.uiRev = 2;
+  await store.set(930, p);
+
+  await handleReset(fakeCtx(930, 600), store);
+  let cur = (await store.get(930))!;
+  assertEquals(cur.scene.view, 'reset', 'command stages the confirmation');
+  assertEquals(cur.gold, 777, 'nothing destroyed by staging');
+  assertEquals(cur.quests['m1_embers'].status, 'done');
+  const stage = JSON.stringify(renderResetConfirm(cur));
+  assert(stage.includes('m:ry') && stage.includes('m:rn'), 'Yes/No buttons rendered');
+
+  // No → keep playing, save fully intact.
+  await handleCallback(fakeCtx(930, 600, withRev(cur.uiRev ?? 0, 'm:rn')), store);
+  cur = (await store.get(930))!;
+  assertEquals(cur.scene.view, 'zone');
+  assertEquals(cur.gold, 777, 'No must not touch gold');
+  assertEquals(cur.quests['m1_embers'].status, 'done', 'No must not touch progress');
+});
+
+Deno.test('/reset → Yes rebuilds a fully initialized hero (#19)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(931, 'T', 'mage');
+  p.level = 9;
+  p.gold = 777;
+  p.quests['m1_embers'] = { status: 'done', counts: [3] };
+  p.messageId = 610;
+  p.uiRev = 1;
+  await store.set(931, p);
+
+  await handleReset(fakeCtx(931, 610), store);
+  let cur = (await store.get(931))!;
+  await handleCallback(fakeCtx(931, 610, withRev(cur.uiRev ?? 0, 'm:ry')), store);
+  cur = (await store.get(931))!;
+  assertEquals(cur.level, 1, 'fresh hero');
+  assertEquals(cur.gold, 50, 'starting purse');
+  assertEquals(cur.stats.deaths, 0);
+  // syncAvailability ran: the campaign is OFFERED again, not omitted — the
+  // exact regression the issue described for the dormant resetYes path.
+  assertEquals(cur.quests['m1_embers']?.status, 'available', 'campaign re-offered');
 });

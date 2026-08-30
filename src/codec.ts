@@ -36,7 +36,7 @@ export type Cb =
   | { v: 'death'; a: 'ok' }
   | { v: 'meta'; a: 'help' | 'reset' | 'resetYes' | 'resetNo' | 'pick'; arg?: string };
 
-const CB_RE = /^([a-z]+)(?::(\d{1,4}))?:([a-zA-Z]{1,4}):?([0-9A-Za-z_-]*)$/;
+const CB_RE = /^([a-z]+)(?::(\d{1,4}))?:([a-zA-Z]{1,8}):?([0-9A-Za-z_-]*)$/;
 
 /** A decoded callback plus its render revision (#16), when the wire form
  * carried one: `<view>:<rev>:<action>[:<arg>]`. */

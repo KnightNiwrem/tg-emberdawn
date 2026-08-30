@@ -285,6 +285,7 @@ export function renderCharacter(p: PlayerState): InputRichMessage {
       cbBtn('🎒 Inventory', encodeCb({ v: 'zone', a: 'inv' })),
       cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' })),
     ]),
+    buttonsRow([cbBtn('🗑️ Delete hero…', encodeCb({ v: 'meta', a: 'reset' }), 'danger')]),
   ];
   return { blocks };
 }
@@ -410,6 +411,24 @@ export function renderHelp(): InputRichMessage {
           'Everything happens in this one message — /start re-centers it if it ever gets lost.',
       ),
       buttonsRow([cbBtn('⬅️ Back to the game', encodeCb({ v: 'zone', a: 'hm' }), 'primary')]),
+    ],
+  };
+}
+
+// ── Reset confirmation ──────────────────────────────────────────────────
+
+export function renderResetConfirm(p: PlayerState): InputRichMessage {
+  return {
+    blocks: [
+      banner('⚠️ Delete this hero?'),
+      ...noticesBlocks(p),
+      para(
+        'This erases your character — level, gold, gear, every quest — and starts a brand-new tale. There is no undo.',
+      ),
+      buttonsRow([
+        cbBtn('🔥 Yes — start over', encodeCb({ v: 'meta', a: 'resetYes' }), 'danger'),
+        cbBtn('✋ No — keep playing', encodeCb({ v: 'meta', a: 'resetNo' }), 'primary'),
+      ]),
     ],
   };
 }

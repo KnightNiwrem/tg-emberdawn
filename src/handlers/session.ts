@@ -24,6 +24,7 @@ import {
   renderHelp,
   renderQuestDetail,
   renderQuests,
+  renderResetConfirm,
   renderSell,
   renderShop,
   renderTravel,
@@ -58,6 +59,8 @@ function renderFor(p: PlayerState): InputRichMessage {
       return renderTravel(p);
     case 'death':
       return renderDeath(p);
+    case 'reset':
+      return renderResetConfirm(p);
     case 'character':
       return renderCharacter(p);
     case 'help':
