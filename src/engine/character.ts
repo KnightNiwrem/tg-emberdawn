@@ -5,7 +5,7 @@
 
 import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
-import { item, itemStats } from '../content/items.ts';
+import { itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
 import { STARTING_ZONES, ZONES } from '../content/zones.ts';
 import { temperBonusOf } from './forge.ts';

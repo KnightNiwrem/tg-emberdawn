@@ -112,13 +112,11 @@ Deno.test('combat: player deals damage and takes damage in a real fight', () => 
   const rng = seeded(7);
   const p = createPlayer(5, 'T', 'warrior');
   const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  const s0 = statsOf(p);
   const hpBefore = p.hp;
   const enemyHpBefore = battle.enemy.hp;
   performAction(p, battle, { kind: 'attack' }, rng);
   assert(battle.enemy.hp < enemyHpBefore, 'player attack should damage enemy');
   if (p.hp < hpBefore) assert(p.hp >= 0);
-  void s0;
 });
 
 Deno.test('combat: skills consume mp and respect cooldown', () => {
@@ -139,30 +137,6 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
 
 Deno.test('combat: guard halves incoming damage', () => {
   const rng = seeded(99);
-
-  function measure(useGuard: boolean): number {
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-    const pc = createPlayer(8, 'T', 'cleric');
-    if (useGuard) performAction(pc, battle, { kind: 'guard' }, rng);
-    else performAction(pc, battle, { kind: 'attack' }, rng);
-    // enemy retaliates within the same call; measure the retaliation damage
-    return 0; // replaced below
-  }
-
-  // Simpler direct comparison: run two identical setups, one guarding.
-  function runBattle(guard: boolean, seed: number): number {
-    const r = seeded(seed);
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-    const pc = createPlayer(9, 'T', 'cleric');
-    performAction(pc, battle, guard ? { kind: 'guard' } : { kind: 'attack' }, r);
-    return hpLost(pc, 0);
-    function hpLost(_p: typeof pc, before: number): number {
-      void before;
-      return 0;
-    }
-  }
-  void runBattle;
-  void measure;
 
   // Track damage via a spy: run guarded vs unguarded with same seed and
   // compare enemy-phase damage parsed from the log.
