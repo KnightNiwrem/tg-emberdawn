@@ -541,21 +541,22 @@ Deno.test('migratePlayer: refuses to downgrade saves from a newer binary', () =>
   assertEquals(p.gold, 12345);
 });
 
-Deno.test('migratePlayer: unversioned and older development saves fail clearly (#44)', () => {
-  // Pre-versioning development save (no stateVersion): not a supported
-  // shape, never silently stamped current.
+Deno.test('migratePlayer: unversioned and older saves fail clearly (#44)', () => {
+  // Pre-versioning save (no stateVersion): not a supported shape, never
+  // silently stamped current — or interpreted as any numbered version.
   const p = createPlayer(26, 'T', 'warrior');
   const raw = p as unknown as Record<string, unknown>;
   delete raw.stateVersion;
   assertThrows(() => migratePlayer(p), SaveTooOldError);
   assertEquals(raw.stateVersion, undefined, 'no version was stamped');
 
-  // A numbered pre-current development version has no migration either.
+  // Any numbered version below current has no migration path either —
+  // expressed relative to CURRENT_STATE_VERSION, no historical ids.
   const p2 = createPlayer(27, 'T', 'warrior');
-  p2.stateVersion = 2;
+  p2.stateVersion = CURRENT_STATE_VERSION - 1;
   p2.gold = 999;
   assertThrows(() => migratePlayer(p2), SaveTooOldError);
-  assertEquals(p2.stateVersion, 2, 'no rewrite, no stamp-down');
+  assertEquals(p2.stateVersion, CURRENT_STATE_VERSION - 1, 'no rewrite, no stamp-down');
   assertEquals(p2.gold, 999);
 });
 

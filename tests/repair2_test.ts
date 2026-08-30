@@ -164,14 +164,17 @@ Deno.test('the class picker stays revisionless (#43)', async () => {
 
 // ── save migration (P0-3 / P0-4) ─────────────────────────────────────────
 
-Deno.test('migratePlayer: old development saves fail instead of being repaired (#44)', () => {
+Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)', () => {
   const p = createPlayer(901, 'T', 'warrior');
   const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
   p.battle = b;
-  p.stateVersion = 0; // a pre-versioning save deserializes as v0
+  // An unversioned save is NOT interpreted as any numbered version: it stays
+  // unversioned and throws (#44) — no sniffing, no stamping.
+  const raw = p as unknown as Record<string, unknown>;
+  delete raw.stateVersion;
   assertThrows(() => migratePlayer(p), SaveTooOldError);
   // The refused save is untouched — no stamping, no battle normalization.
-  assertEquals(p.stateVersion, 0);
+  assertEquals(raw.stateVersion, undefined);
   assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
 
   // Current battles carry the full required shape from startBattle: combat
