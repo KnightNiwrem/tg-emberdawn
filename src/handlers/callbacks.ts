@@ -6,7 +6,7 @@
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit, isLiveMessage, type MutationResult, withLoadedPlayer } from './session.ts';
+import { commit, type MutationResult, tapIsCurrent, withLoadedPlayer } from './session.ts';
 import {
   deathAction,
   forgeAction,
@@ -47,8 +47,11 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
     return;
   }
 
-  // Staleness guard: taps on an old copy of the game message.
-  if (!isLiveMessage(p, ctx)) {
+  // Combined staleness + render-revision guard (#16): a replay of an
+  // already-acted-on button (same message, older revision) is rejected
+  // before any mutation; a newer message copy is adopted together with the
+  // revision it was rendered with.
+  if (!tapIsCurrent(p, ctx, cb.rev)) {
     await ctx.answerCallbackQuery({ text: STALE });
     return;
   }
@@ -166,8 +169,9 @@ async function handleMeta(
     await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
     return;
   }
-  // Everything else (help, reset confirmations) obeys the staleness guard.
-  if (!isLiveMessage(existing, ctx)) {
+  // Everything else (help, reset confirmations) obeys the combined
+  // staleness + render-revision guard (#16).
+  if (!tapIsCurrent(existing, ctx, cb.rev)) {
     await ctx.answerCallbackQuery({ text: STALE });
     return;
   }

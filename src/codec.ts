@@ -36,7 +36,22 @@ export type Cb =
   | { v: 'death'; a: 'ok' }
   | { v: 'meta'; a: 'help' | 'reset' | 'resetYes' | 'resetNo' | 'pick'; arg?: string };
 
-const CB_RE = /^([a-z]+):([a-zA-Z]{1,4}):?([0-9A-Za-z_-]*)$/;
+const CB_RE = /^([a-z]+)(?::(\d{1,4}))?:([a-zA-Z]{1,4}):?([0-9A-Za-z_-]*)$/;
+
+/** A decoded callback plus its render revision (#16), when the wire form
+ * carried one: `<view>:<rev>:<action>[:<arg>]`. */
+type DecodedCb = Cb & { rev?: number };
+
+/** Rewrites a callback wire form to carry `rev`, replacing any stale one.
+ * Every committed render stamps the buttons it renders with the new
+ * revision; the router then rejects taps from earlier renders, so the
+ * exact same button can never execute a mutation twice. */
+export function withRev(rev: number, wire: string): string {
+  const seg = wire.split(':');
+  if (seg.length >= 2 && /^\d{1,4}$/.test(seg[1]!)) seg.splice(1, 1);
+  seg.splice(1, 0, String(rev));
+  return seg.join(':');
+}
 
 /** Serializes a Cb to its wire form. */
 export function encodeCb(c: Cb): string {
@@ -74,13 +89,7 @@ export function encodeCb(c: Cb): string {
   }
 }
 
-/** Parses raw callback data; undefined when malformed/unknown. */
-export function decodeCb(data: string): Cb | undefined {
-  const m = CB_RE.exec(data);
-  if (!m) return undefined;
-  const v = m[1]!;
-  const a = m[2]!;
-  const arg = m[3] ?? '';
+function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
   switch (v) {
     case 'z':
       if (a === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
@@ -142,4 +151,16 @@ export function decodeCb(data: string): Cb | undefined {
     default:
       return undefined;
   }
+}
+
+/** Parses raw callback data; undefined when malformed/unknown. The optional
+ * second segment carries the render revision (#16): `<view>:<rev>:<action>
+ * [:<arg>]` — buttons from an earlier render of the same message are
+ * rejected by the router before any mutation. */
+export function decodeCb(data: string): DecodedCb | undefined {
+  const m = CB_RE.exec(data);
+  if (!m) return undefined;
+  const cb = parseCbParts(m[1]!, m[3]!, m[4] ?? '');
+  if (!cb) return undefined;
+  return m[2] ? { ...cb, rev: Number(m[2]) } : cb;
 }

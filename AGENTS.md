@@ -21,8 +21,13 @@ place on every action.
    failure it resends and re-points. Never send extra button-bearing messages during normal play
    (the class picker and post-reset message are the only exceptions).
 3. **Staleness guard.** Taps on older message copies are answered with a toast and ignored
-   (`isLiveMessage`). Newer-than-tracked ids are adopted. Do not weaken this into "always process" —
-   stale taps corrupt pacing.
+   (`isLiveMessage`, via `tapIsCurrent`). Newer-than-tracked ids are adopted — together with the
+   render revision that copy was stamped with. Do not weaken this into "always process" — stale taps
+   corrupt pacing. Additionally, every committed render stamps its buttons with the player's `uiRev`
+   (`commit()`, cycled 1..9999, embedded as `<view>:<rev>:<action>` in callback data) and the router
+   rejects revision mismatches BEFORE any mutation (#16): replays and double-taps on the same live
+   message are no-ops. Rev-less legacy buttons map to rev 0 — old saves upgrade transparently on
+   first tap.
 4. **Persistence shape.** `PlayerState` (`src/engine/types.ts`) is plain JSON — no class instances,
    no Maps, no functions. Anything you add must survive `JSON.stringify`. Runtime-only state (e.g.
    battle buffs) lives on `BattleState`, not the player.

@@ -8,6 +8,7 @@ import type { Context } from 'grammy';
 import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
+import { withRev } from '../src/codec.ts';
 import { itemAction } from '../src/handlers/battle.ts';
 import {
   clampPools,
@@ -385,7 +386,10 @@ Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns i
   assert(detail.includes('🏁 Turn in'));
   assert(detail.includes('q:t:m3_roots'));
 
-  await handleCallback(fakeCtx(920, 300, 'q:t:m3_roots'), store);
+  await handleCallback(
+    fakeCtx(920, 300, withRev((await store.get(920))?.uiRev ?? 0, 'q:t:m3_roots')),
+    store,
+  );
   cur = (await store.get(920))!;
   assertEquals(cur.quests['m3_roots'].status, 'done');
   assert(cur.gold >= 300, 'turn-in gold granted');
@@ -407,8 +411,89 @@ Deno.test('inventory Equipment button opens equipment; Back returns (#17)', asyn
   let cur = (await store.get(921))!;
   assertEquals(cur.scene.view, 'equipment', 'Equipment opens the equipment screen');
 
-  // Equipment's own Back still returns to the inventory.
-  await handleCallback(fakeCtx(921, 400, 'e:bk'), store);
+  // Equipment's own Back still returns to the inventory — carrying the
+  // revision the equipment render stamped (#16).
+  await handleCallback(
+    fakeCtx(921, 400, withRev((await store.get(921))?.uiRev ?? 0, 'e:bk')),
+    store,
+  );
   cur = (await store.get(921))!;
   assertEquals(cur.scene.view, 'inventory');
+});
+
+// ── render-revision replay guard (#16) ──────────────────────────────────
+
+Deno.test('replayed buy callback on the same message is a no-op (#16)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(922, 'T', 'rogue');
+  p.gold = 1000;
+  p.messageId = 500;
+  p.uiRev = 5; // a render already happened; its buttons carry rev 5
+  p.scene = { view: 'shop', arg: '0' };
+  await store.set(922, p);
+
+  const staleTap = withRev(5, 'h:buy:c_minor_potion');
+  await handleCallback(fakeCtx(922, 500, staleTap), store);
+  let cur = (await store.get(922))!;
+  assertEquals(cur.gold, 970, 'first tap buys');
+  assertEquals(cur.uiRev, 6, 'the committed render bumped the revision');
+
+  // Exact replay: same Telegram message id, revision from BEFORE the render.
+  await handleCallback(fakeCtx(922, 500, staleTap), store);
+  cur = (await store.get(922))!;
+  assertEquals(cur.gold, 970, 'replay must not buy twice');
+  assertEquals(cur.uiRev, 6);
+
+  // A queued fresh tap (current revision) still executes normally.
+  await handleCallback(fakeCtx(922, 500, withRev(6, 'h:buy:c_minor_potion')), store);
+  cur = (await store.get(922))!;
+  assertEquals(cur.gold, 940);
+});
+
+Deno.test('double-tapping forge cannot spend beyond the shown cost (#16)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(923, 'T', 'warrior'); // w_warrior_1 equipped
+  p.gold = 5000;
+  addItem(p, 'm_ember_shard', 10);
+  p.messageId = 510;
+  p.uiRev = 2;
+  p.scene = { view: 'forge' };
+  await store.set(923, p);
+
+  const tap1 = withRev(2, 'f:w');
+  await handleCallback(fakeCtx(923, 510, tap1), store);
+  let cur = (await store.get(923))!;
+  assertEquals(cur.flags['forge_i_w_warrior_1'], 1);
+  assertEquals(cur.gold, 4800, 'first temper costs the shown 200');
+  assertEquals(cur.uiRev, 3);
+
+  await handleCallback(fakeCtx(923, 510, tap1), store); // replay
+  cur = (await store.get(923))!;
+  assertEquals(cur.flags['forge_i_w_warrior_1'], 1, 'no second temper');
+  assertEquals(cur.gold, 4800, 'the never-shown 800g next tier was not charged');
+  assertEquals(countOf(cur, 'm_ember_shard'), 9, 'no extra materials burned');
+});
+
+Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(924, 'T', 'warrior');
+  p.gold = 1000;
+  p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  p.battle.phase = 'lost';
+  p.scene = { view: 'death' };
+  p.messageId = 520;
+  p.uiRev = 4;
+  await store.set(924, p);
+
+  const tap1 = withRev(4, 'd:ok');
+  await handleCallback(fakeCtx(924, 520, tap1), store);
+  let cur = (await store.get(924))!;
+  assertEquals(cur.stats.deaths, 1);
+  assertEquals(cur.gold, 900, 'one 10% death toll');
+  assertEquals(cur.scene.view, 'zone');
+
+  await handleCallback(fakeCtx(924, 520, tap1), store); // replay
+  cur = (await store.get(924))!;
+  assertEquals(cur.stats.deaths, 1, 'replay must not count a second death');
+  assertEquals(cur.gold, 900, 'replay must not charge a second toll');
 });

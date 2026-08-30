@@ -6,6 +6,7 @@
 import { assert, assertEquals } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
 import { createBot } from '../src/bot.ts';
+import { withRev } from '../src/codec.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 
@@ -15,6 +16,17 @@ async function setup() {
   const { chats } = await prepareBot(bot);
   const user = chats.newUser({ id: 4242, first_name: 'Tester' });
   return { store, user };
+}
+
+/** Taps a button the way a real client does (#16): carrying the render
+ * revision currently on screen, which the store tracks per player. */
+async function tap(
+  store: MemoryStore,
+  user: { id: number; sendCallbackQuery: (data: string) => Promise<unknown> },
+  data: string,
+): Promise<void> {
+  const rev = (await store.get(user.id))?.uiRev ?? 0;
+  await user.sendCallbackQuery(withRev(rev, data));
 }
 
 Deno.test('/start with no character sends the class picker', async () => {
@@ -28,7 +40,7 @@ Deno.test('/start with no character sends the class picker', async () => {
 Deno.test('class pick creates a character and shows the zone hub', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:mage');
+  await tap(store, user, 'm:pk:mage');
   const p = await store.get(4242);
   assert(p, 'player should be created');
   assertEquals(p.classId, 'mage');
@@ -41,13 +53,13 @@ Deno.test('class pick creates a character and shows the zone hub', async () => {
 Deno.test('exploring can start battles; battles resolve; zone view returns', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
+  await tap(store, user, 'm:pk:warrior');
   // Battles live in the wilds now — head to the Whisperwood first.
-  await user.sendCallbackQuery('t:go:whisperwood');
+  await tap(store, user, 't:go:whisperwood');
   // Explore until a battle starts (weighted tables guarantee battles often).
   let started = false;
   for (let i = 0; i < 30 && !started; i++) {
-    await user.sendCallbackQuery('z:ex');
+    await tap(store, user, 'z:ex');
     const p = (await store.get(4242))!;
     started = p.battle !== undefined;
   }
@@ -57,9 +69,9 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
     const p = (await store.get(4242))!;
     if (!p.battle) break;
     if (p.battle.phase === 'active') {
-      await user.sendCallbackQuery('b:atk');
+      await tap(store, user, 'b:atk');
     } else {
-      await user.sendCallbackQuery('b:go');
+      await tap(store, user, 'b:go');
     }
   }
   const p = (await store.get(4242))!;
@@ -72,16 +84,16 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
 Deno.test('shop buy/sell flow updates gold and inventory', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:rogue');
+  await tap(store, user, 'm:pk:rogue');
   const p0 = (await store.get(4242))!;
   const gold0 = p0.gold;
-  await user.sendCallbackQuery('z:sh');
-  await user.sendCallbackQuery('h:buy:c_minor_potion');
+  await tap(store, user, 'z:sh');
+  await tap(store, user, 'h:buy:c_minor_potion');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.gold, gold0 - 30);
   const qty = p1.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
   assert(qty >= 3);
-  await user.sendCallbackQuery('h:sell:c_minor_potion');
+  await tap(store, user, 'h:sell:c_minor_potion');
   const p2 = (await store.get(4242))!;
   assertEquals(p2.gold, gold0 - 30 + 12);
 });
@@ -89,10 +101,10 @@ Deno.test('shop buy/sell flow updates gold and inventory', async () => {
 Deno.test('quest accept via NPC talk and quest screens', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
-  await user.sendCallbackQuery('z:q'); // quest log
-  await user.sendCallbackQuery('q:q:m1_embers'); // detail
-  await user.sendCallbackQuery('q:a:m1_embers'); // accept
+  await tap(store, user, 'm:pk:warrior');
+  await tap(store, user, 'z:q'); // quest log
+  await tap(store, user, 'q:q:m1_embers'); // detail
+  await tap(store, user, 'q:a:m1_embers'); // accept
   const p = (await store.get(4242))!;
   assertEquals(p.quests['m1_embers']?.status, 'active');
 });
@@ -100,25 +112,25 @@ Deno.test('quest accept via NPC talk and quest screens', async () => {
 Deno.test('travel view navigates and back returns to zone', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
-  await user.sendCallbackQuery('z:tv');
+  await tap(store, user, 'm:pk:warrior');
+  await tap(store, user, 'z:tv');
   assertEquals((await store.get(4242))!.scene.view, 'travel');
-  await user.sendCallbackQuery('t:bk');
+  await tap(store, user, 't:bk');
   assertEquals((await store.get(4242))!.scene.view, 'zone');
 });
 
 Deno.test('inventory equip flow swaps gear', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
+  await tap(store, user, 'm:pk:warrior');
   // Give a better weapon directly, then equip it through the UI.
   const p0 = (await store.get(4242))!;
   p0.level = 7;
   p0.inventory.push({ id: 'w_warrior_2', qty: 1 });
   await store.set(4242, p0);
-  await user.sendCallbackQuery('z:inv');
-  await user.sendCallbackQuery('i:v:w_warrior_2');
-  await user.sendCallbackQuery('i:eq:w_warrior_2');
+  await tap(store, user, 'z:inv');
+  await tap(store, user, 'i:v:w_warrior_2');
+  await tap(store, user, 'i:eq:w_warrior_2');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.equipment.weapon, 'w_warrior_2');
   // Old weapon back in the bag
@@ -130,13 +142,13 @@ Deno.test('inventory equip flow swaps gear', async () => {
 Deno.test('forge tempering through the UI consumes resources', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
+  await tap(store, user, 'm:pk:warrior');
   const p0 = (await store.get(4242))!;
   p0.gold = 5000;
   p0.inventory.push({ id: 'm_ember_shard', qty: 10 });
   await store.set(4242, p0);
-  await user.sendCallbackQuery('z:fg');
-  await user.sendCallbackQuery('f:w');
+  await tap(store, user, 'z:fg');
+  await tap(store, user, 'f:w');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.flags['forge_i_w_warrior_1'], 1);
   assertEquals(p1.gold, 5000 - 200);
@@ -149,7 +161,7 @@ Deno.test('full player persists across bot instance using the same store', async
   const { chats } = await prepareBot(bot);
   const user = chats.newUser({ id: 77, first_name: 'Persisto' });
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:cleric');
+  await tap(store, user, 'm:pk:cleric');
   const p = await store.get(77);
   assert(p);
   assertEquals(p.classId, 'cleric');
@@ -159,13 +171,13 @@ Deno.test('full player persists across bot instance using the same store', async
 Deno.test('death flow: felling the player routes through death view and revives', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
-  await user.sendCallbackQuery('m:pk:warrior');
+  await tap(store, user, 'm:pk:warrior');
   // Force a hopeless fight against a boss.
   const p0 = (await store.get(4242))!;
   p0.unlockedZones.push('umbra');
   p0.currentZone = 'umbra';
   await store.set(4242, p0);
-  await user.sendCallbackQuery('z:dg'); // dive into Sundered Throne → floor 1 enemy
+  await tap(store, user, 'z:dg'); // dive into Sundered Throne → floor 1 enemy
   let p = (await store.get(4242))!;
   if (!p.battle) return; // explore rolls may differ; skip if no battle (defensive)
   // Keep attacking without healing until dead (boss zone enemies outscale Lv1).
@@ -173,12 +185,12 @@ Deno.test('death flow: felling the player routes through death view and revives'
     p = (await store.get(4242))!;
     if (!p.battle) break;
     if (p.scene.view === 'death') break;
-    if (p.battle.phase === 'active') await user.sendCallbackQuery('b:atk');
-    else await user.sendCallbackQuery('b:go');
+    if (p.battle.phase === 'active') await tap(store, user, 'b:atk');
+    else await tap(store, user, 'b:go');
   }
   p = (await store.get(4242))!;
   if (p.scene.view === 'death') {
-    await user.sendCallbackQuery('d:ok');
+    await tap(store, user, 'd:ok');
     p = (await store.get(4242))!;
     assertEquals(p.scene.view, 'zone');
     assert(p.hp > 0);

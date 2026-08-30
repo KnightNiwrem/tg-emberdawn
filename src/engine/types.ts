@@ -145,6 +145,11 @@ export interface PlayerState {
   battle?: BattleState;
   /** Message id of the live game message (staleness guard). */
   messageId?: number;
+  /** Render revision of the live message's buttons (#16). Bumped on every
+   * committed render and stamped into the callback data it renders; taps
+   * carrying an older revision are rejected before any mutation, so a
+   * double-tap or replayed button can never execute twice. */
+  uiRev?: number;
   /** Save-schema version; drives one-time destructive migrations. */
   stateVersion?: number;
   /** Transient result lines rendered as a banner on the current view. */

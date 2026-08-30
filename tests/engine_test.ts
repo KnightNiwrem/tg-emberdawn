@@ -38,7 +38,7 @@ import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
 import { QUESTS } from '../src/content/quests.ts';
-import { decodeCb, encodeCb } from '../src/codec.ts';
+import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
 import { seeded } from './helpers.ts';
 
 Deno.test('character creation gives class kit and full pools', () => {
@@ -542,6 +542,11 @@ Deno.test('codec: roundtrip for every callback shape', () => {
     const back = decodeCb(wire);
     assertEquals(back, c, `roundtrip failed for ${wire}`);
   }
+  // Render-revision stamps (#16): <view>:<rev>:<action>[:<arg>].
+  const stamped = withRev(7, 'q:q:m1_embers');
+  assertEquals(stamped, 'q:7:q:m1_embers');
+  assertEquals(decodeCb(stamped), { v: 'quests', a: 'q', arg: 'm1_embers', rev: 7 });
+  assertEquals(withRev(8, stamped), 'q:8:q:m1_embers', 're-stamp replaces an old rev');
   assertEquals(decodeCb('garbage'), undefined);
   assertEquals(decodeCb('x:zz:1'), undefined);
 });
