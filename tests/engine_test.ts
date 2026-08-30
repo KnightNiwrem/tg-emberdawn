@@ -93,7 +93,7 @@ Deno.test('grantXp levels up, restores pools and learns skills', () => {
 Deno.test('combat: deterministic battle to victory with rewards', () => {
   const rng = seeded(42);
   const p = createPlayer(4, 'T', 'warrior');
-  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   const attack: PlayerAction = { kind: 'attack' };
   let rounds = 0;
   while (battle.enemy.hp > 0 && rounds < 100) {
@@ -111,7 +111,7 @@ Deno.test('combat: deterministic battle to victory with rewards', () => {
 Deno.test('combat: player deals damage and takes damage in a real fight', () => {
   const rng = seeded(7);
   const p = createPlayer(5, 'T', 'warrior');
-  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const s0 = statsOf(p);
   const hpBefore = p.hp;
   const enemyHpBefore = battle.enemy.hp;
@@ -127,7 +127,7 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
   p.level = 13;
   p.skills.push('sk_arcane_surge', 'sk_firebolt');
   p.mp = statsOf(p).maxMp;
-  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   const mpBefore = p.mp;
   const r1 = performAction(p, battle, { kind: 'skill', skillId: 'sk_arcane_surge' }, rng);
   assert(p.mp < mpBefore, 'mp should be spent');
@@ -141,7 +141,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   const rng = seeded(99);
 
   function measure(useGuard: boolean): number {
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     const pc = createPlayer(8, 'T', 'cleric');
     if (useGuard) performAction(pc, battle, { kind: 'guard' }, rng);
     else performAction(pc, battle, { kind: 'attack' }, rng);
@@ -152,7 +152,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   // Simpler direct comparison: run two identical setups, one guarding.
   function runBattle(guard: boolean, seed: number): number {
     const r = seeded(seed);
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     const pc = createPlayer(9, 'T', 'cleric');
     performAction(pc, battle, guard ? { kind: 'guard' } : { kind: 'attack' }, r);
     return hpLost(pc, 0);
@@ -179,7 +179,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   );
 
   function play(action: 'guard' | 'attack') {
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     const pc = createPlayer(10, 'T', 'cleric');
     performAction(pc, battle, { kind: action }, seeded(5));
     return battle;
@@ -287,7 +287,7 @@ Deno.test('buff durations: cast-round decay deferred for keys the cast cannot us
     p.level = 40;
     p.skills.push(skillId);
     p.mp = 999;
-    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     b.enemy.hp = 99999;
     b.enemy.maxHp = 99999;
     p.battle = b;
@@ -386,7 +386,7 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
   const rng2 = seeded(76);
   const w = createPlayer(67, 'T', 'warrior');
   w.level = 45;
-  const wb = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const wb = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   w.battle = wb;
   wb.enemy.hp = 99999;
   wb.enemy.maxHp = 99999;
@@ -527,7 +527,7 @@ Deno.test('world: travel requires unlock, safe haven restores', () => {
   assert(ok.ok);
   assertEquals(p.currentZone, 'whisperwood');
   assert(p.flags['zone_whisperwood']);
-  const back = travel(p, 'emberfall');
+  const back = travel(p, 'emberdawn');
   assert(back.ok);
   assertEquals(p.hp, statsOf(p).maxHp);
 });
@@ -542,7 +542,7 @@ Deno.test('death revives at a safe haven, not where you fell', () => {
   assertEquals(p.stats.deaths, 1);
   assertEquals(p.gold, 900);
   assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
-  assertEquals(p.currentZone, 'emberfall');
+  assertEquals(p.currentZone, 'emberdawn');
 });
 
 Deno.test('derived stats aggregate equipped slots only — bag copies never count', () => {

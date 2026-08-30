@@ -581,7 +581,7 @@ export function shopStock(
   if (t >= 3) stock.push('c_greater_potion', 'c_smoke_bomb');
   if (t >= 5) stock.push('c_super_potion', 'c_greater_ether', 'c_phoenix_feather');
   if (t >= 7) stock.push('c_elixir');
-  if (zoneId !== 'emberfall') stock.push('m_ember_shard');
+  if (zoneId !== 'emberdawn') stock.push('m_ember_shard');
   if (t >= 2) stock.push('m_iron_chunk');
   if (t >= 4) stock.push('m_mystic_dust');
   if (t >= 6) stock.push('m_frost_core', 'm_cinder_heart');

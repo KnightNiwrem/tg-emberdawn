@@ -8,11 +8,11 @@ import type { ZoneDef } from './types.ts';
 /** Zones a fresh character can already reach. Everything else must be
  * unlocked by quest rewards or dungeon first-clears (reachability is
  * test-guarded). */
-export const STARTING_ZONES: readonly string[] = ['emberfall', 'whisperwood'];
+export const STARTING_ZONES: readonly string[] = ['emberdawn', 'whisperwood'];
 
 export const ZONES: readonly ZoneDef[] = [
   {
-    id: 'emberfall',
+    id: 'emberdawn',
     name: 'Emberdawn Village',
     emoji: '🏮',
     chapter: 1,

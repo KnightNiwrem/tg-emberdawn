@@ -29,7 +29,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     equipment: { weapon: c.startingGear.weapon, armor: c.startingGear.armor },
     quests: {},
     unlockedZones: [...STARTING_ZONES],
-    currentZone: 'emberfall',
+    currentZone: 'emberdawn',
     flags: {},
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'home' },
@@ -196,7 +196,7 @@ export function applyDeath(p: PlayerState): string {
   const s = statsOf(p);
   p.hp = Math.max(1, Math.floor(s.maxHp * 0.5));
   p.mp = Math.floor(s.maxMp * 0.5);
-  p.currentZone = ZONES.find((z) => z.safeHaven)?.id ?? 'emberfall';
+  p.currentZone = ZONES.find((z) => z.safeHaven)?.id ?? 'emberdawn';
   return lost > 0
     ? `💀 You black out and wake at a safe haven. ${lost} gold slipped from your pockets.`
     : '💀 You black out and wake at a safe haven, somehow poorer in spirit only.';

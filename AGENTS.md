@@ -191,9 +191,6 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 
 ## Known trade-offs (evaluated fallow findings)
 
-- Internal zone id `'emberfall'` predates the Emberdawn rename (display name is "Emberdawn
-  Village"). Do NOT rename the id casually: persisted player state (`currentZone`, `unlockedZones`)
-  references it.
 - `deno.json` is the dependency manifest; fallow's "unlisted dependencies" (grammy, grammy-testing)
   is a Node-only heuristic — ignore.
 - One residual ~12-line clone pair in `render/views.ts` (shop buy vs sell rows). The two rows differ

@@ -212,7 +212,7 @@ Deno.test('equip verifies ownership; stale double-tap fails cleanly', () => {
 Deno.test('combat refuses unlearned and wrong-class skills', () => {
   const rng = seeded(11);
   const p = createPlayer(904, 'T', 'warrior');
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   const hp0 = b.enemy.hp;
   const r1 = performAction(p, b, { kind: 'skill', skillId: 'sk_cataclysm' }, rng);
   assert(r1.lines.some((l) => l.includes("haven't learned")), 'wrong class refused');
@@ -323,7 +323,7 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
   const t0 = 1_000_000;
   // Burn the three charges.
   for (let i = 0; i < 3; i++) explore(p, seeded(13), t0 + i * 1000);
-  assertEquals(p.flags['forage_emberfall'], 3);
+  assertEquals(p.flags['forage_emberdawn'], 3);
   // The 6h recharge is stamped the MOMENT the last charge is spent (#3) —
   // not one interaction later.
   assertEquals(p.flags['forageResetAt'], t0 + 2000 + 6 * 3_600_000);
@@ -332,7 +332,7 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
   // Free-travel loop + explores before expiry: the faucet stays dry.
   for (let i = 0; i < 3; i++) {
     assert(travel(p, 'whisperwood').ok);
-    assert(travel(p, 'emberfall').ok);
+    assert(travel(p, 'emberdawn').ok);
   }
   for (let i = 0; i < 60; i++) explore(p, seeded(13), t0 + 100_000);
   assertEquals(p.gold, gold0, 'exhausted haven yields no gold');
@@ -595,7 +595,7 @@ Deno.test('reach quests credit the zone you already occupy or visited (#23)', ()
   const visited = mk();
   visited.unlockedZones.push('hollowmere');
   assert(travel(visited, 'hollowmere').ok); // plants zone_hollowmere
-  assert(travel(visited, 'emberfall').ok);
+  assert(travel(visited, 'emberdawn').ok);
   assert(acceptQuest(visited, 'm5_fen').ok);
   assertEquals(visited.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
 
@@ -734,7 +734,7 @@ Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () =>
 Deno.test('battle round lines render once — the log is authoritative (#32)', () => {
   const p = createPlayer(963, 'T', 'warrior');
   p.level = 20;
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
@@ -819,7 +819,7 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
 Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', () => {
   const p44 = createPlayer(968, 'T', 'warrior');
   p44.level = 44;
-  const b44 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b44 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b44.enemy.hp = 0;
   const r44 = resolveVictory(p44, b44, seeded(91));
   assert(
@@ -830,7 +830,7 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
 
   const p45 = createPlayer(969, 'T', 'warrior');
   p45.level = 45;
-  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b45.enemy.hp = 0;
   const r45 = resolveVictory(p45, b45, seeded(92));
   assert(r45.some((l) => l.includes('XP → +')), 'cap headline shows the conversion');
@@ -858,7 +858,7 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   const p = createPlayer(973, 'T', 'warrior');
   p.level = 44;
   p.xp = xpForNextLevel(44) - 1;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b.enemy.hp = 0;
   const goldBefore = p.gold;
   const lines = resolveVictory(p, b, seeded(93));
@@ -873,7 +873,7 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   // A victory begun at the cap shows exactly the gold actually granted.
   const p45 = createPlayer(974, 'T', 'warrior');
   p45.level = 45;
-  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b45.enemy.hp = 0;
   const g45 = p45.gold;
   resolveVictory(p45, b45, seeded(94));
@@ -992,7 +992,7 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   assert(!bossMenu.includes('b:us:c_smoke_bomb'), 'no Smoke Bomb button vs a boss');
   assert(bossMenu.includes('no use here'), 'inapplicable items render disabled');
 
-  const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberfall' })!;
+  const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   wolf.buffs.weakenTurns = 2;
   p.battle = wolf;
   const wolfMenu = JSON.stringify(renderItemMenu(p));

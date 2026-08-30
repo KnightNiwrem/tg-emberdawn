@@ -697,7 +697,7 @@ export function quest(id: string): QuestDef | undefined {
 export function npc(id: string): NpcDef | undefined {
   for (
     const z of [
-      'emberfall',
+      'emberdawn',
       'whisperwood',
       'hollowmere',
       'sunspire',
