@@ -279,6 +279,7 @@ Deno.test('postgame XP converts to gold instead of vanishing', () => {
   p.gold = 0;
   const lines = grantXp(p, 1000);
   assert(p.gold > 0, 'valor pays out');
+  assertEquals(p.gold, 125, 'rate pinned: ceil(xp / 8)');
   assert(lines[0]!.includes('gold'));
   assertEquals(p.xp, 0);
 });

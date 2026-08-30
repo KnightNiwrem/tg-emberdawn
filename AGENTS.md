@@ -109,7 +109,7 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   (`stateVersion > CURRENT_STATE_VERSION`) throw `SaveTooNewError`; handlers refuse to
   read-mutate-write rather than downgrade. v3 purges retired catalog ids (e.g. q_umbra_key) from
   legacy bags — known items are never touched.
-- **Endgame economy:** postgame XP converts to gold (`ceil(xp / 4)`) instead of vanishing;
+- **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
   never refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry;

@@ -194,8 +194,11 @@ export function grantXp(p: PlayerState, xp: number): string[] {
   if (p.level >= MAX_LEVEL) {
     // Postgame: XP has nowhere to go, so the Flame converts valor to gold —
     // endgame kills and quests keep paying instead of silently vanishing.
+    // Rate pinned at ceil(xp / 8): the conversion ≈ the kill's own direct
+    // gold, so postgame income runs ~2x design gold — pays without
+    // tripling (inflation review, #14).
     if (xp <= 0) return msgs;
-    const gold = Math.max(1, Math.ceil(xp / 4));
+    const gold = Math.max(1, Math.ceil(xp / 8));
     p.gold += gold;
     return [`✨ The Flame converts your valor: +${gold} gold (XP means nothing at the summit).`];
   }
