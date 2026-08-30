@@ -1,2011 +1,1544 @@
-# Emberdawn Game Design & Progression Audit
+# Emberdawn Re-Review: Remaining Audit Findings After the First Repair Pass
 
-**Repository:** `KnightNiwrem/tg-emberdawn`\
-**Reviewed snapshot:** `main` at commit `53ecf548382a69f39288f19dda070eb816f3fc4b`\
-**Review focus:** game design, main/side quest progression correctness, zone/location unlocks, item
-acquisition, dungeon progression, combat/item semantics, economy/forge behavior, persistence issues
-that affect gameplay, and gaps in the current tests.
-
----
-
-## Executive summary
-
-The overall campaign structure is promising, but the current build is **not progression-correct**.
-
-The most important result of this audit is:
-
-> **A player following the intended story cannot currently complete the main quest line.**
-
-There are at least two deterministic main-story hardlocks:
-
-1. `m11_toll` requires **4 Brass Automaton kills**, but the player can encounter at most three
-   Automatons during the one-way Vault of Hours traversal, and usually fewer.
-2. `m21_loyalty` requires **10 Crownsworn kills**, but Crownsworn are absent from Umbral Spire
-   exploration and only appear as possible enemies on two non-repeatable dungeon floors.
-
-These are not balance problems or edge cases. They are direct contradictions between quest
-requirements and the encounter graph.
-
-The dungeon engine also has several foundational progression errors:
-
-- dungeon floor state advances when a fight **starts**, not when it is won;
-- fleeing or dying can therefore skip floors;
-- boss defeat/death states can permanently strand dungeon progression;
-- boss rematches are advertised but not actually possible;
-- dungeon bosses can be entered before the story says they should be accessible;
-- killing a boss before its quest is active may permanently softlock that quest;
-- the Abyss Warden can be encountered in normal exploration, and the victory handler can incorrectly
-  treat that overworld fight as an Endless Seam dungeon clear.
-
-There are also important secondary correctness problems in combat, items, forge behavior, equipment
-ownership, postgame rewards, and single-message persistence.
-
-The main recommendation is:
-
-> **Do not spend significant effort balancing XP, enemy stats, or difficulty until the dungeon/quest
-> state graph is repaired and an end-to-end campaign reachability test exists.**
+**Repository:** `KnightNiwrem/tg-emberdawn`  
+**Current reviewed head:** `af337b46a6162288c8c2eebe2d7b64cda69f0380`  
+**Previous audited baseline:** `53ecf548382a69f39288f19dda070eb816f3fc4b`  
+**Purpose:** verify completeness/correctness of the implementation intended to resolve the previous game-design/progression audit.
 
 ---
 
-# Priority map
-
-## P0 — campaign blockers / state corruption / severe progression errors
-
-| Finding                                                 | Effect                                                 |
-| ------------------------------------------------------- | ------------------------------------------------------ |
-| `m11_toll` impossible                                   | Main story hardlocks in Chapter 3                      |
-| `m21_loyalty` impossible                                | Main story hardlocks in Chapter 6                      |
-| Dungeon floor advances on battle start                  | Flee/death skips content and can strand bosses         |
-| Boss rematch state contradicts implementation           | Bosses cannot actually be re-fought                    |
-| Dungeon access not story-gated                          | Boss can be defeated before its quest is active        |
-| Premature boss kill + no rematch                        | Main quest can become permanently impossible           |
-| Abyss overworld Warden counts as dungeon boss           | Final dungeon/quest can be bypassed                    |
-| `messageId` changed after persistence                   | Duplicate live-message behavior / staleness corruption |
-| `/reset` persists before the new live message ID exists | Repeated duplicate game-message behavior after reset   |
-
-## P1 — major mechanics behaving incorrectly
-
-- Dungeon floor treasure is authored but never awarded.
-- Smoke Bomb does not escape.
-- Rogue Venom Cut weakens the player rather than the enemy.
-- Phoenix Cinder can be manually consumed for no useful effect.
-- Multiple Phoenix Cinders can auto-revive multiple times in the same battle despite the intended
-  once-per-battle rule.
-- Invalid skill use due to cooldown/MP can still spend the player's entire turn.
-- SPD buffs have little/no practical effect on combat identity.
-- Forge material cost can be downgraded by travelling to an early zone.
-- Forge tempering is stored per slot rather than tied to the item.
-- Forge percentage bonuses are applied to aggregate slot-related stats, including trinket stats.
-- Starting equipment exists both in inventory and equipped state.
-- Shop gear tier progression lags character level progression.
-- Tier-8 class gear appears to lack a normal shop path.
-- Some later trinkets appear orphaned from the normal acquisition path.
-- Postgame XP rewards have no gameplay effect because the postgame begins at `MAX_LEVEL`.
-- Collect quests do not immediately become turn-in-ready when the player already owns the required
-  items.
-- Collect quests do not consume delivered items, despite much of the writing implying
-  hand-in/delivery semantics.
-- `/start` claims to re-center the game but normally edits the existing buried message instead.
-- Rendering mutates `PlayerState` by clearing notices.
-- The save/render/commit order contradicts the documented architecture and causes persistence
-  inconsistencies.
-
-## P2 — design consistency / UX / documentation
-
-- Safe-haven forage is an infinite zero-risk gold/potion faucet.
-- Free travel to Emberdawn creates a full-heal-between-every-dungeon-floor loop.
-- Some chapter unlock story beats occur after the zone is already unlocked.
-- README/AGENTS/content comments contain stale counts or behavior descriptions.
-- Current integrity tests prove referential validity, not progression reachability.
-
----
-
-# Detailed findings
-
-## P0-1 — `m11_toll` is impossible to complete
-
-### Relevant content
-
-Quest:
-
-- `src/content/quests.ts`
-- `m11_toll`
-- objective: kill `e_automaton` ×4
-
-The Brass Automaton does not appear in the Sunspire overworld exploration table.
-
-It appears only in `d_vault` normal dungeon floors:
-
-- floor 1: `['e_chronowisp', 'e_automaton']`
-- floor 2: `['e_automaton', 'e_chronowisp', 'e_sentinel']`
-- floor 3: `['e_automaton', 'e_chronowisp']`
-
-Each floor starts exactly one enemy battle.
-
-### Consequence
-
-Even with perfect RNG, one traversal contains at most:
-
-- floor 1: 1 Automaton
-- floor 2: 1 Automaton
-- floor 3: 1 Automaton
-
-Maximum = **3**, while the quest requires **4**.
-
-Because normal dungeon floors are currently one-way and non-repeatable, the player cannot
-legitimately obtain the fourth kill.
-
-### Practical outcome
-
-The intended story flow:
-
-`m10_cult` → `m11_toll` → `m12_chronolich`
-
-stops permanently at `m11_toll`.
-
-### Recommended fix
-
-Do not merely reduce the count to 3 unless that is the intended encounter design.
-
-Better options:
-
-1. Add `e_automaton` to normal Sunspire exploration.
-2. Make cleared dungeon normal floors replayable.
-3. Introduce a repeatable dungeon encounter mode before the boss.
-4. Redesign `m11_toll` around acquiring the key rather than an exact number of kills.
-
-The quest text says the automatons carry the key, so a more coherent quest may be:
-
-- defeat Automatons until the Sunspire Key is acquired; or
-- clear a specific Vault gate encounter.
-
----
-
-## P0-2 — `m21_loyalty` is impossible to complete
-
-### Relevant content
-
-Quest:
-
-- `src/content/quests.ts`
-- `m21_loyalty`
-- objective: kill `e_crownsworn` ×10
-
-The Umbral Spire overworld exploration table contains:
-
-- `e_shade`
-- `e_watcher`
-- `e_shattered`
-- `e_horror`
-- `e_nightgaunt`
-- elite `e_regalia`
-
-It does **not** contain `e_crownsworn`.
-
-Crownsworn appear only in `d_throne`:
-
-- floor 1: possible `e_crownsworn`
-- floor 3: possible `e_crownsworn`
-
-### Consequence
-
-A single traversal provides at most **2** Crownsworn kills.
-
-Usually it provides 0 or 1 due to random selection.
-
-The quest requires **10**.
-
-### Practical outcome
-
-The intended story:
-
-`m20_seam` → `m21_loyalty` → `m22_umbral_key` → `m23_aldric`
-
-cannot proceed normally beyond `m21_loyalty`.
-
-### Recommended fix
-
-`e_crownsworn` should probably be an Umbral Spire field enemy if the narrative asks the player to
-thin their ranks by ten.
-
-That also makes `m22_umbral_key` make more thematic sense because Crownsworn have a 25%
-`q_umbra_key` drop.
-
-However, see the later finding about `m22`: after killing ten Crownsworn, the player is
-overwhelmingly likely to already possess the key before `m22` even begins.
-
----
-
-# Dungeon-system findings
-
-## P0-3 — Dungeon floor progression advances when combat starts
-
-### Relevant code
-
-`src/engine/world.ts`
-
-`diveDungeon()` determines the current floor, creates a battle, and then immediately executes the
-equivalent of:
-
-```ts
-p.flags[floorKey(d)] = floor + 1;
-```
-
-This happens before victory.
-
-### Consequences
-
-The dungeon state machine currently means:
-
-> enter fight = floor completed
-
-rather than:
-
-> win fight = floor completed
-
-This causes several failure modes.
-
-### Flee from normal floor
-
-A successful flee clears the battle and returns the player to the zone.
-
-The dungeon floor counter has already advanced.
-
-Result: the player skips that floor.
-
-### Die on normal floor
-
-The player eventually revives at a safe haven.
-
-The dungeon floor counter remains advanced.
-
-Result: death also skips the failed floor.
-
-### Die on boss
-
-The boss floor has already incremented beyond the boss.
-
-After revival, the dungeon can report itself beyond the valid progression range.
-
-This can strand the boss permanently.
-
-### Recommended model
-
-A dungeon battle needs enough context to know:
-
-- dungeon ID;
-- floor index;
-- whether it is a boss encounter;
-- whether progression should be advanced on victory.
-
-Starting the fight should not mark any floor complete.
-
-Normal-floor victory should:
-
-1. grant any floor treasure;
-2. advance the next-floor pointer.
-
-Flee/death should:
-
-- leave the same floor pending.
-
-Boss victory should:
-
-- mark dungeon clear;
-- apply first-clear reward;
-- expose an explicit boss rechallenge route if desired.
-
----
-
-## P0-4 — Boss rematches are advertised but impossible
-
-### Relevant code
-
-`src/engine/world.ts`
-
-After boss victory:
-
-```ts
-p.flags[floorKey(d)] = d.floors.length + 2;
-```
-
-`dungeonProgressLine()` returns:
-
-> Boss defeated — re-challenge available
-
-But `diveDungeon()` rejects:
-
-```ts
-if (floor > bossFloor) {
-  return {
-    ok: false,
-    lines: ["You've already bested this place. Its boss may be re-fought from the dungeon screen."],
-  };
-}
-```
-
-There is no separate dungeon screen or boss-rechallenge action.
-
-### Consequence
-
-The UI and state machine promise a feature that is not actually reachable.
-
-More importantly, the inability to re-fight bosses combines with premature boss access to create
-main-quest softlocks.
-
-### Recommended fix
-
-Implement a distinct cleared-dungeon state:
-
-- `uncleared`
-- `progressing`
-- `cleared`
-
-Once cleared, the zone view can expose:
-
-- `Rechallenge Boss`
-
-which starts a battle tagged as a dungeon boss rematch but does not re-grant first-clear rewards.
-
----
-
-## P0-5 — Dungeon bosses are not gated by story progression
-
-### Relevant files
-
-- `src/render/views.ts`
-- `src/handlers/hub.ts`
-- `src/engine/world.ts`
-
-The zone view shows a Dive button whenever the zone has a dungeon.
-
-The handler checks only that a dungeon exists.
-
-There is no check for:
-
-- active main quest;
-- story flag;
-- key item;
-- prerequisite quest;
-- boss-floor unlock.
-
-### Narrative contradictions
-
-Several quests explicitly claim that a prerequisite opens the dungeon/boss route:
-
-- Sunspire Key opens Vault of Hours.
-- Frost Emblems open the way to the Glacier Maw.
-- Cinder Sigils calm/open the Caldera.
-- Umbral Key opens the throne room.
-
-Mechanically, these items/quests currently do not gate access.
-
-### Consequence
-
-A player can defeat a dungeon boss before the corresponding main quest is active.
-
-Quest kill progression only applies to quests that are currently `active`.
-
-Therefore:
-
-1. player defeats boss early;
-2. boss kill is not credited to later quest;
-3. dungeon becomes cleared;
-4. boss rematch does not actually work;
-5. later main quest requiring that boss kill cannot be completed.
-
-This is a true story softlock.
-
-### Recommended design
-
-Do not necessarily gate the whole dungeon.
-
-Several quests intentionally ask the player to fight normal dungeon inhabitants before reaching the
-boss.
-
-Better design:
-
-- normal dungeon floors can be explored once the zone is unlocked;
-- the boss floor is gated by the relevant story condition.
-
-Examples:
-
-- Vault boss floor requires `q_sunspire_key` or completion of `m11_toll`.
-- Glacier boss floor requires `m14_emblem` completion.
-- Pyre boss floor requires `m18_sigil` completion.
-- Throne boss floor requires `m22_umbral_key` completion.
-
----
-
-## P0-6 — Abyss overworld Warden can incorrectly clear the dungeon
-
-### Relevant content
-
-`src/content/zones.ts`
-
-The Abyss exploration table includes:
-
-```ts
-{ kind: 'elite', enemy: 'e_warden', ... }
-```
-
-The Endless Seam dungeon boss is also:
-
-```ts
-boss: 'e_warden';
-```
-
-### Relevant handler
-
-`src/handlers/battle.ts`
-
-On victory, dungeon bookkeeping is triggered approximately by:
-
-```ts
-const z = zoneDef(p.currentZone);
-const d = z ? dungeonOf(z) : undefined;
-
-if (d && def.id === d.boss) {
-  onDungeonVictory(p, d);
-}
-```
-
-The battle does not prove that the encounter came from the dungeon.
-
-### Consequence
-
-A random Abyss Explore event can spawn the Warden.
-
-Defeating it can:
-
-- progress `m25_silence`;
-- mark Endless Seam cleared;
-- grant first-clear dungeon XP/gold/item;
-- set `seamCleared`;
-
-without entering the Endless Seam.
-
-### Root cause
-
-`BattleState.origin` stores only the zone string.
-
-That is not enough encounter provenance.
-
-### Recommended fix
-
-Use structured battle origin, conceptually:
-
-```ts
-type BattleOrigin =
-  | { kind: 'explore'; zoneId: string }
-  | { kind: 'dungeon'; zoneId: string; dungeonId: string; floor: number; boss: boolean };
-```
-
-Only an origin tagged as the correct dungeon boss encounter should call dungeon victory bookkeeping.
-
----
-
-## P1-1 — Dungeon floor treasure is dead content
-
-### Relevant content type
-
-`DungeonFloor` supports:
-
-```ts
-treasure?: { gold?: number; item?: string };
-```
-
-Every major dungeon authors treasure on some floors.
-
-Examples include:
-
-- Rootbound Hollow gold/cache potion
-- Sunken Shrine gold/Ether
-- Vault of Hours gold/Greater Potion
-- Glacier Maw gold/Greater Ether
-- Pyre Caldera gold/Phoenix Cinder
-- Sundered Throne gold/Elixir
-- Endless Seam gold/Elixir
-
-### Relevant engine
-
-`diveDungeon()` reads only `floor.enemies`.
-
-Normal-floor victory handling has no logic to grant the authored `floor.treasure`.
-
-### Consequence
-
-A meaningful portion of dungeon reward design is unreachable.
-
-### Recommended fix
-
-Grant floor treasure on successful normal-floor victory, once per floor clear.
-
-Do not grant it merely for entering the fight.
-
----
-
-# Quest-state findings
-
-## P1-2 — Collect objectives do not refresh on item acquisition
-
-### Relevant code
-
-Collect objective progress is live:
-
-```ts
-countOf(p, obj.target);
-```
-
-However, a quest becomes `turnIn` only when `refreshProgress()` runs.
-
-`refreshProgress()` is called through event-based hooks such as:
-
-- kill
-- reach
-- talk
-
-It is not automatically called on:
-
-- enemy drop;
-- treasure item;
-- shop purchase;
-- quest reward;
-- manual inventory addition.
-
-### Consequence
-
-A player can already own the required item quantity while the quest remains `active`.
-
-The quest log can effectively show full collection progress while not transitioning to turn-in.
-
-### Recommended fix
-
-Centralize inventory-changing operations so item acquisition triggers quest refresh.
-
-Alternative:
-
-- make readiness for collect quests derived rather than persisted;
-- or run `refreshProgress()` whenever the quest view/turn-in eligibility is evaluated.
-
----
-
-## P1-3 — `m22_umbral_key` is likely redundant after fixing `m21`
-
-Crownsworn drop:
-
-```ts
-q_umbra_key: 0.25;
-```
-
-If `m21` is repaired so that the player actually kills ten Crownsworn, the probability of having
-received at least one Umbral Key is:
-
-```text
-1 - 0.75^10 ≈ 94.37%
-```
-
-Therefore, by the time `m22_umbral_key` becomes available, the player will almost always already
-possess its objective item.
-
-This is not necessarily invalid, but it makes `m22` feel like a bookkeeping quest rather than a
-progression beat.
-
-### Options
-
-1. Make `m21` itself award the Umbral Key.
-2. Make `m22` require a distinct elite encounter.
-3. Make the key a guaranteed drop from a named Crownsworn captain after `m21`.
-4. Keep the current drop model but accept that `m22` is primarily narrative handoff.
-
----
-
-## P1-4 — Collect quests do not consume delivered items
-
-Collection quests inspect current inventory but `turnInQuest()` does not remove objective items.
-
-Examples whose text implies physical delivery include:
-
-- Ember Shards for Bram/Lyra
-- Iron Chunks for Bram
-- toxin samples
-- Frost Emblems
-- Cinder Sigils
-- keys
-
-### Consequence
-
-The same items can:
-
-- satisfy a quest;
-- remain in inventory;
-- satisfy another quest;
-- be used for forge costs;
-- sometimes be dropped later.
-
-### Design decision needed
-
-Choose one explicit model.
-
-### Model A — acquisition milestone
-
-The objective means:
-
-> Acquire/possess N at some point.
-
-Items remain after completion.
-
-If this is intended, rewrite quest text so it does not imply hand-in.
-
-### Model B — delivery quest
-
-The objective means:
-
-> Bring N to the giver.
-
-On turn-in:
-
-- verify current count;
-- remove N items;
-- then grant rewards.
-
-This better matches most current writing.
-
----
-
-## P2-1 — Sunspire unlock arrives before the narrative introduction
-
-`m7_tyrant` currently unlocks `sunspire`.
-
-`m8_passage` then has the Ferryman tell the player to go to Sunspire.
-
-`m9_spire` is the actual reach-Sunspire quest.
-
-### Consequence
-
-The player can travel to Sunspire after `m7`, before the story beat in `m8` introduces the
-destination.
-
-They can also access its exploration/dungeon systems before that narrative handoff.
-
-### Recommendation
-
-Move the `unlockZone: 'sunspire'` reward from `m7_tyrant` to `m8_passage`.
-
----
-
-# Combat and item findings
-
-## P1-5 — Smoke Bomb does not perform its advertised function
-
-### Item data
-
-`c_smoke_bomb`
-
-Description:
-
-> Guaranteed escape from normal fights.
-
-Actual effect:
-
-```ts
-effect: {
-  cureStatus: true;
-}
-```
-
-### Engine behavior
-
-Generic consumable logic:
-
-- clears player weaken debuffs;
-- consumes item;
-- enemy then gets its normal response unless the battle phase was explicitly changed to `fled`.
-
-There is no Smoke Bomb-specific escape code.
-
-### Consequence
-
-Smoke Bomb behaves roughly like another Cleansing Tonic and can expose the player to another enemy
-attack.
-
-### Recommended fix
-
-Represent escape explicitly in item effect data, e.g.:
-
-```ts
-effect: {
-  flee: true;
-}
-```
-
-Then combat use should:
-
-- reject bosses if the item is meant for normal fights only;
-- set phase to `fled`;
-- consume the item;
-- return without an enemy retaliation.
-
----
-
-## P1-6 — Rogue Venom Cut weakens the Rogue instead of the enemy
-
-### Skill
-
-`sk_venom_cut`
-
-Description:
-
-> 130% ATK and weaken the enemy by 25% for 3 turns.
-
-### Actual state
-
-`CombatBuffs.weakenedPct` is documented as:
-
-> Player-side weaken (from enemy debuffs)
-
-`playerEffectiveAtk()` and `playerEffectiveMag()` multiply the player's offense by:
-
-```ts
-1 - buffs.weakenedPct;
-```
-
-The `debuff` skill path then writes:
-
-```ts
-buffs.weakenedPct = sk.potency;
-buffs.weakenTurns = ...
-```
-
-### Consequence
-
-Venom Cut:
-
-1. damages the enemy;
-2. prints that the enemy is weakened;
-3. actually reduces the player's subsequent ATK/MAG.
-
-### Recommended fix
-
-Enemy offensive debuffs need separate state, e.g.:
-
-```ts
-enemyAtkPct;
-enemyMagPct;
-enemyWeakenTurns;
-```
-
-Enemy action calculations should apply those modifiers to `def.atk` / `def.mag`.
-
-Do not reuse the player debuff fields.
-
----
-
-## P1-7 — Invalid skill use can still cost a turn
-
-When a skill is:
-
-- on cooldown; or
-- unaffordable due to MP,
-
-the skill remains clickable.
-
-The engine emits:
-
-- `That skill is still on cooldown`
-- `Not enough MP`
-
-but then proceeds to the enemy phase.
-
-### Consequence
-
-A player can lose a full combat turn because they tapped a control the UI could already know was
-invalid.
-
-### Recommendation
-
-UI:
-
-- disable skill buttons when cooldown > 0;
-- disable when current MP < cost.
-
-Engine:
-
-- return an explicit `actionConsumed: false`/validation failure;
-- do not run enemy phase for invalid actions.
-
-The engine should remain safe even if a forged/stale callback bypasses the UI.
-
----
-
-## P1-8 — SPD buffs do not meaningfully deliver the advertised combat identity
-
-Rogue class text emphasizes:
-
-- speed;
-- striking first;
-- dodging;
-- fleeing.
-
-Skills include:
-
-- Smoke Step: +45% SPD
-- Time Warp: +40% MAG/SPD
-
-But combat currently:
-
-- always gives the player the action first;
-- has no dodge mechanic;
-- uses raw `statsOf(p).spd` for flee chance;
-- does not appear to include the active battle `spdPct` buff in flee calculation.
-
-### Consequence
-
-A substantial part of Rogue identity and some Mage buff power is mechanically dead.
-
-### Possible design directions
-
-#### Option A — minimal
-
-Use effective battle SPD in flee probability and any future initiative/dodge calculations.
-
-#### Option B — initiative
-
-At battle start / each round, compare effective SPD to determine action order.
-
-#### Option C — dodge
-
-Use SPD difference to create a capped dodge chance.
-
-Any of these would make SPD more than a mostly decorative stat.
-
----
-
-## P1-9 — Phoenix Cinder can be manually wasted
-
-`c_phoenix_feather` has:
-
-```ts
-effect: {
-  revivePct: 50;
-}
-```
-
-Generic battle item rendering lists every consumable.
-
-Generic battle item consumption does not implement `revivePct`.
-
-### Consequence
-
-The player can tap Phoenix Cinder during battle.
-
-The item is consumed.
-
-No useful revival effect occurs.
-
-### Recommended fix
-
-Do not render auto-trigger-only consumables as manually usable battle items.
-
-Or explicitly define valid manual behavior.
-
----
-
-## P1-10 — Phoenix Cinder can auto-revive repeatedly in one battle
-
-The design documentation says the Phoenix Cinder auto-revives once per battle.
-
-The engine merely checks whether another Cinder remains in inventory whenever HP reaches zero.
-
-There is no per-battle `phoenixUsed` state.
-
-### Consequence
-
-A stack of Cinders can produce multiple revivals in the same boss battle.
-
-### Recommended fix
-
-Add battle state such as:
-
-```ts
-phoenixUsed: boolean;
-```
-
-On first lethal hit:
-
-- if false and item exists → consume one and revive;
-- set true.
-
-Subsequent lethal hits in that battle cause defeat normally.
-
----
-
-# Equipment and economy findings
-
-## P1-11 — Starting equipment is duplicated between inventory and equipment state
-
-### Character creation
-
-The starting weapon and armor are:
-
-1. inserted into `inventory`;
-2. also assigned to `equipment.weapon` and `equipment.armor`.
-
-### Later equip model
-
-Equipping a new item:
-
-1. removes the new item from inventory;
-2. adds the previously equipped item to inventory;
-3. changes the equipment slot.
-
-That later logic assumes equipped items are **not** also in inventory.
-
-### Consequence
-
-The initial state violates the invariant used by all subsequent swaps.
-
-On the first swap, the old starter item can gain an additional bag copy.
-
-The player can also sell/drop the bag representation of an item while its equipped representation
-continues to grant stats.
-
-### Recommended invariant
-
-> An item instance is either in the bag or equipped, never both.
-
-Creation should:
-
-- put starting gear directly into equipment;
-- not add it to inventory.
-
----
-
-## P1-12 — Forge material tier is based on current location, enabling cheap late-game tempering
-
-### Relevant engine
-
-`forgeMaterial(p)` derives the material from:
-
-```ts
-zoneTier(p.currentZone);
-```
-
-Forge is available from the zone UI everywhere.
-
-### Exploit
-
-An endgame player can:
-
-1. equip endgame weapon/armor;
-2. travel to Emberdawn;
-3. use the Chapter-1 forge material mapping;
-4. temper high-tier equipment using cheap Ember Shards.
-
-### Consequence
-
-The intended tier-material progression is bypassable.
-
-### Recommended fix
-
-Derive temper material from:
-
-- the equipped item's `tier`; or
-- the temper level + item tier;
-- not the current zone.
-
----
-
-## P1-13 — Temper progression is stored per slot, not per item
-
-Temper levels are stored in flags like:
-
-```ts
-forge_weapon;
-forge_armor;
-```
-
-### Consequence
-
-Once the player has a +5 weapon slot:
-
-- swapping to any other weapon automatically gives that new weapon +5.
-
-This means tempering is really a permanent character-slot upgrade, despite the writing/UI presenting
-it as tempering the equipped item.
-
-### Decide the intended system
-
-#### If temper belongs to items
-
-Persist upgrades by item instance/item ID.
-
-This requires a richer inventory/equipment representation.
-
-#### If temper belongs to character slots
-
-Keep the current storage but rename/rewrite the system:
-
-- Weapon Mastery
-- Weapon Forge Rank
-- Armor Reinforcement
-
-and design material cost accordingly.
-
-The current implementation and presentation disagree.
-
----
-
-## P1-14 — Forge percentage bonuses apply to aggregate gear stats
-
-`statsOf()` aggregates weapon, armor, and trinket stats first.
-
-Weapon temper then scales aggregate ATK/MAG.
-
-Armor temper scales aggregate DEF/RES/HP.
-
-### Consequence
-
-A trinket that grants ATK can be improved by weapon temper.
-
-A trinket that grants HP can be improved by armor temper.
-
-At the same time, weapon stats such as SPD/HP are not necessarily tempered even when they belong to
-the weapon.
-
-### Recommended fix
-
-Apply temper to each equipped item's own base stats before adding that item into the total equipment
-stats.
-
----
-
-## P1-15 — Shop gear tiers do not align with level progression
-
-Class weapon/armor tier levels are generated approximately at:
-
-- tier 1: level 1
-- tier 2: level 7
-- tier 3: level 13
-- tier 4: level 19
-- tier 5: level 25
-- tier 6: level 31
-- tier 7: level 37
-- tier 8: level 43
-
-Shop stock, however, derives tier from zone chapter:
-
-- Chapter 1 → tier 1
-- Chapter 2 → tier 2
-- ...
-- Abyss Chapter 7 → tier 7
-
-### Consequence
-
-The shop tier generally lags the level at which the next equipment tier becomes legal.
-
-More importantly:
-
-> There is no Chapter 8 zone, so normal shop generation never reaches tier 8.
-
-Therefore the level-43 class weapon/armor sets appear to have no normal shop route.
-
-### Recommended fix
-
-Shop gear tier should probably derive from:
-
-- zone recommended level;
-- player level;
-- explicit zone shop tier;
-
-rather than directly equating chapter number with item tier.
-
----
-
-## P1-16 — Some later trinkets appear disconnected from acquisition progression
-
-The trinket table contains more entries than the normal chapter-indexed shop prefix naturally
-exposes.
-
-In particular, later appended entries such as:
-
-- Thorn Ring
-- Moon Pendant
-- Ember Locket
-
-deserve an acquisition-path audit.
-
-The reviewed quest/boss rewards predominantly use `t_1` through `t_7`.
-
-### Recommendation
-
-Add a static content integrity test:
-
-> Every non-unique equippable item must have at least one acquisition source:
->
-> - shop;
-> - enemy drop;
-> - quest reward;
-> - dungeon reward;
-> - starting equipment.
-
-Do not merely test that the item definition exists.
-
----
-
-# Postgame reward finding
-
-## P1-17 — Postgame XP rewards are mechanically worthless
-
-`MAX_LEVEL = 45`.
-
-`grantXp()` returns immediately when the player is already level 45.
-
-The Abyss/postgame starts at level 45.
-
-Yet postgame content awards very large XP values:
-
-- `m24_below`
-- `m25_silence`
-- Abyss side quests
-- level-45 enemies
-- Endless Seam first clear
-
-### Consequence
-
-The UI announces large XP rewards that have no effect.
-
-This makes a significant part of postgame reward value fake.
-
-### Recommended options
-
-1. Remove XP from postgame and replace it with:
-   - gold;
-   - materials;
-   - cosmetics;
-   - rare gear;
-   - forge currency.
-2. Add a post-45 progression system:
-   - mastery;
-   - prestige;
-   - account rank;
-   - postgame talent points.
-3. Raise level cap if the Abyss is intended as continued leveling content.
-
----
-
-# Persistence and Telegram-message findings
-
-## P0-7 — `messageId` changes during `commit()` are not persisted on normal callbacks
-
-### Intended architecture
-
-The documentation says:
-
-> handler → engine mutation → render → persist
-
-and that if message edit fails, the bot resends and re-points the live message.
-
-### Actual `withPlayer()` flow
-
-It effectively does:
-
-1. load
-2. mutate
-3. `store.set(...)`
-4. render/commit
-5. `commit()` may send a new message and change `p.messageId`
-
-If a resend occurs, the new ID is assigned only after the saved snapshot already exists.
-
-### Consequence
-
-The store retains the stale message ID.
-
-The next callback can cause additional staleness/resend behavior.
-
-This undermines the "single live message" invariant.
-
-### Recommended flow
-
-Something conceptually like:
-
-1. load
-2. mutate
-3. render
-4. edit/send
-5. update `messageId` if needed
-6. persist the final post-commit state
-
-If persistence before send is needed for crash safety, persist twice:
-
-- state mutation checkpoint;
-- final message-pointer checkpoint.
-
-But the stored `messageId` must eventually match the actual live message.
-
----
-
-## P0-8 — `/reset` strongly exposes the same pointer bug
-
-`/reset` creates fresh state and stores it before calling `commit()`.
-
-Fresh state has no live `messageId`.
-
-`commit()` sends a new message and mutates only the in-memory state object.
-
-The updated ID is not written back in the shown command path.
-
-### Consequence
-
-The persisted reset player can continue to have no `messageId`.
-
-Subsequent button interactions are allowed because the staleness guard treats missing pointer as no
-comparison.
-
-Each mutation can then fall into another send path.
-
-This can produce repeated game messages.
-
-### Recommended fix
-
-After any send that establishes a live game message:
-
-```ts
-player.messageId = sent.message_id;
-await store.set(...)
-```
-
-must be guaranteed.
-
----
-
-## P1-18 — Renderers are not actually pure because notices are consumed during rendering
-
-`noticesBlocks(p)` does:
-
-```ts
-p.notices = [];
-```
-
-while constructing view output.
-
-### Problems
-
-1. Rendering mutates PlayerState despite the architecture saying renderers are pure.
-2. Normal callbacks persist the state before rendering, so the cleared notices may not be persisted.
-3. A transient notice can therefore reappear on a later interaction.
-
-### Recommended fix
-
-Rendering must not mutate.
-
-Options:
-
-- clear notices in the mutation/session layer before/after producing the render input;
-- pass notices separately as transient response state;
-- copy notices into a local variable and persist the cleared state intentionally.
-
----
-
-## P1-19 — `/start` does not reliably "re-center" the game
-
-README says:
-
-> If the game message ever gets buried, `/start` re-centers it.
-
-`handleStart()` calls `commit(existing)`.
-
-`commit()` first attempts to edit the current tracked message.
-
-If it remains editable, Telegram updates that old buried message rather than sending a new message
-at the bottom of the conversation.
-
-### Consequence
-
-The user's buried message stays buried.
-
-### Recommended fix
-
-`/start` for an existing character should explicitly send a fresh game message, then set/persist the
-new `messageId`.
-
-That is different from the normal edit-in-place action path.
-
----
-
-## P1-20 — Suspicious Telegram error recovery condition in `commit()`
-
-The error handling includes a condition equivalent to:
-
-```ts
-d.includes('MESSAGE_TOO_LONG') === false;
-```
-
-inside the group of errors that should fall through to resend.
-
-That expression is true for almost every error description except one containing `MESSAGE_TOO_LONG`.
-
-### Consequence
-
-Unexpected `GrammyError`s may be treated as resend-worthy rather than rethrown.
-
-That can:
-
-- hide real API failures;
-- generate duplicate messages;
-- complicate diagnosis.
-
-### Recommendation
-
-Make the resend error whitelist explicit.
-
-Only resend for errors known to mean:
-
-- message missing;
-- message ID invalid;
-- message no longer editable.
-
-Do not use a broad negative condition.
-
----
-
-# Game-design observations
-
-## P2-2 — Safe-haven forage is an infinite zero-risk resource faucet
-
-Emberdawn Village forage can repeatedly produce:
-
-- gold;
-- Minor Potions;
-- rest/flavor.
-
-There is no action-energy system, time cost, or cooldown.
-
-### Consequence
-
-A player can farm infinite gold/potions with no risk.
-
-### Is this necessarily bad?
-
-Not automatically.
-
-For a Telegram game, a low-friction safety loop may be desirable.
-
-But it should be an intentional economic choice.
-
-If the game is meant to make resource acquisition meaningful over weeks of play, this faucet can
-dominate early-game economy.
-
-### Possible alternatives
-
-- forage cooldown;
-- diminishing returns;
-- daily/periodic safe-haven gathering;
-- mostly flavor/rest with rare treasure;
-- trivial rewards that do not compete with combat income.
-
----
-
-## P2-3 — Free safe-haven travel removes dungeon attrition
-
-A player can potentially:
-
-1. clear dungeon floor;
-2. travel to Emberdawn;
-3. fully restore HP/MP;
-4. travel back;
-5. continue next floor.
-
-Dungeon floor progress is persistent.
-
-### Consequence
-
-Dungeons do not function as endurance sequences.
-
-Consumables and MP conservation matter much less between floors.
-
-### Design choice
-
-If dungeons are supposed to be a set of independent fights, this is fine.
-
-If they are supposed to test attrition, consider:
-
-- locking travel while a dungeon run is active;
-- resetting floor progress when leaving;
-- adding dungeon checkpoint/heal rules instead.
-
----
-
-# What is already structurally good
-
-Despite the correctness problems, the broad progression scaffold is solid.
-
-## Zone progression
-
-The zone level ranges hand off reasonably:
-
-- Emberdawn: early game
-- Whisperwood: early Chapter 1
-- Hollowmere: around level 9+
-- Sunspire: around level 16+
-- Frostpeak: around level 23+
-- Cinder: around level 31+
-- Umbra: around level 39+
-- Abyss: level 45 postgame
-
-## Story progression
-
-The chapter arcs have clear mechanical climaxes:
-
-1. Rootbound Hollow
-2. Sunken Shrine
-3. Vault of Hours
-4. Glacier Maw
-5. Pyre Caldera
-6. Sundered Throne
-7. Endless Seam postgame
-
-The story is not fundamentally in need of replacement.
-
-The largest problems are runtime state transitions and encounter availability.
-
-## Architecture potential
-
-Separating:
-
-- `src/content`
-- `src/engine`
-- renderers
-- Telegram handlers
-
-is a strong basis for automated progression validation.
-
-The codebase is small enough that the content graph can be exhaustively audited in tests.
-
----
-
-# Why the current tests miss these failures
-
-## Current "quest satisfiable" test is only referential integrity
-
-The existing test checks approximately:
-
-- kill target enemy exists;
-- collect target item exists;
-- reach target zone exists.
-
-That proves:
-
-> the referenced ID is defined
-
-It does **not** prove:
-
-> the player can obtain enough of that target at the point in progression when the quest is active.
-
-Thus `m11_toll` passes because `e_automaton` exists, even though four kills are impossible.
-
-`m21_loyalty` passes because `e_crownsworn` exists, even though ten kills are impossible.
-
----
-
-## Current zone-reachability test is also only set membership
-
-The test collects:
-
-- starting zones;
-- every zone mentioned by any quest unlock;
-- every zone mentioned by a dungeon reward.
-
-Then it asserts each zone is present in that union.
-
-It does not prove the quest or dungeon granting the zone unlock is itself reachable.
-
-A locked quest chain could still make the test green.
-
----
-
-## Current dungeon test unintentionally validates the wrong behavior
-
-The dungeon test repeatedly calls `diveDungeon()` without actually winning each normal-floor battle.
-
-Because `diveDungeon()` itself increments the floor, the test sees progression.
-
-This means the test effectively validates:
-
-> entering a dungeon battle advances the dungeon
-
-which is precisely the behavior that should be considered a bug.
-
----
-
-# Recommended new tests
-
-The following tests should be added before or alongside implementation fixes.
-
-## 1. Dungeon progress advances only on victory
-
-Test:
-
-1. enter floor 1;
-2. inspect next-floor state;
-3. confirm it has **not** advanced;
-4. simulate victory;
-5. call dungeon-victory normal-floor hook;
-6. confirm floor becomes 2.
-
----
-
-## 2. Flee does not advance dungeon floor
-
-Test:
-
-1. enter normal floor;
-2. force successful flee;
-3. dive again;
-4. confirm same floor is presented.
-
----
-
-## 3. Death does not advance dungeon floor
-
-Test:
-
-1. enter normal floor;
-2. kill player;
-3. revive;
-4. return;
-5. confirm same floor is pending.
-
----
-
-## 4. Boss death does not permanently skip boss
-
-Test:
-
-1. reach boss floor;
-2. lose;
-3. revive;
-4. return;
-5. confirm boss remains available.
-
----
-
-## 5. Cleared boss can actually be re-challenged
-
-Test:
-
-1. defeat boss;
-2. confirm first-clear applied once;
-3. start rechallenge;
-4. defeat again;
-5. confirm no second first-clear reward.
-
----
-
-## 6. Overworld boss-ID collision cannot trigger dungeon bookkeeping
-
-Test specifically for Abyss:
-
-1. spawn `e_warden` from exploration origin;
-2. defeat it;
-3. assert:
-   - no `seamCleared`;
-   - no Endless Seam first-clear reward.
-
-Then:
-
-1. spawn Warden as `d_seam` boss origin;
-2. defeat;
-3. assert first clear occurs.
-
----
-
-## 7. Dungeon boss cannot be entered before story gate
-
-For each story dungeon, attempt to reach boss floor without completing the relevant gate quest.
-
-Assert blocked with the correct narrative reason.
-
----
-
-## 8. Full main-story progression simulation
-
-This is the most important test.
-
-Build a deterministic progression harness that starts from:
-
-```ts
-createPlayer(...)
-```
-
-and proves the player can reach:
-
-```text
-m1 → m2 → ... → m25
-```
-
-using only content available at each stage.
-
-It does not have to simulate thousands of real combat turns.
-
-The harness can abstract combat victory while still respecting:
-
-- unlocked zones;
-- encounter source tables;
-- quest availability;
-- item drop/acquisition sources;
-- dungeon floor rules;
-- level requirements;
-- story gates.
-
-The critical property is:
-
-> no quest objective requires an enemy/item/location that is unavailable or finitely available below
-> its required count.
-
----
-
-## 9. Static encounter-capacity test
-
-For every kill quest target:
-
-- determine whether the enemy is repeatably available via exploration;
-- otherwise determine the maximum number of times it can occur in finite one-time content.
-
-If:
-
-```text
-required kills > maximum finite encounters
-```
-
-fail the test.
-
-This would have caught both `m11` and `m21`.
-
----
-
-## 10. Item acquisition-path test
-
-For every collect quest target, verify at least one acquisition path exists before/during that
-quest:
-
-- repeatable enemy drop;
-- treasure;
-- shop;
-- prior quest reward;
-- dungeon reward.
-
-For probabilistic drops, ensure the source is repeatable unless the item is guaranteed before the
-finite source is exhausted.
-
----
-
-## 11. Every equippable item has a source
-
-For each weapon/armor/trinket:
-
-- starting gear OR
-- shop OR
-- quest reward OR
-- dungeon reward OR
-- enemy drop.
-
-Fail if unreachable.
-
----
-
-## 12. Invalid skill action does not consume turn
-
-Attempt:
-
-- skill on cooldown;
-- skill without MP.
-
-Assert:
-
-- enemy turn counter unchanged;
-- player HP unchanged from enemy action;
-- battle round unchanged.
-
----
-
-## 13. Venom Cut weakens enemy offense
-
-Apply Venom Cut.
-
-Measure enemy outgoing damage with deterministic RNG.
-
-Assert enemy damage is lower, while player offense remains unchanged.
-
----
-
-## 14. Smoke Bomb guarantees escape from non-boss
-
-Use Smoke Bomb in normal combat.
-
-Assert:
-
-- phase = `fled`;
-- item consumed;
-- no enemy action.
-
-Against boss:
-
-- confirm either blocked or behaves according to intended design.
-
----
-
-## 15. Phoenix Cinder once per battle
-
-Give player two Cinders.
-
-Force lethal damage twice.
-
-Assert:
-
-- first lethal hit revives and consumes one;
-- second lethal hit causes defeat;
-- second item remains in bag for future battle.
-
----
-
-## 16. Render functions do not mutate PlayerState
-
-Clone player.
-
-Call every renderer.
-
-Assert deep equality after render.
-
-This immediately catches notice clearing in the render layer.
-
----
-
-## 17. Resend persists new `messageId`
-
-Use a fake API/store where edit fails with a known recoverable error and send returns a new ID.
-
-After callback finishes:
-
-```ts
-(await store.get(userId)).messageId === newMessageId;
-```
-
----
-
-## 18. `/start` sends a new live message
-
-Existing player with old editable game message:
-
-- run `/start`;
-- assert a new message is sent;
-- assert new message ID persisted;
-- assert old callback is rejected as stale.
-
----
-
-# Recommended repair sequence
-
-## Phase 1 — make campaign progression valid
-
-Do these before balancing.
-
-### 1. Redesign dungeon state
-
-Required capabilities:
-
-- encounter provenance;
-- floor advance on victory only;
-- same floor after flee/death;
-- floor treasure on victory;
-- real cleared state;
-- explicit boss rechallenge;
-- no first-clear duplication.
-
-### 2. Add story boss gates
-
-Prefer boss-floor gates rather than blocking all dungeon access.
-
-### 3. Fix `m11_toll`
-
-Make Automatons repeatably available or redesign objective.
-
-### 4. Fix `m21_loyalty`
-
-Put Crownsworn into repeatable Umbral content or redesign quest.
-
-### 5. Separate overworld Warden from dungeon-clear bookkeeping
-
-Battle origin should determine dungeon hooks.
-
-### 6. Add full main-story progression test
-
-Only after this test is green should later balancing be trusted.
-
----
-
-## Phase 2 — repair quest/item semantics
-
-- refresh collect quests when inventory changes;
-- decide acquisition-vs-delivery semantics;
-- move Sunspire unlock to correct quest;
-- audit `m22` key redundancy;
-- verify every quest item has a repeatable/guaranteed acquisition source.
-
----
-
-## Phase 3 — repair combat correctness
-
-- Smoke Bomb;
-- Venom Cut/enemy debuffs;
-- Phoenix Cinder manual-use visibility;
-- one Cinder activation per battle;
-- invalid skills should not consume turn;
-- make SPD mechanically meaningful.
-
----
-
-## Phase 4 — repair equipment/forge/economy
-
-- remove duplicate starting equipped gear from inventory;
-- decide whether temper belongs to item or equipment slot;
-- material requirement based on item/progression rather than current zone;
-- apply forge percentage to item stats before aggregation;
-- align shop tier with item level progression;
-- verify tier-8 gear acquisition;
-- verify every trinket acquisition path.
-
----
-
-## Phase 5 — repair message lifecycle/persistence
-
-- render must be pure;
-- persist final message ID after resend;
-- fix `/reset` message pointer;
-- make `/start` explicitly send a new recentered message;
-- tighten recoverable Telegram error matching.
-
----
-
-## Phase 6 — rebalance
-
-Only after progression correctness:
-
-- XP curve;
-- quest XP;
-- boss XP;
-- gold economy;
-- forge costs;
-- safe-haven farming;
-- travel/heal attrition;
-- drop rates;
-- class power.
-
----
-
-# Suggested implementation architecture for dungeons
-
-A useful direction is to stop using only a numeric `dgn_*_floor` flag as implicit encounter state.
-
-For example, persisted dungeon progress could conceptually become:
-
-```ts
-interface DungeonProgress {
-  nextFloor: number;
-  cleared: boolean;
-  treasuresClaimed: number[];
-}
-```
-
-Battle origin could be:
-
-```ts
-type BattleOrigin =
-  | {
-    kind: 'explore';
-    zoneId: string;
-  }
-  | {
-    kind: 'dungeon';
-    zoneId: string;
-    dungeonId: string;
-    floor: number;
-    isBoss: boolean;
-  };
-```
-
-Then victory resolution can do:
-
-```text
-if explore:
-    normal battle rewards only
-
-if dungeon normal floor:
-    grant battle rewards
-    grant floor treasure if first clear
-    advance floor
-
-if dungeon boss:
-    grant battle rewards
-    mark clear
-    grant first-clear once
-    progress dungeon/story objective
-```
-
-Flee/death simply does not call the dungeon-success transition.
-
-This one design change solves several currently separate bugs.
-
----
-
-# Suggested content-integrity model
-
-The current content integrity layer should evolve from:
-
-> Does this ID exist?
+# Executive summary
+
+The repair pass is a **substantial improvement**.
+
+The previous deterministic main-story hardlocks in Chapter 3 and Chapter 6 are genuinely fixed, and the dungeon/combat changes are mostly implemented correctly rather than cosmetically.
+
+In particular, the following major systems are now materially better:
+
+- dungeon battles carry structured provenance;
+- normal dungeon floors advance only after victory;
+- flee/death no longer inherently skips floors;
+- floor treasure is actually granted;
+- boss rematches exist;
+- story boss floors are gated;
+- Automaton and Crownsworn main-quest kill capacities are now repeatable;
+- overworld encounters no longer automatically trigger dungeon first-clear bookkeeping;
+- Smoke Bomb works;
+- Venom Cut weakens the enemy rather than the Rogue;
+- invalid cooldown/MP skill taps no longer spend a turn;
+- SPD buffs affect fleeing;
+- Phoenix Cinder is automatic-only and once-per-battle;
+- new-character equipped gear no longer also exists in the bag;
+- forge material and stat scaling are much more coherent;
+- tier-8 class gear is purchasable;
+- normal callback message-pointer persistence is fixed;
+- renderer notice consumption is now pure;
+- the Telegram resend whitelist is appropriately narrowed.
+
+However:
+
+> **The previous audit should not yet be considered closed.**
+
+There are still several significant correctness gaps, including one final-story bypass, migration/data-loss bugs, message-lifecycle regressions, collect-quest delivery bugs, and multiple gameplay integrity checks still missing from the engine.
+
+The project has moved from:
+
+> **campaign structurally broken**
 
 to:
 
-> Can this content be reached and consumed in the progression graph?
+> **campaign broadly functional, but correctness-incomplete**
 
-Useful graph concepts:
+The remaining work is much narrower and more actionable than the original audit.
 
-## Repeatable sources
+---
 
-- zone exploration enemy;
-- shop;
-- repeatable boss;
-- repeatable dungeon encounter if implemented.
+# Current priority map
 
-## Finite sources
+## P0 — high-severity correctness / save integrity / story correctness
 
-- one-time dungeon floor;
-- first-clear reward;
-- one-time quest reward.
+1. `m25_silence` can still be completed from an overworld Warden without entering the Endless Seam.
+2. `/start` kills/abandons the player if any battle exists.
+3. `backfillPlayer()` can silently delete legitimate duplicate inventory gear on every load.
+4. Legacy active battles are not fully migrated for newly-added combat buff fields and can produce `NaN` combat values.
+5. Stale onboarding/meta callbacks can bypass the live-message staleness guard and potentially reset an existing character.
+6. Class-pick commit/save ordering still retains the old message-pointer persistence bug on that one path.
+7. Newer-message adoption can be lost because the callback path loads the player twice.
 
-## Gate edges
+## P1 — significant gameplay correctness / incomplete original fixes
 
-- quest prerequisite;
-- level requirement;
-- zone unlock;
-- boss gate;
-- required item/flag.
+8. Collect quests can still be turned in after required goods are spent/dropped.
+9. Dungeon/cache/first-clear item gains do not consistently trigger collect-objective refresh.
+10. Sunspire Key remains narrative-only and does not mechanically gate the Vault boss.
+11. Engine equip logic does not verify the player still owns the item.
+12. Engine skill execution does not verify the player has learned that skill or that it belongs to their class.
+13. Equipping/unequipping gear can leave current HP/MP above the new maximum.
+14. Cleric creation miscalculates starting HP because weapon/armor stat objects are shallow-merged instead of summed.
+15. Shop tier formula unlocks new gear one level too early.
+16. `t_9`–`t_11` trinkets now have a source, but their acquisition timing is badly wrong.
+17. Boss first-clear trinket rewards remain obsolete by the time they are earned.
+18. Postgame XP remains mechanically worthless.
+19. Safe-haven forage remains infinitely repeatable through free travel resets.
 
-Then a test can reason about whether an objective has enough capacity before the next gate.
+## P2 — design / test / documentation completeness
+
+20. The flagship `m1→m25` test is useful but is not a true full progression simulation.
+21. There is still no systematic collect-item acquisition-source test.
+22. Free safe-haven healing between dungeon floors still removes dungeon attrition.
+23. Forge temper is bound to item ID/model, not an individual item instance; clarify whether that is intended.
+24. README still has stale dungeon/count/wording details.
+
+---
+
+# Findings that are genuinely resolved
+
+These do **not** need another redesign unless later tests reveal a regression.
+
+## Main quest encounter capacity
+
+### `m11_toll`
+
+Previously required four Automatons but had fewer than four possible encounters.
+
+Now `e_automaton` is present in Sunspire's repeatable exploration table.
+
+**Status:** resolved.
+
+### `m21_loyalty`
+
+Previously required ten Crownsworn but Crownsworn existed only in limited one-time dungeon floors.
+
+Now `e_crownsworn` is present in Umbral Spire exploration.
+
+**Status:** resolved.
+
+---
+
+## Dungeon progression
+
+The dungeon rewrite correctly improves the state machine:
+
+- structured `BattleOrigin`;
+- no floor advancement on battle start;
+- normal-floor advancement on victory;
+- normal-floor treasure on victory;
+- boss rematches after clear;
+- dungeon first-clear logic only on dungeon-origin boss victories.
+
+**Status:** substantially resolved.
+
+---
+
+## Combat semantics
+
+Correctly resolved:
+
+- Smoke Bomb escapes normal fights and is not consumed against bosses.
+- Venom Cut writes enemy-side weaken state.
+- Enemy outgoing damage respects that weaken.
+- Invalid MP/cooldown skill use does not progress enemy phase.
+- Skill menu disables unavailable skills.
+- Flee probability uses buffed SPD.
+- Phoenix Cinder is hidden from manual battle-item use.
+- Phoenix Cinder triggers at most once per battle.
+
+**Status:** resolved.
+
+---
+
+## Forge core behavior
+
+Correctly improved:
+
+- temper material comes from the equipped item's tier, not current location;
+- temper level is no longer a generic slot-global upgrade;
+- stat scaling occurs per equipment item before aggregation;
+- trinket stats no longer accidentally receive weapon/armor temper scaling.
+
+**Status:** core original bugs resolved.
+
+One semantic caveat remains later in this document: temper is really bound to **item ID/model**, not individual item instance.
+
+---
+
+## Rendering and normal callback persistence
+
+Correctly improved:
+
+- notice rendering no longer mutates player state;
+- normal callback `commit()` occurs before final persistence;
+- resend-updated `messageId` is therefore stored;
+- resend error matching is no longer effectively "resend on almost anything".
+
+**Status:** resolved for the ordinary callback path.
+
+There are still special-path issues in onboarding and `/start`.
+
+---
+
+# P0-1 — Final story quest still bypasses the Endless Seam
+
+## Current behavior
+
+`m25_silence` still has the objective:
+
+```ts
+{ kind: 'kill', target: 'e_warden', count: 1 }
+```
+
+The Abyss exploration table still contains `e_warden` as an overworld elite.
+
+Structured battle provenance now correctly prevents an overworld Warden from setting the Endless Seam dungeon-clear flag.
+
+That is good.
+
+However, quest kill progress remains keyed only by enemy ID.
+
+Therefore an overworld Warden kill still increments `m25_silence`.
+
+The new regression test even explicitly expects this:
+
+> overworld Warden kill counts the quest but does not clear the Seam
+
+That means a player can finish the final story quest without ever entering the final dungeon.
+
+## Practical sequence
+
+1. Finish `m24_below`.
+2. Accept `m25_silence`.
+3. Remain in Abyss overworld.
+4. Explore until elite `e_warden` appears.
+5. Kill it.
+6. `m25_silence` becomes ready.
+7. Turn it in.
+8. Receive final outro / `seamConquered`.
+9. Endless Seam never entered.
+
+## Why this matters
+
+The narrative explicitly says:
+
+> Face the Warden of the Void **at the bottom of the Seam**.
+
+The implementation still treats:
+
+> kill any enemy with ID `e_warden`
+
+as equivalent.
+
+## Recommended fix
+
+### Preferred
+
+Use the existing `dungeon` objective type:
+
+```ts
+objectives: [
+  { kind: 'dungeon', target: 'd_seam' }
+]
+```
+
+Then add a dungeon-completion hook from actual first boss clear.
+
+Conceptually:
+
+```ts
+export function onDungeonClear(p: PlayerState, dungeonId: string): void {
+    progressObjective(p, 'dungeon', dungeonId);
+}
+```
+
+Call it only on first clear of that dungeon.
+
+### Alternative
+
+Create a different overworld elite ID, e.g.:
+
+```text
+e_void_reaver
+e_abyssal_harbinger
+e_lesser_warden
+```
+
+and reserve `e_warden` for the dungeon boss.
+
+This is also desirable for narrative uniqueness.
+
+### Test
+
+Replace the current test with two assertions:
+
+```text
+overworld elite kill:
+- m25 remains active
+- seam not cleared
+
+d_seam boss kill:
+- m25 progresses
+- seam clears
+```
+
+---
+
+# P0-2 — `/start` now treats an active battle as a death
+
+## Current implementation
+
+`handleStart()` re-centers to a fresh message, but before doing so it checks for any battle and calls death handling.
+
+Equivalent behavior:
+
+```ts
+if (existing.battle) {
+    existing.battle = undefined;
+    existing.notices.push(applyDeath(existing));
+}
+```
+
+`applyDeath()`:
+
+- increments deaths;
+- removes 10% gold;
+- moves player to safe haven;
+- sets HP/MP to half.
+
+## Problem
+
+`/start` is documented and conceptually used as:
+
+> re-center the game message if it is buried
+
+It should not be a gameplay action.
+
+A user can issue `/start` in the middle of a perfectly healthy boss fight simply because the game message is far up the Telegram chat.
+
+They then lose:
+
+- the fight;
+- 10% gold;
+- their current location;
+- one death statistic.
+
+It also triggers if a battle is already `won` but the user has not yet tapped Continue.
+
+## Recommended fix
+
+`/start` should preserve all current gameplay state.
+
+It should only force a fresh live message:
+
+```ts
+existing.notices = ['🧭 The flame guides you back.'];
+existing.messageId = undefined;
+
+await commit(ctx, existing);
+await store.set(from.id, existing);
+```
+
+No battle mutation.
+
+No death.
+
+No travel.
+
+No gold penalty.
+
+If an explicit abandon-battle mechanic is desired, create a dedicated control/command.
+
+## Test
+
+Integration test:
+
+1. enter battle;
+2. record:
+   - HP;
+   - MP;
+   - gold;
+   - currentZone;
+   - battle state;
+   - deaths;
+3. send `/start`;
+4. assert:
+   - battle unchanged;
+   - gold unchanged;
+   - deaths unchanged;
+   - zone unchanged;
+   - new `messageId` persisted.
+
+Also test a won-but-not-continued battle.
+
+---
+
+# P0-3 — Existing-save equipment migration can delete legitimate inventory
+
+## Current migration
+
+To clean up the old "equipped gear is also in inventory" bug:
+
+```ts
+for (const slot of ['weapon', 'armor']) {
+    const eq = p.equipment[slot];
+    if (eq && countOf(p, eq) > 0) removeItem(p, eq, 1);
+}
+```
+
+This runs every time `backfillPlayer()` runs.
+
+## Why this is unsafe
+
+The same item ID can legitimately exist:
+
+- equipped once;
+- plus one or more extra copies in inventory.
 
 Example:
 
 ```text
-m11 requires 4 × e_automaton
-
-repeatable field sources = 0
-finite possible dungeon occurrences = 3
-
-3 < 4 → fail
+Iron Sword equipped
+Iron Sword ×2 in bag
 ```
 
-That is the kind of automated invariant this game needs.
+The migration cannot determine whether those bag copies are:
+
+- old invalid legacy duplicates;
+- or legitimate purchases/drops.
+
+Every load removes one.
+
+Repeated callbacks can therefore delete legitimate player property.
+
+## Recommended solution: explicit save schema version
+
+Add something like:
+
+```ts
+interface PlayerState {
+    stateVersion: number;
+    ...
+}
+```
+
+Example:
+
+```ts
+const CURRENT_STATE_VERSION = 2;
+
+export function migratePlayer(p: PlayerState): void {
+    const version = p.stateVersion ?? 0;
+
+    if (version < 1) {
+        migrateLegacyStartingGearDuplication(p);
+    }
+
+    if (version < 2) {
+        migrateBattleProvenanceAndBuffs(p);
+    }
+
+    p.stateVersion = CURRENT_STATE_VERSION;
+}
+```
+
+Each destructive migration runs once.
+
+## Important
+
+Do not use:
+
+> "if state happens to look like old state"
+
+as the migration marker for destructive operations.
+
+Use an explicit version.
+
+## Tests
+
+- old save with duplicate starter gear → cleaned once;
+- call migration again → no further removal;
+- new save with equipped Iron Sword + legitimate bag copies → untouched;
+- persistence round-trip keeps `stateVersion`.
 
 ---
 
-# Documentation inconsistencies to clean up after fixes
+# P0-4 — Legacy active battles lack new enemy weaken fields
 
-Do not prioritize these above gameplay correctness.
+## Change
 
-## Quest count comment
+`CombatBuffs` now contains:
 
-`src/content/quests.ts` header says the main storyline has 24 quests, while the IDs run through
-`m25`.
+```ts
+enemyWeakenedPct
+enemyWeakenTurns
+```
 
-## README counts
+Enemy damage uses:
+
+```ts
+1 - buffs.enemyWeakenedPct
+```
+
+## Existing-save problem
+
+An old persisted battle created before these fields existed has no such properties.
+
+JavaScript behavior:
+
+```ts
+1 - undefined === NaN
+```
+
+That can propagate into:
+
+- enemy offense;
+- raw damage;
+- player HP.
+
+## Current migration
+
+Battle origin string migration exists.
+
+New combat fields are not initialized.
+
+## Fix
+
+As part of versioned battle migration:
+
+```ts
+b.buffs.enemyWeakenedPct ??= 0;
+b.buffs.enemyWeakenTurns ??= 0;
+b.phoenixUsed ??= false;
+```
+
+Also review every other field added to persisted state since the prior schema.
+
+## Test
+
+Construct a literal pre-update serialized battle shape with:
+
+- old string origin;
+- no enemy weaken fields;
+- no phoenixUsed;
+
+run migration;
+
+then perform an enemy action and assert:
+
+- all stats finite;
+- damage finite;
+- no `NaN`;
+- correct structured origin.
+
+---
+
+# P0-5 — Meta callbacks bypass the staleness guard
+
+## Current routing
+
+Meta callbacks are handled before ordinary live-message validation.
+
+Conceptually:
+
+```ts
+if (cb.v === 'meta') {
+    handleMeta(...);
+    return;
+}
+```
+
+## Problem
+
+This makes stale button-bearing messages special in a dangerous way.
+
+### Worst case: stale class picker
+
+Sequence:
+
+1. User sends `/start` twice before creating a character.
+2. Two class-picker messages exist.
+3. User chooses Mage on picker B.
+4. Plays for a while.
+5. Later taps Warrior on stale picker A.
+6. Meta callback bypasses staleness guard.
+7. `metaAction('pick')` creates a new Warrior.
+
+This can reset the player's character without `/reset`.
+
+## Additional issue
+
+Old Help buttons also bypass ordinary staleness semantics and can change the current scene unexpectedly.
+
+## Fix
+
+### Rule
+
+Only onboarding `pick` should be allowed without an existing character.
+
+If a player already exists:
+
+```ts
+if (cb.a === 'pick') {
+    return toast("You already have a character.");
+}
+```
+
+For meta callbacks on an existing character:
+
+- apply the same live-message validation;
+- or route them through the ordinary loaded-player pipeline.
+
+## Integration tests
+
+### Stale picker
+
+1. create two pickers;
+2. pick class on newest;
+3. tap class on older;
+4. existing player must remain unchanged.
+
+### Existing character
+
+Direct/forged `m:pk:*` callback must never replace an existing save.
+
+---
+
+# P0-6 — Class creation still uses save-before-commit
+
+## Current path
+
+On class pick:
+
+```text
+set messageId to picker ID
+save player
+commit/edit picker
+return
+```
+
+## Why this retains the original bug
+
+If editing the picker fails with a resendable error:
+
+- `commit()` sends a fresh message;
+- updates `player.messageId`;
+- but no final `store.set()` occurs.
+
+The database still points at the old picker message.
+
+Also:
+
+- `commit()` clears notices after successful delivery;
+- pre-commit persisted state still contains onboarding notices.
+
+## Fix
+
+Use:
+
+```ts
+await ctx.answerCallbackQuery();
+await commit(ctx, player);
+await store.set(userId, player);
+```
+
+Same invariant as the repaired ordinary callback path:
+
+> persist the final message pointer after delivery.
+
+## Test
+
+Mock edit failure:
+
+- picker edit throws `message can't be edited`;
+- sendRichMessage returns ID N;
+- persisted `messageId === N`.
+
+Also assert onboarding notices are not persisted after delivery.
+
+---
+
+# P0-7 — Newer-message adoption is lost because the player is loaded twice
+
+## Current flow
+
+`handleCallback()`:
+
+1. `store.get()`
+2. `isLiveMessage(p, ctx)`
+
+`isLiveMessage()` may adopt a newer message:
+
+```ts
+p.messageId = tapped;
+```
+
+Then:
+
+3. `withPlayer()` calls `store.get()` again.
+
+With PostgreSQL, the second read creates a new object from persisted JSON and loses the in-memory adoption from step 2.
+
+## Why tests can miss this
+
+`MemoryStore.get()` returns the same stored object reference.
+
+So mutation can appear to survive accidentally in tests.
+
+PostgreSQL returns deserialized data.
+
+## Recommended architecture
+
+Load exactly once.
+
+For example:
+
+```ts
+const p = await store.get(id);
+
+if (!isLiveMessage(p, ctx)) ...
+await withLoadedPlayer(ctx, store, p, dispatch);
+```
+
+Or change `withPlayer()` to accept an already-loaded state.
+
+## Test
+
+Use a store implementation whose `get()` always returns a structured clone.
+
+That reproduces production-style object isolation.
+
+Test:
+
+1. stored message ID = 100;
+2. callback message ID = 101;
+3. adoption allowed;
+4. final persisted ID must be 101 unless commit replaces it with another fresh ID.
+
+---
+
+# P1-1 — Collect delivery is not revalidated at turn-in
+
+## Current behavior
+
+Once a collect quest transitions to `turnIn`, it stays ready.
+
+`turnInQuest()` then:
+
+1. marks quest done;
+2. removes required items;
+3. ignores `removeItem()` failure;
+4. grants rewards.
+
+## Exploit
+
+Example:
+
+- Quest requires 6 Ember Shards.
+- Player reaches 6 → quest becomes `turnIn`.
+- Player spends those shards at Forge.
+- Player presses Turn In.
+- `removeItem()` fails.
+- Failure ignored.
+- Quest completes anyway.
+
+## Multi-quest version
+
+Two active quests can both become ready from the same shared materials.
+
+Turning in one can consume them.
+
+The other remains `turnIn` and can still be completed without goods.
+
+## Correct invariant
+
+At turn-in:
+
+> The player must currently possess every required delivered item.
+
+## Recommended implementation
+
+Before changing state:
+
+```ts
+for (const obj of q.objectives) {
+    if (obj.kind !== 'collect') continue;
+
+    const need = obj.count ?? 1;
+
+    if (countOf(p, obj.target) < need) {
+        qp.status = 'active';
+        return {
+            ok: false,
+            lines: [`You no longer have enough ${itemName(obj.target)}.`],
+        };
+    }
+}
+```
+
+Only after **all** checks pass:
+
+- remove all required goods;
+- mark done;
+- grant rewards.
+
+Ideally make the consumption atomic:
+
+1. validate everything;
+2. mutate everything.
+
+## Tests
+
+- ready quest → drop goods → turn-in refused;
+- ready quest → forge goods → turn-in refused;
+- two quests share resources → only one can consume them unless enough remain;
+- no partial removal if later objective is missing.
+
+---
+
+# P1-2 — Item-gain quest refresh is still fragmented
+
+The repair introduced `onItemGain()` and calls it in some places:
+
+- shops;
+- exploration treasure.
+
+But item acquisition still exists in multiple places that call `addItem()` directly.
+
+Examples include:
+
+- dungeon floor treasure;
+- dungeon first-clear item;
+- quest rewards;
+- enemy reward pipeline indirectly.
+
+Some later action may call `syncAvailability()` and eventually refresh the quest, but the intended new invariant:
+
+> acquiring the final required item immediately makes the quest ready
+
+is not centralized.
+
+## Better architecture
+
+Avoid requiring every item source to remember a quest hook.
+
+Add a helper:
+
+```ts
+export function grantItem(
+    p: PlayerState,
+    itemId: string,
+    qty = 1,
+): string[] {
+    addItem(p, itemId, qty);
+    return onItemGain(p);
+}
+```
+
+or integrate the hook into a higher-level inventory operation.
+
+Be careful not to create circular dependencies between `inventory.ts` and `quests.ts`.
+
+A small reward service/module may be cleaner.
+
+## Tests
+
+For each acquisition mechanism:
+
+- enemy drop;
+- exploration treasure;
+- dungeon floor cache;
+- dungeon first-clear;
+- quest reward;
+- shop purchase;
+
+assert a collect quest becomes ready immediately when the threshold is reached.
+
+---
+
+# P1-3 — Sunspire Key is still not a mechanical key
+
+`m11_toll` awards:
+
+```text
+q_sunspire_key
+```
+
+Narrative:
+
+> The Vault only opens for its own key.
+
+But the Vault boss gate currently checks whether the boss quest `m12_chronolich` has begun.
+
+Possessing the Sunspire Key is not required.
+
+The player can drop the key before entering the boss chamber and proceed normally.
+
+## Recommendation
+
+Choose one:
+
+### Option A — use the key directly
+
+Boss gate supports required item:
+
+```ts
+bossGate: {
+    quest: 'm12_chronolich',
+    item: 'q_sunspire_key',
+    consumeItem: true,
+}
+```
+
+Consume only on first boss entry.
+
+### Option B — make the key a collect/delivery part of `m12`
+
+For example:
+
+```ts
+objectives: [
+  { kind: 'collect', target: 'q_sunspire_key', count: 1 },
+  { kind: 'kill', target: 'e_chronolich', count: 1 }
+]
+```
+
+The first approach fits the narrative better.
+
+---
+
+# P1-4 — Equipping does not verify ownership
+
+## Current behavior
+
+Equip handler:
+
+```text
+check item is equippable
+removeItem(...)
+ignore return value
+set equipment slot
+```
+
+A legal item ID can therefore become equipped even if it is no longer in inventory.
+
+## Realistic triggers
+
+Not only malicious/forged callbacks.
+
+Telegram message ID staleness does not distinguish revisions of the same edited message.
+
+Two rapid taps can race:
+
+- first tap consumes/equips item;
+- second tap acts on stale UI state;
+- second call can still install the item despite no bag copy remaining.
+
+## Fix
+
+```ts
+if (!removeItem(p, itemId, 1)) {
+    return { toast: "You don't have that." };
+}
+```
+
+Only then swap equipment.
+
+## Test
+
+Call equip action twice with one copy.
+
+Second attempt must fail without changing inventory/equipment.
+
+---
+
+# P1-5 — Combat does not validate learned/class-owned skills
+
+## Current validation
+
+Skill action checks:
+
+- skill definition exists;
+- cooldown;
+- MP.
+
+It does not check:
+
+```ts
+p.skills.includes(sk.id)
+sk.classId === p.classId
+```
+
+UI hides unlearned skills, but the engine explicitly claims to remain safe against stale/forged callbacks.
+
+It currently is not.
+
+## Consequence
+
+A sufficiently crafted callback can request a real skill the player never learned.
+
+If MP is sufficient, the engine executes it.
+
+## Fix
+
+Before cooldown/MP:
+
+```ts
+if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
+    lines.push("You haven't learned that skill.");
+    return { lines, consumedTurn: false };
+}
+```
+
+## Tests
+
+- Warrior submits Mage Cataclysm callback → refused;
+- level-1 Mage submits Meteor → refused;
+- learned skill remains usable.
+
+---
+
+# P1-6 — Equipment changes do not clamp current HP/MP
+
+Some equipment increases max HP or max MP.
+
+After removing/swapping that equipment, current pools are not reduced to the new maximum.
+
+## Exploit
+
+1. Equip +HP trinket.
+2. Heal to new maximum.
+3. Swap to offensive trinket.
+4. Keep HP above current max.
+
+Same for MP.
+
+## Fix
+
+After every equipment mutation:
+
+```ts
+const s = statsOf(p);
+p.hp = Math.min(p.hp, s.maxHp);
+p.mp = Math.min(p.mp, s.maxMp);
+```
+
+Apply to:
+
+- equip;
+- unequip;
+- any future item destruction affecting equipped stats.
+
+## Test
+
+Equip HP/MP item → fill pool → unequip → current pool equals new maximum.
+
+---
+
+# P1-7 — Cleric does not start at full HP
+
+## Root cause
+
+Creation computes initial gear stats with shallow object spread:
+
+```ts
+{
+  ...itemStats(startingWeapon),
+  ...itemStats(startingArmor)
+}
+```
+
+If both weapon and armor define the same stat, the later object overwrites the earlier stat rather than adding them.
+
+Cleric starting weapon and armor both contribute HP.
+
+Normal `statsOf()` later correctly sums them.
+
+Therefore initial HP is calculated from a smaller total than the actual maximum after creation.
+
+## Practical result
+
+Cleric starts slightly injured.
+
+## Better fix
+
+Do not duplicate stat-aggregation logic in character creation.
+
+Construct base player state, assign equipment, then derive pools using the same canonical function:
+
+```ts
+const p = { ... };
+
+const s = statsOf(p);
+p.hp = s.maxHp;
+p.mp = s.maxMp;
+```
+
+Or extract a shared equipment-stat aggregator.
+
+## Test
+
+For **all four classes**:
+
+```ts
+p.hp === statsOf(p).maxHp
+p.mp === statsOf(p).maxMp
+```
+
+Do not only test Warrior.
+
+---
+
+# P1-8 — Shop tier formula is one level early
+
+Item tier equip levels:
+
+```text
+tier 1 → level 1
+tier 2 → level 7
+tier 3 → level 13
+tier 4 → level 19
+tier 5 → level 25
+tier 6 → level 31
+tier 7 → level 37
+tier 8 → level 43
+```
+
+Current shop level tier approximately:
+
+```ts
+Math.floor(p.level / 6) + 1
+```
+
+This gives:
+
+```text
+level 6  → tier 2
+level 12 → tier 3
+level 18 → tier 4
+...
+```
+
+one level before the item can be equipped.
+
+## Correct formula
+
+```ts
+Math.floor((p.level - 1) / 6) + 1
+```
+
+clamped to 1..8.
+
+## Additional design decision
+
+The current zone lower-bound clamp may force a low-level visitor to see/buy gear they cannot equip.
+
+Possible policies:
+
+- stock based only on player level;
+- zone determines maximum quality, player determines actual offered tier;
+- show but disable gear above player level.
+
+---
+
+# P1-9 — `t_9`–`t_11` have the wrong acquisition timing
+
+The prior audit found these trinkets had no meaningful acquisition route.
+
+The fix exposes all remaining trinkets in tier-7+ shops.
+
+That technically gives them a source.
+
+But:
+
+```text
+t_9  Thorn Ring     level 5
+t_10 Moon Pendant   level 13
+t_11 Ember Locket   level 29
+```
+
+They first become purchasable near endgame.
+
+By then they are generally obsolete.
+
+## Root problem
+
+Trinket progression is tied to array position, but the array is not sorted monotonically by level.
+
+## Fix
+
+Do not determine trinket shop availability from index.
+
+Filter by actual item level:
+
+```ts
+TRINKET_ITEMS.filter(t => t.level <= shopLevelCap)
+```
+
+Potentially expose several level-appropriate trinkets across different zones.
+
+## Test
+
+For each trinket:
+
+- verify first available shop band is reasonably close to `ItemDef.level`;
+- no level-5 item should first appear around level 37+.
+
+---
+
+# P1-10 — Boss first-clear trinkets are obsolete on arrival
+
+Examples:
+
+```text
+Vault          → t_2
+Glacier Maw    → t_3
+Pyre Caldera   → t_4
+Sundered Throne→ t_5
+Endless Seam   → t_6
+```
+
+Approximate trinket level requirements:
+
+```text
+t_2 → 7
+t_3 → 11
+t_4 → 15
+t_5 → 20
+t_6 → 26
+```
+
+But these bosses occur around:
+
+```text
+Chronolich → ~22
+Jormunis   → ~30
+Ignivar    → ~38
+Aldric     → 45
+Warden     → 45
+```
+
+Aldric's first-clear reward is therefore roughly a level-20 normal trinket.
+
+The player can already buy substantially better level-32/40 trinkets.
+
+## Recommendation
+
+Remap first-clear rewards to:
+
+- contemporaneous trinkets;
+- or, preferably, unique boss/dungeon trinkets.
+
+Example pattern:
+
+```text
+Rootbound → early unique
+Sunken    → early-mid unique
+Vault     → mid unique
+Glacier   → 20s unique
+Pyre      → 30s unique
+Throne    → 40+ unique
+Seam      → postgame unique
+```
+
+This would make boss clears feel materially rewarding.
+
+---
+
+# P1-11 — Postgame XP is still not a reward
+
+The repair changed silent XP loss into an honest message:
+
+> XP means nothing now.
+
+That improves transparency.
+
+It does **not** solve the game-design problem.
+
+At level 45:
+
+- `m24` awards large XP;
+- `m25` awards huge XP;
+- Abyss side quests award huge XP;
+- Endless Seam awards huge XP;
+- level-45 enemies award XP.
+
+All of it is useless.
+
+## Recommended choices
+
+### Option A — replace postgame XP entirely
+
+Use:
+
+- gold;
+- Void Fragments;
+- rare consumables;
+- unique gear;
+- forge currency;
+- cosmetics;
+- achievement currency.
+
+### Option B — post-level-cap progression
+
+Add:
+
+- mastery;
+- prestige;
+- Dawncaller Rank;
+- stat points;
+- account XP;
+- postgame talent track.
+
+### Option C
+
+Raise level cap and redesign Abyss as continued leveling content.
+
+Do not keep giant zero-value XP numbers merely because ordinary content uses XP.
+
+---
+
+# P1-12 — Safe-haven forage remains an infinite zero-risk faucet
+
+## Repair behavior
+
+Treasure availability is limited after several forage actions per safe-haven visit.
+
+On re-entering the safe haven:
+
+```ts
+delete p.flags[`forage_${zoneId}`];
+```
+
+The allowance resets.
+
+## Exploit
+
+Travel is free.
+
+Therefore:
+
+```text
+forage ×3
+travel to Whisperwood
+travel back to Emberdawn
+forage counter resets
+repeat
+```
+
+Still yields infinite zero-risk opportunities.
+
+The exploit now takes slightly more taps but is unchanged economically.
+
+## If finite forage is intended
+
+Use a reset condition that costs meaningful progress:
+
+- real-time daily reset;
+- once per N battles;
+- once per chapter milestone;
+- once per real-world hour;
+- account-level cooldown timestamp.
+
+Example:
+
+```ts
+forageResetAt: unixMillis
+```
+
+or:
+
+```ts
+forageCharges
+forageRechargeAt
+```
+
+If infinite forage is actually acceptable, remove the complexity and document it as an intentional safety faucet.
+
+---
+
+# P2-1 — The flagship progression test is not a true full campaign simulation
+
+The new test is useful and should remain.
+
+But it explicitly does:
+
+```ts
+p.level = 45;
+```
+
+and directly inserts collect-objective items:
+
+```ts
+addItem(...)
+```
+
+instead of obtaining them from actual content.
+
+So the test proves:
+
+- quest prerequisite graph;
+- kill-target availability;
+- zone unlock sequence;
+- boss gating/routing;
+- general quest-state traversal.
+
+It does **not** prove:
+
+- level/XP pacing;
+- actual collection source correctness;
+- combat feasibility;
+- drop-rate reachability;
+- equipment/economy pacing.
+
+## Recommendation
+
+Rename it to something more precise:
+
+```text
+campaign quest graph m1→m25 is traversable
+```
+
+Then add targeted tests for other dimensions.
+
+---
+
+# P2-2 — Add collect-item source integrity testing
+
+There is now a kill-capacity test.
+
+A corresponding collect-source test is still missing.
+
+For every collect objective:
+
+```text
+target item
+required count
+```
+
+determine whether at least one legitimate source exists before/during that quest.
+
+Possible sources:
+
+- repeatable enemy drop;
+- exploration treasure;
+- shop;
+- previous quest reward;
+- dungeon floor reward;
+- dungeon first-clear.
+
+For probabilistic sources:
+
+- source must be repeatable unless enough guaranteed finite attempts exist.
+
+Example invariant:
+
+```text
+if item only has a 25% drop from one one-time enemy:
+    invalid unless another guaranteed/repeatable source exists
+```
+
+This test should also be progression-aware:
+
+> source zone/content must be unlocked by the time the quest is available.
+
+---
+
+# P2-3 — Free safe-haven healing still removes dungeon attrition
+
+Current dungeon progress persists after each cleared floor.
+
+Travel remains free.
+
+Emberdawn fully restores HP/MP.
+
+So optimal safe play remains:
+
+```text
+clear floor
+travel Emberdawn
+full heal
+travel dungeon zone
+continue
+```
+
+This is not necessarily a bug.
+
+It is a design decision.
+
+## If independent floor fights are intended
+
+Leave it.
+
+## If dungeons are meant to test endurance/resource management
+
+Choose one:
+
+- leaving resets current dungeon run;
+- travel blocked while a dungeon run is active;
+- healing only at explicit dungeon checkpoints;
+- dungeon completion must happen in one run.
+
+Do not accidentally balance bosses assuming players preserve attrition if full heal is always two taps away.
+
+---
+
+# P2-4 — Forge temper is bound to item model, not item instance
+
+Current key:
+
+```text
+forge_i_<itemId>
+```
+
+This means:
+
+```text
+temper Iron Sword to +5
+sell/lose Iron Sword
+buy another Iron Sword
+new Iron Sword is +5
+```
+
+That can be a valid system.
+
+But it is not literally:
+
+> this physical item was tempered.
+
+It is effectively:
+
+> your Iron Sword model/proficiency has been upgraded globally.
+
+## Two choices
+
+### Keep current implementation
+
+Rewrite terminology toward:
+
+- Forge Mastery;
+- Blueprint Enhancement;
+- Weapon Model Reinforcement.
+
+### True item-instance tempering
+
+Requires inventory instances instead of:
+
+```ts
+{ id, qty }
+```
+
+which is a larger model change.
+
+No need to change unless individual-item ownership matters to the design.
+
+---
+
+# P2-5 — Documentation still contains stale details
+
+## README dungeon count
 
 README says:
 
-- 8 zones;
-- 8 dungeons.
+> 8 zones, 8 dungeons
 
-The reviewed zone content has eight zones but only seven obvious dungeon definitions:
+Current obvious dungeon count is seven:
 
 1. Rootbound Hollow
 2. Sunken Shrine
@@ -2015,93 +1548,358 @@ The reviewed zone content has eight zones but only seven obvious dungeon definit
 6. Sundered Throne
 7. Endless Seam
 
-Emberdawn Village has no dungeon.
+Emberdawn has no dungeon.
 
-## AGENTS death description
+## Auto-revive wording
 
-The documentation includes language about revival behavior that should be checked against the most
-recent safe-haven implementation.
+README refers to an auto-revive trinket, while Phoenix Cinder is implemented as a consumable.
 
-## Pure rendering claim
+## Audit completion language
 
-AGENTS says rendering is pure, but notice rendering currently mutates player state.
-
-## `/start` re-centering claim
-
-README says `/start` re-centers the game; current normal behavior edits the old tracked message if
-possible.
+Avoid claiming all findings are fully resolved while the current residual issues above remain.
 
 ---
 
-# Acceptance criteria before calling progression "correct"
+# Additional test suite recommended
 
-The game should satisfy all of these:
+The next repair commit should add tests for the remaining holes.
 
-- [ ] A fresh player can complete `m1` through `m25` without modifying state manually.
-- [ ] Every main quest objective has a reachable source at the time the quest becomes active.
-- [ ] Required kill counts never exceed finite encounter capacity.
-- [ ] Required collect items have guaranteed or repeatable acquisition paths.
-- [ ] Every non-starting zone unlock is gated by actually completable content.
-- [ ] Dungeon normal floors advance only after victory.
-- [ ] Fleeing does not skip dungeon floors.
-- [ ] Dying does not skip dungeon floors.
-- [ ] Boss defeat does not permanently strand the player.
-- [ ] Cleared bosses can be re-fought if the UI says they can.
-- [ ] Boss first-clear rewards happen exactly once.
-- [ ] Overworld enemies sharing a boss ID cannot trigger dungeon-clear bookkeeping.
-- [ ] Story keys/flags actually gate the encounters described by the narrative.
-- [ ] Smoke Bomb escapes as described.
-- [ ] Venom Cut weakens the enemy, not the Rogue.
-- [ ] Phoenix Cinder cannot be manually wasted unintentionally.
-- [ ] Phoenix Cinder triggers no more than once per battle.
-- [ ] Invalid skill actions do not consume a combat turn.
-- [ ] SPD buffs affect at least one meaningful mechanic.
-- [ ] Equipped items are not duplicated in the inventory model.
-- [ ] Forge material cost cannot be downgraded by changing zones.
-- [ ] Forge bonuses apply to the intended item's stats.
-- [ ] Every equippable item has an acquisition route.
-- [ ] Postgame rewards provide real value at level cap.
-- [ ] Renderers do not mutate persisted state.
-- [ ] Resent game-message IDs are persisted.
-- [ ] `/reset` creates and persists a valid new live message.
-- [ ] `/start` genuinely re-centers to a fresh live message.
-- [ ] Old game-message callbacks are rejected after re-centering.
-- [ ] Tests validate progression reachability, not merely ID existence.
+## Save migrations
+
+### Versioned migration
+
+```text
+legacy save migrates once
+second load does nothing destructive
+new save remains unchanged
+```
+
+### Legitimate duplicate gear
+
+```text
+equipped w_warrior_2
+inventory w_warrior_2 ×2
+migration does not delete legitimate copies after version is current
+```
+
+### Legacy active battle
+
+No enemy weaken fields.
+
+After migration:
+
+```text
+enemyWeakenedPct = 0
+enemyWeakenTurns = 0
+damage is finite
+HP is finite
+```
+
+---
+
+## `/start`
+
+### Active battle
+
+`/start`:
+
+- fresh message;
+- same battle;
+- same gold;
+- same deaths;
+- same zone.
+
+### Won battle awaiting Continue
+
+Still preserved.
+
+---
+
+## Meta callback safety
+
+### Existing character + stale picker
+
+Old class-pick callback must not replace player.
+
+### Existing character + forged pick
+
+Must return an error/toast.
+
+---
+
+## Class pick resend
+
+Force picker edit failure.
+
+Assert final resent message ID is persisted.
+
+---
+
+## Newer message adoption
+
+Use clone-on-read store.
+
+Assert newer tapped message is retained as live.
+
+---
+
+## Quest delivery
+
+### Spend-after-ready
+
+Quest reaches `turnIn`.
+
+Spend/drop required items.
+
+Turn-in must fail and revert/remain active.
+
+### Shared material contention
+
+Two quests require the same material.
+
+One turn-in consumes it.
+
+Second cannot turn in unless sufficient quantity remains.
+
+---
+
+## Item gain hooks
+
+For collect quests, final item from each mechanism should transition readiness:
+
+- shop;
+- overworld treasure;
+- enemy drop;
+- dungeon cache;
+- dungeon first-clear;
+- quest reward.
+
+---
+
+## Equip ownership
+
+One item copy.
+
+Equip twice.
+
+Second action must fail.
+
+---
+
+## Skill ownership
+
+- wrong class skill → refused;
+- unlearned same-class skill → refused;
+- learned skill → accepted.
+
+---
+
+## HP/MP clamping
+
+Remove +HP/+MP equipment while above the new maximum.
+
+Assert current pool is clamped.
+
+---
+
+## Starting pools
+
+For every class:
+
+```ts
+assertEquals(p.hp, statsOf(p).maxHp);
+assertEquals(p.mp, statsOf(p).maxMp);
+```
+
+---
+
+## Shop boundaries
+
+Assert:
+
+```text
+Lv6  → tier 1
+Lv7  → tier 2
+Lv12 → tier 2
+Lv13 → tier 3
+...
+Lv43 → tier 8
+```
+
+---
+
+## Trinket timing
+
+Every trinket should have a shop/source near its intended level rather than only endgame fallback.
+
+---
+
+## Final quest provenance
+
+Overworld Warden:
+
+```text
+m25 no progress
+seam not cleared
+```
+
+Dungeon Warden:
+
+```text
+m25 progress
+seam clear
+```
+
+---
+
+# Recommended repair order
+
+## Phase 1 — correctness / data safety
+
+1. Make `m25` require the Endless Seam itself.
+2. Make `/start` preserve all gameplay state.
+3. Introduce versioned player/save migration.
+4. Migrate new combat fields safely.
+5. Fix stale meta/class-picker behavior.
+6. Fix class-pick commit/save order.
+7. Eliminate double-load message adoption issue.
+
+## Phase 2 — engine authority/invariants
+
+8. Revalidate collect goods atomically on turn-in.
+9. Centralize item gain → quest refresh.
+10. Validate equip ownership.
+11. Validate skill ownership/class.
+12. Clamp HP/MP after equipment change.
+13. Fix starting-stat aggregation.
+
+## Phase 3 — progression/economy polish
+
+14. Fix shop tier boundary.
+15. Make trinket availability level-based.
+16. Rework boss first-clear trinket rewards.
+17. Give postgame XP a meaningful replacement.
+18. Decide whether forage is finite and implement a real reset rule.
+
+## Phase 4 — tests/docs
+
+19. Rename the synthetic quest-graph test precisely.
+20. Add collect-source reachability analysis.
+21. Add migration/recovery integration tests.
+22. Correct README dungeon count and auto-revive wording.
+23. Document whether dungeon healing/forge model semantics are intentional.
+
+---
+
+# Acceptance criteria for closing the original audit
+
+I would consider the original audit satisfactorily resolved when all of the following are true.
+
+## Campaign
+
+- [ ] `m1→m25` quest graph is traversable.
+- [ ] `m25` specifically requires the Endless Seam boss/dungeon clear.
+- [ ] No overworld enemy can substitute for a location-specific story boss objective.
+- [ ] Every kill objective has repeatable or sufficient finite capacity.
+- [ ] Every collect objective has a progression-valid item source.
+- [ ] Story keys described as keys have real mechanical relevance or are removed/reworded.
+
+## Dungeons
+
+- [x] Normal floors advance only on victory.
+- [x] Flee does not advance floor.
+- [x] Death does not advance floor.
+- [x] Boss rematches work.
+- [x] First-clear is awarded only once.
+- [x] Dungeon treasure is granted.
+- [x] Overworld boss-ID collision does not trigger dungeon clear.
+- [ ] Final quest itself is also provenance-correct.
+
+## Combat
+
+- [x] Smoke Bomb works as described.
+- [x] Venom Cut weakens enemy.
+- [x] Invalid cooldown/MP use does not spend turn.
+- [x] Phoenix Cinder is automatic-only.
+- [x] Phoenix Cinder is once-per-battle.
+- [x] SPD affects at least fleeing.
+- [ ] Skill callbacks validate class/learned ownership.
+- [ ] Legacy battle state migrates safely.
+
+## Equipment / forge
+
+- [x] New-character equipped gear not duplicated in bag.
+- [ ] Legacy gear migration never deletes legitimate inventory.
+- [ ] Equip requires actual ownership.
+- [ ] HP/MP are clamped after gear changes.
+- [ ] Every class starts at actual full pools.
+- [x] Forge material no longer depends on current zone.
+- [x] Temper scaling does not bleed into unrelated equipment.
+- [ ] Temper model semantics documented as item-ID mastery or redesigned as item-instance upgrade.
+
+## Economy / rewards
+
+- [x] Tier-8 class gear has a source.
+- [ ] Shop tier boundaries match actual equipment levels.
+- [ ] Trinket acquisition timing matches trinket levels.
+- [ ] Boss first-clear rewards are level-appropriate.
+- [ ] Postgame rewards have real value at max level.
+- [ ] Forage is either intentionally infinite or actually finite.
+
+## Persistence / Telegram lifecycle
+
+- [x] Ordinary callback resend persists new message ID.
+- [x] `/reset` persists the fresh live message ID.
+- [x] Renderer no longer consumes notices.
+- [x] Resend whitelist is narrow.
+- [ ] `/start` re-centers without gameplay mutation.
+- [ ] Class pick saves after final commit.
+- [ ] Meta callbacks respect stale/live semantics.
+- [ ] A stale picker cannot overwrite an existing character.
+- [ ] Newer-message adoption persists correctly with clone-on-read/database stores.
+- [ ] Save migrations are versioned.
+
+## Tests
+
+- [x] Main quest graph traversal test exists.
+- [x] Kill encounter capacity test exists.
+- [ ] Collect acquisition-source test exists.
+- [ ] Legacy-save migration tests exist.
+- [ ] `/start` preservation test exists.
+- [ ] Stale picker/meta safety test exists.
+- [ ] Final dungeon objective provenance test exists.
+- [ ] Equip ownership test exists.
+- [ ] Skill ownership test exists.
+- [ ] HP/MP equipment clamping test exists.
+- [ ] All-class starting-pool test exists.
+- [ ] Shop exact boundary tests exist.
 
 ---
 
 # Final assessment
 
-The current build has a good campaign skeleton, coherent chapter identities, sensible broad zone
-level ranges, and a code structure that is well suited to automated validation.
+The first repair pass successfully addressed most of the most serious **core dungeon and combat implementation errors**.
 
-The primary problem is **not** that the game needs a wholesale redesign.
+The campaign is no longer blocked by the old Automaton/Crownsworn encounter-capacity failures.
 
-The primary problem is that several pieces of content were authored under assumptions the engine
-does not currently enforce:
+The state-machine architecture is significantly healthier.
 
-- quest targets were assumed repeatable when they are not;
-- dungeon floors were assumed victory-gated when they are start-gated;
-- key items were assumed to gate boss access when they do not;
-- dungeon encounter identity was assumed to be distinguishable from overworld identity when it is
-  not;
-- boss rematches were assumed to exist when the state machine blocks them;
-- collect objectives were assumed to respond immediately to inventory state;
-- items and skills were described with mechanics that the generic combat model does not implement.
+The largest remaining risks are now:
 
-The best next step is therefore:
+1. **final quest provenance**;
+2. **existing-save migration safety**;
+3. **Telegram message/onboarding lifecycle correctness**;
+4. **quest delivery invariants**;
+5. **engine-side authority checks for equipment/skills**;
+6. **reward/economy progression quality**.
 
-> **Build tests that encode the intended state transitions first, then repair the engine/content
-> until those tests pass.**
+The next agent should therefore avoid another broad rewrite.
 
-In particular, start with:
+The correct next step is a focused second repair pass that:
 
-1. `m11_toll` reachability;
-2. `m21_loyalty` reachability;
-3. dungeon flee/death/victory state;
-4. boss rematch;
-5. early boss story gate;
-6. Abyss overworld Warden vs dungeon Warden;
-7. full `m1 → m25` progression simulation.
+- closes the remaining semantic holes;
+- introduces explicit save-version migrations;
+- strengthens engine validation;
+- expands regression tests around lifecycle and item-source correctness.
 
-Once those are correct, economy and combat balancing will become much more trustworthy.
+After that, the project should be in a much better position for genuine balance/playtesting work.
