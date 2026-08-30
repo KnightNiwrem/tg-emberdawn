@@ -275,13 +275,13 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   assertEquals(collapseRounds, [4, 8, 12], 'every:4 → actions 4/8/12');
 });
 
-Deno.test('buff durations: offensive keys defer the cast-round decay (#27)', () => {
+Deno.test('buff durations: cast-round decay deferred for keys the cast cannot use (#27, #38)', () => {
   // Fixture sanity: the content contract advertises these durations.
   assertEquals(SKILLS.find((s) => s.id === 'sk_war_cry')!.duration, 3);
   assertEquals(SKILLS.find((s) => s.id === 'sk_time_warp')!.duration, 3);
   // (Adrenaline's 2 turns are set by the engine's heal branch, not content.)
 
-  const mkBattle = (cls: 'warrior' | 'mage', userId: number, skillId: string) => {
+  const mkBattle = (cls: 'warrior' | 'mage' | 'rogue', userId: number, skillId: string) => {
     const p = createPlayer(userId, 'T', cls);
     p.level = 40;
     p.skills.push(skillId);
@@ -305,17 +305,19 @@ Deno.test('buff durations: offensive keys defer the cast-round decay (#27)', () 
   assertEquals(w.b.buffs.durations.atk, 0, 'exactly the advertised 3 empowered actions');
   assertEquals(w.b.buffs.atkPct, 0);
 
-  // Time Warp (mage: mag + spd): mag defers; spd ticks on the cast round
-  // (defensive-utility — it already guards this round's enemy response).
+  // Time Warp (mage: mag + spd): both defer — mag empowers future actions,
+  // spd only feeds future Flee rolls; neither helps the cast round (#38),
+  // so both deliver exactly their advertised 3 useful actions.
   const m = mkBattle('mage', 63, 'sk_time_warp');
   performAction(m.p, m.b, { kind: 'skill', skillId: 'sk_time_warp' }, seeded(66));
   assertEquals(m.b.buffs.durations.mag, 3, 'mag deferred on the cast round');
-  assertEquals(m.b.buffs.durations.spd, 2, 'spd ticks on the cast round');
+  assertEquals(m.b.buffs.durations.spd, 3, 'spd deferred on the cast round (#38)');
   performAction(m.p, m.b, { kind: 'attack' }, seeded(67));
   assertEquals(m.b.buffs.durations.mag, 2);
-  assertEquals(m.b.buffs.durations.spd, 1);
+  assertEquals(m.b.buffs.durations.spd, 2);
   performAction(m.p, m.b, { kind: 'attack' }, seeded(68));
   assertEquals(m.b.buffs.durations.mag, 1);
+  assertEquals(m.b.buffs.durations.spd, 1);
 
   // Adrenaline Surge (heal + atk 2): defers like other offensive keys.
   const a = mkBattle('warrior', 64, 'sk_adrenaline');
@@ -326,6 +328,20 @@ Deno.test('buff durations: offensive keys defer the cast-round decay (#27)', () 
   assertEquals(a.b.buffs.durations.atk, 1);
   performAction(a.p, a.b, { kind: 'attack' }, seeded(71));
   assertEquals(a.b.buffs.durations.atk, 0, 'exactly the advertised 2 empowered actions');
+
+  // Smoke Step (rogue: SPD only, 3 turns): the cast can't flee, so SPD
+  // must not lose a turn before it could ever matter (#38) — exactly
+  // three SPD-enabled future actions.
+  const sk = mkBattle('rogue', 78, 'sk_smoke_step');
+  performAction(sk.p, sk.b, { kind: 'skill', skillId: 'sk_smoke_step' }, seeded(79));
+  assertEquals(sk.b.buffs.durations.spd, 3, 'cast round does not consume SPD (#38)');
+  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(80));
+  assertEquals(sk.b.buffs.durations.spd, 2);
+  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(81));
+  assertEquals(sk.b.buffs.durations.spd, 1);
+  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(82));
+  assertEquals(sk.b.buffs.durations.spd, 0, 'exactly three SPD-enabled actions');
+  assertEquals(sk.b.buffs.spdPct, 0);
 
   // Iron Wall (def): RETAINS the cast-round tick — it protects against the
   // enemy response on the casting round, exactly as before.

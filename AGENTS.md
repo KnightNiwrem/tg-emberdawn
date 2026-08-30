@@ -144,6 +144,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 - **Enemy defensive moves (#25):** `guardPct`/`guardTurns` on an EnemyMove raise the enemy's own
   mitigation for the next `guardTurns` rounds (the cast round doesn't consume one). Power-0 status
   moves (Howl) deal NO implicit chip damage — they carry only their rider effect.
+- **Buff cast-round semantics (#27/#38):** a fresh battle buff defers its first decay when the cast
+  round cannot use it — ATK/MAG (future damage) and SPD (future Flee rolls only) deliver exactly
+  their advertised turns of useful actions; DEF/RES still tick on the cast round because they
+  mitigate that round's enemy response.
 - **Reset (#19):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit Yes/No
   confirmation (`reset` view); state is destroyed solely by `resetYes`, which builds a fully
   initialized fresh state (`syncAvailability` included). No/✋ resumes the live scene (a pending
