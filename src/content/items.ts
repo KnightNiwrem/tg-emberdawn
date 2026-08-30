@@ -115,7 +115,7 @@ const ARMORS: Record<ClassId, TierNames> = {
       'Shadow Weave',
       'Emberhide',
       'Sunspire Silks',
-      'Glial Veil',
+      'Glacial Veil',
       "Night's Finale",
     ],
     desc: 'Light enough to run in.',

@@ -124,7 +124,7 @@ export const SKILLS: readonly SkillDef[] = [
     power: 1.55,
     type: 'mag',
     stunChance: 0.2,
-    desc: '160% MAG, 20% chance to freeze the enemy.',
+    desc: '155% MAG, 20% chance to freeze the enemy.',
   }),
   S({
     id: 'sk_barrier',

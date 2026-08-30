@@ -430,6 +430,19 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   assertEquals(p.stats.bossesSlain, afterElite + 1, 'dungeon Warden counts as a boss slain');
 });
 
+Deno.test('damage-skill descriptions state their exact multiplier (#34)', () => {
+  for (const sk of SKILLS) {
+    if (sk.type !== 'phys' && sk.type !== 'mag' && sk.type !== 'debuff') continue;
+    const m = sk.desc.match(/(\d+)% (ATK|MAG)/);
+    if (!m) continue;
+    assertEquals(
+      Number(m[1]) / 100,
+      sk.power,
+      `${sk.id}: desc says ${m[1]}% but power is ${sk.power}`,
+    );
+  }
+});
+
 Deno.test('economy: buy needs gold, sell returns ratio', () => {
   const p = createPlayer(12, 'T', 'warrior');
   p.gold = 0;
