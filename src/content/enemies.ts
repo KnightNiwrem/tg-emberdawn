@@ -578,7 +578,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     drops: { m_void_fragment: 1.0, t_7: 0.5 },
     desc: 'It guards nothing now. It simply ends those who arrive.',
   }),
-].filter((e) => e.id.length > 0 && e.name !== 'unused');
+];
 
 const ENEMY_INDEX = new Map(ENEMIES.map((e) => [e.id, e]));
 

@@ -653,7 +653,11 @@ Deno.test("content integrity: every zone's dungeon/shop/npcs reference real ids"
 });
 
 Deno.test('content integrity: enemies reference real drop items', () => {
+  const ids = new Set(ENEMIES.map((e) => e.id));
+  assertEquals(ids.size, ENEMIES.length, 'enemy ids must be unique');
   for (const e of ENEMIES) {
+    assert(e.id.length > 0, 'enemy ids must be non-empty');
+    assert(e.name.length > 0, `enemy ${e.id} needs a name`);
     for (const id of Object.keys(e.drops ?? {})) {
       assert(item(id), `enemy ${e.id} drops unknown item ${id}`);
     }
