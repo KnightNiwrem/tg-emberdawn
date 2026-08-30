@@ -92,14 +92,6 @@ export function clampPools(p: PlayerState): void {
 /** Current save-schema version. Bump when a destructive migration is added. */
 export const CURRENT_STATE_VERSION = 3;
 
-/**
- * Save migration. Destructive legacy cleanups run ONCE, gated by an explicit
- * `stateVersion` on the save — never by "state looks old" sniffing, which
- * used to delete legitimately re-purchased gear on every single load.
- *   v0 → 1: pre-dedup saves carried equipped gear twice (slots + bag).
- *   v0 → 2: slot-bound temper flags → item-bound; legacy battle shape
- *           (string origin, missing buff fields) normalized.
- */
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
 export class SaveTooNewError extends Error {
@@ -109,84 +101,39 @@ export class SaveTooNewError extends Error {
   }
 }
 
+/** Thrown when a save predates the current schema and has NO migration path.
+ * Pre-launch development saves are disposable: the player must /reset. */
+export class SaveTooOldError extends Error {
+  constructor(from: number | undefined) {
+    super(
+      from === undefined
+        ? `Save carries no stateVersion (supported: ${CURRENT_STATE_VERSION})`
+        : `Save version ${from} has no migration path to ${CURRENT_STATE_VERSION}`,
+    );
+    this.name = 'SaveTooOldError';
+  }
+}
+
 export function migratePlayer(p: PlayerState): void {
-  const from = typeof p.stateVersion === 'number' ? p.stateVersion : 0;
+  const from = p.stateVersion;
+  if (typeof from !== 'number') {
+    // Unversioned development-era saves predate the versioning contract
+    // itself — there is nothing safe to infer. Fail clearly, require a
+    // reset; never sniff "state looks old" and rewrite (#44).
+    throw new SaveTooOldError(undefined);
+  }
   if (from > CURRENT_STATE_VERSION) {
     // Never downgrade: an older binary must not rewrite a newer save — it
     // would drop fields it cannot understand on the next write.
     throw new SaveTooNewError(from);
   }
-  // The v0→v1 gear dedup was RETIRED. `stateVersion === undefined` spans at
-  // least two cohorts: genuinely old saves with the starter-duplication bug,
-  // AND intermediate saves that may legitimately own a re-purchased copy of
-  // what they wear. The old heuristic (delete a bag copy of the currently
-  // equipped item) destroyed legitimate property and missed the real legacy
-  // shape anyway (the OLD starter duplicated after a swap). A grandfathered
-  // duplicate is harmless; deletion was not.
-  if (from < 2) {
-    for (const slot of ['weapon', 'armor'] as const) {
-      const legacy = p.flags[`forge_${slot}`];
-      const eq = p.equipment[slot];
-      if (typeof legacy === 'number' && legacy > 0 && eq) {
-        const key = `forge_i_${eq}`;
-        p.flags[key] = Math.max(typeof p.flags[key] === 'number' ? p.flags[key]! : 0, legacy);
-        delete p.flags[`forge_${slot}`];
-      }
-      // else: slot empty → DEFER. The legacy flag survives (see the
-      // every-load adoption step below) so the investment is never lost.
-    }
-    const b = p.battle;
-    if (b) {
-      const o = b.origin as unknown;
-      if (typeof o === 'string') b.origin = { kind: 'explore', zoneId: o };
-      // Buff fields added after a battle was persisted default to neutral,
-      // so old saves can never produce NaN combat math.
-      for (const k of ['atkPct', 'defPct', 'resPct', 'magPct', 'spdPct'] as const) {
-        b.buffs[k] ??= 0;
-      }
-      b.buffs.durations ??= {};
-      b.buffs.weakenedPct ??= 0;
-      b.buffs.weakenTurns ??= 0;
-      b.buffs.enemyWeakenedPct ??= 0;
-      b.buffs.enemyWeakenTurns ??= 0;
-      b.buffs.stunnedTurns ??= 0;
-      b.buffs.stunnedEnemy ??= false;
-      b.phoenixUsed ??= false;
-    }
-  }
-  if (from < 3) {
-    // Catalog pruning (v3): retired items (e.g. q_umbra_key after the m22
-    // rework) are unusable dead weight in legacy bags — purge anything the
-    // current catalog no longer defines. Known items are never touched.
-    p.inventory = p.inventory.filter((e) => item(e.id));
-  }
-  // Legacy slot-bound temper adoption (every-load, non-destructive): a
-  // deferred temper follows the next UNTempered item equipped in its slot,
-  // matching old slot-global semantics. Items that already carry their own
-  // (newer) temper are left alone; the flag keeps waiting. Nothing here is
-  // ever deleted.
-  for (const slot of ['weapon', 'armor'] as const) {
-    const legacy = p.flags[`forge_${slot}`];
-    const eq = p.equipment[slot];
-    if (
-      typeof legacy === 'number' && legacy > 0 && eq &&
-      typeof p.flags[`forge_i_${eq}`] !== 'number'
-    ) {
-      p.flags[`forge_i_${eq}`] = legacy;
-      delete p.flags[`forge_${slot}`];
-    }
-  }
-  // Non-destructive backfills stay every-load (cheap, self-healing):
-  // level-1 skills predate the creation fix; starting zones were once
-  // never unlockable.
-  const known = new Set(p.skills);
-  for (const sk of skillsForClass(p.classId, p.level)) {
-    if (!known.has(sk.id)) p.skills.push(sk.id);
-  }
-  for (const zid of STARTING_ZONES) {
-    if (!p.unlockedZones.includes(zid)) p.unlockedZones.push(zid);
-  }
-  p.stateVersion = CURRENT_STATE_VERSION;
+  if (from === CURRENT_STATE_VERSION) return;
+  // Pre-launch saves older than the current schema are disposable: no
+  // migration steps are retained for them (#44). Once the game has live
+  // saves, forward migrations slot here — gated by explicit `stateVersion`
+  // steps (never "state looks old" sniffing), oldest first, e.g.
+  //   if (from < N+1) { ...transform to vN+1... }
+  throw new SaveTooOldError(from);
 }
 
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */

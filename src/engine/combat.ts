@@ -51,6 +51,7 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     round: 1,
     cooldowns: {},
     guarding: false,
+    phoenixUsed: false,
     enemyGuardPct: 0,
     enemyGuardTurns: 0,
     buffs: newBuffs(),
@@ -225,7 +226,7 @@ export function performAction(
   battle.guarding = false;
   // Enemy guard (#25): the casting round doesn't consume it — it shields
   // the NEXT `guardTurns` rounds of player attacks.
-  if (!guardCast && battle.enemyGuardTurns && battle.enemyGuardTurns > 0) {
+  if (!guardCast && battle.enemyGuardTurns > 0) {
     battle.enemyGuardTurns--;
     if (battle.enemyGuardTurns === 0) battle.enemyGuardPct = 0;
   }
@@ -253,7 +254,7 @@ function strike(
   const buffs = battle.buffs;
   const offense = kind === 'phys' ? playerEffectiveAtk(p, buffs) : playerEffectiveMag(p, buffs);
   const mitigation = (kind === 'phys' ? def.def : def.res) *
-    (1 + (battle.enemyGuardPct ?? 0));
+    (1 + battle.enemyGuardPct);
   const res = dealDamage(sk.power, offense, mitigation, rng, statsOf(p).luck);
   battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
   const verb = kind === 'phys' ? 'hits' : 'sears';
@@ -287,7 +288,7 @@ function applyPlayerAction(
       const res = dealDamage(
         1.0,
         playerEffectiveAtk(p, buffs),
-        def.def * (1 + (battle.enemyGuardPct ?? 0)),
+        def.def * (1 + battle.enemyGuardPct),
         rng,
         statsOf(p).luck,
       );

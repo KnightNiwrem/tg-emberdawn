@@ -2,7 +2,7 @@
  * meta-callback safety, save migration, engine authority checks, quest
  * delivery invariants, pool clamping, shop boundaries, forage cooldown. */
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
 import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
@@ -16,6 +16,7 @@ import {
   CURRENT_STATE_VERSION,
   grantXp,
   migratePlayer,
+  SaveTooOldError,
   statsOf,
   xpToGoldAtCap,
 } from '../src/engine/character.ts';
@@ -163,24 +164,27 @@ Deno.test('the class picker stays revisionless (#43)', async () => {
 
 // ── save migration (P0-3 / P0-4) ─────────────────────────────────────────
 
-Deno.test('migratePlayer: legacy battle gains neutral buffs; combat stays finite', () => {
+Deno.test('migratePlayer: old development saves fail instead of being repaired (#44)', () => {
   const p = createPlayer(901, 'T', 'warrior');
   const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
-  (b as unknown as { origin: unknown }).origin = 'whisperwood';
-  const bb = b.buffs as unknown as Record<string, unknown>;
-  for (const k of ['enemyWeakenedPct', 'enemyWeakenTurns', 'weakenedPct', 'stunnedTurns']) {
-    delete bb[k];
-  }
-  delete b.phoenixUsed;
   p.battle = b;
   p.stateVersion = 0; // a pre-versioning save deserializes as v0
-  migratePlayer(p);
+  assertThrows(() => migratePlayer(p), SaveTooOldError);
+  // The refused save is untouched — no stamping, no battle normalization.
+  assertEquals(p.stateVersion, 0);
   assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
-  assertEquals(b.buffs.enemyWeakenedPct, 0);
-  assertEquals(b.phoenixUsed, false);
-  performAction(p, b, { kind: 'attack' }, seeded(9));
-  assert(Number.isFinite(p.hp), 'player hp finite');
-  assert(Number.isFinite(b.enemy.hp), 'enemy hp finite');
+
+  // Current battles carry the full required shape from startBattle: combat
+  // stays finite with no runtime backfill.
+  const p2 = createPlayer(904, 'T', 'warrior');
+  const b2 = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  assertEquals(b2.phoenixUsed, false);
+  assertEquals(b2.enemyGuardPct, 0);
+  assertEquals(b2.enemyGuardTurns, 0);
+  p2.battle = b2;
+  performAction(p2, b2, { kind: 'attack' }, seeded(9));
+  assert(Number.isFinite(p2.hp), 'player hp finite');
+  assert(Number.isFinite(b2.enemy.hp), 'enemy hp finite');
 });
 
 Deno.test('stateVersion stamps fresh saves', () => {

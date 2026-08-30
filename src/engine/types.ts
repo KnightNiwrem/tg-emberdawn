@@ -63,13 +63,14 @@ export interface BattleState {
    * XP grant, #40) — renderers must never re-infer it from the player's
    * current level, or a 44→45 victory advertises unawarded gold. */
   rewards?: { xp: number; gold: number; drops: string[]; xpConvertedGold?: number };
-  /** Phoenix Cinder already spent this battle (revive is once per battle). */
-  phoenixUsed?: boolean;
+  /** Phoenix Cinder already spent this battle (revive is once per battle).
+   * Required in the current battle shape; initialized by startBattle (#44). */
+  phoenixUsed: boolean;
   /** Enemy-side guard (Guard Stance et al., #25): mitigation multiplier and
-   * rounds left. Optional so pre-#25 saves caught mid-battle still load —
-   * read sites treat missing as 0. */
-  enemyGuardPct?: number;
-  enemyGuardTurns?: number;
+   * rounds left. Required in the current battle shape; initialized by
+   * startBattle (#44). */
+  enemyGuardPct: number;
+  enemyGuardTurns: number;
   /** Structured provenance: for return-after-battle and victory hooks. */
   origin: BattleOrigin;
 }
@@ -161,8 +162,9 @@ export interface PlayerState {
    * start at 0; every committed render advances it (#43). Only the class
    * picker — rendered before a player exists — sends rev-less callbacks. */
   uiRev: number;
-  /** Save-schema version; drives one-time destructive migrations. */
-  stateVersion?: number;
+  /** Save-schema version; drives migrations at load time. Required — fresh
+   * players receive CURRENT_STATE_VERSION; anything else fails clearly (#44). */
+  stateVersion: number;
   /** Transient result lines rendered as a banner on the current view. */
   notices: string[];
   stats: PlayerStats;

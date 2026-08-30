@@ -8,7 +8,7 @@ import type { InputRichMessage } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import { withRev } from '../codec.ts';
-import { migratePlayer, SaveTooNewError } from '../engine/character.ts';
+import { migratePlayer, SaveTooNewError, SaveTooOldError } from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -162,6 +162,17 @@ export async function withLoadedPlayer(
   try {
     migratePlayer(p); // versioned save migration (destructive steps run once)
   } catch (e) {
+    if (e instanceof SaveTooOldError) {
+      // Pre-launch save with no migration path (#44): refuse to guess — the
+      // player must explicitly reset.
+      await ctx.answerCallbackQuery().catch(() => {});
+      await ctx
+        .reply(
+          '⚠️ This save predates the released game and cannot be loaded. Send /reset to start fresh.',
+        )
+        .catch(() => {});
+      return;
+    }
     if (!(e instanceof SaveTooNewError)) throw e;
     // A NEWER binary wrote this save. Never read-mutate-write it: a rollback
     // must not silently downgrade player data (#4).

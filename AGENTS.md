@@ -122,16 +122,14 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   that catalog id carries the temper, replacement loot inherits your forge-work, and the forge is a
   bounded per-pattern sink) and boost only that item's own base stats; the temper material is chosen
   by the item's tier, not the player's location.
-- **Save schema:** `stateVersion` (default 0) gates one-time migrations; v2 migrated slot-bound
-  tempers + old battle shape (string origin, missing buff fields → neutral defaults, so combat can
-  never see NaN). Unversioned saves are GRANDFATHERED, never gear-destructive: the old v0→v1
-  bag-duplicate dedup was retired — it could not tell a real legacy duplicate from a legitimate
-  re-purchase, and missed the post-swap shape (old starter duplicated) anyway. Legacy slot-bound
-  tempers adopt losslessly onto the next UNTempered item equipped in their slot (every-load step; an
-  item's own temper always wins; nothing is ever deleted). Saves from NEWER binaries
-  (`stateVersion > CURRENT_STATE_VERSION`) throw `SaveTooNewError`; handlers refuse to
-  read-mutate-write rather than downgrade. v3 purges retired catalog ids (e.g. q_umbra_key) from
-  legacy bags — known items are never touched.
+- **Save schema:** `stateVersion` is REQUIRED — fresh players are stamped `CURRENT_STATE_VERSION`.
+  Only the current development schema is supported (#44): unversioned or older saves throw
+  `SaveTooOldError` (refused with a pointer to /reset — never sniffed, rewritten or stamped
+  current); saves from NEWER binaries (`stateVersion > CURRENT_STATE_VERSION`) throw
+  `SaveTooNewError` and handlers refuse to read-mutate-write rather than downgrade. The
+  `migratePlayer()` entrypoint and its load-time call sites are retained so post-launch migrations
+  can be added as explicit `stateVersion` steps. Required battle fields (`phoenixUsed`,
+  `enemyGuardPct`, `enemyGuardTurns`) are initialized by `startBattle()`.
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
@@ -183,10 +181,10 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
    engine also filters them); battles belong in the wilds players travel to.
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
    `unlockZone` reward — the zone-reachability test enforces this.
-8. `learnLevel: 1` skills are granted at creation; `migratePlayer` (called on every load) migrates
-   older saves. DESTRUCTIVE legacy cleanups must be gated by `stateVersion` — bump
-   `CURRENT_STATE_VERSION` and add a `< N` step; never sniff "state looks old". Non-destructive
-   backfills (starting kit, starting zones) run every load.
+8. `learnLevel: 1` skills are granted at creation; `migratePlayer` (called on every load) gates the
+   save schema. Pre-launch saves older than the current schema are DISPOSABLE — they fail with
+   `SaveTooOldError` and require /reset (#44). Once the game has live saves: bump
+   `CURRENT_STATE_VERSION` and add an explicit `< N` migration step; never sniff "state looks old".
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
    enough dungeon floor slots — `tests/progression_test.ts` enforces encounter capacity, and the
    full m1→m25 simulation walks the entire quest graph through the pure engine.
