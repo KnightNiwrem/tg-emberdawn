@@ -112,7 +112,10 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
   if (!def.unique && def.kind !== 'quest') {
     row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
   }
-  blocks.push(buttonsRow(row, 'left'));
+  // Optional action row (#39): an actionless item (quest items, earned
+  // trophies) renders an informational view with the Back row only — an
+  // empty buttons block fails Telegram's 1–8 button validation.
+  if (row.length > 0) blocks.push(buttonsRow(row, 'left'));
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }))]));
   return { blocks };
 }

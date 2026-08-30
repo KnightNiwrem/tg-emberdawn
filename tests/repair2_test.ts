@@ -36,7 +36,7 @@ import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { npc, QUESTS } from '../src/content/quests.ts';
-import { isEquippable, item } from '../src/content/items.ts';
+import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
@@ -921,4 +921,39 @@ Deno.test('NPC talk opens their authored quest (#31)', () => {
   zoneAction(p, { v: 'zone', a: 'tk', arg: 1 });
   assertEquals(p.scene.arg, 'm3_roots', "talk opens the giver's quest");
   assert(p.notices.length > 0, 'a greeting is shown');
+});
+
+Deno.test('actionless item details render no empty button rows (#39)', () => {
+  const p = createPlayer(975, 'T', 'warrior');
+  p.level = 10;
+  grantItem(p, 'q_sealed_letter', 1);
+  const view = renderItemDetail(p, 'q_sealed_letter');
+  // Telegram requires 1–8 buttons per block; an actionless quest item must
+  // still open a valid informational view — Back row only, no empty rows.
+  const blocks = view.blocks ?? [];
+  const rows = blocks.filter((b) => b.type === 'buttons');
+  assert(rows.length >= 1, 'the Back row remains');
+  for (const r of rows) {
+    const n = (r as { buttons: unknown[] }).buttons.length;
+    assert(n >= 1 && n <= 8, `button row holds 1–8 buttons (got ${n})`);
+  }
+  assert(!JSON.stringify(view).includes('"buttons":[]'), 'no empty button rows emitted');
+});
+
+Deno.test('renderer invariant: every catalog item detail has only valid button rows (#39)', () => {
+  const p = createPlayer(976, 'T', 'warrior');
+  p.level = 45; // maximum equip eligibility
+  for (const def of ITEMS) {
+    addItem(p, def.id, 1);
+    const view = renderItemDetail(p, def.id);
+    const blocks = view.blocks ?? [];
+    for (const block of blocks) {
+      if (block.type !== 'buttons') continue;
+      const n = block.buttons.length;
+      assert(
+        n >= 1 && n <= 8,
+        `${def.id} detail rendered a ${n}-button row (must be 1–8)`,
+      );
+    }
+  }
 });
