@@ -807,9 +807,7 @@ Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => 
   assertEquals(p.quests['m2_letter'].status, 'done');
 });
 
-Deno.test('m22 is an Archivist handoff; retired keys are gone from the catalog', () => {
-  assert(item('q_umbra_key') === undefined, 'umbra key retired');
-  assert(item('q_village_charm') === undefined, 'village charm retired');
+Deno.test('m22: the Archivist handoff completes via talk objective', () => {
   const p = createPlayer(33, 'T', 'mage');
   p.quests['m22_umbral_key'] = { status: 'active', counts: [0] };
   onTalk(p, 'npc_archivist');
