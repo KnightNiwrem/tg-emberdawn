@@ -115,9 +115,50 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
   await store.set(900, p);
 
   // Tap lands on a copy NEWER than our pointer → adopted as live, persisted.
-  await handleCallback(fakeCtx(900, 101, 'i:bk'), store);
+  // The tap must carry its stamped revision to be adoptable (#43).
+  await handleCallback(fakeCtx(900, 101, withRev(0, 'i:bk')), store);
   const after = await store.get(900);
   assertEquals(after?.messageId, 101, 'adoption must persist through the save');
+});
+
+Deno.test('revisionless gameplay callbacks are rejected; class picking is not (#43)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(932, 'T', 'warrior');
+  p.gold = 500;
+  p.messageId = 620;
+  p.uiRev = 3;
+  p.scene = { view: 'zone' };
+  await store.set(932, p);
+
+  // A rev-less gameplay button is obsolete wire junk — never executed.
+  await handleCallback(fakeCtx(932, 620, 'z:sh'), store);
+  let cur = (await store.get(932))!;
+  assertEquals(cur.scene.view, 'zone', 'rev-less zone tap is rejected');
+  assertEquals(cur.gold, 500, 'no mutation ran');
+  assertEquals(cur.uiRev, 3, 'no render revision advanced');
+
+  // A rev-less tap on a NEWER copy proves nothing — not adoptable either.
+  await handleCallback(fakeCtx(932, 621, 'z:sh'), store);
+  cur = (await store.get(932))!;
+  assertEquals(cur.messageId, 620, 'rev-less newer taps are not adopted');
+  assertEquals(cur.scene.view, 'zone');
+
+  // The stamped version still works end to end.
+  await handleCallback(fakeCtx(932, 620, withRev(3, 'z:sh')), store);
+  cur = (await store.get(932))!;
+  assertEquals(cur.scene.view, 'shop', 'stamped gameplay taps keep working');
+  assertEquals(cur.uiRev, 4);
+});
+
+Deno.test('the class picker stays revisionless (#43)', async () => {
+  const store = new MemoryStore();
+  // m:pk is rendered before a player exists — no revision to carry.
+  await handleCallback(fakeCtx(933, 630, 'm:pk:warrior'), store);
+  const cur = await store.get(933);
+  assert(cur, 'rev-less class pick still creates the hero');
+  assertEquals(cur.classId, 'warrior');
+  assertEquals(cur.scene.view, 'zone');
+  assertEquals(cur.uiRev >= 1, true, 'the first committed render stamped a revision');
 });
 
 // ── save migration (P0-3 / P0-4) ─────────────────────────────────────────
@@ -368,7 +409,7 @@ Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns i
   assert(log.includes('q:q:m3_roots'));
 
   // Follow ONLY buttons the UI actually renders: log → detail → turn in.
-  await handleCallback(fakeCtx(920, 300, 'q:q:m3_roots'), store);
+  await handleCallback(fakeCtx(920, 300, withRev(0, 'q:q:m3_roots')), store);
   let cur = (await store.get(920))!;
   assertEquals(cur.scene.view, 'quests');
   assertEquals(cur.scene.arg, 'm3_roots');
@@ -397,7 +438,7 @@ Deno.test('inventory Equipment button opens equipment; Back returns (#17)', asyn
   const inv = JSON.stringify(renderInventory(p, 0));
   assert(inv.includes('e:op'), 'Equipment button encodes e:op');
 
-  await handleCallback(fakeCtx(921, 400, 'e:op'), store);
+  await handleCallback(fakeCtx(921, 400, withRev(0, 'e:op')), store);
   let cur = (await store.get(921))!;
   assertEquals(cur.scene.view, 'equipment', 'Equipment opens the equipment screen');
 

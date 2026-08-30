@@ -34,6 +34,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'home' },
     notices: [],
+    uiRev: 0,
     stateVersion: CURRENT_STATE_VERSION,
     stats: { kills: 0, deaths: 0, bossesSlain: 0, battlesWon: 0, createdAt: now, lastPlayed: now },
   };

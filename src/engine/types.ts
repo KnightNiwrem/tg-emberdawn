@@ -157,8 +157,10 @@ export interface PlayerState {
   /** Render revision of the live message's buttons (#16). Bumped on every
    * committed render and stamped into the callback data it renders; taps
    * carrying an older revision are rejected before any mutation, so a
-   * double-tap or replayed button can never execute twice. */
-  uiRev?: number;
+   * double-tap or replayed button can never execute twice. Fresh players
+   * start at 0; every committed render advances it (#43). Only the class
+   * picker — rendered before a player exists — sends rev-less callbacks. */
+  uiRev: number;
   /** Save-schema version; drives one-time destructive migrations. */
   stateVersion?: number;
   /** Transient result lines rendered as a banner on the current view. */

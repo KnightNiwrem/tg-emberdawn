@@ -105,7 +105,7 @@ export async function commit(ctx: Context, p: PlayerState): Promise<void> {
   const msg = renderFor(p);
   // Cycles 1..9999 to respect the 4-digit wire budget; a replay from exactly
   // one full cycle ago is not a realistic threat window.
-  const nextRev = ((p.uiRev ?? 0) % 9999) + 1;
+  const nextRev = (p.uiRev % 9999) + 1;
   stampRev(msg, nextRev);
   const editId = p.messageId;
   if (editId && ctx.chat) {
@@ -198,20 +198,26 @@ function isLiveMessage(p: PlayerState, ctx: Context): boolean {
   return false;
 }
 
-/** Combined staleness + render-revision tap guard (#16). The tap must sit
- * on the live game message AND carry the revision the live render stamped.
- * A tap on a NEWER copy is adopted — pointer AND revision — because that
- * copy's render is authoritative (its save was likely missed, not its tap).
- * Returns false when the tap is stale; the caller answers with the stale
- * toast. Rev-less buttons (legacy renders, class picker) map to rev 0, so
- * pre-feature saves upgrade transparently on their first tap. */
+/** Combined staleness + render-revision tap guard (#16, #43). The tap must
+ * sit on the live game message AND carry the revision the live render
+ * stamped. A tap on a NEWER copy is adopted — pointer AND revision — because
+ * that copy's render is authoritative (its save was likely missed, not its
+ * tap); adoption REQUIRES the stamped revision, since a rev-less callback
+ * proves nothing about which render produced it. Returns false when the tap
+ * is stale or revisionless; the caller answers with the stale toast.
+ * Rev-less callbacks are legitimate ONLY on the class picker, which renders
+ * before a player exists and never reaches this guard. */
 export function tapIsCurrent(p: PlayerState, ctx: Context, rev: number | undefined): boolean {
+  // A rev-less callback proves nothing about which render produced it —
+  // reject BEFORE any guard side effects (pointer adoption) can run (#43).
+  if (rev === undefined) return false;
   const tapped = ctx.callbackQuery?.message?.message_id;
   const newer = tapped !== undefined && p.messageId !== undefined && tapped > p.messageId;
   if (!isLiveMessage(p, ctx)) return false;
   if (newer) {
-    p.uiRev = rev ?? 0;
+    if (rev === undefined) return false;
+    p.uiRev = rev;
     return true;
   }
-  return (rev ?? 0) === (p.uiRev ?? 0);
+  return rev !== undefined && rev === p.uiRev;
 }

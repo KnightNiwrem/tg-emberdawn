@@ -26,8 +26,9 @@ place on every action.
    corrupt pacing. Additionally, every committed render stamps its buttons with the player's `uiRev`
    (`commit()`, cycled 1..9999, embedded as `<view>:<rev>:<action>` in callback data) and the router
    rejects revision mismatches BEFORE any mutation (#16): replays and double-taps on the same live
-   message are no-ops. Rev-less legacy buttons map to rev 0 — old saves upgrade transparently on
-   first tap.
+   message are no-ops. Every gameplay callback MUST carry its stamped revision (#43) — rev-less
+   callbacks are rejected as stale. The ONLY exception is the class picker (`m:pk:<class>`), which
+   renders before a player exists and bypasses the staleness guard.
 4. **Persistence shape.** `PlayerState` (`src/engine/types.ts`) is plain JSON — no class instances,
    no Maps, no functions. Anything you add must survive `JSON.stringify`. Runtime-only state (e.g.
    battle buffs) lives on `BattleState`, not the player.

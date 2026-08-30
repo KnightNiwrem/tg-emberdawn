@@ -36,7 +36,7 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
   assert(!page1.includes('q:pg:2'), 'page 1 has no Next');
 
   // Drive the real UI: Next → open the 9th quest → accept it.
-  await handleCallback(fakeCtx(940, 700, 'q:pg:1'), store);
+  await handleCallback(fakeCtx(940, 700, withRev(0, 'q:pg:1')), store);
   let cur = (await store.get(940))!;
   assertEquals(cur.scene.arg2, '1', 'page stored in scene.arg2');
   await handleCallback(fakeCtx(940, 700, withRev(cur.uiRev ?? 0, 'q:q:sq_lynx')), store);
