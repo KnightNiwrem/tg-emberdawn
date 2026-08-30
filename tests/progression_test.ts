@@ -30,18 +30,8 @@ import { zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
 import { shopStock } from '../src/content/items.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
-
-/** Deterministic RNG (mulberry32). */
-function seeded(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import type { DungeonDef } from '../src/content/types.ts';
+import { seeded } from './helpers.ts';
 
 // ── content maps: where can each enemy be fought? ─────────────────────────
 
@@ -68,6 +58,17 @@ function winBattle(p: PlayerState, b: BattleState, rng: () => number): void {
   b.enemy.hp = 0;
   resolveVictory(p, b, rng);
   p.battle = undefined; // the real flow clears the battle on Continue
+}
+
+/** Dives until the dungeon boss is fought and won (real routing). */
+function diveUntilBoss(p: PlayerState, d: DungeonDef, rng: () => number): void {
+  for (;;) {
+    const res = diveDungeon(p, d, rng);
+    assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
+    const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
+    winBattle(p, res.battle!, rng);
+    if (bossHit) break;
+  }
 }
 
 /** Kills one instance of `enemyId` wherever it legitimately spawns. */
@@ -164,13 +165,7 @@ Deno.test('campaign: quest graph m1→m25 is traversable (levels/pacing out of s
           const dz = ZONES.find((z) => z.dungeon?.id === obj.target);
           assert(dz, `dungeon ${obj.target} not found`);
           goto(p, dz.id);
-          for (;;) {
-            const res = diveDungeon(p, dz.dungeon!, rng);
-            assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
-            const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
-            winBattle(p, res.battle!, rng);
-            if (bossHit) break;
-          }
+          diveUntilBoss(p, dz.dungeon!, rng);
           break;
         }
         default:
@@ -338,13 +333,7 @@ Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo'
   const seam = dungeonOf(zone('abyss')!)!;
   assertEquals(dungeonCleared(p, seam), false, 'overworld elite must NOT clear the dungeon');
   // The real fight: clearing the Endless Seam itself readies the finale.
-  for (;;) {
-    const res = diveDungeon(p, seam, rng);
-    assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
-    const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
-    winBattle(p, res.battle!, rng);
-    if (bossHit) break;
-  }
+  diveUntilBoss(p, seam, rng);
   assertEquals(p.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
   assertEquals(dungeonCleared(p, seam), true);
 });

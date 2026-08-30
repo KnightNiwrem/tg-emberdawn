@@ -318,7 +318,7 @@ export function diveDungeon(
  * Victory over a NORMAL dungeon floor: grants that floor's treasure (once)
  * and advances the floor pointer. Fleeing or dying never routes here.
  */
-export function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: number): string[] {
+function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: number): string[] {
   const lines: string[] = [];
   if (floor >= d.floors.length + 1) return lines; // boss victories route elsewhere
   if (nextFloor(p, d) !== floor) return lines; // floor already cleared
@@ -340,7 +340,7 @@ export function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: numb
 }
 
 /** Called after a DUNGEON BOSS battle victory; handles clear/first-clear bookkeeping. */
-export function onDungeonVictory(
+function onDungeonVictory(
   p: PlayerState,
   d: DungeonDef,
 ): { firstClear: boolean; lines: string[] } {

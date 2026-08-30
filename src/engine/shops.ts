@@ -15,7 +15,7 @@ export function tierForLevel(level: number): number {
   return Math.min(8, Math.floor((level - 1) / 6) + 1);
 }
 
-export function shopTierFor(p: PlayerState): number {
+function shopTierFor(p: PlayerState): number {
   const levelTier = tierForLevel(p.level);
   const z = zone(p.currentZone);
   if (!z) return levelTier;

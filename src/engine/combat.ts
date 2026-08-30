@@ -12,7 +12,7 @@ import { item as itemDefLookup } from '../content/items.ts';
 import { statsOf } from './character.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 
-export function newBuffs(): CombatBuffs {
+function newBuffs(): CombatBuffs {
   return {
     atkPct: 0,
     defPct: 0,

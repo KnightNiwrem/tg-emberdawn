@@ -30,7 +30,7 @@ function temperKey(itemId: string): string {
 }
 
 /** Temper level bound to a specific item id (not a slot). */
-export function temperLevelOf(p: PlayerState, itemId: string | undefined): number {
+function temperLevelOf(p: PlayerState, itemId: string | undefined): number {
   if (!itemId) return 0;
   const v = p.flags[temperKey(itemId)];
   return typeof v === 'number' ? v : 0;

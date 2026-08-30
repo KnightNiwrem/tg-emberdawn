@@ -29,7 +29,7 @@ import {
   renderZone,
 } from '../render/views.ts';
 
-export function renderFor(p: PlayerState): InputRichMessage {
+function renderFor(p: PlayerState): InputRichMessage {
   switch (p.scene.view) {
     case 'battle':
       return renderBattle(p);

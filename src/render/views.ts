@@ -155,9 +155,16 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
         : disabledBtn(`${def.name} — too costly`),
     ], 'left'));
   }
-  blocks.push(pageNav(pg, pages, (n) => encodeCb({ v: 'shop', a: 'p', arg: n })));
-  blocks.push(shopFooter('💱 Switch to selling', -1));
+  blocks.push(...shopTail(pg, pages, '💱 Switch to selling', -1));
   return { blocks };
+}
+
+/** Shared shop tail: pagination + the toggle to the other shop mode. */
+function shopTail(pg: number, pages: number, label: string, arg: number): Block[] {
+  return [
+    pageNav(pg, pages, (n) => encodeCb({ v: 'shop', a: 'p', arg: n })),
+    shopFooter(label, arg),
+  ];
 }
 
 export function renderSell(p: PlayerState, page: number): InputRichMessage {
@@ -180,8 +187,7 @@ export function renderSell(p: PlayerState, page: number): InputRichMessage {
       ),
     );
   }
-  blocks.push(pageNav(pg, pages, (n) => encodeCb({ v: 'shop', a: 'p', arg: n })));
-  blocks.push(shopFooter('🛒 Switch to buying', 0));
+  blocks.push(...shopTail(pg, pages, '🛒 Switch to buying', 0));
   return { blocks };
 }
 

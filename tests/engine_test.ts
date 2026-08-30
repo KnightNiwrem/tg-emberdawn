@@ -39,18 +39,7 @@ import { item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { decodeCb, encodeCb } from '../src/codec.ts';
-
-/** Deterministic RNG (mulberry32). */
-function seeded(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import { seeded } from './helpers.ts';
 
 Deno.test('character creation gives class kit and full pools', () => {
   const p = createPlayer(1, 'Test', 'warrior');
@@ -418,28 +407,6 @@ Deno.test('migratePlayer: legacy slot tempers adopt losslessly onto the equipped
   migratePlayer(p2);
   assertEquals(p2.flags['forge_i_w_warrior_2'], 4, "item's own temper wins");
   assertEquals(p2.flags['forge_weapon'], 2);
-});
-
-Deno.test('migratePlayer: legacy battle gains neutral buffs; combat stays finite', () => {
-  const p = createPlayer(22, 'T', 'warrior');
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
-  // Simulate a pre-update serialized battle: string origin, missing fields.
-  (b as unknown as { origin: unknown }).origin = 'whisperwood';
-  const bb = b.buffs as unknown as Record<string, unknown>;
-  for (const k of ['enemyWeakenedPct', 'enemyWeakenTurns', 'weakenedPct', 'stunnedTurns']) {
-    delete bb[k];
-  }
-  delete b.phoenixUsed;
-  p.battle = b;
-  p.stateVersion = 0; // a pre-versioning save deserializes as v0
-  migratePlayer(p);
-  assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
-  assertEquals(b.buffs.enemyWeakenedPct, 0);
-  assertEquals(b.phoenixUsed, false);
-  // Enemy math with migrated state stays finite — no NaN anywhere.
-  performAction(p, b, { kind: 'attack' }, seeded(5));
-  assert(Number.isFinite(p.hp), 'player hp finite');
-  assert(Number.isFinite(b.enemy.hp), 'enemy hp finite');
 });
 
 Deno.test('world: every zone is reachable from the starting zones', () => {

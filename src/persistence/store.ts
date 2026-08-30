@@ -92,6 +92,9 @@ export class PgStore implements PlayerStore {
   }
 
   /** Release connections — used by tests; Deploy tears isolates down itself. */
+  // Called via `store.close()` in tests/persistence_pg_test.ts:37; fallow's
+  // member analysis can't trace it through the concrete type.
+  // fallow-ignore-next-line unused-class-member
   close(): Promise<void> {
     return this.pool.end();
   }

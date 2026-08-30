@@ -530,8 +530,3 @@ const ZONE_INDEX = new Map(ZONES.map((z) => [z.id, z]));
 export function zone(id: string): ZoneDef | undefined {
   return ZONE_INDEX.get(id);
 }
-
-/** Shop stock derives from zone tier (chapter-based). */
-export function zoneTier(id: string): number {
-  return ZONE_INDEX.get(id)?.chapter ?? 1;
-}
