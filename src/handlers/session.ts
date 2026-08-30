@@ -69,8 +69,13 @@ function renderFor(p: PlayerState): InputRichMessage {
       return renderCharacter(p);
     case 'help':
       return renderHelp();
-    default:
+    case 'zone':
       return renderZone(p);
+    default: {
+      // Exhaustive: adding a ViewId obliges a renderer choice at compile time.
+      const never: never = p.scene.view;
+      return never;
+    }
   }
 }
 
