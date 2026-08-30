@@ -18,14 +18,14 @@ jobs:
       matrix:
         task: ['fmt:check', 'lint', 'check', 'test']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
       - name: Cache Deno dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/deno
           key: deno-${{ hashFiles('deno.lock') }}
@@ -50,14 +50,14 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
       - name: Cache Deno dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/deno
           key: deno-${{ hashFiles('deno.lock') }}
