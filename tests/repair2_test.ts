@@ -549,3 +549,41 @@ Deno.test('/reset → Yes rebuilds a fully initialized hero (#19)', async () => 
   // exact regression the issue described for the dormant resetYes path.
   assertEquals(cur.quests['m1_embers']?.status, 'available', 'campaign re-offered');
 });
+
+Deno.test('reach quests credit the zone you already occupy or visited (#23)', () => {
+  // m5_fen (reach hollowmere) becomes available after m4 at level 9 — but
+  // hollowmere unlocks at m4, so a player can legitimately be there (or
+  // have been) before the quest ever exists.
+  const mk = () => {
+    const p = createPlayer(941, 'T', 'warrior');
+    p.level = 9;
+    p.quests['m4_blessing'] = { status: 'done', counts: [] };
+    syncAvailability(p);
+    return p;
+  };
+
+  // (1) Standing in the target when accepting: instant turn-in.
+  const here = mk();
+  here.unlockedZones.push('hollowmere');
+  here.currentZone = 'hollowmere'; // arrived before the quest existed
+  assert(acceptQuest(here, 'm5_fen').ok);
+  assertEquals(here.quests['m5_fen']?.status, 'turnIn', 'already there → ready');
+
+  // (2) Visited earlier, now elsewhere: ever-visited counts (#23 semantic).
+  const visited = mk();
+  visited.unlockedZones.push('hollowmere');
+  assert(travel(visited, 'hollowmere').ok); // plants zone_hollowmere
+  assert(travel(visited, 'emberfall').ok);
+  assert(acceptQuest(visited, 'm5_fen').ok);
+  assertEquals(visited.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
+
+  // (3) Never been there: stays active 0/1, and zone-entry progression
+  // remains the authoritative trigger.
+  const fresh = mk();
+  fresh.unlockedZones.push('hollowmere');
+  assert(acceptQuest(fresh, 'm5_fen').ok);
+  assertEquals(fresh.quests['m5_fen']?.status, 'active', 'unvisited → still active');
+  assertEquals(fresh.quests['m5_fen']?.counts[0], 0);
+  assert(travel(fresh, 'hollowmere').ok);
+  assertEquals(fresh.quests['m5_fen']?.status, 'turnIn', 'arrival completes it');
+});

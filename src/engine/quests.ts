@@ -55,6 +55,16 @@ export function acceptQuest(p: PlayerState, id: string): { ok: boolean; msg: str
   qp.counts = q.objectives.map(() => 0);
   // Collect objectives read the bag live — a player may already own
   // the goods when accepting (e.g. m22 after m21's Crownsworn kills).
+  // Reach objectives (#23): zones unlock before their reach quests become
+  // available, so the player may already stand in — or have already
+  // visited — the target. "Reached" means EVER visited (the zone flag
+  // onZoneEnter plants) or currently there; reconcile at accept instead
+  // of demanding a pointless leave-and-return.
+  q.objectives.forEach((o, i) => {
+    if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
+      qp.counts[i] = 1;
+    }
+  });
   refreshProgress(p);
   return { ok: true, msg: `📜 Quest accepted: ${q.name}` };
 }
