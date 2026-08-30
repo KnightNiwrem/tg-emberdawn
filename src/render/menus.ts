@@ -5,7 +5,6 @@ import type { EquipSlot, PlayerState } from '../engine/types.ts';
 import { item, itemName } from '../content/items.ts';
 import { isEquippable } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
-import { skill as skillDef } from '../content/skills.ts';
 import { MAX_LEVEL } from '../engine/classes.ts';
 import { buttonsRow, cbBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
@@ -214,7 +213,6 @@ export function renderSkills(p: PlayerState): InputRichMessage {
       { type: 'italic', text: `\n${sk.desc}` } as RichText,
     ]));
   }
-  void skillDef;
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'skills', a: 'bk' }))]));
   return { blocks };
 }
