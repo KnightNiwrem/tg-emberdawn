@@ -194,6 +194,13 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   m4_blessing (shards, level 8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; the
   zone view surfaces it, and diving into the BOSS floor under it demands an explicit confirmation
   (`z:dgb`) — bosses cannot be fled, so entry must be informed.
+- **Skill cadence (#71):** each class demonstrates its identity by level 2 — the Cleric heals from
+  level 1 (Mend Wounds), not level 4. Ladders stay distinct rather than uniform: warrior's second
+  damage tier is 13 (Whirlwind) with Iron Wall moved to 16; cleric's offensive upgrade is 11
+  (Radiant Burst) with Holy Ward at 16, and Judgment strikes for 290% MAG so late-game cleric damage
+  isn't stranded. The class picker states the starting kit, tradeoff, and complexity, and marks
+  Warrior as the forgiving beginner pick. Skill descriptions are machine-checked against their
+  authored coefficients in the test suite.
 - **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
   Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
   delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a

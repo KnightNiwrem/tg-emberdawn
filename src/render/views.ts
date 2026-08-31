@@ -647,6 +647,13 @@ export function renderClassPicker(): InputRichMessage {
       { type: 'italic', text: `\n${c.desc}` } as RichText,
     ]));
     blocks.push(
+      para(
+        `Opens with ${c.basicAction.name} (free) and ${c.startingKit}. ${c.tradeoff} Complexity: ${c.complexity}.${
+          c.beginnerPick ? ' ⭐ The forgiving first pick.' : ''
+        }`,
+      ),
+    );
+    blocks.push(
       buttonsRow(
         [cbBtn(`Play ${c.name}`, encodeCb({ v: 'meta', a: 'pick', arg: cid }), 'primary')],
         'left',

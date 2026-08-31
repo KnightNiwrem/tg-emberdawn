@@ -22,7 +22,7 @@ import {
   rollRewards,
   startBattle,
 } from '../src/engine/combat.ts';
-import type { BattleState, ClassId } from '../src/engine/types.ts';
+import { type BattleState, CLASS_IDS, type ClassId } from '../src/engine/types.ts';
 import {
   acceptQuest,
   onKill,
@@ -1015,5 +1015,57 @@ Deno.test('turn-in aggregates duplicate same-item collect objectives (#8)', () =
     assertEquals(countOf(p, 'm_iron_chunk'), 0, 'all six consumed');
   } finally {
     m6.objectives = original;
+  }
+});
+
+Deno.test('skill cadence: each class demonstrates its role by level 2 (#71)', () => {
+  const kit = (cid: ClassId, lv: number): string[] => skillsForClass(cid, lv).map((s) => s.id);
+  // Defining damage in the opening kit.
+  assert(kit('warrior', 2).includes('sk_cleave'));
+  assert(kit('mage', 2).includes('sk_firebolt'));
+  assert(kit('rogue', 2).includes('sk_quick_slash'));
+  // The Cleric promise — healing — is present from the very first fight,
+  // not four levels in.
+  const clericOpening = kit('cleric', 2);
+  assert(clericOpening.includes('sk_smite'), 'Smite from level 1');
+  assert(clericOpening.includes('sk_mend'), 'Mend Wounds from level 1 (#71)');
+
+  for (const cid of CLASS_IDS) {
+    const offense = skillsForClass(cid, MAX_LEVEL)
+      .filter((s) => s.type === 'phys' || s.type === 'mag')
+      .map((s) => s.learnLevel)
+      .sort((a, b) => a - b);
+    assert(offense.length >= 2, `${cid} owns a second damage tier`);
+    assert(
+      offense[1]! - offense[0]! <= 12,
+      `${cid} waits ${offense[1]! - offense[0]!} levels for offensive growth`,
+    );
+    const by17 = skillsForClass(cid, 17).filter((s) => s.type === 'phys' || s.type === 'mag');
+    assert(by17.length >= 2, `${cid} second damage tier arrives by 17`);
+  }
+});
+
+Deno.test('catalog: skill descriptions state the exact authored mechanics (#71)', () => {
+  const pct = (n: number): string => `${Math.round(n * 100)}%`;
+  for (const s of SKILLS) {
+    if (s.type === 'phys' || s.type === 'mag') {
+      assert(s.desc.includes(pct(s.power)), `${s.id} must quote ${pct(s.power)}: ${s.desc}`);
+    } else if (s.type === 'debuff') {
+      if (s.power > 0) assert(s.desc.includes(pct(s.power)), `${s.id}: ${s.desc}`);
+      assert(s.desc.includes(pct(s.potency ?? 0)), `${s.id}: ${s.desc}`);
+    } else if (s.type === 'heal') {
+      if (s.id === 'sk_miracle') {
+        assert(s.desc.includes('Fully restore'), `${s.id}: ${s.desc}`);
+      } else if (s.potency) {
+        assert(s.desc.includes(`${pct(s.potency)} of max HP`), `${s.id}: ${s.desc}`);
+      } else {
+        assert(s.desc.includes(`${Math.round(s.power * 200)}% of MAG`), `${s.id}: ${s.desc}`);
+      }
+    } else {
+      assert(s.desc.includes(pct(s.potency ?? 0)), `${s.id}: ${s.desc}`);
+    }
+    if (s.stunChance) {
+      assert(s.desc.includes(`${pct(s.stunChance)} chance`), `${s.id}: ${s.desc}`);
+    }
   }
 });

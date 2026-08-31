@@ -23,6 +23,15 @@ export interface ClassDef {
   startingGear: { weapon: string; armor: string };
   startingItems: Record<string, number>;
   desc: string;
+  /** Lv-1 skill kit summary for the picker (#71): what the hero actually
+   * opens with, beyond the free action. */
+  startingKit: string;
+  /** Core tradeoff, stated plainly in the picker. */
+  tradeoff: string;
+  /** Approximate rotation complexity for a new player. */
+  complexity: 'low' | 'moderate';
+  /** Marks the intentionally forgiving first class (#71). */
+  beginnerPick?: true;
 }
 
 export const MAX_LEVEL = 45;
@@ -41,6 +50,10 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     startingGear: { weapon: 'w_warrior_1', armor: 'a_warrior_1' },
     startingItems: { c_minor_potion: 3 },
     desc: 'Frontline brawler. High HP and physical damage, shrugs off hits.',
+    startingKit: 'Cleave',
+    tradeoff: 'Steady and forgiving — trades burst for staying power.',
+    complexity: 'low',
+    beginnerPick: true,
   },
   mage: {
     id: 'mage',
@@ -55,6 +68,9 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     startingGear: { weapon: 'w_mage_1', armor: 'a_mage_1' },
     startingItems: { c_minor_potion: 2, c_minor_ether: 2 },
     desc: 'Devastating elemental magic. Fragile, but hits like a siege engine.',
+    startingKit: 'Firebolt',
+    tradeoff: 'Siege-grade burst on a paper frame.',
+    complexity: 'low',
   },
   rogue: {
     id: 'rogue',
@@ -69,6 +85,9 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     startingGear: { weapon: 'w_rogue_1', armor: 'a_rogue_1' },
     startingItems: { c_minor_potion: 2, c_smoke_bomb: 1 },
     desc: 'High speed and crits. Excels at striking hard and escaping bad fights.',
+    startingKit: 'Quick Slash',
+    tradeoff: 'Strikes fast and crits hard; thin margins when cornered.',
+    complexity: 'moderate',
   },
   cleric: {
     id: 'cleric',
@@ -83,6 +102,9 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     startingGear: { weapon: 'w_cleric_1', armor: 'a_cleric_1' },
     startingItems: { c_minor_potion: 2, c_minor_ether: 1 },
     desc: 'Sustains through long fights with healing and holy magic.',
+    startingKit: 'Smite + Mend Wounds',
+    tradeoff: 'Outlasts almost anything; ends fights slowly.',
+    complexity: 'moderate',
   },
 };
 

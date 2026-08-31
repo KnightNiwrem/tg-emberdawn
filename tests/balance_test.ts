@@ -133,3 +133,93 @@ Deno.test('balance: reviewed snapshot matches the harness (#74)', () => {
     'balance snapshot drifted — if this is a deliberate balance change, run deno task balance:update and explain the shift in the commit message',
   );
 });
+
+Deno.test('rotation metrics: healing identity and MP economy stay class-distinct (#71)', () => {
+  const ratSrc: EncounterSource[] = [
+    { enemyId: 'e_rat', weight: 1, origin: { kind: 'explore', zoneId: 'outskirts' } },
+  ];
+  const wolfSrc: EncounterSource[] = [
+    { enemyId: 'e_wolf', weight: 1, origin: { kind: 'explore', zoneId: 'whisperwood' } },
+  ];
+  // A foe that actually pressures the healer: the Whisperwood elite hits
+  // hard enough to drive the cleric under the rotation's heal threshold
+  // (an ordinary wolf never does — healing identity needs real damage).
+  const stagSrc: EncounterSource[] = [
+    { enemyId: 'e_stag', weight: 1, origin: { kind: 'elite', zoneId: 'whisperwood' } },
+  ];
+
+  // Every class plays a viable, non-stalling rotation at the opening
+  // breakpoint: MP is actually spent (skills over free actions) and the
+  // guard-recovery loop means no fight times out.
+  for (const cid of CLASS_IDS) {
+    const cell = runCell({
+      classId: cid,
+      level: 1,
+      gear: 'starting',
+      policy: POLICIES.rotation,
+      pool: 'test-rat',
+      sources: ratSrc,
+      fights: 120,
+      seed: 7100,
+    });
+    assert(cell.winRate >= 0.85, `${cid} rotation vs e_rat wins (${cell.winRate})`);
+    assertEquals(cell.timeoutRate, 0, `${cid} never stalls`);
+    assert(cell.avgMpPctEnd < 1, `${cid} rotation spends MP (${cell.avgMpPctEnd})`);
+  }
+
+  // Sustain is the Cleric's to demonstrate: under real pressure the
+  // rotation heals with Mend Wounds, while the warrior — no heal skill
+  // until 28 — never heals at all.
+  const cleric = runCell({
+    classId: 'cleric',
+    level: 4,
+    gear: 'starting',
+    policy: POLICIES.rotation,
+    pool: 'test-stag',
+    sources: stagSrc,
+    fights: 120,
+    seed: 7101,
+  });
+  const warriorStag = runCell({
+    classId: 'warrior',
+    level: 4,
+    gear: 'starting',
+    policy: POLICIES.rotation,
+    pool: 'test-stag',
+    sources: stagSrc,
+    fights: 120,
+    seed: 7101,
+  });
+  assert(cleric.healPerFight > 0, `cleric sustains (${cleric.healPerFight})`);
+  assertEquals(warriorStag.healPerFight, 0, 'warrior has no heal skill at 4');
+
+  // The second damage tier shows up as kill time, not just coefficients:
+  // the Whirlwind-era warrior clears the same wolf strictly faster.
+  // Kill time on a fair foe: the Whirlwind-era warrior clears the same
+  // wolf strictly faster than the level-4 Cleave era.
+  const warrior = runCell({
+    classId: 'warrior',
+    level: 4,
+    gear: 'starting',
+    policy: POLICIES.rotation,
+    pool: 'test-wolf',
+    sources: wolfSrc,
+    fights: 120,
+    seed: 7101,
+  });
+  const w13 = runCell({
+    classId: 'warrior',
+    level: 13,
+    gear: 'starting',
+    policy: POLICIES.rotation,
+    pool: 'test-wolf',
+    sources: wolfSrc,
+    fights: 120,
+    seed: 7102,
+  });
+  assert(w13.avgRoundsWin > 0, 'level-13 warrior wins some fights');
+  assert(
+    w13.avgRoundsWin < warrior.avgRoundsWin,
+    `Whirlwind era kills faster (${w13.avgRoundsWin} < ${warrior.avgRoundsWin})`,
+  );
+});

@@ -56,6 +56,12 @@ export function coachTutorial(p: PlayerState, action: PlayerAction): void {
         sk?.name ?? 'your skill'
       } — it hits far harder than the free action, for a little MP.`,
     );
+    const heal = p.skills.map((id) => skillDef(id)).find((s) => s?.type === 'heal');
+    if (heal) {
+      lines.push(
+        `❤️ ${heal.name} is yours from the start — healing is your craft; use it before the hurt wins.`,
+      );
+    }
   } else if (!p.flags['tut_guard']) {
     lines.push("🛡️ Guard halves the enemy's next blow and recovers MP. Brace for one round.");
   } else if (!p.flags['tut_items'] && p.hp < s.maxHp * 0.7) {
