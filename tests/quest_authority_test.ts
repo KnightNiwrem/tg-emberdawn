@@ -41,7 +41,7 @@ Deno.test('accepting requires the configured STARTER in the current zone (#64)',
   // Right NPC, on-site: works. Same-NPC start/finish completes at Maren.
   p.currentZone = 'emberdawn';
   assert(acceptQuest(p, 'm1_embers', 'npc_maren').ok);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
+  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
   assert(turnInQuest(p, 'm1_embers', 'npc_maren').ok);
   assertEquals(p.quests['m1_embers']?.status, 'done');
 });
@@ -121,7 +121,7 @@ Deno.test('handler: duplicate turn-in callbacks cannot grant rewards twice (#64)
   const p = createPlayer(983, 'T', 'warrior');
   syncAvailability(p);
   assert(acceptQuest(p, 'm1_embers', 'npc_maren').ok);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
+  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
   p.messageId = 910;
   await store.set(983, p);
 

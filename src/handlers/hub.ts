@@ -5,8 +5,16 @@
 
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { bossGateBlock, diveDungeon, dungeonOf, explore, travel } from '../engine/world.ts';
+import {
+  bossGateBlock,
+  diveDungeon,
+  dungeonOf,
+  explore,
+  nextDiveIsBoss,
+  travel,
+} from '../engine/world.ts';
 import { zone as zoneDef } from '../content/zones.ts';
+import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell } from '../engine/shops.ts';
 import { temper } from '../engine/forge.ts';
 import {
@@ -47,8 +55,11 @@ function exploreAction(p: PlayerState): MutationResult {
   return {};
 }
 
-/** Dive into the zone's dungeon (next floor or boss). */
-function diveAction(p: PlayerState): MutationResult {
+/** Dive into the zone's dungeon (next floor or boss). The boss floor is
+ * inescapable — when the dive would reach it below the dungeon's authored
+ * readiness level, the first tap stages an explicit confirmation (#73);
+ * the z:dgb control proceeds deliberately. */
+function diveAction(p: PlayerState, confirmed = false): MutationResult {
   if (p.battle) {
     p.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
@@ -56,6 +67,20 @@ function diveAction(p: PlayerState): MutationResult {
   const z = zoneDef(p.currentZone);
   const d = z ? dungeonOf(z) : undefined;
   if (!z || !d) return { toast: 'No dungeon here.' };
+  const boss = enemyDef(d.boss);
+  if (
+    !confirmed &&
+    nextDiveIsBoss(p, d) &&
+    d.recommendedLevel !== undefined &&
+    p.level < d.recommendedLevel
+  ) {
+    p.scene = { view: 'zone', arg: 'bossok' };
+    return {
+      toast: `Readiness check: ${boss?.name ?? 'the boss'} is Lv ${
+        boss?.level ?? '?'
+      }, tuned for Lv ${d.recommendedLevel}. This fight cannot be fled.`,
+    };
+  }
   const res = diveDungeon(p, d);
   if (!res.ok || !res.battle) {
     p.notices = res.lines;
@@ -113,6 +138,9 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       return exploreAction(p);
     case 'dg':
       return diveAction(p);
+    case 'dgb':
+      // Explicit confirmation for an under-level boss dive (#73).
+      return diveAction(p, true);
     case 'tv':
       return go(p, 'travel');
     case 'ch':

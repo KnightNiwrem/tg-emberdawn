@@ -23,7 +23,7 @@ import {
 import { onLethalHit, performAction, startBattle } from '../src/engine/combat.ts';
 import { renderItemMenu } from '../src/render/battle.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
-import { ENEMIES } from '../src/content/enemies.ts';
+import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { shopStock } from '../src/content/items.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
@@ -343,6 +343,64 @@ Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo'
   diveUntilBoss(p, seam, rng);
   assertEquals(p.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
   assertEquals(dungeonCleared(p, seam), true);
+});
+
+// ── authored encounter eligibility (#73) ─────────────────────────────
+
+Deno.test('encounters: authored eligibility protects low-level players (#73)', () => {
+  const rng = seeded(303);
+  const p = createPlayer(50, 'T', 'warrior');
+
+  // A level-1 player finds NO hostiles in the Whisperwood — and never the
+  // level-7 stag: the protection is authored content, not an engine guess.
+  p.level = 1;
+  assert(travel(p, 'whisperwood').ok);
+  for (let i = 0; i < 400; i++) {
+    const out = explore(p, rng);
+    assert(
+      out.kind !== 'battle',
+      `level-1 rolled a Whisperwood hostile: ${out.kind === 'battle' ? out.battle.enemy.id : ''}`,
+    );
+  }
+
+  // At level 4 the ordinary pool is live but the elite is still locked.
+  p.level = 4;
+  for (let i = 0; i < 600; i++) {
+    const out = explore(p, rng);
+    assert(
+      !(out.kind === 'battle' && out.battle.origin.kind === 'elite'),
+      'a level-4 player must not roll the elite',
+    );
+  }
+
+  // The Outskirts give level-1 heroes a real, level-appropriate pool.
+  p.level = 1;
+  assert(travel(p, 'outskirts').ok);
+  let fights = 0;
+  for (let i = 0; i < 300 && fights < 8; i++) {
+    const out = explore(p, rng);
+    if (out.kind === 'battle') {
+      fights++;
+      assert(
+        enemy(out.battle.enemy.id)!.level <= 3,
+        `outskirts hostile too tough for a level-1 hero: ${out.battle.enemy.id}`,
+      );
+    }
+  }
+  assert(fights >= 8, 'the outskirts must offer repeatable low-level combat');
+
+  // The bands themselves are authored, sane, and backwards-safe: no max on
+  // ordinary enemies (old areas stay farmable end-game), elites opt-in.
+  for (const z of ZONES) {
+    for (const ev of z.explore) {
+      if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
+      const min = ev.minPlayerLevel ?? 1;
+      assert(min >= 1, `${z.id}: bad band on ${ev.enemy}`);
+      if (ev.maxPlayerLevel !== undefined) assert(ev.maxPlayerLevel >= min, z.id);
+    }
+  }
+  const stag = zone('whisperwood')!.explore.find((e) => e.kind === 'elite');
+  assertEquals(stag?.minPlayerLevel, 5);
 });
 
 // ── static collect-source reachability (#9) ─────────────────────────────

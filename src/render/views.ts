@@ -13,7 +13,8 @@ import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { currentStock } from '../engine/shops.ts';
 import { zone } from '../content/zones.ts';
-import { dungeonOf, dungeonProgressLine } from '../engine/world.ts';
+import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
+import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
 import { MAX_TEMPER, temperCost, temperLevel } from '../engine/forge.ts';
@@ -45,7 +46,38 @@ export function renderZone(p: PlayerState): InputRichMessage {
     ]),
   ];
   if (z.safeHaven) blocks.push(para('🔥 Safe haven — full rest on arrival.'));
-  if (d) blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}`));
+  if (d) {
+    // Authored readiness surfaced (#73): the recommended level rides the
+    // dungeon line so the boss's tune point is never a hidden dependency.
+    const rec = d.recommendedLevel !== undefined ? ` · Recommended Lv ${d.recommendedLevel}` : '';
+    blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}${rec}`));
+  }
+
+  // Under-level boss confirmation (#73): the boss floor is inescapable, so
+  // diving into it below the authored readiness level demands an informed,
+  // explicit choice — a full-screen warning instead of the action rows.
+  if (
+    d &&
+    p.scene.arg === 'bossok' &&
+    nextDiveIsBoss(p, d) &&
+    d.recommendedLevel !== undefined &&
+    p.level < d.recommendedLevel
+  ) {
+    const boss = enemyDef(d.boss);
+    blocks.push(banner('☠️ Readiness warning'));
+    blocks.push(para(
+      `${boss?.name ?? 'The boss'} waits at Lv ${
+        boss?.level ?? '?'
+      }. This fight is tuned for Lv ${d.recommendedLevel} — you are Lv ${p.level} — and bosses cannot be fled: no escape, no Smoke Bomb, only defeat or victory.`,
+    ));
+    blocks.push(
+      buttonsRow([
+        cbBtn('⚔️ Face it anyway', encodeCb({ v: 'zone', a: 'dgb' }), 'danger'),
+        cbBtn("⬅️ Not yet — I'll prepare", encodeCb({ v: 'zone', a: 'hm' }), 'primary'),
+      ]),
+    );
+    return { blocks };
+  }
 
   blocks.push(
     buttonsRow([

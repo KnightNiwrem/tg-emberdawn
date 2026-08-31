@@ -99,7 +99,7 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   stats derive from level in `mk()` (`content/enemies.ts`); bosses multiply HP/xp/gold and have
   scripted specials every N turns.
 - **Story & theme:** the game is about _seeking hope for a future_ — the player is a **Dawncaller**,
-  the Sundered King is despair hoarding tomorrow, and each chapter recovers a piece of the dawn. 25
+  the Sundered King is despair hoarding tomorrow, and each chapter recovers a piece of the dawn. 28
   main quests across 6 chapters + postgame Abyss. Chapter flags: `chapter1Done`…`chapter6Done`;
   game-clear moment = defeating King Aldric (flag set via dungeon first-clear `crownRestored`). Keep
   new writing in this register: setbacks are real but framed as "not yet", never "never".
@@ -181,6 +181,19 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   ONLY the directed action (progressive disclosure — travel/explore/shop/NPC list withheld).
   Migration v4→v5 stamps pre-launch heroes `'done'` (explicit skip — never inferred from progress);
   the migration chain cascades on the UPDATED version (v3→v4→v5).
+- **Encounter eligibility (#73):** battle/elite explore events carry authored `minPlayerLevel` /
+  `maxPlayerLevel`; explore() filters them before weighting, so low-level protection lives in
+  CONTENT (authorable, testable), not ad-hoc engine checks. Ordinary enemies have no ceiling —
+  returning to earlier areas must keep working end-game. Whisperwood hostiles start at 3 and its
+  elite (e_stag) at 5; the Emberdawn Outskirts (Lv 1–3) are the repeatable low-level wilds, and
+  Emberdawn Village stays a battle-free safe haven.
+- **Chapter-one curve (#73):** the bridge to Aranya is authored, not an unexplained grind: m1_embers
+  (4× Lv-1 ember-rats in the Outskirts) → m2_letter (delivery) → m3_wolves (3× Lv-4 wolves,
+  Whisperwood) → m4_floors (silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: iron chunks +
+  coin; the village band runs [1,7] so Bram's rack stocks tier 2) → m3_roots (Aranya, level 7) →
+  m4_blessing (shards, level 8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; the
+  zone view surfaces it, and diving into the BOSS floor under it demands an explicit confirmation
+  (`z:dgb`) — bosses cannot be fled, so entry must be informed.
 - **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
   Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
   delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a

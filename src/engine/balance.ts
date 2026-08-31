@@ -23,7 +23,7 @@ import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onTalk, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
 import { diveDungeon, dungeonOf, explore, travel } from './world.ts';
-import { ENEMIES } from '../content/enemies.ts';
+import { ENEMIES, enemy as enemyDef } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
 import { quest, zoneOfNpc } from '../content/quests.ts';
 import { skill as skillDef } from '../content/skills.ts';
@@ -655,7 +655,15 @@ export interface ProgressionReport {
   stuck?: string;
 }
 
-const CH1 = ['m1_embers', 'm2_letter', 'm3_roots', 'm4_blessing'] as const;
+const CH1 = [
+  'm1_embers',
+  'm2_letter',
+  'm3_wolves',
+  'm4_floors',
+  'm5_arms',
+  'm3_roots',
+  'm4_blessing',
+] as const;
 
 function weaponTier(p: PlayerState): number {
   return p.equipment.weapon ? itemDef(p.equipment.weapon)?.tier ?? 0 : 0;
@@ -667,6 +675,7 @@ function weaponTier(p: PlayerState): number {
 export function simulateChapterOne(classId: ClassId, seed: number): ProgressionReport {
   const rng: Rng = seededRng(seed);
   const p = createPlayer(0, 'Sim', classId);
+  p.tutorial = 'done'; // the sim models a player past the prologue (#69)
   syncAvailability(p);
   let deaths = 0;
   let fights = 0;
@@ -742,7 +751,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
     clampPools(p);
   };
 
-  function shop(): void {
+  function shopHere(): void {
     const stock = currentStock(p);
     for (const kind of ['weapon', 'armor'] as const) {
       const cur = p.equipment[kind] ?? '';
@@ -773,14 +782,28 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
     }
   }
 
+  /** Shops every unlocked rack (#73): the village band stocks tier-2 steel
+   * at the m5_arms beat, and the Whisperwood's band carries it too — a real
+   * shopper compares both. Ends wherever the better rack was. */
+  function shop(): void {
+    shopHere();
+    if (p.unlockedZones.includes('whisperwood') && p.currentZone !== 'whisperwood') {
+      travel(p, 'whisperwood');
+      shopHere();
+    }
+  }
+
   /** Explore-farm until the level rises; returns fights spent. */
   const grindOneLevel = (): number => {
     const start = p.level;
+    // Farm where the level band has live hostiles (#73): the Outskirts for
+    // levels 1–2, the Whisperwood from 3.
+    const farmZone = p.level < 3 ? 'outskirts' : 'whisperwood';
     let n = 0;
     while (p.level === start && n < 300) {
       n++;
       grind++;
-      goto('whisperwood');
+      goto(farmZone);
       const out = explore(p, rng, 0);
       if (out.kind === 'battle' && fight(out.battle) !== 'win') restock();
     }
@@ -789,11 +812,27 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
 
   const questCount = (qid: string, idx: number): number => p.quests[qid]?.counts[idx] ?? 0;
 
-  const farmKills = (qid: string, objIdx: number, need: number): boolean => {
+  /** First unlocked zone whose hostile table spawns the enemy (#73) — the
+   * Outskirts come before the Whisperwood for shared early spawns. */
+  const zoneOfEnemy = (enemyId: string): string | undefined => {
+    for (const z of ZONES) {
+      if (!p.unlockedZones.includes(z.id)) continue;
+      if (
+        z.explore.some((e) => (e.kind === 'battle' || e.kind === 'elite') && e.enemy === enemyId)
+      ) {
+        return z.id;
+      }
+    }
+    return undefined;
+  };
+
+  const farmKills = (qid: string, objIdx: number, enemyId: string, need: number): boolean => {
+    const zid = zoneOfEnemy(enemyId);
+    if (!zid) return false;
     let local = 0;
     while (questCount(qid, objIdx) < need) {
       if (++local > 400) return false;
-      goto('whisperwood');
+      goto(zid);
       const out = explore(p, rng, 0);
       if (out.kind === 'battle') {
         if (fight(out.battle) !== 'win') restock();
@@ -805,8 +844,13 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
   const farmCollect = (target: string, need: number): boolean => {
     let local = 0;
     while (countOf(p, target) < need) {
+      // Shop fallback (#73): some collect targets are primarily SOLD
+      // (m_iron_chunk) rather than wild-dropped — buy when stocked and
+      // affordable instead of grinding a pool that can never drop it.
+      const price = itemDef(target)?.price ?? 0;
+      if (currentStock(p).includes(target) && p.gold >= price + 20 && buy(p, target).ok) continue;
       if (++local > 400) return false;
-      goto('whisperwood');
+      goto('outskirts');
       const out = explore(p, rng, 0);
       if (out.kind === 'battle' && fight(out.battle) !== 'win') restock();
     }
@@ -907,7 +951,9 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
       const have = obj.kind === 'collect' ? countOf(p, obj.target) : questCount(active, i);
       if (have >= need) continue;
       if (obj.kind === 'kill') {
-        progressed = active === 'm3_roots' ? clearBoss('whisperwood') : farmKills(active, i, need);
+        progressed = active === 'm3_roots'
+          ? clearBoss('whisperwood')
+          : farmKills(active, i, obj.target, need);
       } else if (obj.kind === 'collect') {
         progressed = farmCollect(obj.target, need);
       } else if (obj.kind === 'talk') {

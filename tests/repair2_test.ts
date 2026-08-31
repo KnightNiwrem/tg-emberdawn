@@ -409,8 +409,11 @@ Deno.test('boss first-clear trinkets are earned trophies — not sellable or dro
 Deno.test('ready main quest: the log detail refuses; the NPC interaction completes (#15, #64)', async () => {
   const store = new MemoryStore();
   const p = createPlayer(920, 'T', 'warrior');
-  p.level = 5; // m3 requires level 3
-  p.quests['m2_letter'] = { status: 'done', counts: [] };
+  p.level = 7; // m3_roots requires level 7 (#73)
+  // The reworked chapter-one chain (#73): m3_roots unlocks behind m5_arms.
+  for (const id of ['m1_embers', 'm2_letter', 'm3_wolves', 'm4_floors', 'm5_arms']) {
+    p.quests[id] = { status: 'done', counts: [] };
+  }
   syncAvailability(p);
   assert(acceptQuest(p, 'm3_roots', 'npc_bram').ok);
   onKill(p, 'e_aranya');
@@ -1021,19 +1024,29 @@ Deno.test('victory screen orders recap, outcome, spoils, and history — no dupl
 });
 
 Deno.test('quest log names the level-locked next quest during grind gaps (#33)', () => {
-  // Level gap: the chapter chain m1–m4 is done, level 5 → m5 (req 9) is
-  // story-unlocked but locked. (m1 alone done wouldn't reach the gap card:
-  // m1 would still be 'available' and keep the await branch.)
+  // Level gap: the chapter-one chain is done, level 8 → m5_fen (req 9) is
+  // story-unlocked but locked. (Partial chains keep an 'available' card on
+  // the log and never reach the gap branch.)
   const p = createPlayer(964, 'T', 'warrior');
-  p.level = 5;
-  for (const id of ['m1_embers', 'm2_letter', 'm3_roots', 'm4_blessing']) {
+  p.level = 8;
+  for (
+    const id of [
+      'm1_embers',
+      'm2_letter',
+      'm3_wolves',
+      'm4_floors',
+      'm5_arms',
+      'm3_roots',
+      'm4_blessing',
+    ]
+  ) {
     p.quests[id] = { status: 'done', counts: [] };
   }
   syncAvailability(p);
   const log = JSON.stringify(renderQuests(p));
   assert(log.includes('Into the Fen'), 'the next quest is named');
   assert(log.includes('Requires level 9'), 'the requirement is shown');
-  assert(log.includes('you are 5'), 'the current level is shown');
+  assert(log.includes('you are 8'), 'the current level is shown');
   assert(!log.includes('q:a:m5_fen'), 'no accept path for a locked quest');
 
   // Story still gated: with m21 live, m22 is never revealed.
@@ -1346,12 +1359,15 @@ Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred fr
 
 Deno.test('NPC talk opens their authored quest (#31)', () => {
   const p = createPlayer(972, 'T', 'warrior');
-  p.level = 5;
-  p.quests['m2_letter'] = { status: 'done', counts: [] };
+  p.level = 7;
+  // The chain (#73): after m4_floors, Bram offers the m5_arms preparation.
+  for (const id of ['m2_letter', 'm3_wolves', 'm4_floors']) {
+    p.quests[id] = { status: 'done', counts: [] };
+  }
   syncAvailability(p);
   // Bram is the second NPC of Emberdawn Village (maren, bram, lyra).
   zoneAction(p, { v: 'zone', a: 'tk', arg: 1 });
-  assertEquals(p.scene.arg, 'm3_roots', "talk opens the giver's quest");
+  assertEquals(p.scene.arg, 'm5_arms', "talk opens the giver's quest");
   assert(p.notices.length > 0, 'a greeting is shown');
 });
 

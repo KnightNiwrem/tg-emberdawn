@@ -8,7 +8,7 @@ import type { ZoneDef } from './types.ts';
 /** Zones a fresh character can already reach. Everything else must be
  * unlocked by quest rewards or dungeon first-clears (reachability is
  * test-guarded). */
-export const STARTING_ZONES: readonly string[] = ['emberdawn', 'whisperwood'];
+export const STARTING_ZONES: readonly string[] = ['emberdawn', 'outskirts', 'whisperwood'];
 
 export const ZONES: readonly ZoneDef[] = [
   {
@@ -16,7 +16,10 @@ export const ZONES: readonly ZoneDef[] = [
     name: 'Emberdawn Village',
     emoji: '🏮',
     chapter: 1,
-    levels: [1, 5],
+    // Band runs to 7 (#73): the village is home through the whole Aranya
+    // preparation — Bram's rack stocks tier-2 steel exactly at the m5_arms
+    // beat, instead of hiding it one zone deeper.
+    levels: [1, 7],
     desc:
       'A village huddled around the last lit ember of the Great Flame — small, stubborn, and still planning for spring.',
     safeHaven: true,
@@ -66,6 +69,32 @@ export const ZONES: readonly ZoneDef[] = [
     ],
   },
   {
+    id: 'outskirts',
+    name: 'Emberdawn Outskirts',
+    emoji: '🌾',
+    chapter: 1,
+    levels: [1, 3],
+    desc:
+      'Hearth-roads and stubble fields where ember-rats and rootlings gnaw. Farmers speak of a tusked boar that took the bridge path.',
+    safeHaven: false,
+    explore: [
+      { kind: 'battle', enemy: 'e_ember_rat', weight: 3, minPlayerLevel: 1 },
+      { kind: 'battle', enemy: 'e_rootling', weight: 2, minPlayerLevel: 1 },
+      { kind: 'battle', enemy: 'e_rat', weight: 2, minPlayerLevel: 1 },
+      // The signposted tough one: rare, level 3, never an elite.
+      { kind: 'battle', enemy: 'e_boar', weight: 1, minPlayerLevel: 2 },
+      {
+        kind: 'treasure',
+        gold: 25,
+        weight: 1,
+        text: 'A dropped coin-purse swings under a fence post.',
+      },
+      { kind: 'rest', healPct: 0.25, weight: 1, text: 'You rest in the shade of a hay-rick.' },
+      { kind: 'flavor', weight: 2, text: 'Woodsmoke drifts from the village behind you.' },
+    ],
+    npcs: [],
+  },
+  {
     id: 'whisperwood',
     name: 'Whisperwood',
     emoji: '🌲',
@@ -75,16 +104,20 @@ export const ZONES: readonly ZoneDef[] = [
       "An ancient forest whose roots still carry the Flame's warmth. The whispers have turned sour — but roots remember.",
     safeHaven: false,
     explore: [
-      { kind: 'battle', enemy: 'e_wolf', weight: 3 },
-      { kind: 'battle', enemy: 'e_spider', weight: 3 },
-      { kind: 'battle', enemy: 'e_sprite', weight: 2 },
-      { kind: 'battle', enemy: 'e_boar', weight: 2 },
-      { kind: 'battle', enemy: 'e_rat', weight: 2 },
-      { kind: 'battle', enemy: 'e_bandit', weight: 1 },
+      // Authored eligibility (#73): Whisperwood runs Lv 3–9 — a level-1 or
+      // 2 player finds no hostiles here at all, and the elite is locked
+      // until Lv 5 (opt-in preparation, never a random level-7 spike).
+      { kind: 'battle', enemy: 'e_wolf', weight: 3, minPlayerLevel: 3 },
+      { kind: 'battle', enemy: 'e_spider', weight: 3, minPlayerLevel: 3 },
+      { kind: 'battle', enemy: 'e_sprite', weight: 2, minPlayerLevel: 3 },
+      { kind: 'battle', enemy: 'e_boar', weight: 2, minPlayerLevel: 3 },
+      { kind: 'battle', enemy: 'e_rat', weight: 2, minPlayerLevel: 3 },
+      { kind: 'battle', enemy: 'e_bandit', weight: 1, minPlayerLevel: 3 },
       {
         kind: 'elite',
         enemy: 'e_stag',
         weight: 1,
+        minPlayerLevel: 5,
         text: 'A massive stag with emberless eyes crashes through the brush!',
       },
       {
@@ -114,6 +147,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: "The forest's root-cathedral, now strangled in silk.",
       boss: 'e_aranya',
       bossGate: { quest: 'm3_roots', requireDone: false },
+      recommendedLevel: 7,
       floors: [
         { enemies: ['e_spider', 'e_mycelid'], treasure: { gold: 60 } },
         { enemies: ['e_mycelid', 'e_thornling'] },
@@ -187,6 +221,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: 'A temple to the Flame, drowned when the swamp crept in.',
       boss: 'e_vosk',
       bossGate: { quest: 'm7_tyrant', requireDone: false },
+      recommendedLevel: 14,
       floors: [
         { enemies: ['e_drowned', 'e_boglin'], treasure: { gold: 140 } },
         { enemies: ['e_drowned', 'e_serpent'], treasure: { item: 'c_ether' } },
@@ -246,6 +281,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: "The city's time-vault. Every hour stolen from the Flame is kept here.",
       boss: 'e_chronolich',
       bossGate: { quest: 'm12_chronolich', requireDone: false, item: 'q_sunspire_key' },
+      recommendedLevel: 21,
       floors: [
         { enemies: ['e_chronowisp', 'e_automaton'], treasure: { gold: 260 } },
         { enemies: ['e_automaton', 'e_chronowisp', 'e_sentinel'] },
@@ -303,6 +339,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: 'A blue cave that breathes. Deep inside, a heartbeat made of ice.',
       boss: 'e_jormunis',
       bossGate: { quest: 'm15_wyrm', requireDone: false },
+      recommendedLevel: 29,
       floors: [
         { enemies: ['e_iceling', 'e_frostwraith'], treasure: { gold: 420 } },
         {
@@ -371,6 +408,7 @@ export const ZONES: readonly ZoneDef[] = [
         "The caldera's throat. At the bottom, the Last Flame gutters in a cage of its own making.",
       boss: 'e_ignivar',
       bossGate: { quest: 'm19_ignivar', requireDone: false },
+      recommendedLevel: 37,
       floors: [
         { enemies: ['e_cinderhound', 'e_salamander'], treasure: { gold: 700 } },
         {
@@ -439,6 +477,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: 'The throne room at the top of everything, split down the middle like its king.',
       boss: 'e_aldric',
       bossGate: { quest: 'm23_aldric', requireDone: false },
+      recommendedLevel: 43,
       floors: [
         { enemies: ['e_crownsworn', 'e_shattered'], treasure: { gold: 1200 } },
         { enemies: ['e_nightgaunt', 'e_horror', 'e_regalia'], treasure: { item: 'c_elixir' } },
@@ -505,6 +544,7 @@ export const ZONES: readonly ZoneDef[] = [
       desc: "The void's own wound, crawling with what fell through. Cleared trials repeat.",
       boss: 'e_warden',
       bossGate: { quest: 'm25_silence', requireDone: false },
+      recommendedLevel: 43,
       floors: [
         { enemies: ['e_voidspawn', 'e_nullhound'], treasure: { gold: 1800 } },
         { enemies: ['e_echo', 'e_voidspawn', 'e_nullhound'], treasure: { item: 'c_elixir' } },

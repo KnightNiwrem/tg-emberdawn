@@ -84,7 +84,7 @@ export function tutorialRelease(): string[] {
   return [
     '🌅 Your first fight is yours. Maren will want to hear of it.',
     "📜 Elder Maren's board has work — talk to her when you're ready.",
-    '🧭 The Whisperwood lies beyond the village (Lv 3–9). Weigh enemy levels before you engage — and 🏃 Flee is always an option, though it can fail.',
+    '🧭 The Emberdawn Outskirts are safe enough for a fresh blade (Lv 1–3); the Whisperwood beyond runs deeper (Lv 3–9). Weigh enemy levels before you engage — and 🏃 Flee is always an option, though it can fail.',
     '🔥 Return to a safe haven to heal for free — travel costs nothing.',
   ];
 }

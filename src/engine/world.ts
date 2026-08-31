@@ -105,6 +105,17 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
 const MAX_FORAGE_CHARGES = 3;
 const FORAGE_COOLDOWN_MS = 6 * 3_600_000;
 
+/** No authored ceiling on ordinary enemies: returning to earlier areas
+ * should always work (#73) — old enemies stay spawnable end-game. */
+const MAX_EXPLORE_LEVEL = Number.POSITIVE_INFINITY;
+
+/** True when the NEXT dive would be the boss floor (or a rematch) — used by
+ * the zone view to demand explicit confirmation before an under-level
+ * inescapable fight (#73). */
+export function nextDiveIsBoss(p: PlayerState, d: DungeonDef): boolean {
+  return nextFloor(p, d) >= d.floors.length + 1 || dungeonCleared(p, d);
+}
+
 export function explore(
   p: PlayerState,
   rng: Rng = defaultRng,
@@ -119,6 +130,14 @@ export function explore(
   let pool = z.safeHaven
     ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite')
     : z.explore;
+  // Authored encounter eligibility (#73): battle/elite events only roll for
+  // players inside their authored level band. Low-level protection lives in
+  // CONTENT (authorable, testable) — not ad-hoc engine checks — and a zone
+  // whose hostiles are all filtered simply offers its quieter events.
+  pool = pool.filter((e) => {
+    if (e.kind !== 'battle' && e.kind !== 'elite') return true;
+    return p.level >= (e.minPlayerLevel ?? 1) && p.level <= (e.maxPlayerLevel ?? MAX_EXPLORE_LEVEL);
+  });
   // Safe-haven foraging is finite per REAL-TIME cooldown: a few picks and
   // the caches dry up for hours — free travel can no longer refresh the
   // faucet, so the Emberdawn loop is a 6-hour wait, not four taps.
@@ -293,9 +312,9 @@ export function diveDungeon(
       ok: true,
       battle,
       lines: [
-        `${d.emoji} You descend to the deepest chamber. ${
-          enemyDef(d.boss)?.name ?? d.boss
-        } awaits${again}.`,
+        `${d.emoji} You descend to the deepest chamber. ${enemyDef(d.boss)?.name ?? d.boss} (Lv ${
+          enemyDef(d.boss)?.level ?? '?'
+        }) awaits${again}.`,
       ],
     };
   }
@@ -315,7 +334,11 @@ export function diveDungeon(
   return {
     ok: true,
     battle,
-    lines: [`${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} bars the way.`],
+    lines: [
+      `${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} (Lv ${
+        enemyDef(enemyId)?.level ?? '?'
+      }) bars the way.`,
+    ],
   };
 }
 

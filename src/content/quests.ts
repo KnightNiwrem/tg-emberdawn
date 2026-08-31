@@ -15,12 +15,13 @@ export const QUESTS: readonly QuestDef[] = [
     main: true,
     chapter: 1,
     level: 1,
-    summary: 'Elder Maren asks you to thin the wolf packs — the first steps on a longer road.',
+    summary:
+      'Elder Maren asks you to thin the ember-rats gnawing the hearth-roads — the first steps on a longer road.',
     intro:
-      'Maren looks to the horizon. "The wolves grow bold as the Flame dims. Thin them, so the village keeps heart enough to hope."',
+      'Maren looks to the fields. "Ember-rats have come down from the ash to gnaw at the hearth-roads. Thin them out, so the village keeps heart enough to hope. The Outskirts, just past the fields — and mind the boar."',
     outro:
       '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. The road you\'ll walk starts at his forge."',
-    objectives: [{ kind: 'kill', target: 'e_wolf', count: 4 }],
+    objectives: [{ kind: 'kill', target: 'e_ember_rat', count: 4 }],
     rewards: { xp: 120, gold: 80, items: { q_sealed_letter: 1 } },
     startNpc: 'npc_maren',
     finishNpc: 'npc_maren',
@@ -47,14 +48,70 @@ export const QUESTS: readonly QuestDef[] = [
     finishNpc: 'npc_bram',
   }),
   Q({
+    id: 'm3_wolves',
+    name: 'Bold Wolves',
+    main: true,
+    chapter: 1,
+    level: 3,
+    prereqQuest: 'm2_letter',
+    summary: 'The wolf packs still grow bold as the Flame dims — thin them in the Whisperwood.',
+    intro:
+      '"The wolves grow bold as the Flame dims," Maren says. "They were the first to feel the rot, out under the Whisperwood. Thin the packs, so the wood keeps heart enough to hope."',
+    outro:
+      '"Quiet returns to the treeline," Maren says. "The wood remembers kindness slowly — but it does remember."',
+    objectives: [{ kind: 'kill', target: 'e_wolf', count: 3 }],
+    rewards: { xp: 250, gold: 120 },
+    startNpc: 'npc_maren',
+    finishNpc: 'npc_maren',
+  }),
+  Q({
+    id: 'm4_floors',
+    name: "The Hollow's Threshold",
+    main: true,
+    chapter: 1,
+    level: 5,
+    prereqQuest: 'm3_wolves',
+    summary:
+      "Warden Tom marks the broods feeding the Hollow's rot — cut them down at the threshold.",
+    intro:
+      '"Keep to the paths," Warden Tom says. "The silk-broods and their sprite-kin are feeding the Hollow. Cut them down at the threshold, before you think of going deeper."',
+    outro:
+      '"Threshold\'s holding," Tom says. "Deeper\'s worse. The Hollow\'s heart has a keeper now — and it isn\'t kind. Ready yourself."',
+    objectives: [
+      { kind: 'kill', target: 'e_spider', count: 3 },
+      { kind: 'kill', target: 'e_sprite', count: 2 },
+    ],
+    rewards: { xp: 300, gold: 200 },
+    startNpc: 'npc_warden_tom',
+    finishNpc: 'npc_warden_tom',
+  }),
+  Q({
+    id: 'm5_arms',
+    name: 'Steel for the Descent',
+    main: true,
+    chapter: 1,
+    level: 6,
+    prereqQuest: 'm4_floors',
+    summary:
+      "Bram wants real steel in your hands before the Hollow's heart — iron, and coin to temper it.",
+    intro:
+      'Bram weighs the chunks in his palm. "The Hollow\'s heart will not fall to a rusty edge. Mycelids carry good iron in their husks — bring me two chunks and coin enough, and I\'ll see you descend armed like a Dawncaller, not a dawdler."',
+    outro:
+      'Bram sets the forge roaring. "There. Tier-two steel, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark."',
+    objectives: [{ kind: 'collect', target: 'm_iron_chunk', count: 2 }],
+    rewards: { xp: 250, gold: 250, items: { c_potion: 2 } },
+    startNpc: 'npc_bram',
+    finishNpc: 'npc_bram',
+  }),
+  Q({
     id: 'm3_roots',
     startNpc: 'npc_bram',
     finishNpc: 'npc_bram',
     name: 'Root of the Rot',
     main: true,
     chapter: 1,
-    level: 3,
-    prereqQuest: 'm2_letter',
+    level: 7,
+    prereqQuest: 'm5_arms',
     summary: "Cleanse the Rootbound Hollow — reclaim the wood's warmth for what comes next.",
     intro:
       'Bram arms you properly. "Follow the warm roots into the Hollow. Cut loose what\'s choking them, and the wood will remember how to grow."',
@@ -70,7 +127,7 @@ export const QUESTS: readonly QuestDef[] = [
     name: "Whisperwood's Blessing",
     main: true,
     chapter: 1,
-    level: 4,
+    level: 8,
     prereqQuest: 'm3_roots',
     summary: "Gather ember shards — seed-stock of the dawn — for Bram's forge.",
     intro:

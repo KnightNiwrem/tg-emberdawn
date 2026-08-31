@@ -165,11 +165,30 @@ export interface QuestDef {
 }
 
 export type ExploreEvent =
-  | { kind: 'battle'; enemy: string; weight: number }
+  | {
+    kind: 'battle';
+    enemy: string;
+    weight: number;
+    /** Authored encounter eligibility (#73): the event only rolls for
+     * players at/above this level. Unauthored = always eligible. Keeps
+     * low-level protection in CONTENT, not ad-hoc engine checks. */
+    minPlayerLevel?: number;
+    /** Symmetric ceiling — author sparingly: returning to earlier areas
+     * should still work (old enemies stay spawnable end-game). */
+    maxPlayerLevel?: number;
+  }
   | { kind: 'treasure'; gold?: number; item?: string; weight: number; text: string }
   | { kind: 'rest'; healPct: number; weight: number; text: string }
   | { kind: 'flavor'; weight: number; text: string }
-  | { kind: 'elite'; enemy: string; weight: number; text: string };
+  | {
+    kind: 'elite';
+    enemy: string;
+    weight: number;
+    text: string;
+    /** Elites are opt-in: locked until the player is this level (#73). */
+    minPlayerLevel?: number;
+    maxPlayerLevel?: number;
+  };
 
 export interface DungeonFloor {
   /** Chance the floor holds a treasure cache. */
@@ -189,6 +208,10 @@ export interface DungeonDef {
    * requireDone, at least active) before the boss can be faced. Normal
    * floors stay open as soon as the zone is unlocked. */
   bossGate?: { quest: string; requireDone?: boolean; item?: string };
+  /** Authored readiness (#73): the level the boss fight is tuned for. The
+   * zone view surfaces it, and an under-level dive into the boss floor
+   * (inescapable) demands an explicit confirmation before it starts. */
+  recommendedLevel?: number;
   /** First-clear rewards, granted when the boss falls. */
   firstClear?: { xp: number; gold: number; item?: string; flags?: string[]; unlockZone?: string };
 }

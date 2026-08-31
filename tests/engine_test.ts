@@ -318,7 +318,7 @@ Deno.test('quest flow: accept, progress by kill, turn in, unlock next', () => {
   assert(p.quests['m1_embers']?.status === 'available');
   const acc = acceptQuest(p, 'm1_embers', 'npc_maren');
   assert(acc.ok);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
+  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
   assertEquals(p.quests['m1_embers'].status, 'turnIn');
   const res = turnInQuest(p, 'm1_embers', 'npc_maren');
   assert(res.ok);
@@ -745,8 +745,10 @@ Deno.test('world: safe havens never spawn battles; the wilds do', () => {
     assert(outcome.kind !== 'battle', 'safe haven must not spawn battles');
     assertEquals(p.battle, undefined); // explore never attaches; caller does
   }
-  // The wilds: battles are common (weighted tables) — find one.
-  assert(travel(p, 'whisperwood').ok);
+  // The wilds: battles are common (weighted tables) — find one. The
+  // Outskirts are the level-1 wilds band (#73); the Whisperwood's band
+  // starts at 3 and its elite waits for 5.
+  assert(travel(p, 'outskirts').ok);
   let sawBattle = false;
   for (let i = 0; i < 50 && !sawBattle; i++) {
     if (explore(p, rng).kind === 'battle') sawBattle = true;
@@ -963,7 +965,7 @@ Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => 
   const p = createPlayer(34, 'T', 'warrior');
   syncAvailability(p);
   assertEquals(acceptQuest(p, 'm1_embers', 'npc_maren').ok, true);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
+  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
   assertEquals(turnInQuest(p, 'm1_embers', 'npc_maren').ok, true);
   assertEquals(countOf(p, 'q_sealed_letter'), 1, 'm1 hands over the letter');
   syncAvailability(p);
