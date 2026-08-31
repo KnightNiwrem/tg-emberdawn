@@ -44,6 +44,7 @@ import {
   questStarter,
   zoneOfNpc,
 } from '../src/content/quests.ts';
+import { STARTING_ZONES } from '../src/content/zones.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
@@ -659,10 +660,10 @@ Deno.test('character menu 🗑️ Delete hero → Yes deletes the save too (#62)
   assertEquals(del.edits.length, 1, 'class picker replaces the confirmation');
 });
 
-Deno.test('reach quests credit the zone you occupy; acceptance stays on-site (#23, #64)', () => {
-  // m5_fen (reach hollowmere) becomes available after m4 at level 9 — but
-  // hollowmere unlocks at m4, so a player can legitimately be there before
-  // the quest ever exists.
+Deno.test('reach quests record the journey; the starter starts, the finisher finishes (#23, #66)', () => {
+  // m5_fen (reach hollowmere) STARTS with Bram in Emberdawn and FINISHES
+  // with the Ferryman in Hollowmere (#66): the quest motivates the journey
+  // instead of being acceptable only after arriving.
   const mk = () => {
     const p = createPlayer(941, 'T', 'warrior');
     p.level = 9;
@@ -671,32 +672,37 @@ Deno.test('reach quests credit the zone you occupy; acceptance stays on-site (#2
     return p;
   };
 
-  // (1) Standing in the target when accepting: instant turn-in. The
-  // accept reconciles against the CURRENT zone (#23).
-  const here = mk();
-  here.unlockedZones.push('hollowmere');
-  here.currentZone = 'hollowmere'; // arrived before the quest existed
-  assert(acceptQuest(here, 'm5_fen', 'npc_ferryman').ok);
-  assertEquals(here.quests['m5_fen']?.status, 'turnIn', 'already there → ready');
+  // (1) Accepted at the starter, target never seen: stays active 0/1, and
+  // zone-entry remains the authoritative trigger.
+  const fresh = mk();
+  assert(acceptQuest(fresh, 'm5_fen', 'npc_bram').ok); // Bram stands in Emberdawn
+  assertEquals(fresh.quests['m5_fen']?.status, 'active', 'unvisited → still active');
+  assertEquals(fresh.quests['m5_fen']?.counts[0], 0);
+  fresh.unlockedZones.push('hollowmere');
+  assert(travel(fresh, 'hollowmere').ok);
+  assertEquals(fresh.quests['m5_fen']?.status, 'turnIn', 'arrival completes it');
+  // The Ferryman (finisher) stands right there — the handover is on-site.
+  assert(turnInQuest(fresh, 'm5_fen', 'npc_ferryman').ok);
+  assertEquals(fresh.quests['m5_fen']?.status, 'done');
 
-  // (2) Physical authority (#64): a player elsewhere — even one who ALREADY
-  // visited the target — cannot accept from afar. Direct calls refuse with
-  // guidance and stay non-mutating.
-  const elsewhere = mk();
-  elsewhere.unlockedZones.push('hollowmere');
-  assert(travel(elsewhere, 'hollowmere').ok); // plants zone_hollowmere
-  assert(travel(elsewhere, 'emberdawn').ok);
-  const refused = acceptQuest(elsewhere, 'm5_fen', 'npc_ferryman');
-  assertEquals(refused.ok, false, 'the Ferryman is not standing in Emberdawn');
-  assert(refused.msg.includes('Ferryman'), `guidance names the contact: ${refused.msg}`);
-  assertEquals(elsewhere.quests['m5_fen']?.status, 'available', 'refusal is non-mutating');
+  // (2) Visited earlier, back at the starter: the ever-visited flag (#23)
+  // marks the objective the moment Bram hands the quest over.
+  const visited = mk();
+  visited.unlockedZones.push('hollowmere');
+  assert(travel(visited, 'hollowmere').ok); // plants zone_hollowmere
+  assert(travel(visited, 'emberdawn').ok);
+  assert(acceptQuest(visited, 'm5_fen', 'npc_bram').ok);
+  assertEquals(visited.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
 
-  // Back on-site, the accept works — and the ever-visited flag (#23) still
-  // marks the objective for destination quests whose starter lives in a
-  // preceding region (the catalog audit assigns those, #66).
-  assert(travel(elsewhere, 'hollowmere').ok);
-  assert(acceptQuest(elsewhere, 'm5_fen', 'npc_ferryman').ok);
-  assertEquals(elsewhere.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
+  // (3) Physical authority holds across the restructure (#64): the Ferryman
+  // no longer starts this quest — accepting from him refuses, non-mutating.
+  const wrongSite = mk();
+  wrongSite.unlockedZones.push('hollowmere');
+  wrongSite.currentZone = 'hollowmere';
+  const refused = acceptQuest(wrongSite, 'm5_fen', 'npc_ferryman');
+  assertEquals(refused.ok, false, 'the Ferryman starts nothing now');
+  assert(refused.msg.includes('Bram'), `guidance names the starter: ${refused.msg}`);
+  assertEquals(wrongSite.quests['m5_fen']?.status, 'available');
 });
 
 Deno.test('shop stocks only the shopping class, only immediately usable gear (#22)', () => {
@@ -1101,6 +1107,50 @@ Deno.test('quest contacts resolve to real, placed NPCs — starter and finisher 
     assertEquals(questStarter(q.id)?.npc.id, q.startNpc);
     assertEquals(questFinisher(q.id)?.npc.id, q.finishNpc);
   }
+});
+
+Deno.test("quest contacts are reachable at the quest's point in the progression (#66)", () => {
+  // A quest's starter AND finisher must stand in zones the player can reach
+  // by the time the quest is offered: starting zones, or zones unlocked by
+  // any strictly earlier quest (catalog order = progression order).
+  const unlocked = new Set(STARTING_ZONES);
+  for (const q of QUESTS) {
+    const sz = zoneOfNpc(q.startNpc)!.id;
+    const fz = zoneOfNpc(q.finishNpc)!.id;
+    assert(unlocked.has(sz), `${q.id}: starter zone ${sz} is unreachable at its point`);
+    assert(unlocked.has(fz), `${q.id}: finisher zone ${fz} is unreachable at its point`);
+    if (q.rewards.unlockZone) unlocked.add(q.rewards.unlockZone);
+  }
+});
+
+Deno.test('dialogue quests: accepting at the NPC counts as the talk — no double interaction (#66)', () => {
+  // m8_passage is offered BY the Ferryman and its objective is talking to
+  // the Ferryman. Physical acceptance made that a meaningless second tap;
+  // the acceptance conversation now counts as the talk itself.
+  const p = createPlayer(948, 'T', 'warrior');
+  p.level = 13;
+  p.unlockedZones.push('hollowmere');
+  p.currentZone = 'hollowmere'; // the Ferryman stands here
+  for (
+    const id of [
+      'm1_embers',
+      'm2_letter',
+      'm3_roots',
+      'm4_blessing',
+      'm5_fen',
+      'm6_toxin',
+      'm7_tyrant',
+    ]
+  ) {
+    p.quests[id] = { status: 'done', counts: [] };
+  }
+  syncAvailability(p);
+  assert(acceptQuest(p, 'm8_passage', 'npc_ferryman').ok);
+  assertEquals(
+    p.quests['m8_passage']?.status,
+    'turnIn',
+    'accepted at the Ferryman → ready at the Ferryman, no second Talk',
+  );
 });
 
 Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred from talk objectives (#63)', () => {

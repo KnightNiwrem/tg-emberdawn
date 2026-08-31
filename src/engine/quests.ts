@@ -102,6 +102,12 @@ export function acceptQuest(
     if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
       qp.counts[i] = 1;
     }
+    // The acceptance conversation IS the talk (#66): a dialogue quest
+    // accepted at the NPC its talk objective names needs no second
+    // identical interaction with the same person.
+    if (o.kind === 'talk' && o.target === npcId) {
+      qp.counts[i] = 1;
+    }
   });
   refreshProgress(p);
   return { ok: true, msg: `📜 Quest accepted: ${q.name}` };

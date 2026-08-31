@@ -116,6 +116,13 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   helpers in content/quests.ts (`questStarter`/`questFinisher`/`zoneOfNpc`/`npcInZone`;
   content-integrity tested). There is no quest-log-only fallback: m23_aldric starts and ends with
   the Archivist's throne-room send-off, and sq_locket belongs to Ranger Pell in the Whisperwood.
+  Destination quests (#66) START in the preceding region and FINISH with the destination contact —
+  m5 Bram→Ferryman, m9 Ferryman→Ombra, m13 Ombra→Rho, m16 Rho→Sorrel, m20 Sorrel→Archivist, m24
+  Archivist→Echo — so the journey stays the point instead of an arrive-then-accept loop; intro/outro
+  speak as the contact who hands the quest over or receives it. A quest accepted AT the NPC its talk
+  objective names counts the acceptance conversation as the talk (m8/m17/m22) — dialogue quests
+  never demand a second identical interaction. Contact zones must be reachable at the quest's point
+  in the progression (content-integrity tested).
 - **Quest actions are physical (#64):** `acceptQuest`/`turnInQuest` take the acting NPC id and
   REQUIRE it to be the quest's configured starter/finisher AND standing in the player's current zone
   (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can

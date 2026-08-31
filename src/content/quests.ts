@@ -90,7 +90,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 2 — The Drowned Lowland ══════════════════════════════════
   Q({
     id: 'm5_fen',
-    startNpc: 'npc_ferryman',
+    // Destination quest (#66): Bram sends you east; the Ferryman completes
+    // the journey in Hollowmere. The road IS the quest.
+    startNpc: 'npc_bram',
     finishNpc: 'npc_ferryman',
     name: 'Into the Fen',
     main: true,
@@ -99,7 +101,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm4_blessing',
     summary: 'Travel to Hollowmere — beyond it, word of stolen light.',
     intro:
-      'The swamp swallows sound. You are meant to be here — the road to tomorrow runs straight through the dark.',
+      '"East of the wood the water turns dark and thoughtful," Bram says, handing over the blade he promised. "A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm."',
     outro:
       'The Ferryman poles you across black water. "You\'re for the Shrine, then. Everybody who still believes in morning is, eventually."',
     objectives: [{ kind: 'reach', target: 'hollowmere' }],
@@ -161,7 +163,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 3 — The City of Gears ════════════════════════════════════
   Q({
     id: 'm9_spire',
-    startNpc: 'npc_curator',
+    // Destination quest (#66): the Ferryman's summons points east; Ombra
+    // receives you in Sunspire.
+    startNpc: 'npc_ferryman',
     finishNpc: 'npc_curator',
     name: 'City of Gears',
     main: true,
@@ -170,7 +174,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm8_passage',
     summary: 'Reach the Sunspire Ruins, where stolen time is hoarded.',
     intro:
-      'Gears the size of houses grind beneath the sand, patient as erosion. Somewhere in the desert, futures wait to be wound back into the world.',
+      '"You heard my word about the gears — now go stand under them," the Ferryman says, poling for the far shore. "A Curator keeps honest ledgers in a dishonest city. Show him the swamp still sends believers east."',
     outro:
       'Curator Ombra looks you over like an acquisition. "Good. The Vault steals time from the Flame — tomorrow, measured in hours. Its keeper must be taught that futures belong to the living."',
     objectives: [{ kind: 'reach', target: 'sunspire' }],
@@ -231,7 +235,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 4 — The Frozen Twin ══════════════════════════════════════
   Q({
     id: 'm13_pass',
-    startNpc: 'npc_outcast',
+    // Destination quest (#66): Ombra points north; Rho receives you at the
+    // pass.
+    startNpc: 'npc_curator',
     finishNpc: 'npc_outcast',
     name: 'The Frozen Road',
     main: true,
@@ -240,7 +246,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm12_chronolich',
     summary: 'Cross into Frostpeak Pass, where even the cold keeps a promise.',
     intro:
-      "Cold that doesn't bite so much as consider you. Above, the pass glitters blue — and under the blue, something warm is sleeping.",
+      '"North," Ombra says, closing the Vault\'s ledger behind you. "Frostpeak keeps the flame\'s twin under blue ice, and an outcast named Rho keeps watch over the pass — the mountain froze everyone else\'s promises but his. Wake what winter only pretended to bury."',
     outro:
       "Rho eyes your weapons. \"You'll want more than iron where you're going. But hear me: the Maw doesn't guard the Frostfire. It guards its dreaming — and dreams are worth waking carefully.\"",
     objectives: [{ kind: 'reach', target: 'frostpeak' }],
@@ -285,7 +291,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 5 — The Starving Flame ══════════════════════════════════
   Q({
     id: 'm16_ashes',
-    startNpc: 'npc_ashen',
+    // Destination quest (#66): Rho sends you down from the pass; Sorrel
+    // receives you in the Wastes.
+    startNpc: 'npc_outcast',
     finishNpc: 'npc_ashen',
     name: 'Through the Ash',
     main: true,
@@ -294,7 +302,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm15_wyrm',
     summary: 'Cross the Cinder Wastes, where a starving guardian still keeps faith.',
     intro:
-      "Ash falls like snow that gave up on being cold. Somewhere under it, a heart of fire is starving — but a heart that starves is a heart that hasn't stopped.",
+      '"South of the glacier the world burned and stubbornly kept going," Rho says. "The Cinder Wastes hide a monk named Sorrel, tending a starving flame nobody else would feed. Tell him the Frostfire lives — proof travels better than hope alone."',
     outro:
       "Sorrel finds you before the imps do. \"You came with the Frostfire's wake. Then you're the one Ignivar's been burning to meet. Follow me — hope travels light, but you'll want company anyway.\"",
     objectives: [{ kind: 'reach', target: 'cinder' }],
@@ -356,7 +364,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 6 — The Dawncaller ══════════════════════════════════
   Q({
     id: 'm20_seam',
-    startNpc: 'npc_archivist',
+    // Destination quest (#66): Sorrel sends you up from the Wastes; the
+    // Archivist receives you at the Spire.
+    startNpc: 'npc_ashen',
     finishNpc: 'npc_archivist',
     name: 'The Space Between',
     main: true,
@@ -365,7 +375,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm19_ignivar',
     summary: 'Reach the Umbral Spire, raised by a man who decided tomorrow was over.',
     intro:
-      'The Spire stands in the seam between light and dark — real from one angle, absence from the next. Even here, your shadow keeps pace. Hold onto that.',
+      '"The thief keeps a tower in the seam of the sky," Sorrel says. "An Archivist stacks his yesterdays up there and calls the pile a future. Climb, Dawncaller — make the man remember what hours are FOR."',
     outro:
       'The Archivist\'s pen never stops moving. "The King split the Flame because he stopped believing in morning. Despair, hoarded, becomes a crown. Mend the crown, and belief comes home."',
     objectives: [{ kind: 'reach', target: 'umbra' }],
@@ -414,7 +424,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm22_umbral_key',
     summary: 'Face King Aldric the Sundered — despair with a crown on it.',
     intro:
-      'Aldric rises from a throne split down the middle, wearing half a crown. "Another flame-licker," he says. "Kneel. I stopped waiting for dawn a hundred years ago, and I have never once regretted it."',
+      '"The stair is clear and the hour is yours," the Archivist says, pen motionless for the first time. "Up there sits a man who decided a hundred years ago that morning was a rumor. Do not hate him — out-wait him. Crowns break where patience will not."',
     outro:
       "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. You have cleared the story — but the Seam below the world is still open, and the future is worth guarding.",
     objectives: [{ kind: 'kill', target: 'e_aldric', count: 1 }],
@@ -434,7 +444,9 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Postgame — The Abyss ═════════════════════════════════════════════
   Q({
     id: 'm24_below',
-    startNpc: 'npc_echo',
+    // Destination quest (#66): the Archivist sends you below; Echo-of-Maren
+    // receives you in the Abyss.
+    startNpc: 'npc_archivist',
     finishNpc: 'npc_echo',
     name: 'Below Everything',
     main: true,
@@ -443,7 +455,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm23_aldric',
     summary: 'Descend into the Abyss — the future needs a witness.',
     intro:
-      'The Seam, exposed by the sundering, leads beneath the world. Echoes of everyone who ever sought the crown drift down here, still climbing — still believing.',
+      '"The sundering opened a seam beneath the world," the Archivist says, pen still at last. "Echoes drift down it — everyone who ever sought the crown, still climbing, still believing. One of them wears Maren\'s face. Go down and bear witness: the future is worth guarding, even from below."',
     outro:
       'Echo-of-Maren smiles like sunrise through water. "Even I end up an echo here, it seems. Go on then, Dawncaller — the dark down there has never once met anyone like you."',
     objectives: [{ kind: 'reach', target: 'abyss' }],
@@ -530,9 +542,9 @@ export const QUESTS: readonly QuestDef[] = [
     prereqFlags: ['zone_whisperwood'],
     summary: 'Recover a locket from the Woodfang spiders.',
     intro:
-      '"A spider took more than my blood," a ranger mutters. "Took my mother\'s locket. Eight spiders\' worth of persuasion should get it back."',
+      '"A spider took more than my blood," Ranger Pell mutters, sharpening a knife that has seen this argument before. "Took my mother\'s locket. Eight spiders\' worth of persuasion should get it back."',
     outro:
-      "The locket, scratched but whole. The ranger doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
+      "The locket, scratched but whole. Pell doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
     objectives: [{ kind: 'kill', target: 'e_spider', count: 8 }],
     rewards: { xp: 400, gold: 250, items: { t_1: 1 } },
     // The anonymous ranger is now a real, placed contact (#63).
