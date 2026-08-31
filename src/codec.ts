@@ -26,8 +26,6 @@ export type Cb =
   | { v: 'skills'; a: 'bk' }
   | { v: 'quests'; a: 'open'; arg?: string }
   | { v: 'quests'; a: 'q'; arg: string }
-  | { v: 'quests'; a: 'a'; arg: string }
-  | { v: 'quests'; a: 't'; arg: string }
   | { v: 'quests'; a: 'p'; arg: number }
   | { v: 'quests'; a: 'bk' }
   | { v: 'npcq'; a: 'a' | 't'; arg: string }
@@ -79,10 +77,12 @@ export function encodeCb(c: Cb): string {
     case 'skills':
       return 's:bk';
     case 'quests':
+      // Navigation only (#65): the log cannot express lifecycle actions —
+      // accept/turn-in live solely on the npcq interaction surface.
       if (c.a === 'open') return `q:op${c.arg ? `:${c.arg}` : ''}`;
       if (c.a === 'p') return `q:pg:${c.arg}`;
       if (c.a === 'bk') return 'q:bk';
-      return `q:${c.a}:${c.arg}`;
+      return `q:q:${c.arg}`;
     case 'npcq':
       return c.a === 'bk' ? 'n:bk' : `n:${c.a}:${c.arg}`;
     case 'shop':
@@ -137,7 +137,7 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'op') return { v: 'quests', a: 'open', arg: arg || undefined };
       if (a === 'pg') return { v: 'quests', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'quests', a: 'bk' };
-      const qa = act(a, ['q', 'a', 't'] as const);
+      const qa = act(a, ['q'] as const);
       return qa ? { v: 'quests', a: qa, arg } : undefined;
     }
     case 'n': {

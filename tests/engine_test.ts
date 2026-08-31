@@ -683,8 +683,8 @@ Deno.test('codec: roundtrip for every callback shape', () => {
     { v: 'inventory', a: 'eq', arg: 'w_warrior_2' },
     { v: 'equipment', a: 'rm', arg: 'weapon' },
     { v: 'quests', a: 'q', arg: 'm1_embers' },
-    { v: 'quests', a: 'a', arg: 'm1_embers' },
-    { v: 'quests', a: 't', arg: 'm1_embers' },
+    // q:a:/q:t: no longer EXIST in the codec (#65) — the log cannot express
+    // lifecycle actions; those wires decode as malformed and are refused.
     { v: 'npcq', a: 'a', arg: 'm1_embers' },
     { v: 'npcq', a: 't', arg: 'm2_letter' },
     { v: 'npcq', a: 'bk' },

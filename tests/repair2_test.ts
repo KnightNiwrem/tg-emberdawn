@@ -418,10 +418,11 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
 
   // The log keeps the ready quest as the primary card with a View button.
   const log = JSON.stringify(renderQuests(p));
-  assert(log.includes('Ready — view & turn in'), 'turnIn main stays primary');
+  assert(log.includes('Ready — view details'), 'turnIn main stays primary (#65 neutral label)');
   assert(log.includes('q:q:m3_roots'));
 
-  // Log detail opens — but its Turn in button is inert now (#64).
+  // Log detail opens — but it is a read-only journal now (#65): no lifecycle
+  // button renders and the old wire form is dead.
   await handleCallback(fakeCtx(920, 300, withRev(0, 'q:q:m3_roots')), store);
   let cur = (await store.get(920))!;
   assertEquals(cur.scene.view, 'quests');

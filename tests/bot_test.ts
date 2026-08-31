@@ -130,7 +130,7 @@ Deno.test('quest accept via NPC talk — the authoritative interaction (#64)', a
   await tap(store, user, 'q:bk');
   await tap(store, user, 'z:q'); // quest log
   await tap(store, user, 'q:q:m1_embers'); // detail (read-only viewing)
-  await tap(store, user, 'q:a:m1_embers'); // refused (#64)
+  await tap(store, user, 'q:a:m1_embers'); // wire form is dead — unknown control (#65)
   const refused = (await store.get(4242))!;
   assertEquals(refused.quests['m1_embers']?.status, 'active', 'log tap mutated nothing');
 });

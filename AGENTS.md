@@ -121,9 +121,11 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can
   bypass it). The ONLY mutation surface is the `npcq` interaction view, opened by talking to an NPC;
   its handler revalidates the live scene context (quest + npc match), and the engine revalidates
-  contact + location, so Quest Log callbacks (`q:a:`/`q:t:`) always refuse with a "Speak to
-  <contact>" toast and mutate nothing. Backing out or traveling leaves the interaction (scene
-  resets, uiRev bumps), and the revision guard kills replays and duplicate rewards.
+  contact + location. The Quest Log is a READ-ONLY journal (#65): it renders NO lifecycle buttons,
+  the codec cannot even express `q:a:`/`q:t:`, and it only NAMES the physical contact ("Start with X
+  — Zone." / "Return to Y — Zone.") — log navigation can never act on a quest. Backing out or
+  traveling leaves the interaction (scene resets, uiRev bumps), and the revision guard kills replays
+  and duplicate rewards.
 - **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
   (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
   flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip

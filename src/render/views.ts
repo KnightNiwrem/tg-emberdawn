@@ -7,7 +7,7 @@
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
-import { npc, npcInZone, quest, QUESTS } from '../content/quests.ts';
+import { npc, npcInZone, quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
@@ -308,11 +308,17 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
     const ready = p.quests[activeMain.id]?.status === 'turnIn';
     blocks.push(para([{ type: 'bold', text: `🏅 Main: ${activeMain.name}` } as RichText]));
     blocks.push(para(questStatusLine(p, activeMain.id)));
+    // The journal points at the physical contact (#65) — it never performs
+    // the lifecycle action itself.
+    if (ready) {
+      const fin = questFinisher(activeMain.id);
+      if (fin) blocks.push(para(`🏁 Return to ${fin.npc.name} — ${fin.zone.name}.`));
+    }
     blocks.push(
       buttonsRow(
         [
           cbBtn(
-            ready ? '🏁 Ready — view & turn in' : 'View',
+            ready ? 'Ready — view details' : 'View',
             encodeCb({ v: 'quests', a: 'q', arg: activeMain.id }),
           ),
         ],
@@ -322,7 +328,9 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
   } else {
     const next = mains.find((q) => p.quests[q.id]?.status === 'available');
     if (next) {
+      const st = questStarter(next.id);
       blocks.push(para('🟢 A main quest awaits!'));
+      if (st) blocks.push(para(`🤝 Start with ${st.npc.name} — ${st.zone.name}.`));
       blocks.push(
         buttonsRow(
           [cbBtn(`View: ${next.name}`, encodeCb({ v: 'quests', a: 'q', arg: next.id }))],
@@ -402,15 +410,24 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
       `🎁 Rewards: ${xpRewardLabel(p.level, q.rewards.xp)} · ${q.rewards.gold} gold${itemRewards}`,
     ),
   );
-  const row = [];
-  if (status === 'available') {
-    row.push(cbBtn('🤝 Accept', encodeCb({ v: 'quests', a: 'a', arg: id }), 'success'));
+  // Read-only journal (#65): no lifecycle buttons render here — accepting
+  // and turning in happen face-to-face with the quest's configured NPC, in
+  // the zone where they stand. The log NAMES that contact instead.
+  const starter = questStarter(id);
+  const finisher = questFinisher(id);
+  if (status === 'available' && starter) {
+    blocks.push(para(`🤝 Start with ${starter.npc.name} — ${starter.zone.name}.`));
   }
-  if (status === 'turnIn') {
-    row.push(cbBtn('🏁 Turn in', encodeCb({ v: 'quests', a: 't', arg: id }), 'success'));
+  if ((status === 'active' || status === 'turnIn') && finisher) {
+    blocks.push(
+      para(
+        status === 'turnIn'
+          ? `🏁 Return to ${finisher.npc.name} — ${finisher.zone.name}.`
+          : `Finish with ${finisher.npc.name} — ${finisher.zone.name}.`,
+      ),
+    );
   }
-  row.push(cbBtn('⬅️ Back', encodeCb({ v: 'quests', a: 'bk' })));
-  blocks.push(buttonsRow(row));
+  blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'quests', a: 'bk' }))]));
   return { blocks };
 }
 

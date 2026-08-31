@@ -85,7 +85,8 @@ Deno.test('handler: log callbacks refuse with guidance; NPC interaction is the o
   p.messageId = 900;
   await store.set(982, p);
 
-  // Log → detail → Accept: refused, nothing mutates.
+  // Log → detail → Accept: refused, nothing mutates. Since #65 the wire
+  // form is gone entirely — these taps decode as unknown controls.
   await handleCallback(fakeCtx(982, 900, withRev(0, 'q:q:m1_embers')), store);
   let cur = (await store.get(982))!;
   await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'q:a:m1_embers')), store);

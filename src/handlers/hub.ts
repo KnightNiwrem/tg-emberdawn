@@ -16,7 +16,7 @@ import {
   syncAvailability,
   turnInQuest,
 } from '../engine/quests.ts';
-import { quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
+import { quest, QUESTS } from '../content/quests.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
@@ -187,6 +187,8 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
 }
 
 export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): MutationResult {
+  // The Quest Log is a read-only journal (#65): the codec cannot even express
+  // lifecycle actions for this view, so every case here is pure navigation.
   switch (cb.a) {
     case 'p': {
       // Side-quest page switch (#21); the detail selector stays clear.
@@ -202,16 +204,6 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
     case 'q': {
       p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
       return {};
-    }
-    case 'a':
-    case 't': {
-      // The Quest Log is a journal, not a quest counter (#64): lifecycle
-      // mutations are authorized ONLY by the on-site NPC interaction. Refuse
-      // with guidance and touch nothing — not even scene state.
-      const contact = cb.a === 'a' ? questStarter(cb.arg)?.npc : questFinisher(cb.arg)?.npc;
-      return {
-        toast: contact ? `Speak to ${contact.name} to do that.` : 'Nobody keeps that quest.',
-      };
     }
   }
 }
