@@ -170,6 +170,17 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   round cannot use it — ATK/MAG (future damage) and SPD (future Flee rolls only) deliver exactly
   their advertised turns of useful actions; DEF/RES still tick on the cast round because they
   mitigate that round's enemy response.
+- **Guided prologue (#69):** fresh heroes run a directed prologue before the real hub opens: Elder
+  Maren's ember brief → ONE controlled battle vs `e_cinder_mite` (a `tutorial`-flagged level-1
+  fixture; the balance harness proves NO class can lose it) with contextual coaching inside the live
+  battle (free action → starting skill/MP → Guard → Items when hurt) → a deterministic ember reward
+  that exits every hero at level 2 → release into the real hub (Maren's board = m1, Whisperwood,
+  flee/level advice). State is `p.tutorial` (`'maren'→'outskirts'→'fight'→'done'`): /start resumes
+  the current step, tutorial handlers revalidate the step so replays are refused, the uiRev guard
+  kills double-taps, and the reward is flag-idempotent. During the prologue the zone view renders
+  ONLY the directed action (progressive disclosure — travel/explore/shop/NPC list withheld).
+  Migration v4→v5 stamps pre-launch heroes `'done'` (explicit skip — never inferred from progress);
+  the migration chain cascades on the UPDATED version (v3→v4→v5).
 - **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
   Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
   delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a

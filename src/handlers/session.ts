@@ -30,6 +30,7 @@ import {
   renderSell,
   renderShop,
   renderTravel,
+  renderTutorial,
   renderZone,
 } from '../render/views.ts';
 
@@ -77,6 +78,9 @@ function renderFor(p: PlayerState): InputRichMessage {
       return renderHelp();
     case 'zone':
       return renderZone(p);
+    case 'tutorial':
+      // Guided prologue brief (#69); arg 'brief' is the Maren dialogue.
+      return renderTutorial(p);
     default: {
       // Exhaustive: adding a ViewId obliges a renderer choice at compile time.
       const never: never = p.scene.view;

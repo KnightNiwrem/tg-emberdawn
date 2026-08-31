@@ -9,6 +9,7 @@ import { clampPools, statsOf } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
+import { coachTutorial, grantTutorialReward, tutorialRelease } from './tutorial.ts';
 import type { MutationResult } from './session.ts';
 
 /** Runs one player action and resolves the round. */
@@ -20,13 +21,22 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   }
 
   // Battle finished: Continue returns to the zone (or back into an open menu).
+  // The guided prologue (#69) routes its victory Continue through the
+  // release instead: tutorial done, hub unlocked, next steps surfaced.
   if (cb.a === 'go') {
     if (b.phase === 'active') {
       // "go" doubles as back-from-submenu while the fight is live.
       p.scene = { view: 'battle' };
       return {};
     }
+    const won = b.phase === 'won';
     p.battle = undefined;
+    if (won && p.tutorial === 'fight') {
+      p.tutorial = 'done';
+      p.scene = { view: 'zone' };
+      p.notices = tutorialRelease();
+      return {};
+    }
     p.scene = { view: 'zone' };
     return {};
   }
@@ -81,6 +91,9 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
     // drops, dungeon bookkeeping), never the round itself and never an
     // XP/gold headline: rewards render once as Spoils from b.rewards (#40).
     p.notices = [...resolveVictory(p, b)];
+    // Guided prologue (#69): the deterministic ember reward lands exactly
+    // once (flag-guarded) and lifts every hero to level 2 before release.
+    if (p.tutorial === 'fight') p.notices.push(...grantTutorialReward(p));
     b.phase = 'won';
     p.scene = { view: 'battle' };
     return {};
@@ -97,8 +110,10 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // Non-terminal round: the log is the single presentation of the round's
   // lines (#32) — the redraw no longer repeats them as notices. Invalid
   // actions (no turn consumed, no enemy phase) never reach the log, so
-  // they keep their feedback.
+  // they keep their feedback. The prologue coaches on every consumed turn
+  // (#69): one concept at a time replaces the empty banner.
   p.notices = res.consumedTurn ? [] : lines;
+  if (p.tutorial === 'fight' && res.consumedTurn) coachTutorial(p, action);
   p.scene = { view: 'battle' };
   return {};
 }

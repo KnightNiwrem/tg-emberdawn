@@ -18,6 +18,8 @@ interface EnemySpec {
   name: string;
   emoji: string;
   level: number;
+  /** Tutorial fixture (#69): enforced unlosable by the balance harness. */
+  tutorial?: true;
   /** stat multipliers over the level curve (defaults 1). */
   mul?: {
     hp?: number;
@@ -46,6 +48,7 @@ function mk(s: EnemySpec): EnemyDef {
     name: s.name,
     emoji: s.emoji,
     level: L,
+    tutorial: s.tutorial,
     hp: mul('hp', Math.round(30 + 2.4 * Math.pow(L, 1.9))),
     atk: mul('atk', Math.round(6 + 2.0 * Math.pow(L, 1.22))),
     def: mul('def', Math.round(2 + 0.9 * Math.pow(L, 1.15))),
@@ -67,6 +70,19 @@ const CLAW = (n = 'Claw'): EnemyMove => mv(n, 1.15, 'phys', 2);
 
 export const ENEMIES: readonly EnemyDef[] = [
   // ── Emberdawn Village / Whisperwood (ch1) ───────────────────────────────────
+  mk({
+    // Guided-prologue fixture (#69): level 1, tiny offense, no status, no
+    // drops — the first fight is a lesson, not a loot roll. Flagged
+    // `tutorial` so tests/balance_test.ts proves NO class can lose it.
+    id: 'e_cinder_mite',
+    name: 'Cinder Mite',
+    emoji: '🕯️',
+    level: 1,
+    mul: { hp: 0.8, atk: 0.75, xp: 2.5, gold: 1.5 },
+    tutorial: true,
+    moves: [BITE('Nibble'), mv('Ash Puff', 0.8, 'mag', 1)],
+    desc: 'A last spark of the old hearth-fire, going about its small business.',
+  }),
   mk({
     id: 'e_rat',
     name: 'Giant Rat',

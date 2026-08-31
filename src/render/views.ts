@@ -26,6 +26,10 @@ type Block = InputRichBlock;
 // ── Zone hub (home) ───────────────────────────────────────────────────────
 
 export function renderZone(p: PlayerState): InputRichMessage {
+  // Guided prologue (#69): while it runs, the hub renders ONLY the directed
+  // action for the current step — travel, explore, shops and the NPC list
+  // are withheld until the prologue releases the player into the real hub.
+  if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
   const z = zone(p.currentZone)!;
   const s = statsOf(p);
   const c = CLASSES[p.classId];
@@ -72,6 +76,79 @@ export function renderZone(p: PlayerState): InputRichMessage {
     }
   }
   return { blocks };
+}
+
+// ── Guided prologue (#69) ────────────────────────────────────────────
+
+/** The directed hub: ONE action per prologue step, status panels intact so
+ * the player still learns to read their own bars. */
+function renderTutorialHub(p: PlayerState): InputRichMessage {
+  const s = statsOf(p);
+  const c = CLASSES[p.classId];
+  const z = zone(p.currentZone)!;
+  const blocks: Block[] = [
+    heading(`${z.emoji} ${z.name}`, 3),
+    ...noticesBlocks(p),
+    para([
+      { type: 'bold', text: `${c.emoji} ${p.name} · Lv ${p.level} ${c.name}` } as RichText,
+      `\n❤️ ${p.hp}/${s.maxHp} ${bar(p.hp, s.maxHp)}\n💧 ${p.mp}/${s.maxMp} ${
+        bar(p.mp, s.maxMp)
+      }\n💰 ${p.gold} gold`,
+    ]),
+  ];
+  if (p.tutorial === 'maren') {
+    blocks.push(banner('🔥 Your tale begins'));
+    blocks.push(para(
+      "Every Dawncaller starts at the hearth. Elder Maren keeps the village's last ember — and its oldest hope. She is waiting for you.",
+    ));
+    blocks.push(
+      buttonsRow([
+        cbBtn('🧓 Speak with Elder Maren', encodeCb({ v: 'tut', a: 'maren' }), 'primary'),
+      ]),
+    );
+  } else {
+    // 'outskirts' and 'fight' (re-face after a fled fight) share one panel:
+    // the controlled encounter is the only business out here.
+    const again = p.tutorial === 'fight';
+    blocks.push(banner('🌑 Just outside the village'));
+    blocks.push(para(
+      again
+        ? "The ash settles — the cinder mite is still out there, and Maren's ember still wants its first dawn."
+        : 'Past the last hearth-light, the ash stirs: a cinder mite, small and wayward. A perfect first lesson.',
+    ));
+    blocks.push(
+      buttonsRow([
+        cbBtn(
+          again ? '⚔️ Face it again' : '⚔️ Face the cinder mite',
+          encodeCb({ v: 'tut', a: 'face' }),
+          'primary',
+        ),
+      ]),
+    );
+  }
+  blocks.push(buttonsRow([cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' }))]));
+  return { blocks };
+}
+
+/** Maren's prologue brief (#69): the ember, the threat outside, the
+ * send-off — spoken by Maren, in the game's register. */
+export function renderTutorial(p: PlayerState): InputRichMessage {
+  return {
+    blocks: [
+      heading('🧓 Elder Maren', 3),
+      ...noticesBlocks(p),
+      quote(
+        '"The Flame dims a little more each season — but dim is not dark, and we are not done. Take this ember, Dawncaller. A small light is still a light."',
+      ),
+      para(
+        'She nods toward the fields. "A cinder mite has wandered from the ash, just past the hearth-light. It will not greet you politely. Go — and teach it what hope hits like."',
+      ),
+      buttonsRow([
+        cbBtn('🔥 Take the ember and head out', encodeCb({ v: 'tut', a: 'out' }), 'success'),
+        cbBtn('⬅️ Not yet', encodeCb({ v: 'zone', a: 'hm' })),
+      ]),
+    ],
+  };
 }
 
 // ── Travel ────────────────────────────────────────────────────────────────

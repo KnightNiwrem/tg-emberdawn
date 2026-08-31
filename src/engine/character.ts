@@ -30,6 +30,8 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     quests: {},
     unlockedZones: [...STARTING_ZONES],
     currentZone: 'emberdawn',
+    // Fresh heroes begin the guided prologue (#69): Elder Maren first.
+    tutorial: 'maren',
     flags: {},
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'zone' },
@@ -90,7 +92,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 4;
+export const CURRENT_STATE_VERSION = 5;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -136,7 +138,7 @@ export function migratePlayer(p: PlayerState): void {
   // hp, round, buffs, cooldowns all carry over — but the old flat log
   // cannot be round-split reliably, so an in-flight battle's history
   // restarts empty and the retired field is stripped from the save.
-  if (from === 3) {
+  if (p.stateVersion === 3) {
     const battle = p.battle as (BattleState & { log?: unknown }) | undefined;
     if (battle) {
       delete battle.log;
@@ -144,6 +146,15 @@ export function migratePlayer(p: PlayerState): void {
       battle.effects = [];
     }
     p.stateVersion = 4;
+  }
+  // v4 → v5 (#69): the guided prologue. Pre-launch heroes have already
+  // played — they SKIP it via this explicit stamp ('done'); completion is
+  // never inferred from their progress, and the prologue never re-runs.
+  // Chain on the UPDATED version: a v3 save walks both steps (a v4 save
+  // lands directly here).
+  if (p.stateVersion === 4) {
+    p.tutorial = 'done';
+    p.stateVersion = 5;
   }
   if (p.stateVersion === CURRENT_STATE_VERSION) return;
   // Pre-launch saves older than the earliest migration step are disposable:

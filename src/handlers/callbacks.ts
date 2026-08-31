@@ -25,6 +25,7 @@ import {
   zoneAction,
 } from './hub.ts';
 import { battleAction, itemAction } from './battle.ts';
+import { tutorialAction } from './tutorial.ts';
 import { addItem } from '../engine/inventory.ts';
 import { clampPools } from '../engine/character.ts';
 import { itemName } from '../content/items.ts';
@@ -90,6 +91,10 @@ function dispatch(
       return npcqAction(player, cb);
     case 'battle':
       return battleAction(player, cb);
+    case 'tut':
+      // Guided prologue controls (#69) — same guarded surface as every
+      // other gameplay callback.
+      return tutorialAction(player, cb);
     case 'death':
       return deathAction(player);
     case 'inventory': {

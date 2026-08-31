@@ -688,20 +688,23 @@ Deno.test('migratePlayer: unversioned and older saves fail clearly (#44)', () =>
   assertThrows(() => migratePlayer(p), SaveTooOldError);
   assertEquals(raw.stateVersion, undefined, 'no version was stamped');
 
-  // Versions below the earliest migration step have no path — expressed
-  // relative to CURRENT_STATE_VERSION, no historical ids. (The version one
-  // step back now MIGRATES — see the structured-history test below.)
+  // Versions below the earliest migration step have no path. The earliest
+  // step is v3 → v4 (#67, structured history); a v2-era save predates the
+  // versioned chain and is disposable (#44). (Later versions MIGRATE — the
+  // chain now runs v3→v4→v5.)
   const p2 = createPlayer(27, 'T', 'warrior');
-  p2.stateVersion = CURRENT_STATE_VERSION - 2;
+  p2.stateVersion = 2;
   p2.gold = 999;
   assertThrows(() => migratePlayer(p2), SaveTooOldError);
-  assertEquals(p2.stateVersion, CURRENT_STATE_VERSION - 2, 'no rewrite, no stamp-down');
+  assertEquals(p2.stateVersion, 2, 'no rewrite, no stamp-down');
   assertEquals(p2.gold, 999);
 });
 
 Deno.test('migratePlayer: in-flight v3 battles normalize to the structured history (#67)', () => {
   const p = createPlayer(29, 'T', 'warrior');
-  p.stateVersion = CURRENT_STATE_VERSION - 1;
+  // A REAL v3 save (the version #67 retired) — the chain now walks it
+  // v3→v4→v5, so the prologue stamp applies on the way through (#69).
+  p.stateVersion = 3;
   const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   // Simulate a pre-#67 save: an in-flight battle still carrying the flat log.
@@ -709,6 +712,7 @@ Deno.test('migratePlayer: in-flight v3 battles normalize to the structured histo
   const hpBefore = p.battle.enemy.hp;
   migratePlayer(p);
   assertEquals(p.stateVersion, CURRENT_STATE_VERSION, 'stamped current');
+  assertEquals(p.tutorial, 'done', 'chained through the #69 step');
   const raw = p.battle as unknown as Record<string, unknown>;
   assertEquals(raw['log'], undefined, 'the retired flat log is stripped from the save');
   assertEquals(p.battle!.history, [], 'structured history starts empty');

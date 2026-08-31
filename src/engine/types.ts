@@ -41,6 +41,12 @@ export interface EnemyInstance {
 
 export type BattlePhase = 'active' | 'won' | 'lost' | 'fled';
 
+/** Guided prologue state (#69): 'maren' → 'outskirts' → 'fight' → 'done'.
+ * Fresh heroes start at 'maren'; migrated pre-launch saves are stamped
+ * 'done' by an explicit migration step (they skip the prologue — completion
+ * is never inferred from unrelated progress). */
+export type TutorialStep = 'maren' | 'outskirts' | 'fight' | 'done';
+
 /** One completed combat round (#67): the round in which the player acted,
  * plus the engine-produced lines for it (player action + enemy response).
  * History is a list of COMPLETE rounds — never truncated mid-round. */
@@ -135,6 +141,7 @@ export interface CombatBuffs {
 }
 
 export type ViewId =
+  | 'tutorial'
   | 'travel'
   | 'zone'
   | 'battle'
@@ -187,6 +194,8 @@ export interface PlayerState {
   /** Ordered ids of zones the player may travel to. */
   unlockedZones: string[];
   currentZone: string;
+  /** Guided prologue step (#69). Required since schema v5; see TutorialStep. */
+  tutorial: TutorialStep;
   /** Generic story/flag storage (key -> numeric or string value). */
   flags: Record<string, number | string | boolean>;
   skills: string[];

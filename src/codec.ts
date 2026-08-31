@@ -37,6 +37,7 @@ export type Cb =
   | { v: 'travel'; a: 'go'; arg: string }
   | { v: 'travel'; a: 'bk' }
   | { v: 'death'; a: 'ok' }
+  | { v: 'tut'; a: 'maren' | 'out' | 'face' }
   | { v: 'meta'; a: 'pick'; arg?: string }
   | { v: 'meta'; a: 'help' }
   | { v: 'meta'; a: 'reset' }
@@ -95,6 +96,8 @@ export function encodeCb(c: Cb): string {
       return c.a === 'bk' ? 't:bk' : `t:go:${c.arg}`;
     case 'death':
       return 'd:ok';
+    case 'tut':
+      return `u:${c.a}`;
     case 'meta':
       if (c.a === 'pick') return `m:pk:${c.arg}`;
       return `m:${c.a === 'resetYes' ? 'ry' : c.a === 'resetNo' ? 'rn' : c.a}`;
@@ -164,6 +167,12 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
     case 'd':
       if (a === 'ok') return { v: 'death', a: 'ok' };
       return undefined;
+    case 'u': {
+      // Guided prologue controls (#69) — same guarded surface as everything
+      // else: rev-stamped, routed through dispatch.
+      const tu = act(a, ['maren', 'out', 'face'] as const);
+      return tu ? { v: 'tut', a: tu } : undefined;
+    }
     case 'm':
       if (a === 'pk') return { v: 'meta', a: 'pick', arg };
       if (a === 'help') return { v: 'meta', a: 'help' };
