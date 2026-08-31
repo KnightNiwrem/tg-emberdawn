@@ -249,12 +249,15 @@ Deno.test('collect turn-in revalidates goods atomically at the counter', () => {
   const obj = q.objectives[0]!;
   const need = obj.count ?? 1;
   const p = createPlayer(906, 'T', 'warrior');
+  const finZone = zoneOfNpc(q.finishNpc)!.id;
+  p.unlockedZones.push(finZone);
+  p.currentZone = finZone; // the finisher accepts on-site (#64)
   p.quests[q.id] = { status: 'turnIn', counts: [need] };
 
   // Goods spent after the quest readied → turn-in refused, quest reverts.
   addItem(p, obj.target, need);
   removeItem(p, obj.target, need);
-  const res = turnInQuest(p, q.id);
+  const res = turnInQuest(p, q.id, q.finishNpc);
   assertEquals(res.ok, false);
   assertEquals(p.quests[q.id]!.status, 'active', 'quest stays open');
 
@@ -262,7 +265,7 @@ Deno.test('collect turn-in revalidates goods atomically at the counter', () => {
   // (the same path a purchase/drop uses), then the counter accepts.
   addItem(p, obj.target, need);
   assertEquals(onItemGain(p).includes(q.id), true, 're-ready via item gain');
-  const res2 = turnInQuest(p, q.id);
+  const res2 = turnInQuest(p, q.id, q.finishNpc);
   assertEquals(res2.ok, true);
   assertEquals(countOf(p, obj.target), 0, 'goods are handed over');
 });
@@ -280,10 +283,17 @@ Deno.test('quests sharing materials cannot both turn in beyond supply', () => {
   p.quests[qb!.id] = { status: 'turnIn', counts: qb!.objectives.map(() => 0) };
   // Enough for exactly ONE quest's worth of shards.
   addItem(p, 'm_ember_shard', Math.max(needA, needB));
-  const ra = turnInQuest(p, qa!.id);
+  // Each turn-in happens at ITS finisher, on-site (#64).
+  const finA = zoneOfNpc(qa!.finishNpc)!.id;
+  p.unlockedZones.push(finA);
+  p.currentZone = finA;
+  const ra = turnInQuest(p, qa!.id, qa!.finishNpc);
   assertEquals(ra.ok, true);
   const left = countOf(p, 'm_ember_shard');
-  const rb = turnInQuest(p, qb!.id);
+  const finB = zoneOfNpc(qb!.finishNpc)!.id;
+  if (!p.unlockedZones.includes(finB)) p.unlockedZones.push(finB);
+  p.currentZone = finB;
+  const rb = turnInQuest(p, qb!.id, qb!.finishNpc);
   if (left < needB) {
     assertEquals(rb.ok, false, 'second quest must not complete without goods');
     assertEquals(p.quests[qb!.id]!.status, 'active');
@@ -394,36 +404,46 @@ Deno.test('boss first-clear trinkets are earned trophies — not sellable or dro
   assertEquals(countOf(p, 't_1'), 0);
 });
 
-Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns in via UI (#15)', async () => {
+Deno.test('ready main quest: the log detail refuses; the NPC interaction completes (#15, #64)', async () => {
   const store = new MemoryStore();
   const p = createPlayer(920, 'T', 'warrior');
   p.level = 5; // m3 requires level 3
   p.quests['m2_letter'] = { status: 'done', counts: [] };
   syncAvailability(p);
-  assert(acceptQuest(p, 'm3_roots').ok);
-  onKill(p, 'e_aranya'); // m3's turn-in belongs to Bram — the log path is covered below
+  assert(acceptQuest(p, 'm3_roots', 'npc_bram').ok);
+  onKill(p, 'e_aranya');
   assertEquals(p.quests['m3_roots']?.status, 'turnIn');
-  p.messageId = 300; // pin the live message so both taps edit in place
+  p.messageId = 300; // pin the live message so all taps edit in place
   await store.set(920, p);
 
-  // The log must keep the turnIn quest as the primary card, with a button.
+  // The log keeps the ready quest as the primary card with a View button.
   const log = JSON.stringify(renderQuests(p));
   assert(log.includes('Ready — view & turn in'), 'turnIn main stays primary');
   assert(log.includes('q:q:m3_roots'));
 
-  // Follow ONLY buttons the UI actually renders: log → detail → turn in.
+  // Log detail opens — but its Turn in button is inert now (#64).
   await handleCallback(fakeCtx(920, 300, withRev(0, 'q:q:m3_roots')), store);
   let cur = (await store.get(920))!;
   assertEquals(cur.scene.view, 'quests');
   assertEquals(cur.scene.arg, 'm3_roots');
-  const detail = JSON.stringify(renderQuestDetail(cur, 'm3_roots'));
-  assert(detail.includes('🏁 Turn in'));
-  assert(detail.includes('q:t:m3_roots'));
-
+  const goldBefore = cur.gold;
   await handleCallback(
-    fakeCtx(920, 300, withRev((await store.get(920))?.uiRev ?? 0, 'q:t:m3_roots')),
+    fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'q:t:m3_roots')),
     store,
   );
+  cur = (await store.get(920))!;
+  assertEquals(cur.quests['m3_roots'].status, 'turnIn', 'the log cannot turn in');
+  assertEquals(cur.gold, goldBefore, 'no rewards from the log');
+
+  // The REAL path: back to the zone, talk to Bram (the finisher), turn in.
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'q:bk')), store);
+  cur = (await store.get(920))!;
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'z:tk:1')), store); // Bram
+  cur = (await store.get(920))!;
+  assertEquals(cur.scene.view, 'npcq', 'talk opens the NPC interaction');
+  assertEquals(cur.scene.arg, 'm3_roots');
+  assertEquals(cur.scene.arg2, 'npc_bram');
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'n:t:m3_roots')), store);
   cur = (await store.get(920))!;
   assertEquals(cur.quests['m3_roots'].status, 'done');
   assert(cur.gold >= 300, 'turn-in gold granted');
@@ -638,10 +658,10 @@ Deno.test('character menu 🗑️ Delete hero → Yes deletes the save too (#62)
   assertEquals(del.edits.length, 1, 'class picker replaces the confirmation');
 });
 
-Deno.test('reach quests credit the zone you already occupy or visited (#23)', () => {
+Deno.test('reach quests credit the zone you occupy; acceptance stays on-site (#23, #64)', () => {
   // m5_fen (reach hollowmere) becomes available after m4 at level 9 — but
-  // hollowmere unlocks at m4, so a player can legitimately be there (or
-  // have been) before the quest ever exists.
+  // hollowmere unlocks at m4, so a player can legitimately be there before
+  // the quest ever exists.
   const mk = () => {
     const p = createPlayer(941, 'T', 'warrior');
     p.level = 9;
@@ -650,30 +670,32 @@ Deno.test('reach quests credit the zone you already occupy or visited (#23)', ()
     return p;
   };
 
-  // (1) Standing in the target when accepting: instant turn-in.
+  // (1) Standing in the target when accepting: instant turn-in. The
+  // accept reconciles against the CURRENT zone (#23).
   const here = mk();
   here.unlockedZones.push('hollowmere');
   here.currentZone = 'hollowmere'; // arrived before the quest existed
-  assert(acceptQuest(here, 'm5_fen').ok);
+  assert(acceptQuest(here, 'm5_fen', 'npc_ferryman').ok);
   assertEquals(here.quests['m5_fen']?.status, 'turnIn', 'already there → ready');
 
-  // (2) Visited earlier, now elsewhere: ever-visited counts (#23 semantic).
-  const visited = mk();
-  visited.unlockedZones.push('hollowmere');
-  assert(travel(visited, 'hollowmere').ok); // plants zone_hollowmere
-  assert(travel(visited, 'emberdawn').ok);
-  assert(acceptQuest(visited, 'm5_fen').ok);
-  assertEquals(visited.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
+  // (2) Physical authority (#64): a player elsewhere — even one who ALREADY
+  // visited the target — cannot accept from afar. Direct calls refuse with
+  // guidance and stay non-mutating.
+  const elsewhere = mk();
+  elsewhere.unlockedZones.push('hollowmere');
+  assert(travel(elsewhere, 'hollowmere').ok); // plants zone_hollowmere
+  assert(travel(elsewhere, 'emberdawn').ok);
+  const refused = acceptQuest(elsewhere, 'm5_fen', 'npc_ferryman');
+  assertEquals(refused.ok, false, 'the Ferryman is not standing in Emberdawn');
+  assert(refused.msg.includes('Ferryman'), `guidance names the contact: ${refused.msg}`);
+  assertEquals(elsewhere.quests['m5_fen']?.status, 'available', 'refusal is non-mutating');
 
-  // (3) Never been there: stays active 0/1, and zone-entry progression
-  // remains the authoritative trigger.
-  const fresh = mk();
-  fresh.unlockedZones.push('hollowmere');
-  assert(acceptQuest(fresh, 'm5_fen').ok);
-  assertEquals(fresh.quests['m5_fen']?.status, 'active', 'unvisited → still active');
-  assertEquals(fresh.quests['m5_fen']?.counts[0], 0);
-  assert(travel(fresh, 'hollowmere').ok);
-  assertEquals(fresh.quests['m5_fen']?.status, 'turnIn', 'arrival completes it');
+  // Back on-site, the accept works — and the ever-visited flag (#23) still
+  // marks the objective for destination quests whose starter lives in a
+  // preceding region (the catalog audit assigns those, #66).
+  assert(travel(elsewhere, 'hollowmere').ok);
+  assert(acceptQuest(elsewhere, 'm5_fen', 'npc_ferryman').ok);
+  assertEquals(elsewhere.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
 });
 
 Deno.test('shop stocks only the shopping class, only immediately usable gear (#22)', () => {
@@ -905,7 +927,7 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   const pq = createPlayer(970, 'T', 'warrior');
   pq.level = 45;
   pq.quests['sq_rats'] = { status: 'turnIn', counts: [6] };
-  const tq = turnInQuest(pq, 'sq_rats');
+  const tq = turnInQuest(pq, 'sq_rats', 'npc_lyra'); // Lyra offers and accepts it (#64)
   assertEquals(tq.ok, true);
   assert(tq.lines.some((l) => l.includes('XP → +')), 'turn-in shows the conversion');
 

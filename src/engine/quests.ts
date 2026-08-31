@@ -12,6 +12,7 @@ import { item, itemName } from '../content/items.ts';
 import { enemyName } from '../content/enemies.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp, xpRewardLabel } from './character.ts';
+import { npc, npcInZone } from '../content/quests.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
   let q = p.quests[id];
@@ -62,9 +63,30 @@ export function levelLockedMain(p: PlayerState): QuestDef | undefined {
   return undefined;
 }
 
-export function acceptQuest(p: PlayerState, id: string): { ok: boolean; msg: string } {
+/** Physical contact authority (#64): the acting NPC must be the quest's
+ * configured contact AND physically stand in the player's current zone.
+ * Quest status alone is never authorization — this gate runs inside the
+ * engine, so no handler path (log, talk, or future UI) can skip it. */
+function contactRefusal(
+  currentZone: string,
+  npcId: string,
+  contactId: string,
+): string | undefined {
+  if (npcId === contactId && npcInZone(currentZone, contactId)) return undefined;
+  return `Speak to ${npc(contactId)?.name ?? contactId} to do that.`;
+}
+
+export function acceptQuest(
+  p: PlayerState,
+  id: string,
+  npcId: string,
+): { ok: boolean; msg: string } {
   const q = quest(id);
   if (!q) return { ok: false, msg: 'Unknown quest.' };
+  // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
+  // refused with guidance and never touches quest state.
+  const refusal = contactRefusal(p.currentZone, npcId, q.startNpc);
+  if (refusal) return { ok: false, msg: refusal };
   const qp = progress(p, id);
   if (qp.status !== 'available') return { ok: false, msg: "That quest isn't available right now." };
   qp.status = 'active';
@@ -188,7 +210,6 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
   return need > 1 ? `${label} — ${have}/${need}` : `${label}${have >= 1 ? ' ✓' : ''}`;
 }
 
-import { npc } from '../content/quests.ts';
 function npcName(id: string): string {
   return npc(id)?.name ?? id;
 }
@@ -210,11 +231,17 @@ export interface TurnInResult {
   lines: string[];
 }
 
-/** Turns a ready quest in: grants rewards, sets flags, unlocks zones. */
-export function turnInQuest(p: PlayerState, id: string): TurnInResult {
+/** Turns a ready quest in: grants rewards, sets flags, unlocks zones.
+ * Physical authority (#64): only the quest's configured FINISHER, on-site
+ * in the player's current zone, can accept the handover — a talk objective
+ * is not completion metadata, and the Quest Log can never grant rewards. */
+export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInResult {
   const q = quest(id);
+  if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."] };
+  const refusal = contactRefusal(p.currentZone, npcId, q.finishNpc);
+  if (refusal) return { ok: false, lines: [refusal] };
   const qp = p.quests[id];
-  if (!q || !qp || qp.status !== 'turnIn') {
+  if (!qp || qp.status !== 'turnIn') {
     return { ok: false, lines: ["That quest isn't ready to turn in."] };
   }
   // Revalidate at the counter: goods may have been spent, forged away or

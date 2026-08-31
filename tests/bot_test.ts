@@ -113,15 +113,26 @@ Deno.test('shop buy/sell flow updates gold and inventory', async () => {
   assertEquals(p2.gold, gold0 - 30 + 12);
 });
 
-Deno.test('quest accept via NPC talk and quest screens', async () => {
+Deno.test('quest accept via NPC talk — the authoritative interaction (#64)', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
-  await tap(store, user, 'z:q'); // quest log
-  await tap(store, user, 'q:q:m1_embers'); // detail
-  await tap(store, user, 'q:a:m1_embers'); // accept
+  await tap(store, user, 'z:tk:0'); // talk to Elder Maren — m1's starter
+  const opened = (await store.get(4242))!;
+  assertEquals(opened.scene.view, 'npcq', 'talk opens the NPC interaction');
+  assertEquals(opened.scene.arg, 'm1_embers');
+  assertEquals(opened.scene.arg2, 'npc_maren');
+  await tap(store, user, 'n:a:m1_embers'); // accept at the NPC
   const p = (await store.get(4242))!;
   assertEquals(p.quests['m1_embers']?.status, 'active');
+
+  // The Quest Log route cannot accept — lifecycle authority is on-site.
+  await tap(store, user, 'q:bk');
+  await tap(store, user, 'z:q'); // quest log
+  await tap(store, user, 'q:q:m1_embers'); // detail (read-only viewing)
+  await tap(store, user, 'q:a:m1_embers'); // refused (#64)
+  const refused = (await store.get(4242))!;
+  assertEquals(refused.quests['m1_embers']?.status, 'active', 'log tap mutated nothing');
 });
 
 Deno.test('travel view navigates and back returns to zone', async () => {

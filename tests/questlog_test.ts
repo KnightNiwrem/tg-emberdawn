@@ -35,7 +35,8 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
   assert(page1.includes('q:pg:0'), 'page 1 offers Prev');
   assert(!page1.includes('q:pg:2'), 'page 1 has no Next');
 
-  // Drive the real UI: Next → open the 9th quest → accept it.
+  // Drive the real UI: Next → open the 9th quest's detail → the log CANNOT
+  // accept it (#64) — viewing works, lifecycle authority lives at the NPC.
   await handleCallback(fakeCtx(940, 700, withRev(0, 'q:pg:1')), store);
   let cur = (await store.get(940))!;
   assertEquals(cur.scene.arg2, '1', 'page stored in scene.arg2');
@@ -44,16 +45,20 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
   assertEquals(cur.scene.arg, 'sq_lynx');
   assertEquals(cur.scene.arg2, '1', 'opening a detail preserves the page');
   const detail = JSON.stringify(renderQuestDetail(cur, 'sq_lynx'));
-  assert(detail.includes('q:a:sq_lynx'), 'accept button rendered');
+  assert(detail.includes('q:a:sq_lynx'), 'accept button still renders in the log (removed in #65)');
   await handleCallback(fakeCtx(940, 700, withRev(cur.uiRev ?? 0, 'q:a:sq_lynx')), store);
   cur = (await store.get(940))!;
-  assertEquals(cur.quests['sq_lynx']?.status, 'active', '9th quest accepted via UI');
+  assertEquals(
+    cur.quests['sq_lynx']?.status,
+    'available',
+    'the 9th quest stays available — the log cannot accept it (#64)',
+  );
 
-  // Back from the detail returns to the SAME page, quest now ⏳ active.
+  // Back from the detail returns to the SAME page, quest unchanged.
   await handleCallback(fakeCtx(940, 700, withRev(cur.uiRev ?? 0, 'q:bk')), store);
   cur = (await store.get(940))!;
   assertEquals(cur.scene.arg, undefined);
   assertEquals(cur.scene.arg2, '1', 'Back returns to the same page');
   const again = JSON.stringify(renderQuests(cur, Number(cur.scene.arg2 ?? 0)));
-  assert(again.includes('q:q:sq_lynx'), 'page 1 still lists the accepted quest');
+  assert(again.includes('q:q:sq_lynx'), 'page 1 still lists the quest');
 });

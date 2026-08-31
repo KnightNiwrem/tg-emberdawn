@@ -106,6 +106,7 @@ export type ViewId =
   | 'equipment'
   | 'skills'
   | 'quests'
+  | 'npcq'
   | 'shop'
   | 'forge'
   | 'death'

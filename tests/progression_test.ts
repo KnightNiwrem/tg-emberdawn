@@ -9,7 +9,7 @@ import {
   syncAvailability,
   turnInQuest,
 } from '../src/engine/quests.ts';
-import { QUESTS } from '../src/content/quests.ts';
+import { quest, QUESTS, zoneOfNpc } from '../src/content/quests.ts';
 import { addItem, countOf } from '../src/engine/inventory.ts';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import {
@@ -118,14 +118,22 @@ Deno.test('campaign: quest graph m1→m25 is traversable (levels/pacing out of s
       );
     }
     // Turn in everything ready first — instantly-complete collect quests
-    // (goods already owned on accept) land straight in 'turnIn'.
+    // (goods already owned on accept) land straight in 'turnIn'. Physical
+    // lifecycle (#64): travel to the FINISHER and complete on-site.
     for (const id of mains) {
-      if (p.quests[id]?.status === 'turnIn') assert(turnInQuest(p, id).ok, `turn in ${id}`);
+      if (p.quests[id]?.status === 'turnIn') {
+        const q = quest(id)!;
+        goto(p, zoneOfNpc(q.finishNpc)!.id);
+        assert(turnInQuest(p, id, q.finishNpc).ok, `turn in ${id}`);
+      }
     }
     syncAvailability(p); // completions open the next chapter's quests
     for (const id of mains) {
       if (p.quests[id]?.status === 'available') {
-        assert(acceptQuest(p, id).ok, `accept ${id}`);
+        // Physical lifecycle (#64): travel to the STARTER and accept on-site.
+        const q = quest(id)!;
+        goto(p, zoneOfNpc(q.startNpc)!.id);
+        assert(acceptQuest(p, id, q.startNpc).ok, `accept ${id}`);
       }
     }
     const active = QUESTS.find((q) => q.main && p.quests[q.id]?.status === 'active');
@@ -318,7 +326,7 @@ Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo'
   travel(p, 'abyss');
   p.quests['m24_below'] = { status: 'done', counts: [] };
   syncAvailability(p);
-  assert(acceptQuest(p, 'm25_silence').ok);
+  assert(acceptQuest(p, 'm25_silence', 'npc_echo').ok); // the Echo stands in the Abyss
   for (let i = 0; i < 2000; i++) {
     const out = explore(p, rng);
     if (out.kind === 'battle') {

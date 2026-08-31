@@ -116,6 +116,14 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   helpers in content/quests.ts (`questStarter`/`questFinisher`/`zoneOfNpc`/`npcInZone`;
   content-integrity tested). There is no quest-log-only fallback: m23_aldric starts and ends with
   the Archivist's throne-room send-off, and sq_locket belongs to Ranger Pell in the Whisperwood.
+- **Quest actions are physical (#64):** `acceptQuest`/`turnInQuest` take the acting NPC id and
+  REQUIRE it to be the quest's configured starter/finisher AND standing in the player's current zone
+  (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can
+  bypass it). The ONLY mutation surface is the `npcq` interaction view, opened by talking to an NPC;
+  its handler revalidates the live scene context (quest + npc match), and the engine revalidates
+  contact + location, so Quest Log callbacks (`q:a:`/`q:t:`) always refuse with a "Speak to
+  <contact>" toast and mutate nothing. Backing out or traveling leaves the interaction (scene
+  resets, uiRev bumps), and the revision guard kills replays and duplicate rewards.
 - **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
   (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
   flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip

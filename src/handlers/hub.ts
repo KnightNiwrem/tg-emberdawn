@@ -16,7 +16,7 @@ import {
   syncAvailability,
   turnInQuest,
 } from '../engine/quests.ts';
-import { quest, QUESTS } from '../content/quests.ts';
+import { quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
@@ -78,7 +78,9 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   onTalk(p, npc.id);
   const ready = QUESTS.find((q) => q.finishNpc === npc.id && p.quests[q.id]?.status === 'turnIn');
   if (ready) {
-    p.scene = { view: 'quests', arg: ready.id };
+    // Open the AUTHORITATIVE NPC interaction (#64): only this view's buttons
+    // can turn the quest in, and only while the player stands here.
+    p.scene = { view: 'npcq', arg: ready.id, arg2: npc.id };
     p.notices = [npc.greeting];
     return {};
   }
@@ -86,7 +88,7 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
     q.startNpc === npc.id && p.quests[q.id]?.status === 'available'
   );
   if (offered) {
-    p.scene = { view: 'quests', arg: offered.id };
+    p.scene = { view: 'npcq', arg: offered.id, arg2: npc.id };
     p.notices = [npc.greeting];
     return {};
   }
@@ -185,37 +187,65 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
 }
 
 export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): MutationResult {
-  if (cb.a === 'p') {
-    // Side-quest page switch (#21); the detail selector stays clear.
-    p.scene = { view: 'quests', arg2: String(cb.arg) };
-    return {};
+  switch (cb.a) {
+    case 'p': {
+      // Side-quest page switch (#21); the detail selector stays clear.
+      p.scene = { view: 'quests', arg2: String(cb.arg) };
+      return {};
+    }
+    case 'bk': {
+      // Back to the log on the SAME page the detail was opened from (#21).
+      p.scene = { view: 'quests', arg2: p.scene.arg2 };
+      return {};
+    }
+    case 'open':
+    case 'q': {
+      p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
+      return {};
+    }
+    case 'a':
+    case 't': {
+      // The Quest Log is a journal, not a quest counter (#64): lifecycle
+      // mutations are authorized ONLY by the on-site NPC interaction. Refuse
+      // with guidance and touch nothing — not even scene state.
+      const contact = cb.a === 'a' ? questStarter(cb.arg)?.npc : questFinisher(cb.arg)?.npc;
+      return {
+        toast: contact ? `Speak to ${contact.name} to do that.` : 'Nobody keeps that quest.',
+      };
+    }
   }
+}
+
+/** NPC-interaction quest actions (#64): the authoritative accept/turn-in
+ * surface. The scene carries the interaction context (quest id + the NPC
+ * talked to); the engine independently revalidates contact and location
+ * before any mutation, the uiRev guard kills replays, and log navigation
+ * can never mint n:* callbacks. */
+export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResult {
   if (cb.a === 'bk') {
-    // Back to the log on the SAME page the detail was opened from (#21).
-    p.scene = { view: 'quests', arg2: p.scene.arg2 };
+    // Leaving the conversation invalidates its buttons (rev bump on commit).
+    p.scene = { view: 'zone' };
     return {};
   }
-  if (cb.a === 'open') {
-    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
-    return {};
+  const questId = cb.arg;
+  if (p.scene.view !== 'npcq' || p.scene.arg !== questId) {
+    // A callback for an interaction that is no longer live.
+    return { toast: 'That conversation has moved on — talk to the NPC again.' };
   }
-  if (cb.a === 'q') {
-    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
-    return {};
-  }
+  const npcId = p.scene.arg2 ?? '';
   if (cb.a === 'a') {
-    const res = acceptQuest(p, cb.arg);
+    const res = acceptQuest(p, questId, npcId);
     if (!res.ok) return { toast: res.msg };
-    const q = quest(cb.arg);
-    p.notices = res.msg ? [res.msg, q?.intro ?? ''].filter(Boolean) : [];
-    p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
+    const q = quest(questId);
+    p.notices = [res.msg, q?.intro ?? ''].filter(Boolean);
+    p.scene = { view: 'npcq', arg: questId, arg2: npcId };
     return {};
   }
   // turn in
-  const res = turnInQuest(p, cb.arg);
+  const res = turnInQuest(p, questId, npcId);
   if (!res.ok) return { toast: res.lines[0] };
   p.notices = res.lines;
-  p.scene = { view: 'quests', arg2: p.scene.arg2 };
+  p.scene = { view: 'zone' }; // business concluded — back to the hub
   syncAvailability(p);
   return {};
 }

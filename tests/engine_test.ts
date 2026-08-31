@@ -178,11 +178,11 @@ Deno.test('quest flow: accept, progress by kill, turn in, unlock next', () => {
   const p = createPlayer(10, 'T', 'warrior');
   syncAvailability(p);
   assert(p.quests['m1_embers']?.status === 'available');
-  const acc = acceptQuest(p, 'm1_embers');
+  const acc = acceptQuest(p, 'm1_embers', 'npc_maren');
   assert(acc.ok);
   for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
   assertEquals(p.quests['m1_embers'].status, 'turnIn');
-  const res = turnInQuest(p, 'm1_embers');
+  const res = turnInQuest(p, 'm1_embers', 'npc_maren');
   assert(res.ok);
   assertEquals(p.quests['m1_embers'].status, 'done');
   // m2 requires m1 done → now available
@@ -616,7 +616,7 @@ Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () 
   // The story hunt begins — the deepest chamber opens (d_sunken gates on m7).
   p.quests['m6_toxin'] = { status: 'done', counts: [] };
   syncAvailability(p);
-  assert(acceptQuest(p, 'm7_tyrant').ok);
+  assert(acceptQuest(p, 'm7_tyrant', 'npc_ferryman').ok); // the Ferryman is right here
   const bossRun = diveDungeon(p, d, rng);
   assert(bossRun.ok && bossRun.battle);
   assertEquals(bossRun.battle!.enemy.id, d.boss);
@@ -682,7 +682,12 @@ Deno.test('codec: roundtrip for every callback shape', () => {
     { v: 'inventory', a: 'p', arg: 3 },
     { v: 'inventory', a: 'eq', arg: 'w_warrior_2' },
     { v: 'equipment', a: 'rm', arg: 'weapon' },
+    { v: 'quests', a: 'q', arg: 'm1_embers' },
+    { v: 'quests', a: 'a', arg: 'm1_embers' },
     { v: 'quests', a: 't', arg: 'm1_embers' },
+    { v: 'npcq', a: 'a', arg: 'm1_embers' },
+    { v: 'npcq', a: 't', arg: 'm2_letter' },
+    { v: 'npcq', a: 'bk' },
     { v: 'shop', a: 'buy', arg: 'c_potion' },
     { v: 'shop', a: 'p', arg: -1 },
     { v: 'forge', a: 'w' },
@@ -783,7 +788,9 @@ Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', 
   // Deterministic turn-in: top up to the exact requirement and ready it.
   addItem(p, 'q_toxin_sample', 4 - got);
   p.quests['m6_toxin']!.status = 'turnIn';
-  assertEquals(turnInQuest(p, 'm6_toxin').ok, true);
+  p.unlockedZones.push('hollowmere');
+  p.currentZone = 'hollowmere'; // the Ferryman accepts the handover on-site
+  assertEquals(turnInQuest(p, 'm6_toxin', 'npc_ferryman').ok, true);
   assertEquals(countOf(p, 'q_toxin_sample'), 0, 'turn-in consumes the goods');
   for (let i = 0; i < 20; i++) {
     resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
@@ -794,14 +801,14 @@ Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', 
 Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => {
   const p = createPlayer(34, 'T', 'warrior');
   syncAvailability(p);
-  assertEquals(acceptQuest(p, 'm1_embers').ok, true);
+  assertEquals(acceptQuest(p, 'm1_embers', 'npc_maren').ok, true);
   for (let i = 0; i < 4; i++) onKill(p, 'e_wolf');
-  assertEquals(turnInQuest(p, 'm1_embers').ok, true);
+  assertEquals(turnInQuest(p, 'm1_embers', 'npc_maren').ok, true);
   assertEquals(countOf(p, 'q_sealed_letter'), 1, 'm1 hands over the letter');
   syncAvailability(p);
-  assertEquals(acceptQuest(p, 'm2_letter').ok, true);
+  assertEquals(acceptQuest(p, 'm2_letter', 'npc_maren').ok, true);
   onTalk(p, 'npc_bram'); // the letter satisfies the collect half; Bram the rest
-  const t2 = turnInQuest(p, 'm2_letter');
+  const t2 = turnInQuest(p, 'm2_letter', 'npc_bram');
   assertEquals(t2.ok, true);
   assertEquals(countOf(p, 'q_sealed_letter'), 0, 'letter handed to Bram');
   assertEquals(p.quests['m2_letter'].status, 'done');
@@ -809,10 +816,12 @@ Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => 
 
 Deno.test('m22: the Archivist handoff completes via talk objective', () => {
   const p = createPlayer(33, 'T', 'mage');
+  p.unlockedZones.push('umbra');
+  p.currentZone = 'umbra'; // the Archivist accepts on-site (#64)
   p.quests['m22_umbral_key'] = { status: 'active', counts: [0] };
   onTalk(p, 'npc_archivist');
   assertEquals(p.quests['m22_umbral_key'].status, 'turnIn');
-  assertEquals(turnInQuest(p, 'm22_umbral_key').ok, true);
+  assertEquals(turnInQuest(p, 'm22_umbral_key', 'npc_archivist').ok, true);
   assertEquals(p.quests['m22_umbral_key'].status, 'done');
 });
 
@@ -828,16 +837,18 @@ Deno.test('turn-in aggregates duplicate same-item collect objectives (#8)', () =
   ];
   try {
     const p = createPlayer(36, 'T', 'warrior');
+    p.unlockedZones.push('hollowmere');
+    p.currentZone = 'hollowmere'; // the Ferryman accepts on-site (#64)
     p.quests['m6_toxin'] = { status: 'turnIn', counts: [0, 0] };
     // 3 in the bag: per-objective validation would pass BOTH objectives
     // against the same three copies. Aggregated, it must refuse.
     addItem(p, 'm_iron_chunk', 3);
-    assertEquals(turnInQuest(p, 'm6_toxin').ok, false, '3 < 3+3');
+    assertEquals(turnInQuest(p, 'm6_toxin', 'npc_ferryman').ok, false, '3 < 3+3');
     assertEquals(p.quests['m6_toxin'].status, 'active');
     // Full supply: passes and consumes the aggregated total.
     addItem(p, 'm_iron_chunk', 3);
     p.quests['m6_toxin']!.status = 'turnIn';
-    assertEquals(turnInQuest(p, 'm6_toxin').ok, true);
+    assertEquals(turnInQuest(p, 'm6_toxin', 'npc_ferryman').ok, true);
     assertEquals(countOf(p, 'm_iron_chunk'), 0, 'all six consumed');
   } finally {
     m6.objectives = original;
