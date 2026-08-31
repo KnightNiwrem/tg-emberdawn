@@ -22,6 +22,7 @@ import {
   rollRewards,
   startBattle,
 } from '../src/engine/combat.ts';
+import type { BattleState } from '../src/engine/types.ts';
 import {
   acceptQuest,
   onKill,
@@ -140,14 +141,16 @@ Deno.test('combat: guard halves incoming damage', () => {
   // compare enemy-phase damage parsed from the log.
   const guarded = play('guard');
   const unguarded = play('attack');
-  const dmgOf = (log: string[]): number => {
-    const line = log.find((l) => l.includes('uses'));
+  // Damage is read from the structured round history (#67): every consumed
+  // round is one complete entry, flattened for this assertion.
+  const dmgOf = (battle: BattleState): number => {
+    const line = battle.history.flatMap((r) => r.lines).find((l) => l.includes('uses'));
     return Number((line?.match(/— (\d+) damage/) ?? [])[1] ?? 0);
   };
-  assert(dmgOf(unguarded.log) > 0, 'wolf should deal damage');
+  assert(dmgOf(unguarded) > 0, 'wolf should deal damage');
   assert(
-    dmgOf(guarded.log) <= dmgOf(unguarded.log),
-    `guarded hit ${dmgOf(guarded.log)} should not exceed unguarded ${dmgOf(unguarded.log)}`,
+    dmgOf(guarded) <= dmgOf(unguarded),
+    `guarded hit ${dmgOf(guarded)} should not exceed unguarded ${dmgOf(unguarded)}`,
   );
 
   function play(action: 'guard' | 'attack') {
@@ -550,14 +553,33 @@ Deno.test('migratePlayer: unversioned and older saves fail clearly (#44)', () =>
   assertThrows(() => migratePlayer(p), SaveTooOldError);
   assertEquals(raw.stateVersion, undefined, 'no version was stamped');
 
-  // Any numbered version below current has no migration path either —
-  // expressed relative to CURRENT_STATE_VERSION, no historical ids.
+  // Versions below the earliest migration step have no path — expressed
+  // relative to CURRENT_STATE_VERSION, no historical ids. (The version one
+  // step back now MIGRATES — see the structured-history test below.)
   const p2 = createPlayer(27, 'T', 'warrior');
-  p2.stateVersion = CURRENT_STATE_VERSION - 1;
+  p2.stateVersion = CURRENT_STATE_VERSION - 2;
   p2.gold = 999;
   assertThrows(() => migratePlayer(p2), SaveTooOldError);
-  assertEquals(p2.stateVersion, CURRENT_STATE_VERSION - 1, 'no rewrite, no stamp-down');
+  assertEquals(p2.stateVersion, CURRENT_STATE_VERSION - 2, 'no rewrite, no stamp-down');
   assertEquals(p2.gold, 999);
+});
+
+Deno.test('migratePlayer: in-flight v3 battles normalize to the structured history (#67)', () => {
+  const p = createPlayer(29, 'T', 'warrior');
+  p.stateVersion = CURRENT_STATE_VERSION - 1;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  p.battle = b;
+  // Simulate a pre-#67 save: an in-flight battle still carrying the flat log.
+  (p.battle as unknown as Record<string, unknown>).log = ['🐺 Wolf blocks your path!'];
+  const hpBefore = p.battle.enemy.hp;
+  migratePlayer(p);
+  assertEquals(p.stateVersion, CURRENT_STATE_VERSION, 'stamped current');
+  const raw = p.battle as unknown as Record<string, unknown>;
+  assertEquals(raw['log'], undefined, 'the retired flat log is stripped from the save');
+  assertEquals(p.battle!.history, [], 'structured history starts empty');
+  assertEquals(p.battle!.effects, [], 'structured effect metadata starts empty');
+  assertEquals(p.battle!.enemy.hp, hpBefore, 'mechanics are preserved');
+  assertEquals(p.battle!.phase, 'active', 'the fight is still live');
 });
 
 Deno.test('world: every zone is reachable from the starting zones', () => {

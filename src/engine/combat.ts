@@ -29,6 +29,79 @@ function newBuffs(): CombatBuffs {
   };
 }
 
+/** Slots a structured effect entry (#67) can occupy: the five stat buffs plus
+ * the side-specific bookkeeping keys (player sapped, enemy sapped, enemy
+ * guard stance, enemy stunned). */
+type EffectKey =
+  | 'atk'
+  | 'def'
+  | 'res'
+  | 'mag'
+  | 'spd'
+  | 'weaken'
+  | 'enemyWeaken'
+  | 'guard'
+  | 'enemyStun';
+
+/** Off-buff keys defer their first decay on the cast round (#27/#38) — their
+ * expiry sits one round later than defensive keys, which protect the cast
+ * round itself. */
+const SKIPS_FIRST_DECAY: Record<EffectKey, boolean> = {
+  atk: true,
+  mag: true,
+  spd: true,
+  guard: true,
+  def: false,
+  res: false,
+  weaken: false,
+  enemyWeaken: false,
+  enemyStun: false,
+};
+
+/** Records (or replaces) the structured display metadata for one effect slot
+ * (#67). Mechanics stay on CombatBuffs/BattleState; entries mirror them with
+ * identity so the UI can name `Blessing` with magnitude and remaining
+ * duration instead of surfacing only aggregate percentages. */
+function applyEffect(
+  battle: BattleState,
+  key: EffectKey,
+  id: string,
+  name: string,
+  side: 'player' | 'enemy',
+  magnitude: string,
+  source: string,
+  turns: number,
+): void {
+  battle.effects = battle.effects.filter((e) => !(e.key === key && e.side === side));
+  battle.effects.push({
+    key,
+    id,
+    name,
+    side,
+    magnitude,
+    source,
+    expiresRound: battle.round + turns - (SKIPS_FIRST_DECAY[key] ? 0 : 1),
+  });
+}
+
+/** Enemy weaken riders (Howl et al., #25): saps the PLAYER's offense. */
+function sapPlayer(battle: BattleState, moveName: string, weakenPct: number): string[] {
+  const buffs = battle.buffs;
+  buffs.weakenedPct = weakenPct;
+  buffs.weakenTurns = 2;
+  applyEffect(
+    battle,
+    'weaken',
+    `weaken:${moveName}`,
+    'Sapped',
+    'player',
+    `−${Math.round(weakenPct * 100)}% ATK`,
+    moveName,
+    2,
+  );
+  return ['🩸 Your strength is sapped!'];
+}
+
 export function startBattle(enemyId: string, origin: BattleOrigin): BattleState | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
@@ -55,7 +128,11 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     enemyGuardPct: 0,
     enemyGuardTurns: 0,
     buffs: newBuffs(),
-    log: [`${def.emoji} ${def.name} blocks your path!`],
+    // Structured history starts EMPTY (#67): the encounter introduction is
+    // the zone/explore notice, not accumulated battle history — the battle
+    // screen shows it once inside the opening "Your move" panel.
+    history: [],
+    effects: [],
     origin,
   };
   return battle;
@@ -193,6 +270,9 @@ export function performAction(
     return { battle, lines: [], skipped: false, consumedTurn: false };
   }
 
+  // The round these lines belong to: the one in which the player acted —
+  // captured before end-of-round bookkeeping advances the counter (#67).
+  const actedRound = battle.round;
   const freshBuffs = new Set<'atk' | 'mag' | 'spd'>();
   const phase = playerPhase(p, battle, action, rng, freshBuffs);
   const lines = [...phase.lines];
@@ -200,12 +280,18 @@ export function performAction(
   const buffs = battle.buffs;
 
   // Player won without retaliation (enemy felled by the action)…
-  if (battle.enemy.hp <= 0) return { battle, lines, skipped, consumedTurn: true };
+  if (battle.enemy.hp <= 0) {
+    // The terminal round follows the SAME history model as every other
+    // consumed action (#67): kill rounds are recorded, never dropped.
+    battle.history.push({ round: actedRound, lines });
+    return { battle, lines, skipped, consumedTurn: true };
+  }
   // Invalid action (cooldown/MP/unusable item): no turn consumed, no enemy
-  // phase. The UI disables these; the engine stays safe for forged taps.
+  // phase, and NO history round (#67) — the lines stay handler feedback only.
   if (!phase.consumedTurn) return { battle, lines, skipped, consumedTurn: false };
   // …or escaped cleanly (no parting shot after a successful flee).
   if ((battle.phase as BattlePhase) === 'fled') {
+    battle.history.push({ round: actedRound, lines });
     return { battle, lines, skipped, consumedTurn: true };
   }
 
@@ -214,6 +300,8 @@ export function performAction(
   let guardCast = false;
   if (buffs.stunnedEnemy) {
     buffs.stunnedEnemy = false;
+    // The stun is consumed the moment the enemy loses its action (#67).
+    battle.effects = battle.effects.filter((e) => !(e.key === 'enemyStun' && e.side === 'enemy'));
     lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
   } else {
     const move = enemyChooseMove(def, battle.enemy, rng);
@@ -236,8 +324,11 @@ export function performAction(
     if (v <= 1) delete battle.cooldowns[k];
     else battle.cooldowns[k] = v - 1;
   }
-  battle.log.push(...lines);
-  if (battle.log.length > 12) battle.log.splice(0, battle.log.length - 12);
+  // Complete-round history (#67): every consumed turn records exactly one
+  // round — the whole player action + enemy response, never truncated here.
+  battle.history.push({ round: actedRound, lines });
+  // Retire display entries whose mechanical slot expired with the round (#67).
+  battle.effects = battle.effects.filter((e) => e.expiresRound >= battle.round);
   return { battle, lines, skipped, consumedTurn: true };
 }
 
@@ -263,6 +354,16 @@ function strike(
   ];
   if (sk.stunChance && battle.enemy.hp > 0 && chance(rng, sk.stunChance)) {
     buffs.stunnedEnemy = true;
+    applyEffect(
+      battle,
+      'enemyStun',
+      'stunned',
+      'Stunned',
+      'enemy',
+      'loses next action',
+      sk.name,
+      1,
+    );
     lines.push(`💫 ${battle.enemy.name} is stunned!`);
   }
   return { lines, dmg: res.dmg };
@@ -407,6 +508,8 @@ function applySkill(
         p.hp = s.maxHp;
         buffs.weakenedPct = 0;
         buffs.weakenTurns = 0;
+        // Cleanse removes the matching display entries too (#67).
+        battle.effects = battle.effects.filter((e) => !(e.key === 'weaken' && e.side === 'player'));
         lines.push('✨ Miracle! HP fully restored, debuffs cleansed.');
       } else if (sk.id === 'sk_adrenaline') {
         const heal = Math.floor(s.maxHp * (sk.potency ?? 0.3));
@@ -414,6 +517,25 @@ function applySkill(
         buffs.atkPct += 0.2;
         buffs.durations.atk = Math.max(buffs.durations.atk ?? 0, 2);
         freshBuffs.add('atk'); // cast round doesn't consume it (#27)
+        // Effect identity tracks the STACKED total (#67): Adrenaline Surge
+        // adds onto any ATK buff already running, so the entry shows the
+        // combined magnitude under the longest-running label.
+        const atkEffect = battle.effects.find((e) => e.key === 'atk' && e.side === 'player');
+        if (atkEffect) {
+          atkEffect.magnitude = `+${Math.round(buffs.atkPct * 100)}% ATK`;
+          atkEffect.expiresRound = Math.max(atkEffect.expiresRound, battle.round + 2);
+        } else {
+          applyEffect(
+            battle,
+            'atk',
+            'sk_adrenaline',
+            'Adrenaline Surge',
+            'player',
+            `+${Math.round(buffs.atkPct * 100)}% ATK`,
+            sk.name,
+            2,
+          );
+        }
         lines.push(`🩹 You recover ${heal} HP and feel the rush (+20% ATK).`);
       } else {
         const heal = Math.round(playerEffectiveMag(p, buffs) * sk.power * 2.0 + 20);
@@ -433,6 +555,18 @@ function applySkill(
         // feeds future Flee rolls. DEF/RES protect the cast-round enemy
         // response, so they still tick immediately.
         if (key === 'atk' || key === 'mag' || key === 'spd') freshBuffs.add(key);
+        // Structured identity for the battle screen (#67): the effect is
+        // named for the skill that cast it, not just its stat delta.
+        applyEffect(
+          battle,
+          key,
+          sk.id,
+          sk.name,
+          'player',
+          `+${Math.round(pct * 100)}% ${key.toUpperCase()}`,
+          sk.name,
+          dur,
+        );
       };
       if (sk.id === 'sk_war_cry') apply('atk', potency);
       else if (sk.id === 'sk_iron_wall') apply('def', potency);
@@ -458,6 +592,16 @@ function applySkill(
       if (sk.potency && battle.enemy.hp > 0) {
         buffs.enemyWeakenedPct = sk.potency;
         buffs.enemyWeakenTurns = sk.duration ?? 3;
+        applyEffect(
+          battle,
+          'enemyWeaken',
+          sk.id,
+          sk.name,
+          'enemy',
+          `−${Math.round(sk.potency * 100)}% ATK`,
+          sk.name,
+          sk.duration ?? 3,
+        );
         lines.push(`🩸 ${battle.enemy.name} is weakened by ${Math.round(sk.potency * 100)}%!`);
       }
       break;
@@ -491,6 +635,11 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
       buffs.weakenedPct = 0;
       buffs.weakenTurns = 0;
     }
+    if (p.battle) {
+      p.battle.effects = p.battle.effects.filter((e) =>
+        !(e.key === 'weaken' && e.side === 'player')
+      );
+    }
     lines.push(`🧴 ${itemDef.name} clears your debuffs.`);
   }
   entry.qty--;
@@ -518,6 +667,18 @@ function enemyAct(
   if (move.guardPct) {
     battle.enemyGuardPct = move.guardPct;
     battle.enemyGuardTurns = move.guardTurns ?? 2;
+    // Named guard stance on the ENEMY side of the effects row (#67); the
+    // casting round doesn't consume one (#25), so expiry skips a decay.
+    applyEffect(
+      battle,
+      'guard',
+      `guard:${move.name}`,
+      move.name,
+      'enemy',
+      `+${Math.round(move.guardPct * 100)}% DEF`,
+      move.name,
+      move.guardTurns ?? 2,
+    );
     lines.push(`🛡️ ${battle.enemy.name} braces behind ${move.name}!`);
     return { lines, guardCast: true };
   }
@@ -525,11 +686,7 @@ function enemyAct(
     // Zero-power status moves carry only their rider (#25) — no implicit
     // chip damage from the min-1 strike clamp below.
     lines.push(`🌀 ${battle.enemy.name} uses ${move.name}.`);
-    if (move.weakenPct) {
-      buffs.weakenedPct = move.weakenPct;
-      buffs.weakenTurns = 2;
-      lines.push('🩸 Your strength is sapped!');
-    }
+    if (move.weakenPct) lines.push(...sapPlayer(battle, move.name, move.weakenPct));
     return { lines, guardCast: false };
   }
   const s = statsOf(p);
@@ -544,11 +701,7 @@ function enemyAct(
   const dmg = variance(rng, raw);
   p.hp = Math.max(0, p.hp - dmg);
   lines.push(`💥 ${battle.enemy.name} uses ${move.name} — ${dmg} damage to you!`);
-  if (move.weakenPct) {
-    buffs.weakenedPct = move.weakenPct;
-    buffs.weakenTurns = 2;
-    lines.push('🩸 Your strength is sapped!');
-  }
+  if (move.weakenPct) lines.push(...sapPlayer(battle, move.name, move.weakenPct));
   if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
   return { lines, guardCast: false };
 }

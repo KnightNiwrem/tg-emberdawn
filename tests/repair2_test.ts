@@ -835,8 +835,8 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
   b.enemy.maxHp = 99999;
 
   battleAction(p, { v: 'battle', a: 'atk' });
-  const line = b.log.find((l) => l.includes('You strike'))!;
-  assert(line, 'the attack reached the log');
+  const line = b.history.flatMap((r) => r.lines).find((l) => l.includes('You strike'))!;
+  assert(line, 'the attack reached the structured round history');
   const rendered = JSON.stringify(renderBattle(p));
   assertEquals(
     rendered.split(line).length - 1,
@@ -850,6 +850,155 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
     p.notices.some((l) => l.includes("haven't learned")),
     'invalid-action feedback is preserved',
   );
+});
+
+Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', () => {
+  const p = createPlayer(981, 'T', 'warrior');
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  p.battle = b;
+  p.notices = ['🐀 A wild Giant Rat appears!'];
+  const rendered = JSON.stringify(renderBattle(p));
+  assert(rendered.includes('⚔️ Battle · Round 1'), 'Round 1 is visible on the initial render');
+  assert(!rendered.includes('blocks your path'), 'the flat intro line is gone from history');
+  assertEquals(
+    rendered.split('A wild Giant Rat appears!').length - 1,
+    1,
+    'the encounter introduction renders exactly once',
+  );
+  assert(rendered.includes('Your move'), 'a fresh battle opens with the move prompt');
+});
+
+Deno.test('battle screen: labelled sections with separated resource lines (#67)', () => {
+  const p = createPlayer(982, 'T', 'warrior');
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  p.battle = b;
+  const msg = renderBattle(p);
+  const rendered = JSON.stringify(msg);
+  assert(rendered.includes('"ENEMY"'), 'the enemy side is labelled');
+  assert(rendered.includes('YOU ·'), 'the player side is labelled with class and level');
+  assert(rendered.includes('"type":"divider"'), 'combatants are separated by a divider');
+  // No paragraph mixes a resource value with a bar — values and shortened
+  // bars live on separate lines (#67).
+  const texts: string[] = [];
+  for (const blk of msg.blocks ?? []) {
+    if (blk.type === 'paragraph') texts.push(String(blk.text));
+  }
+  for (const t of texts) {
+    assert(
+      !(t.includes('▰') && /\d+\/\d+/.test(t)),
+      `value and bar must not share a line: ${t}`,
+    );
+  }
+  assert(texts.some((t) => t.includes('▰')), 'bars render');
+  assert(texts.some((t) => /\d+\/\d+/.test(t)), 'resource values render');
+});
+
+Deno.test('battle screen: effects rows carry identity, duration, and details (#67)', () => {
+  const p = createPlayer(983, 'T', 'cleric');
+  p.level = 10;
+  p.skills.push('sk_blessing');
+  p.mp = statsOf(p).maxMp;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  p.battle = b;
+  performAction(p, b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(41));
+  const rendered = JSON.stringify(renderBattle(p));
+  assert(rendered.includes('Effects: none'), 'the unbuffed combatant shows an empty row');
+  assert(rendered.includes('🔆 Blessing'), 'effects keep their identity, not just a delta');
+  // Blessing legs diverge on the cast round: DEF ticked (2 left), ATK
+  // deferred (#27/#38, 3 left) — the summary discloses the range.
+  assert(rendered.includes('2–3 rounds'), 'divergent leg durations are disclosed');
+  assert(rendered.includes('"type":"details"'), 'effects expand via a native details block');
+  assert(rendered.includes('+30% ATK'), 'magnitude is shown');
+  assert(rendered.includes('fades end of round'), 'expiry round is shown');
+  // Engine and display agree: one entry per covered stat key.
+  assertEquals(b.effects.length, 2, 'one entry per covered stat key');
+  assertEquals(b.buffs.durations.atk, 3, 'off-buff defers its first decay');
+  assertEquals(b.buffs.durations.def, 2, 'def buff ticks on the cast round');
+});
+
+Deno.test('battle screen: only the latest round expands; earlier rounds collapse in order (#67)', () => {
+  const p = createPlayer(984, 'T', 'warrior');
+  p.level = 30;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  b.enemy.maxHp = 99999;
+  b.enemy.hp = 99999;
+  p.battle = b;
+  for (let i = 0; i < 4; i++) performAction(p, b, { kind: 'attack' }, seeded(51 + i));
+  const rendered = JSON.stringify(renderBattle(p).blocks);
+  assert(rendered.includes('Round 4 result'), 'the newest completed round is expanded');
+  assert(
+    rendered.indexOf('Round 4 result') < rendered.indexOf('Earlier battle history'),
+    'the recap precedes the collapsed history',
+  );
+  const detStart = rendered.indexOf('"summary":"Earlier battle history"');
+  const detEnd = rendered.indexOf('"type":"buttons"', detStart);
+  assert(detStart > 0 && detEnd > detStart, 'the history block is a collapsed details block');
+  const det = rendered.slice(detStart, detEnd);
+  assert(det.includes('Round 1') && det.includes('Round 3'), 'earlier rounds are present');
+  assert(!det.includes('Round 4'), 'the newest round is NOT collapsed');
+  const i1 = det.indexOf('Round 1');
+  const i2 = det.indexOf('Round 2');
+  const i3 = det.indexOf('Round 3');
+  assert(i1 < i2 && i2 < i3, 'earlier rounds read oldest-to-newest');
+});
+
+Deno.test('battle history truncation keeps complete rounds and discloses omission (#67)', () => {
+  const p = createPlayer(985, 'T', 'warrior');
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  b.enemy.maxHp = 99999;
+  b.enemy.hp = 99999;
+  p.battle = b;
+  b.history = Array.from({ length: 12 }, (_, i) => ({
+    round: i + 1,
+    lines: [`r${i + 1}-a`, `r${i + 1}-b`],
+  }));
+  const rendered = JSON.stringify(renderBattle(p).blocks);
+  assert(rendered.includes('… 1 earlier round omitted.'), 'omission is explicitly disclosed');
+  assert(!rendered.includes('r1-a'), 'the omitted round is gone entirely');
+  for (let r = 2; r <= 12; r++) {
+    assert(
+      rendered.includes(`r${r}-a`) && rendered.includes(`r${r}-b`),
+      `round ${r} renders COMPLETE — never split mid-round`,
+    );
+  }
+  assert(rendered.includes('Round 12 result'), 'the newest round stays expanded');
+});
+
+Deno.test('victory screen orders recap, outcome, spoils, and history — no duplicates (#67)', () => {
+  const p = createPlayer(986, 'T', 'warrior');
+  p.level = 20;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  b.enemy.maxHp = 99999;
+  b.enemy.hp = 99999;
+  p.battle = b;
+  // One warm-up round so the victory screen has BOTH a final round and
+  // collapsed earlier history to order.
+  performAction(p, b, { kind: 'attack' }, seeded(61));
+  assertEquals(b.round, 2);
+  b.enemy.hp = 1; // one clean killing blow
+  battleAction(p, { v: 'battle', a: 'atk' });
+  assertEquals(b.phase, 'won');
+  const rendered = JSON.stringify(renderBattle(p).blocks);
+  const iV = rendered.indexOf('🏆 Victory · 2 rounds');
+  const iR = rendered.indexOf('Round 2 result');
+  const iD = rendered.indexOf('is defeated');
+  const iS = rendered.indexOf('Spoils');
+  const iH = rendered.indexOf('Earlier battle history');
+  assert(iV >= 0, 'the victory heading carries the round count');
+  assert(iR > iV, 'the final-round recap follows the heading');
+  assert(iD > iR, 'the defeat outcome follows the recap');
+  assert(iS > iD, 'one authoritative Spoils line follows the outcome');
+  assert(iH > iS, 'collapsed history follows the spoils');
+  // The collapsed history holds the earlier round, complete and ordered.
+  const det = rendered.slice(iH, rendered.indexOf('"type":"buttons"', iH));
+  assert(det.includes('Round 1'), 'the earlier round is collapsed');
+  assert(!det.includes('Round 2'), 'the terminal round is NOT collapsed');
+  // Duplicate suppression (#67): rewards appear ONLY as Spoils.
+  assertEquals(rendered.split('Spoils').length - 1, 1, 'exactly one Spoils presentation');
+  assert(!rendered.includes('💰 +'), 'no XP/gold headline repeated in the outcome lines');
+  // The terminal round is regular history.
+  assertEquals(b.history.length, 2, 'every consumed round was recorded');
+  assertEquals(b.history[1].round, 2);
 });
 
 Deno.test('quest log names the level-locked next quest during grind gaps (#33)', () => {
@@ -917,18 +1066,22 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   const b44 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b44.enemy.hp = 0;
   const r44 = resolveVictory(p44, b44, seeded(91));
-  assert(
-    r44.some((l) => l.includes('XP') && l.includes('+') && !l.includes('→')),
-    'pre-cap headline unchanged',
-  );
+  // Battle rewards no longer repeat inside the resolution lines (#67): the
+  // staged record is the single source, rendered once as Spoils.
+  assertEquals(b44.rewards!.xpConvertedGold, undefined, 'pre-cap grant stays nominal');
+  assert(b44.rewards!.xp > 0, 'pre-cap grant stages XP');
   assert(!r44.some((l) => l.includes('converts your valor')), 'no conversion line at 44');
 
   const p45 = createPlayer(969, 'T', 'warrior');
   p45.level = 45;
   const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b45.enemy.hp = 0;
-  const r45 = resolveVictory(p45, b45, seeded(92));
-  assert(r45.some((l) => l.includes('XP → +')), 'cap headline shows the conversion');
+  resolveVictory(p45, b45, seeded(92));
+  assertEquals(
+    b45.rewards!.xpConvertedGold,
+    xpToGoldAtCap(b45.rewards!.xp),
+    'cap grant stages the conversion',
+  );
 
   // Quest turn-in at cap explains the conversion too.
   const pq = createPlayer(970, 'T', 'warrior');
@@ -959,6 +1112,7 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   const lines = resolveVictory(p, b, seeded(93));
   assertEquals(p.level, 45, 'the kill itself reaches the summit');
   assert(!lines.some((l) => l.includes('→')), 'headline claims no conversion');
+  assertEquals(b.rewards!.xpConvertedGold, undefined, 'no conversion stamped pre-grant');
   assertEquals(p.gold, goldBefore + b.rewards!.gold, 'no conversion gold was granted');
   b.phase = 'won';
   p.battle = b;

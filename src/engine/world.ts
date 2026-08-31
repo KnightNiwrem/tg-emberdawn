@@ -70,11 +70,11 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   // even though the player ends the fight at the summit.
   const capped = p.level >= MAX_LEVEL;
   if (capped && rewards.xp > 0) rewards.xpConvertedGold = xpToGoldAtCap(rewards.xp);
-  // Reward headline uses the SHARED label (#42) — same economy line as
-  // quest turn-ins and dungeon first clears.
+  // Reward headline lives ONLY in the staged rewards (#40, #67): the victory
+  // screen renders one authoritative Spoils line from `b.rewards`, so the
+  // resolution lines never repeat XP/gold beside it.
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,
-    `${xpRewardLabel(p.level, rewards.xp)} · 💰 +${rewards.gold} gold`,
   ];
   lines.push(...grantXp(p, rewards.xp));
   lines.push(...grantDropRewards(p, rewards.drops));

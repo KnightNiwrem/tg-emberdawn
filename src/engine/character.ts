@@ -3,7 +3,7 @@
  * Pure functions over PlayerState + content lookups.
  */
 
-import type { ClassId, DerivedStats, PlayerState } from './types.ts';
+import type { BattleState, ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
@@ -90,7 +90,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 3;
+export const CURRENT_STATE_VERSION = 4;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -128,11 +128,26 @@ export function migratePlayer(p: PlayerState): void {
     throw new SaveTooNewError(from);
   }
   if (from === CURRENT_STATE_VERSION) return;
-  // Pre-launch saves older than the current schema are disposable: no
-  // migration steps are retained for them (#44). Once the game has live
-  // saves, forward migrations slot here — gated by explicit `stateVersion`
-  // steps (never "state looks old" sniffing), oldest first, e.g.
-  //   if (from < N+1) { ...transform to vN+1... }
+  // Forward migrations, oldest first, gated by explicit `stateVersion`
+  // steps (never "state looks old" sniffing).
+  //
+  // v3 → v4 (#67): battle history became structured complete rounds and
+  // active effects became structured metadata. Mechanics are preserved —
+  // hp, round, buffs, cooldowns all carry over — but the old flat log
+  // cannot be round-split reliably, so an in-flight battle's history
+  // restarts empty and the retired field is stripped from the save.
+  if (from === 3) {
+    const battle = p.battle as (BattleState & { log?: unknown }) | undefined;
+    if (battle) {
+      delete battle.log;
+      battle.history = [];
+      battle.effects = [];
+    }
+    p.stateVersion = 4;
+  }
+  if (p.stateVersion === CURRENT_STATE_VERSION) return;
+  // Pre-launch saves older than the earliest migration step are disposable:
+  // they fail clearly and require a /reset (#44).
   throw new SaveTooOldError(from);
 }
 

@@ -41,6 +41,40 @@ export interface EnemyInstance {
 
 export type BattlePhase = 'active' | 'won' | 'lost' | 'fled';
 
+/** One completed combat round (#67): the round in which the player acted,
+ * plus the engine-produced lines for it (player action + enemy response).
+ * History is a list of COMPLETE rounds — never truncated mid-round. */
+export interface BattleRound {
+  round: number;
+  lines: string[];
+}
+
+/** Structured active-effect metadata (#67): identity and presentation for
+ * what CombatBuffs tracks mechanically. Purely presentational — mechanics
+ * never read it — but persisted with the battle so the UI can name
+ * `Blessing`, show magnitude and remaining duration, instead of surfacing
+ * only aggregate percentages keyed by stat. */
+export interface ActiveEffect {
+  /** Mechanical slot mirrored: a stat key (atk|def|res|mag|spd), 'weaken'
+   * (player offense sapped), 'enemyWeaken' (enemy offense sapped), 'guard'
+   * (enemy guard stance) or 'enemyStun' (enemy loses next action). */
+  key: string;
+  /** Stable id (skill id, or slot-prefixed move name for enemy effects). */
+  id: string;
+  /** Display name, e.g. 'Blessing'. */
+  name: string;
+  /** Which combatant the effect applies to. */
+  side: 'player' | 'enemy';
+  /** Human-readable magnitude, e.g. '+30% ATK'. */
+  magnitude: string;
+  /** What applied it (skill or move name). */
+  source: string;
+  /** The round at whose END the effect stops applying — engine-computed
+   * with the cast-round decay semantics (#27/#38), so display turns derived
+   * from it always match the mechanical durations. */
+  expiresRound: number;
+}
+
 /** Where a battle came from — decides what victory bookkeeping applies. */
 export type BattleOrigin =
   | { kind: 'explore'; zoneId: string }
@@ -56,8 +90,13 @@ export interface BattleState {
   guarding: boolean;
   /** Combat buffs/debuffs (runtime, persisted with the battle). */
   buffs: CombatBuffs;
-  /** Rolling log lines, newest last. Rendered inside the battle screen. */
-  log: string[];
+  /** Completed rounds, oldest first (#67) — each a full player action +
+   * enemy response. The renderer expands only the newest round and collapses
+   * the rest; truncation (if ever needed) must keep rounds whole. */
+  history: BattleRound[];
+  /** Structured effect metadata for the battle screen (#67). Pruned each
+   * round; mechanics never read it. */
+  effects: ActiveEffect[];
   /** Rewards staged on victory. `xpConvertedGold` is the amount actually
    * granted by post-cap conversion (stamped by `resolveVictory` BEFORE the
    * XP grant, #40) — renderers must never re-infer it from the player's
