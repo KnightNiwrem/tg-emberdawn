@@ -152,6 +152,7 @@ export interface FightResult {
   guardRounds: number;
   mpFromGuard: number;
   crits: number;
+  dodges: number;
   healDone: number;
   overheal: number;
 }
@@ -159,6 +160,7 @@ export interface FightResult {
 const STRIKE = /(?:hits|sears) .* for (\d+)/;
 const TAKEN = /— (\d+) damage to you/;
 const CRIT = '— critical';
+const DODGE = 'slip aside';
 const ENEMY_HEAL = /recovers (\d+) HP/;
 
 /** Expected heal of a heal-type skill (mirrors combat.ts formulas). */
@@ -200,6 +202,7 @@ export function runFight(
     guardRounds: 0,
     mpFromGuard: 0,
     crits: 0,
+    dodges: 0,
     healDone: 0,
     overheal: 0,
   };
@@ -216,6 +219,7 @@ export function runFight(
       const taken = TAKEN.exec(line);
       if (taken) result.taken += Number(taken[1]);
       if (line.includes(CRIT)) result.crits++;
+      if (line.includes(DODGE)) result.dodges++;
       const eh = ENEMY_HEAL.exec(line);
       if (eh) result.dealt -= Number(eh[1]);
     }
@@ -367,6 +371,7 @@ export interface CellStat {
   avgItems: number;
   guardFreq: number;
   critsPerFight: number;
+  dodgesPerFight: number;
   healPerFight: number;
   overhealPerFight: number;
 }
@@ -390,6 +395,7 @@ export function runCell(spec: CellSpec): CellStat {
     items: 0,
     guard: 0,
     crits: 0,
+    dodges: 0,
     heals: 0,
     overheal: 0,
   };
@@ -426,6 +432,7 @@ export function runCell(spec: CellSpec): CellStat {
     acc.items += res.itemsUsed;
     acc.guard += res.guardRounds;
     acc.crits += res.crits;
+    acc.dodges += res.dodges;
     acc.heals += res.healDone;
     acc.overheal += res.overheal;
   }
@@ -450,6 +457,7 @@ export function runCell(spec: CellSpec): CellStat {
     avgItems: r3(acc.items / f),
     guardFreq: r3(acc.guard / f),
     critsPerFight: r3(acc.crits / f),
+    dodgesPerFight: r3(acc.dodges / f),
     healPerFight: r2(acc.heals / f),
     overhealPerFight: r2(acc.overheal / f),
   };

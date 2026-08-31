@@ -232,7 +232,7 @@ export const SKILLS: readonly SkillDef[] = [
     type: 'buff',
     potency: 0.45,
     duration: 3,
-    desc: '+45% SPD for 3 turns.',
+    desc: '+45% SPD for 3 turns — outpace the foe and slip its blows.',
   }),
   S({
     id: 'sk_twin_strike',

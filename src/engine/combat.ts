@@ -659,6 +659,16 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
   return [`You use ${itemDef.name}.`, ...lines];
 }
 
+/** #72: SPD's combat payoff — capped avoidance. Every class keeps a 2%
+ * baseline; out-sprinting the foe adds up to 18 more points, and enemy SPD
+ * pushes the odds back down. Damaging moves only: self-heals, enemy guard
+ * stances, and zero-power status moves are never dodged — the policy is
+ * structural (this roll lives only in the damaging branch of enemyAct) and
+ * test-enforced. */
+export function dodgeChance(playerSpd: number, enemySpd: number): number {
+  return Math.min(0.2, Math.max(0.02, 0.02 + (playerSpd - enemySpd) * 0.002));
+}
+
 function enemyAct(
   p: PlayerState,
   battle: BattleState,
@@ -702,6 +712,13 @@ function enemyAct(
     return { lines, guardCast: false };
   }
   const s = statsOf(p);
+  // SPD avoidance (#72): damaging moves can be slipped entirely. Player SPD
+  // includes buffs (Smoke Step / Time Warp); enemy SPD pushes back. One
+  // draw, before mitigation/variance — deterministic order.
+  if (chance(rng, dodgeChance(effStat(s.spd, buffs.spdPct), def.spd))) {
+    lines.push(`💨 ${battle.enemy.name} uses ${move.name} — you slip aside, untouched!`);
+    return { lines, guardCast: false };
+  }
   // Player-applied weaken (Venom Cut et al.) cuts ENEMY offense.
   const offense = (move.kind === 'phys' ? def.atk : def.mag) *
     (1 - buffs.enemyWeakenedPct);

@@ -17,6 +17,7 @@ import {
 import { xpForNextLevel } from '../src/engine/classes.ts';
 import { derivedStats, MAX_LEVEL } from '../src/engine/classes.ts';
 import {
+  dodgeChance,
   performAction,
   type PlayerAction,
   rollRewards,
@@ -1068,4 +1069,58 @@ Deno.test('catalog: skill descriptions state the exact authored mechanics (#71)'
       assert(s.desc.includes(`${pct(s.stunChance)} chance`), `${s.id}: ${s.desc}`);
     }
   }
+});
+
+Deno.test('dodge: SPD buys capped, opposed avoidance (#72)', () => {
+  assertEquals(dodgeChance(50, 50), 0.02, 'baseline at parity');
+  assertEquals(dodgeChance(10, 50), 0.02, 'outsped heroes keep only the floor');
+  assertEquals(dodgeChance(200, 10), 0.2, 'the cap prevents near-invulnerability');
+  assertEquals(dodgeChance(20, 10), 0.04, 'each 5 SPD over the foe adds 1%');
+  assert(dodgeChance(30, 10) > dodgeChance(20, 10), 'enemy SPD pushes back');
+});
+
+Deno.test('dodge: a slipped blow deals nothing and says so in the round (#72)', () => {
+  let dodged = false;
+  for (let seed = 1; seed <= 80 && !dodged; seed++) {
+    const rng = seeded(seed);
+    const p = createPlayer(900 + seed, 'T', 'rogue');
+    p.level = 8; // a real SPD edge over the rat, without one-shotting it
+    const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' })!;
+    p.battle = battle;
+    for (let round = 0; round < 6 && !dodged; round++) {
+      const hpBefore = p.hp;
+      const r = performAction(p, battle, { kind: 'attack' }, rng);
+      const joined = r.lines.join(' ');
+      if (joined.includes('slip aside')) {
+        dodged = true;
+        assertEquals(p.hp, hpBefore, 'a slipped blow deals no damage');
+        assert(joined.includes('💨'), 'the dodge is a visible round line');
+      }
+      if (battle.phase !== 'active') break;
+    }
+  }
+  assert(dodged, 'a dodge was observed across the seed sweep');
+});
+
+Deno.test('dodge: zero-power status moves are never slipped (#72)', () => {
+  // The wolf's Howl (weaken, power 0) must still land on a hero that slips
+  // regular bites — status riders are authored as unavoidable.
+  let sawDodge = false;
+  let sawHowl = false;
+  for (let seed = 1; seed <= 120 && !(sawDodge && sawHowl); seed++) {
+    const rng = seeded(seed);
+    const p = createPlayer(1200 + seed, 'T', 'rogue');
+    p.level = 12;
+    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+    p.battle = battle;
+    for (let round = 0; round < 8; round++) {
+      const r = performAction(p, battle, { kind: 'attack' }, rng);
+      const joined = r.lines.join(' ');
+      if (joined.includes('slip aside')) sawDodge = true;
+      if (joined.includes('Howl')) sawHowl = true;
+      if (battle.phase !== 'active') break;
+    }
+  }
+  assert(sawDodge, 'bites get slipped at a real SPD edge');
+  assert(sawHowl, 'Howl still resolves — status moves ignore dodge');
 });

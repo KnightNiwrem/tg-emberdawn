@@ -78,7 +78,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Cinder Mite',
     emoji: '🕯️',
     level: 1,
-    mul: { hp: 0.8, atk: 0.75, xp: 2.5, gold: 1.5 },
+    // Sturdy enough to survive ANY level-1 crit opener (warrior ~26, rogue
+    // ~31, mage ~38) — the guided fight must last long enough for the
+    // coach to teach its beats (#69), whatever the rng draws (#72).
+    mul: { hp: 1.3, atk: 0.75, xp: 2.5, gold: 1.5 },
     tutorial: true,
     moves: [BITE('Nibble'), mv('Ash Puff', 0.8, 'mag', 1)],
     desc: 'A last spark of the old hearth-fire, going about its small business.',

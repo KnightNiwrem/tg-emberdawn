@@ -84,7 +84,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     mpPerLevel: 8,
     startingGear: { weapon: 'w_rogue_1', armor: 'a_rogue_1' },
     startingItems: { c_minor_potion: 2, c_smoke_bomb: 1 },
-    desc: 'High speed and crits. Excels at striking hard and escaping bad fights.',
+    desc: 'High speed and crits. Slips aside from blows, strikes fast, and escapes bad fights.',
     startingKit: 'Quick Slash',
     tradeoff: 'Strikes fast and crits hard; thin margins when cornered.',
     complexity: 'moderate',

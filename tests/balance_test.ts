@@ -6,10 +6,13 @@
 import { assert, assertEquals } from '@std/assert';
 import {
   buildSnapshot,
+  type CellStat,
   type EncounterSource,
+  hostileZones,
   POLICIES,
   runCell,
   tutorialEnemies,
+  zoneHostilePool,
 } from '../src/engine/balance.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
@@ -222,4 +225,60 @@ Deno.test('rotation metrics: healing identity and MP economy stay class-distinct
     w13.avgRoundsWin < warrior.avgRoundsWin,
     `Whirlwind era kills faster (${w13.avgRoundsWin} < ${warrior.avgRoundsWin})`,
   );
+});
+
+Deno.test('spd curve: the rogue slips measurably more without flipping identities (#72)', () => {
+  // Same rule the matrix uses: the first hostile zone whose band holds the
+  // level. Every class fights the SAME pool with the SAME seed per level —
+  // a paired comparison, so rng noise can't fake the gap.
+  const zoneFor = (level: number): string => {
+    const z = hostileZones().find((h) => level >= h.levels[0] - 2 && level <= h.levels[1] + 2);
+    assert(z, `a hostile zone covers level ${level}`);
+    return z!.id;
+  };
+  const cells = new Map<string, CellStat>();
+  for (const level of [1, 7, 16, 31, 45]) {
+    const zid = zoneFor(level);
+    for (const cid of ['warrior', 'mage', 'rogue'] as const) {
+      cells.set(
+        `${cid}:${level}`,
+        runCell({
+          classId: cid,
+          level,
+          gear: 'best',
+          policy: POLICIES.rotation,
+          pool: zid,
+          sources: zoneHostilePool(zid),
+          fights: 200,
+          seed: 7300 + level,
+        }),
+      );
+    }
+  }
+  // The payoff is avoidance itself: the rogue slips blows at every real SPD
+  // gap (levels 7+), where the warrior barely does. Raw avgTaken conflates
+  // dodge with mitigation — the warrior's armor keeps it competitive there,
+  // which is the intended division (#72: punished more when actually hit).
+  for (const level of [7, 16, 31, 45]) {
+    assert(
+      cells.get(`rogue:${level}`)!.dodgesPerFight > cells.get(`warrior:${level}`)!.dodgesPerFight,
+      `rogue slips more than the warrior at ${level}`,
+    );
+  }
+  // The opening deficit is gone: a level-1 rogue holds its own in the
+  // opening wilds (the #74 invariant band) now that SPD pays off in-fight.
+  assert(
+    cells.get('rogue:1')!.winRate >= 0.85,
+    `rogue opening winrate (${cells.get('rogue:1')!.winRate})`,
+  );
+  // Identities hold: the mage stays the fragile one; nobody collapses.
+  assert(cells.get('mage:31')!.avgTaken > cells.get('rogue:31')!.avgTaken);
+  for (const cid of ['warrior', 'mage', 'rogue'] as const) {
+    for (const level of [1, 7, 16, 31, 45]) {
+      assert(
+        cells.get(`${cid}:${level}`)!.winRate > 0,
+        `${cid} still fights at ${level}`,
+      );
+    }
+  }
 });

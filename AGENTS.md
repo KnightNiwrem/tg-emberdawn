@@ -201,6 +201,11 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   isn't stranded. The class picker states the starting kit, tradeoff, and complexity, and marks
   Warrior as the forgiving beginner pick. Skill descriptions are machine-checked against their
   authored coefficients in the test suite.
+- **SPD avoidance (#72):** SPD's in-fight payoff is capped avoidance — enemy DAMAGING moves can be
+  slipped entirely: `dodgeChance = clamp(0.02 + (spd − enemySpd) × 0.002, 0.02, 0.20)`. Self-heals,
+  enemy guard stances, and zero-power status moves are NEVER dodged (the roll lives only in the
+  damaging branch of enemyAct; test-enforced). Dodges are a visible 💨 round line. Smoke Step (+45%
+  SPD) is a stay-and-fight defensive tool; Flee still uses SPD separately.
 - **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
   Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
   delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a
