@@ -23,7 +23,7 @@ import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onTalk, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
 import { diveDungeon, dungeonOf, explore, travel } from './world.ts';
-import { ENEMIES, enemy as enemyDef } from '../content/enemies.ts';
+import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
 import { quest, zoneOfNpc } from '../content/quests.ts';
 import { skill as skillDef } from '../content/skills.ts';

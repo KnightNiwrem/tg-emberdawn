@@ -43,8 +43,6 @@ async function pickedHero(store: PlayerStore, userId = 301): Promise<PlayerState
   return p;
 }
 
-const last = (arr: unknown[]): string => JSON.stringify(arr[arr.length - 1] ?? {});
-
 Deno.test('prologue: a fresh hero is directed to Maren and the hub is gated (#69)', async () => {
   const store = freshStore();
   await prepareBot(createBot({ token: '123456…ESTS', store }));
