@@ -19,6 +19,7 @@ import {
 } from '../render/menus.ts';
 import {
   renderCharacter,
+  renderClassPicker,
   renderDeath,
   renderForge,
   renderHelp,
@@ -137,6 +138,27 @@ export async function commit(ctx: Context, p: PlayerState): Promise<void> {
   p.messageId = sent.message_id;
   p.uiRev = nextRev;
   p.notices = [];
+}
+
+/** Deliver the class picker as a STATELESS onboarding screen (#62): edit the
+ * given message in place when possible, resend when the old copy is gone.
+ * Touches no player and persists nothing — the confirmed-reset flow uses it
+ * so the store stays empty until a class is actually picked (the picker's
+ * buttons are rev-less m:pk callbacks and never reach the staleness guard). */
+export async function deliverClassPicker(ctx: Context, editId?: number): Promise<void> {
+  const msg = renderClassPicker();
+  if (editId && ctx.chat) {
+    try {
+      await ctx.api.editMessageText(ctx.chat.id, editId, msg);
+      return;
+    } catch (e) {
+      if (!(e instanceof GrammyError)) throw e;
+      if (!RESENDABLE.some((frag) => e.description.includes(frag))) throw e;
+      // fall through to resend
+    }
+  }
+  if (!ctx.chat) return;
+  await ctx.api.sendRichMessage(ctx.chat.id, msg);
 }
 
 /** Answer the tap (toast) and commit the new view. */

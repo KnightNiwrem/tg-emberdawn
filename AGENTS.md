@@ -149,10 +149,13 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   round cannot use it — ATK/MAG (future damage) and SPD (future Flee rolls only) deliver exactly
   their advertised turns of useful actions; DEF/RES still tick on the cast round because they
   mitigate that round's enemy response.
-- **Reset (#19):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit Yes/No
-  confirmation (`reset` view); state is destroyed solely by `resetYes`, which builds a fully
-  initialized fresh state (`syncAvailability` included). No/✋ resumes the live scene (a pending
-  fight stays a fight).
+- **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
+  Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
+  delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a
+  failed delivery leaves the old save intact; nothing is persisted again until a class is picked
+  through the normal no-player path (`pickClass`, `syncAvailability` included). No/✋ resumes the
+  live scene (a pending fight stays a fight). A redelivered confirmation after deletion is a
+  harmless no-op; once a new hero exists, the staleness guard rejects old reset callbacks.
 - **Webhook auth (#29):** webhook mode FAILS CLOSED without `WEBHOOK_SECRET`; the
   `X-Telegram-Bot-Api-Secret-Token` header is verified constant-time in `src/webhook-server.ts`
   BEFORE grammY parses the update. Polling mode needs no secret. Rotate: new secret → update app env

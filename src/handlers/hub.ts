@@ -235,14 +235,16 @@ export function pickClass(
   return fresh;
 }
 
-/** Meta actions that require an existing hero (help / reset confirmations).
- * The type excludes 'pick': class creation is the only no-player meta path
- * and lives in pickClass() — a new meta action must choose its renderer in
- * this switch and its precondition here, at compile time. */
+/** Meta actions that require an existing hero (help / reset staging and
+ * cancellation). The type excludes 'pick': class creation is the only
+ * no-player meta path and lives in pickClass() — and it excludes 'resetYes':
+ * the confirmed reset is a real deletion (#62), handled as an I/O operation
+ * in handleMeta, not as a pure mutation from one PlayerState into another.
+ * A new meta action must choose its renderer in this switch and its
+ * precondition here, at compile time. */
 export function metaAction(
   p: PlayerState,
-  cb: Extract<Cb, { v: 'meta'; a: 'help' | 'reset' | 'resetYes' | 'resetNo' }>,
-  userId: number,
+  cb: Extract<Cb, { v: 'meta'; a: 'help' | 'reset' | 'resetNo' }>,
 ): PlayerState {
   switch (cb.a) {
     case 'help':
@@ -258,10 +260,5 @@ export function metaAction(
         ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
         : { view: 'zone' };
       return p;
-    case 'resetYes': {
-      const fresh = createPlayer(userId, p.name, p.classId);
-      syncAvailability(fresh); // fully initialized state, quests unlocked (#19)
-      return fresh;
-    }
   }
 }

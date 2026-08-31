@@ -36,7 +36,10 @@ export type Cb =
   | { v: 'travel'; a: 'bk' }
   | { v: 'death'; a: 'ok' }
   | { v: 'meta'; a: 'pick'; arg?: string }
-  | { v: 'meta'; a: 'help' | 'reset' | 'resetYes' | 'resetNo' };
+  | { v: 'meta'; a: 'help' }
+  | { v: 'meta'; a: 'reset' }
+  | { v: 'meta'; a: 'resetYes' }
+  | { v: 'meta'; a: 'resetNo' };
 
 const CB_RE = /^([a-z]+)(?::(\d{1,4}))?:([a-zA-Z]{1,8}):?([0-9A-Za-z_-]*)$/;
 

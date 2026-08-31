@@ -6,7 +6,13 @@
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit, type MutationResult, tapIsCurrent, withLoadedPlayer } from './session.ts';
+import {
+  commit,
+  deliverClassPicker,
+  type MutationResult,
+  tapIsCurrent,
+  withLoadedPlayer,
+} from './session.ts';
 import {
   deathAction,
   forgeAction,
@@ -162,6 +168,12 @@ async function handleMeta(
 
   // 'reset' now flows through the normal guarded path: metaAction stages the
   // confirmation scene; only resetYes destroys state (#19).
+  if (cb.a === 'resetYes' && !existing) {
+    // Redelivered confirmation after the save is already gone (#62): the
+    // reset happened — a harmless no-op, nothing left to delete or persist.
+    await ctx.answerCallbackQuery({ text: 'Already reset — pick a class to begin anew.' });
+    return;
+  }
   if (!existing) {
     await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
     return;
@@ -173,17 +185,21 @@ async function handleMeta(
     return;
   }
 
-  const player = metaAction(existing, cb, userId);
-
   if (cb.a === 'resetYes') {
-    // Full reset: brand-new state in a brand-new message.
-    player.notices = ['A new tale begins. The dawn is waiting to be found.'];
-    player.scene = { view: 'zone' };
-    await ctx.answerCallbackQuery();
-    if (ctx.chat) await commit(ctx, player);
-    await store.set(userId, player);
+    // Confirmed deletion (#62): the save is destroyed outright — no
+    // replacement hero is built or persisted. Deliver the class picker
+    // FIRST (edit the confirmation in place, resend fallback), so a failed
+    // delivery leaves the old save untouched; only once the picker is on
+    // screen does the store drop the row. The picker is stateless: nothing
+    // is persisted again until pickClass() runs on a real class tap.
+    await ctx.answerCallbackQuery({ text: 'Hero deleted. A new tale awaits.' });
+    if (!ctx.chat) return; // nowhere to deliver the picker — keep the save
+    await deliverClassPicker(ctx, existing.messageId);
+    await store.delete(userId);
     return;
   }
+
+  metaAction(existing, cb);
 
   // help / reset / resetNo: scene-only changes on the already-loaded player.
   await withLoadedPlayer(ctx, store, existing, () => {});

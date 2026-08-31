@@ -7,7 +7,7 @@ import { prepareBot } from 'grammy-testing';
 import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
-import { handleReset } from '../src/handlers/commands.ts';
+import { handleReset, handleStart } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
 import { battleAction, itemAction } from '../src/handlers/battle.ts';
 import {
@@ -42,7 +42,7 @@ import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
-import { fakeCtx, seeded } from './helpers.ts';
+import { fakeCtx, fakeCtxCapture, seeded } from './helpers.ts';
 
 // ── /start is pure re-centering (P0-2) ───────────────────────────────────
 
@@ -553,7 +553,7 @@ Deno.test('/reset stages a confirmation; No preserves the whole save (#19)', asy
   assertEquals(cur.quests['m1_embers'].status, 'done', 'No must not touch progress');
 });
 
-Deno.test('/reset → Yes rebuilds a fully initialized hero (#19)', async () => {
+Deno.test('/reset → Yes deletes the save and returns to the stateless class picker (#62)', async () => {
   const store = new MemoryStore();
   const p = createPlayer(931, 'T', 'mage');
   p.level = 9;
@@ -564,15 +564,71 @@ Deno.test('/reset → Yes rebuilds a fully initialized hero (#19)', async () => 
   await store.set(931, p);
 
   await handleReset(fakeCtx(931, 610, 'i:bk'), store);
-  let cur = (await store.get(931))!;
-  await handleCallback(fakeCtx(931, 610, withRev(cur.uiRev ?? 0, 'm:ry')), store);
-  cur = (await store.get(931))!;
-  assertEquals(cur.level, 1, 'fresh hero');
-  assertEquals(cur.gold, 50, 'starting purse');
-  assertEquals(cur.stats.deaths, 0);
+  const staged = (await store.get(931))!;
+  assertEquals(staged.gold, 777, 'staging still destroys nothing (#19)');
+  const confirmRev = staged.uiRev ?? 0;
+
+  // Confirmed Yes: the save is DELETED outright, and the class picker
+  // replaces the confirmation message in place — nothing is persisted.
+  const del = fakeCtxCapture(931, 610, withRev(confirmRev, 'm:ry'));
+  await handleCallback(del.ctx, store);
+  assertEquals(await store.get(931), undefined, 'confirmed reset deletes the save outright');
+  assertEquals(del.edits.length, 1, 'picker delivered by editing the confirmation');
+  assert(
+    JSON.stringify(del.edits[0]).includes('Choose who you will be'),
+    'the class picker is what was delivered',
+  );
+
+  // Redelivery of the same confirmation after deletion: harmless no-op.
+  await handleCallback(fakeCtx(931, 610, withRev(confirmRev, 'm:ry')), store);
+  assertEquals(await store.get(931), undefined, 'redelivered Yes stays a no-op');
+
+  // /start while the picker is pending: character creation again, still
+  // nothing persisted.
+  const start = fakeCtxCapture(931);
+  await handleStart(start.ctx, store);
+  assert(
+    JSON.stringify(start.sends[0]).includes('Choose who you will be'),
+    '/start presents character creation',
+  );
+  assertEquals(await store.get(931), undefined, '/start must not persist while picking');
+
+  // Picking a class DIFFERENT from the deleted hero builds a fresh hero
+  // through the normal no-player path.
+  await handleCallback(fakeCtx(931, 610, 'm:pk:warrior'), store);
+  const fresh = (await store.get(931))!;
+  assertEquals(fresh.classId, 'warrior', 'previous class not carried across deletion');
+  assertEquals(fresh.level, 1, 'fresh hero');
+  assertEquals(fresh.gold, 50, 'starting purse');
+  assertEquals(fresh.stats.deaths, 0);
   // syncAvailability ran: the campaign is OFFERED again, not omitted — the
   // exact regression the issue described for the dormant resetYes path.
-  assertEquals(cur.quests['m1_embers']?.status, 'available', 'campaign re-offered');
+  assertEquals(fresh.quests['m1_embers']?.status, 'available', 'campaign re-offered');
+
+  // An old confirmation callback can no longer touch the new hero: the
+  // revision guard rejects it (the pick commit re-keyed the revision).
+  await handleCallback(fakeCtx(931, 610, withRev(confirmRev, 'm:ry')), store);
+  const after = (await store.get(931))!;
+  assertEquals(after.classId, 'warrior', 'stale Yes must not delete the new hero');
+  assertEquals(after.quests['m1_embers']?.status, 'available', 'progress untouched');
+});
+
+Deno.test('character menu 🗑️ Delete hero → Yes deletes the save too (#62)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(934, 'T', 'rogue');
+  p.messageId = 640;
+  p.uiRev = 3;
+  await store.set(934, p);
+
+  // The menu entry stages the SAME confirmation scene as /reset.
+  await handleCallback(fakeCtx(934, 640, withRev(3, 'm:reset')), store);
+  const staged = (await store.get(934))!;
+  assertEquals(staged.scene.view, 'reset', 'menu entry stages the same confirmation');
+
+  const del = fakeCtxCapture(934, 640, withRev(staged.uiRev ?? 0, 'm:ry'));
+  await handleCallback(del.ctx, store);
+  assertEquals(await store.get(934), undefined, 'Delete hero → Yes deletes the save');
+  assertEquals(del.edits.length, 1, 'class picker replaces the confirmation');
 });
 
 Deno.test('reach quests credit the zone you already occupy or visited (#23)', () => {
