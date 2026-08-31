@@ -67,24 +67,34 @@ function diveAction(p: PlayerState): MutationResult {
   return {};
 }
 
-/** Talk to a zone NPC; opens their quest when one is ready. */
+/** Talk to a zone NPC; opens their quest when one is ready. Lifecycle roles
+ * route independently (#63): ready turn-ins (this NPC finishes it) outrank
+ * new offers (this NPC starts it), so a player carrying completed business
+ * is never hidden behind a different available quest. */
 function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   const z = zoneDef(p.currentZone);
   const npc = z?.npcs[npcIndex];
   if (!npc) return { toast: 'Nobody there.' };
   onTalk(p, npc.id);
-  // If the NPC gives an available or turnable quest, open it.
-  const given = QUESTS.find((q) =>
-    q.giver === npc.id && ['available', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
-  );
-  if (given) {
-    p.scene = { view: 'quests', arg: given.id };
+  const ready = QUESTS.find((q) => q.finishNpc === npc.id && p.quests[q.id]?.status === 'turnIn');
+  if (ready) {
+    p.scene = { view: 'quests', arg: ready.id };
     p.notices = [npc.greeting];
     return {};
   }
-  const activeGiven = QUESTS.find((q) => q.giver === npc.id && p.quests[q.id]?.status === 'active');
-  if (activeGiven) {
-    p.notices = [npc.greeting, `📜 ${activeGiven.name}: ${questStatusLine(p, activeGiven.id)}`];
+  const offered = QUESTS.find((q) =>
+    q.startNpc === npc.id && p.quests[q.id]?.status === 'available'
+  );
+  if (offered) {
+    p.scene = { view: 'quests', arg: offered.id };
+    p.notices = [npc.greeting];
+    return {};
+  }
+  const active = QUESTS.find((q) =>
+    (q.startNpc === npc.id || q.finishNpc === npc.id) && p.quests[q.id]?.status === 'active'
+  );
+  if (active) {
+    p.notices = [npc.greeting, `📜 ${active.name}: ${questStatusLine(p, active.id)}`];
     p.scene = { view: 'zone' };
     return {};
   }

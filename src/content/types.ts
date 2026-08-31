@@ -152,7 +152,12 @@ export interface QuestDef {
     /** Zone unlocked on completion. */
     unlockZone?: string;
   };
-  giver?: string;
+  /** NPC id whose dialogue offers (starts) this quest — the physical
+   * contact a player must talk to in order to accept it (#63). */
+  startNpc: string;
+  /** NPC id whose dialogue accepts the turn-in — independent of the starter
+   * so delivery flows (start with A, finish with B) are expressible (#63). */
+  finishNpc: string;
 }
 
 export type ExploreEvent =

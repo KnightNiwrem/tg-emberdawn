@@ -36,7 +36,14 @@ import {
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
 import { shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
-import { npc, QUESTS } from '../src/content/quests.ts';
+import {
+  npc,
+  quest,
+  questFinisher,
+  QUESTS,
+  questStarter,
+  zoneOfNpc,
+} from '../src/content/quests.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
@@ -394,7 +401,7 @@ Deno.test('quest log keeps a ready main quest clickable — giverless m3 turns i
   p.quests['m2_letter'] = { status: 'done', counts: [] };
   syncAvailability(p);
   assert(acceptQuest(p, 'm3_roots').ok);
-  onKill(p, 'e_aranya'); // m3 has no giver — the log is the ONLY turn-in path
+  onKill(p, 'e_aranya'); // m3's turn-in belongs to Bram — the log path is covered below
   assertEquals(p.quests['m3_roots']?.status, 'turnIn');
   p.messageId = 300; // pin the live message so both taps edit in place
   await store.set(920, p);
@@ -1059,14 +1066,36 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   assert(wolfMenu.includes('b:us:c_smoke_bomb'), 'Smoke Bomb usable vs a normal enemy');
 });
 
-Deno.test('quest givers resolve to real NPCs — talk discovery covers the campaign (#31)', () => {
-  let withGiver = 0;
+Deno.test('quest contacts resolve to real, placed NPCs — starter and finisher independent (#63)', () => {
   for (const q of QUESTS) {
-    if (!q.giver) continue;
-    withGiver++;
-    assert(npc(q.giver), `${q.id}: giver ${q.giver} must be a real NPC`);
+    assert(npc(q.startNpc), `${q.id}: starter ${q.startNpc} must be a real NPC`);
+    assert(npc(q.finishNpc), `${q.id}: finisher ${q.finishNpc} must be a real NPC`);
+    const sz = zoneOfNpc(q.startNpc);
+    const fz = zoneOfNpc(q.finishNpc);
+    assert(sz, `${q.id}: starter ${q.startNpc} must be placed in a zone`);
+    assert(fz, `${q.id}: finisher ${q.finishNpc} must be placed in a zone`);
+    // Canonical resolvers agree with the raw fields.
+    assertEquals(questStarter(q.id)?.npc.id, q.startNpc);
+    assertEquals(questFinisher(q.id)?.npc.id, q.finishNpc);
   }
-  assert(withGiver >= 25, `the discovery model assigns givers broadly (got ${withGiver})`);
+});
+
+Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred from talk objectives (#63)', () => {
+  const q = quest('m2_letter')!;
+  assertEquals(q.startNpc, 'npc_maren');
+  assertEquals(q.finishNpc, 'npc_bram');
+  assert(q.startNpc !== q.finishNpc, 'the delivery case has distinct contacts');
+  // Resolution is independent per role, each anchored to a real zone.
+  const start = questStarter('m2_letter')!;
+  const fin = questFinisher('m2_letter')!;
+  assertEquals(start.npc.name, 'Elder Maren');
+  assertEquals(fin.npc.name, 'Blacksmith Bram');
+  assertEquals(start.zone.id, 'emberdawn');
+  assertEquals(fin.zone.id, 'emberdawn');
+  // The final talk objective targets Bram, but the model did NOT derive the
+  // finisher from it — the finisher is the explicit field.
+  assert(q.objectives.some((o) => o.kind === 'talk' && o.target === 'npc_bram'));
+  assertEquals(questFinisher('m2_letter')!.npc.id, q.finishNpc);
 });
 
 Deno.test('NPC talk opens their authored quest (#31)', () => {

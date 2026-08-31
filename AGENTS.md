@@ -107,11 +107,15 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   idempotent; call it after xp gains, zone entry and turn-ins. Kill/reach/talk objectives tick via
   engine hooks (`onKill`, `onZoneEnter`, `onTalk`); collect objectives read the bag live. Random
   quest-item drops are relevance-capped (`questDropAllowed`): they flow only while an open
-  (available/active) quest still needs them, and stop permanently once it's done. Quests carry
-  `giver` when their intro speaker is a zone NPC — talking to that NPC offers their
-  available/turn-in quests (talk discovery, #31); givers must resolve via `npc()` (content test).
-  Quests whose speaker is not a zone NPC (m23 — Aldric speaks; sq_locket — an anonymous ranger) are
-  quest-log-only by design.
+  (available/active) quest still needs them, and stop permanently once it's done. Every quest
+  carries explicit lifecycle contacts (#63): `startNpc` offers it and `finishNpc` accepts the
+  turn-in — usually the same NPC, but delivery flows hand them to different people (m2_letter: Maren
+  starts, Bram finishes; the finisher is NEVER inferred from a talk objective). Talking to an NPC
+  surfaces quests they are ready to finish first, then quests they offer (talk discovery, #31). Both
+  contacts must resolve to real NPCs placed in exactly one zone — resolve them via the canonical
+  helpers in content/quests.ts (`questStarter`/`questFinisher`/`zoneOfNpc`/`npcInZone`;
+  content-integrity tested). There is no quest-log-only fallback: m23_aldric starts and ends with
+  the Archivist's throne-room send-off, and sq_locket belongs to Ranger Pell in the Whisperwood.
 - **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
   (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
   flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip

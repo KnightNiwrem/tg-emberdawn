@@ -127,6 +127,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'Warden Tom',
         greeting: 'Keep to the paths. The Hollow ate two rangers this moon.',
       },
+      {
+        id: 'npc_pell',
+        name: 'Ranger Pell',
+        greeting:
+          '“You walk loud,” Pell mutters, not looking up. “The wood forgives it. Spiders don’t. Speak, or move on.”',
+      },
     ],
   },
   {

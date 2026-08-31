@@ -22,7 +22,8 @@ export const QUESTS: readonly QuestDef[] = [
       '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. The road you\'ll walk starts at his forge."',
     objectives: [{ kind: 'kill', target: 'e_wolf', count: 4 }],
     rewards: { xp: 120, gold: 80, items: { q_sealed_letter: 1 } },
-    giver: 'npc_maren',
+    startNpc: 'npc_maren',
+    finishNpc: 'npc_maren',
   }),
   Q({
     id: 'm2_letter',
@@ -41,11 +42,14 @@ export const QUESTS: readonly QuestDef[] = [
       { kind: 'talk', target: 'npc_bram' },
     ],
     rewards: { xp: 150, gold: 100, items: { c_potion: 1 } },
-    giver: 'npc_maren',
+    // The canonical delivery flow (#63): Maren starts it, Bram finishes it.
+    startNpc: 'npc_maren',
+    finishNpc: 'npc_bram',
   }),
   Q({
     id: 'm3_roots',
-    giver: 'npc_bram',
+    startNpc: 'npc_bram',
+    finishNpc: 'npc_bram',
     name: 'Root of the Rot',
     main: true,
     chapter: 1,
@@ -61,7 +65,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm4_blessing',
-    giver: 'npc_bram',
+    startNpc: 'npc_bram',
+    finishNpc: 'npc_bram',
     name: "Whisperwood's Blessing",
     main: true,
     chapter: 1,
@@ -85,7 +90,8 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 2 — The Drowned Lowland ══════════════════════════════════
   Q({
     id: 'm5_fen',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: 'Into the Fen',
     main: true,
     chapter: 2,
@@ -101,7 +107,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm6_toxin',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: "The Water's Bane",
     main: true,
     chapter: 2,
@@ -117,7 +124,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm7_tyrant',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: 'The Bog Tyrant',
     main: true,
     chapter: 2,
@@ -134,7 +142,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm8_passage',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: "The Curator's Summons",
     main: true,
     chapter: 2,
@@ -152,7 +161,8 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 3 — The City of Gears ════════════════════════════════════
   Q({
     id: 'm9_spire',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: 'City of Gears',
     main: true,
     chapter: 3,
@@ -168,7 +178,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm10_cult',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: 'The Hoarded Sun',
     main: true,
     chapter: 3,
@@ -184,7 +195,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm11_toll',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: "The Vault's Toll",
     main: true,
     chapter: 3,
@@ -200,7 +212,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm12_chronolich',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: 'The Hour That Stole Itself',
     main: true,
     chapter: 3,
@@ -218,7 +231,8 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 4 — The Frozen Twin ══════════════════════════════════════
   Q({
     id: 'm13_pass',
-    giver: 'npc_outcast',
+    startNpc: 'npc_outcast',
+    finishNpc: 'npc_outcast',
     name: 'The Frozen Road',
     main: true,
     chapter: 4,
@@ -234,7 +248,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm14_emblem',
-    giver: 'npc_outcast',
+    startNpc: 'npc_outcast',
+    finishNpc: 'npc_outcast',
     name: "Warden's Marks",
     main: true,
     chapter: 4,
@@ -250,7 +265,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm15_wyrm',
-    giver: 'npc_outcast',
+    startNpc: 'npc_outcast',
+    finishNpc: 'npc_outcast',
     name: 'Heart of the Glacier',
     main: true,
     chapter: 4,
@@ -269,7 +285,8 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 5 — The Starving Flame ══════════════════════════════════
   Q({
     id: 'm16_ashes',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: 'Through the Ash',
     main: true,
     chapter: 5,
@@ -285,7 +302,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm17_plea',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: "Sorrel's Plea",
     main: true,
     chapter: 5,
@@ -301,7 +319,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm18_sigil',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: 'Brand of the Betrayed',
     main: true,
     chapter: 5,
@@ -317,7 +336,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm19_ignivar',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: 'The Last Flame',
     main: true,
     chapter: 5,
@@ -336,7 +356,8 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 6 — The Dawncaller ══════════════════════════════════
   Q({
     id: 'm20_seam',
-    giver: 'npc_archivist',
+    startNpc: 'npc_archivist',
+    finishNpc: 'npc_archivist',
     name: 'The Space Between',
     main: true,
     chapter: 6,
@@ -352,7 +373,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm21_loyalty',
-    giver: 'npc_archivist',
+    startNpc: 'npc_archivist',
+    finishNpc: 'npc_archivist',
     name: 'Loyalty, Corrected',
     main: true,
     chapter: 6,
@@ -368,7 +390,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm22_umbral_key',
-    giver: 'npc_archivist',
+    startNpc: 'npc_archivist',
+    finishNpc: 'npc_archivist',
     name: 'The Unlocked Door',
     main: true,
     chapter: 6,
@@ -402,12 +425,17 @@ export const QUESTS: readonly QuestDef[] = [
       flags: ['chapter6Done'],
       unlockZone: 'abyss',
     },
+    // The Archivist is the throne-room send-off and the completion contact:
+    // Aldric himself is a boss encounter, not a dialogue NPC (#63).
+    startNpc: 'npc_archivist',
+    finishNpc: 'npc_archivist',
   }),
 
   // ══ Postgame — The Abyss ═════════════════════════════════════════════
   Q({
     id: 'm24_below',
-    giver: 'npc_echo',
+    startNpc: 'npc_echo',
+    finishNpc: 'npc_echo',
     name: 'Below Everything',
     main: true,
     chapter: 7,
@@ -423,7 +451,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'm25_silence',
-    giver: 'npc_echo',
+    startNpc: 'npc_echo',
+    finishNpc: 'npc_echo',
     name: 'Before the Dawn',
     main: true,
     chapter: 7,
@@ -457,7 +486,8 @@ export const QUESTS: readonly QuestDef[] = [
     outro: '"Cleaner streets and calmer granaries," Lyra says. "The village thanks you."',
     objectives: [{ kind: 'kill', target: 'e_rat', count: 6 }],
     rewards: { xp: 90, gold: 60, items: { c_minor_potion: 1 } },
-    giver: 'npc_lyra',
+    startNpc: 'npc_lyra',
+    finishNpc: 'npc_lyra',
   }),
   Q({
     id: 'sq_ore',
@@ -472,7 +502,8 @@ export const QUESTS: readonly QuestDef[] = [
     outro: '"Good stock," Bram says, weighing the ore. "Now we\'re cooking."',
     objectives: [{ kind: 'collect', target: 'm_iron_chunk', count: 3 }],
     rewards: { xp: 200, gold: 150 },
-    giver: 'npc_bram',
+    startNpc: 'npc_bram',
+    finishNpc: 'npc_bram',
   }),
   Q({
     id: 'sq_charm',
@@ -487,7 +518,8 @@ export const QUESTS: readonly QuestDef[] = [
     outro: 'The charms go up over doorways one by one. The village glows a little prouder.',
     objectives: [{ kind: 'collect', target: 'm_ember_shard', count: 4 }],
     rewards: { xp: 220, gold: 120, items: { c_minor_potion: 2 } },
-    giver: 'npc_lyra',
+    startNpc: 'npc_lyra',
+    finishNpc: 'npc_lyra',
   }),
   Q({
     id: 'sq_locket',
@@ -503,10 +535,14 @@ export const QUESTS: readonly QuestDef[] = [
       "The locket, scratched but whole. The ranger doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
     objectives: [{ kind: 'kill', target: 'e_spider', count: 8 }],
     rewards: { xp: 400, gold: 250, items: { t_1: 1 } },
+    // The anonymous ranger is now a real, placed contact (#63).
+    startNpc: 'npc_pell',
+    finishNpc: 'npc_pell',
   }),
   Q({
     id: 'sq_stag',
-    giver: 'npc_warden_tom',
+    startNpc: 'npc_warden_tom',
+    finishNpc: 'npc_warden_tom',
     name: 'The Old Guardian',
     main: false,
     chapter: 1,
@@ -522,7 +558,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_boglins',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: 'Boglin Cull',
     main: false,
     chapter: 2,
@@ -537,7 +574,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_hags',
-    giver: 'npc_ferryman',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
     name: 'Cackle Season',
     main: false,
     chapter: 2,
@@ -552,7 +590,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_scarabs',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: 'Gilded Problem',
     main: false,
     chapter: 3,
@@ -567,7 +606,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_lynx',
-    giver: 'npc_curator',
+    startNpc: 'npc_curator',
+    finishNpc: 'npc_curator',
     name: 'Spire Cats',
     main: false,
     chapter: 3,
@@ -583,7 +623,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_wraiths',
-    giver: 'npc_outcast',
+    startNpc: 'npc_outcast',
+    finishNpc: 'npc_outcast',
     name: 'Laid to Rest',
     main: false,
     chapter: 4,
@@ -598,7 +639,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_yetis',
-    giver: 'npc_outcast',
+    startNpc: 'npc_outcast',
+    finishNpc: 'npc_outcast',
     name: 'Snowbank Diplomacy',
     main: false,
     chapter: 4,
@@ -614,7 +656,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_imps',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: 'Ember Management',
     main: false,
     chapter: 5,
@@ -629,7 +672,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_salamanders',
-    giver: 'npc_ashen',
+    startNpc: 'npc_ashen',
+    finishNpc: 'npc_ashen',
     name: 'Fire Whips, Broken',
     main: false,
     chapter: 5,
@@ -644,7 +688,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_shades',
-    giver: 'npc_archivist',
+    startNpc: 'npc_archivist',
+    finishNpc: 'npc_archivist',
     name: 'Naming the Nameless',
     main: false,
     chapter: 6,
@@ -658,7 +703,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_echoes',
-    giver: 'npc_echo',
+    startNpc: 'npc_echo',
+    finishNpc: 'npc_echo',
     name: 'Heroes, Honored',
     main: false,
     chapter: 7,
@@ -673,7 +719,8 @@ export const QUESTS: readonly QuestDef[] = [
   }),
   Q({
     id: 'sq_null',
-    giver: 'npc_echo',
+    startNpc: 'npc_echo',
+    finishNpc: 'npc_echo',
     name: 'Quiet the Hounds',
     main: false,
     chapter: 7,
@@ -699,6 +746,50 @@ export function npc(id: string): NpcDef | undefined {
 }
 
 import { ZONES } from './zones.ts';
+import type { ZoneDef } from './types.ts';
 const NPC_INDEX = new Map<string, NpcDef>(
   ZONES.flatMap((z) => z.npcs.map((n) => [n.id, n] as const)),
 );
+
+// ── Quest contact resolution (#63) ──────────────────────────────────────
+// Starter and finisher are independent, explicit contacts. Nothing here
+// infers the finisher from a talk objective, and no quest-log-only fallback
+// exists: every contact must resolve to a real NPC placed in a zone.
+
+/** The zone where an NPC physically stands — resolution is unambiguous:
+ * each NPC id is placed in exactly one zone (content-integrity tested). */
+export function zoneOfNpc(npcId: string): ZoneDef | undefined {
+  return ZONES.find((z) => z.npcs.some((n) => n.id === npcId));
+}
+
+export interface QuestContact {
+  npc: NpcDef;
+  zone: ZoneDef;
+}
+
+/** Resolve a quest's STARTING contact: the NPC that offers it, and the zone
+ * where the player can physically meet them. */
+export function questStarter(questId: string): QuestContact | undefined {
+  const q = QUEST_INDEX.get(questId);
+  if (!q) return undefined;
+  const npcDef = NPC_INDEX.get(q.startNpc);
+  const zone = zoneOfNpc(q.startNpc);
+  return npcDef && zone ? { npc: npcDef, zone } : undefined;
+}
+
+/** Resolve a quest's FINISHING contact: the NPC that accepts the turn-in,
+ * and the zone where the player can physically meet them. May differ from
+ * the starter (delivery flows, e.g. m2_letter: Maren → Bram). */
+export function questFinisher(questId: string): QuestContact | undefined {
+  const q = QUEST_INDEX.get(questId);
+  if (!q) return undefined;
+  const npcDef = NPC_INDEX.get(q.finishNpc);
+  const zone = zoneOfNpc(q.finishNpc);
+  return npcDef && zone ? { npc: npcDef, zone } : undefined;
+}
+
+/** Look an NPC up by id WITHIN a specific zone — the physical-presence
+ * check for on-site quest actions (#64). */
+export function npcInZone(zoneId: string, npcId: string): NpcDef | undefined {
+  return ZONES.find((z) => z.id === zoneId)?.npcs.find((n) => n.id === npcId);
+}

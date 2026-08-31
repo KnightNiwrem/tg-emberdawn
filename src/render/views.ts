@@ -299,8 +299,8 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
   const mains = QUESTS.filter((q) => q.main);
   const sides = QUESTS.filter((q) => !q.main);
   // A main quest ready to turn in stays the primary card (#15): dropping it
-  // hid the only turn-in path for giverless quests (m3 onward) — the log
-  // fell through to a prerequisite-locked "next" quest and dead-ended.
+  // hid the only visible turn-in path — the log fell through to a
+  // prerequisite-locked "next" quest and dead-ended.
   const activeMain = mains.find((q) =>
     ['active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
   );
@@ -351,8 +351,8 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
     ['available', 'active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
   );
   // Pagination (#21): 16 side quests exist and a completionist save can have
-  // 9+ live at once — the old slice(0, 8) stranded every later quest (several
-  // have no NPC giver, so the log was their only door).
+  // 9+ live at once — the old slice(0, 8) stranded every later quest behind
+  // a page that never rendered.
   const pages = Math.max(1, Math.ceil(liveSides.length / QUESTS_PAGE_SIZE));
   const pg = Math.min(Math.max(0, page), pages - 1);
   const start = pg * QUESTS_PAGE_SIZE;
