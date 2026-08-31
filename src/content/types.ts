@@ -101,6 +101,10 @@ export interface EnemyDef {
   xp: number;
   gold: number;
   boss?: boolean;
+  /** Tutorial fixture (#69/#74): flagged encounters must never fell a
+   * correctly acting full-health hero — enforced by the balance harness
+   * (tests/balance_test.ts). Ordinary content must not set this. */
+  tutorial?: true;
   /** Staged special move: used every `every` turns (turn counts from 1). */
   special?: { every: number; move: EnemyMove };
   moves: EnemyMove[];
