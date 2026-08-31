@@ -20,7 +20,7 @@ import {
   statsOf,
   xpToGoldAtCap,
 } from '../src/engine/character.ts';
-import { MAX_LEVEL, xpForNextLevel } from '../src/engine/classes.ts';
+import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
@@ -49,6 +49,7 @@ import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
+import { CLASS_IDS } from '../src/engine/types.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 import { fakeCtx, fakeCtxCapture, seeded } from './helpers.ts';
 
@@ -835,7 +836,7 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
   b.enemy.maxHp = 99999;
 
   battleAction(p, { v: 'battle', a: 'atk' });
-  const line = b.history.flatMap((r) => r.lines).find((l) => l.includes('You strike'))!;
+  const line = b.history.flatMap((r) => r.lines).find((l) => l.includes('Strike hits'))!;
   assert(line, 'the attack reached the structured round history');
   const rendered = JSON.stringify(renderBattle(p));
   assertEquals(
@@ -850,6 +851,24 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
     p.notices.some((l) => l.includes("haven't learned")),
     'invalid-action feedback is preserved',
   );
+});
+
+Deno.test('battle button labels the class free action from engine metadata (#70)', () => {
+  for (const cid of CLASS_IDS) {
+    const p = createPlayer(964, 'T', cid);
+    p.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const msg = renderBattle(p);
+    const labels = (msg.blocks ?? []).flatMap((b) =>
+      b.type === 'buttons' ? b.buttons.map((btn) => btn.text) : []
+    );
+    const basic = CLASSES[cid].basicAction;
+    assert(
+      labels.includes(`${basic.icon} ${basic.name}`),
+      `${cid} battle button must read from CLASSES metadata (${basic.icon} ${basic.name}); got: ${
+        labels.join(', ')
+      }`,
+    );
+  }
 });
 
 Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', () => {

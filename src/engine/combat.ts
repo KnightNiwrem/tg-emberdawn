@@ -10,6 +10,7 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { skill } from '../content/skills.ts';
 import { item as itemDefLookup } from '../content/items.ts';
 import { statsOf } from './character.ts';
+import { CLASSES } from './classes.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 
 function newBuffs(): CombatBuffs {
@@ -386,16 +387,27 @@ function applyPlayerAction(
   const buffs = battle.buffs;
   switch (action.kind) {
     case 'attack': {
+      // The free basic action is class-typed (#70): Warrior/Rogue swing ATK
+      // vs DEF, Mage/Cleric channel MAG vs RES — read from the class
+      // catalog so button labels, history text and mechanics agree.
+      const basic = CLASSES[p.classId].basicAction;
+      const offense = basic.kind === 'phys'
+        ? playerEffectiveAtk(p, buffs)
+        : playerEffectiveMag(p, buffs);
+      const mitigation = (basic.kind === 'phys' ? def.def : def.res) *
+        (1 + battle.enemyGuardPct);
       const res = dealDamage(
-        1.0,
-        playerEffectiveAtk(p, buffs),
-        def.def * (1 + battle.enemyGuardPct),
+        basic.power,
+        offense,
+        mitigation,
         rng,
         statsOf(p).luck,
       );
       battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
       lines.push(
-        `⚔️ You strike ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical hit!' : ''}`,
+        `${basic.icon} ${basic.name} ${
+          basic.kind === 'phys' ? 'hits' : 'sears'
+        } ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical hit!' : ''}`,
       );
       return { lines, consumedTurn: true };
     }

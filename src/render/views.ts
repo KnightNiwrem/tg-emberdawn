@@ -493,7 +493,7 @@ export function renderHelp(): InputRichMessage {
         'A turn-based RPG living inside this message.\n\n' +
           '🧭 Explore — seek battles, treasure and rest in the wilds.\n' +
           '🛖 Towns are safe havens: no battles, and arriving fully heals you.\n' +
-          '⚔️ Battles — Attack, Skills, Items, Guard, Flee.\n' +
+          '⚔️ Battles — your free action, Skills, Items, Guard, Flee. Free actions are class-typed: Warrior/Rogue attack with ATK, Mage/Cleric with MAG.\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
           '⚒️ Forge — temper gear to +5 for permanent stat boosts.\n' +
           '🚶 Travel — safe havens fully restore you.\n\n' +

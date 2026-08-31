@@ -7,6 +7,11 @@ export interface ClassDef {
   name: string;
   emoji: string;
   tagline: string;
+  /** The free, class-typed basic action (#70): `phys` swings ATK against
+   * enemy DEF, `mag` channels MAG against enemy RES. The engine reads
+   * kind/power; the battle button and help copy read name/icon from this
+   * same definition, so renderer and mechanics cannot drift apart. */
+  basicAction: { name: string; kind: 'phys' | 'mag'; power: number; icon: string };
   /** Base stats at level 1. */
   base: Omit<DerivedStats, 'maxHp' | 'maxMp'>;
   /** Per-level growth. */
@@ -28,6 +33,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Warrior',
     emoji: '🗡️',
     tagline: 'Steel, sweat and stubbornness.',
+    basicAction: { name: 'Strike', kind: 'phys', power: 1.0, icon: '⚔️' },
     base: { atk: 14, def: 10, mag: 4, res: 6, spd: 8, luck: 6 },
     growth: { atk: 3.2, def: 2.6, mag: 0.6, res: 1.4, spd: 1.2, luck: 1.0 },
     hpPerLevel: 26,
@@ -41,6 +47,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Mage',
     emoji: '🔮',
     tagline: 'Knowledge burns brighter than fire.',
+    basicAction: { name: 'Arcane Bolt', kind: 'mag', power: 1.0, icon: '🔮' },
     base: { atk: 6, def: 5, mag: 15, res: 10, spd: 9, luck: 6 },
     growth: { atk: 0.8, def: 1.2, mag: 3.4, res: 2.4, spd: 1.2, luck: 1.0 },
     hpPerLevel: 15,
@@ -54,6 +61,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Rogue',
     emoji: '🏹',
     tagline: 'Fast, sharp, and gone before you notice.',
+    basicAction: { name: 'Quick Attack', kind: 'phys', power: 1.0, icon: '🗡️' },
     base: { atk: 11, def: 7, mag: 6, res: 7, spd: 14, luck: 11 },
     growth: { atk: 2.6, def: 1.6, mag: 0.8, res: 1.6, spd: 2.6, luck: 2.0 },
     hpPerLevel: 19,
@@ -67,6 +75,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Cleric',
     emoji: '✨',
     tagline: 'The flame keeps its own.',
+    basicAction: { name: 'Radiant Strike', kind: 'mag', power: 1.0, icon: '✨' },
     base: { atk: 8, def: 9, mag: 12, res: 12, spd: 7, luck: 8 },
     growth: { atk: 1.4, def: 2.0, mag: 2.6, res: 2.6, spd: 1.0, luck: 1.2 },
     hpPerLevel: 21,

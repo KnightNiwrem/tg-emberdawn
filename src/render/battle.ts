@@ -181,7 +181,11 @@ export function renderBattle(p: PlayerState): InputRichMessage {
     blocks.push(activeRecapBlock(p, b));
     blocks.push(...earlierHistoryBlocks(b));
     blocks.push(buttonsRow([
-      cbBtn('⚔️ Attack', encodeCb({ v: 'battle', a: 'atk' }), 'primary'),
+      cbBtn(
+        `${cls.basicAction.icon} ${cls.basicAction.name}`,
+        encodeCb({ v: 'battle', a: 'atk' }),
+        'primary',
+      ),
       cbBtn('🛡️ Guard', encodeCb({ v: 'battle', a: 'gd' })),
       cbBtn('🏃 Flee', encodeCb({ v: 'battle', a: 'fl' })),
     ]));

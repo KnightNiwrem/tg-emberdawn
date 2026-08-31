@@ -22,7 +22,7 @@ import {
   rollRewards,
   startBattle,
 } from '../src/engine/combat.ts';
-import type { BattleState } from '../src/engine/types.ts';
+import type { BattleState, ClassId } from '../src/engine/types.ts';
 import {
   acceptQuest,
   onKill,
@@ -118,6 +118,141 @@ Deno.test('combat: player deals damage and takes damage in a real fight', () => 
   performAction(p, battle, { kind: 'attack' }, rng);
   assert(battle.enemy.hp < enemyHpBefore, 'player attack should damage enemy');
   if (p.hp < hpBefore) assert(p.hp >= 0);
+});
+
+// ── Class-typed free basic action (#70) ─────────────────────────────────────
+
+/** dealDamage consumes exactly two rng draws per strike — the crit roll and
+ * the variance roll. Replicating them lets tests pin crit/floor outcomes. */
+function strikeDraws(seed: number, luck: number): { crit: boolean; v: number } {
+  const rng = seeded(seed);
+  const critRoll = rng();
+  const varRoll = rng();
+  return { crit: critRoll < Math.min(0.35, 0.04 + luck * 0.0035), v: varRoll };
+}
+
+Deno.test('combat: free basic action is class-typed in label and verb (#70)', () => {
+  const cases: Array<[ClassId, string, 'hits' | 'sears']> = [
+    ['warrior', 'Strike', 'hits'],
+    ['rogue', 'Quick Attack', 'hits'],
+    ['mage', 'Arcane Bolt', 'sears'],
+    ['cleric', 'Radiant Strike', 'sears'],
+  ];
+  for (const [cid, name, verb] of cases) {
+    const p = createPlayer(700, 'T', cid);
+    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const r = performAction(p, b, { kind: 'attack' }, seeded(21));
+    assert(
+      r.lines.some((l) => l.includes(name) && l.includes(` ${verb} `)),
+      `${cid} free action should read "<name> … ${verb} …", got: ${r.lines.join(' | ')}`,
+    );
+  }
+});
+
+Deno.test('combat: MAG/ATK buffs and Sapped modify the correct free action (#70)', () => {
+  const dmg = (cid: ClassId, pct: { atk?: number; mag?: number; weaken?: number }): number => {
+    const p = createPlayer(701, 'T', cid);
+    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    b.buffs.atkPct = pct.atk ?? 0;
+    b.buffs.magPct = pct.mag ?? 0;
+    b.buffs.weakenedPct = pct.weaken ?? 0;
+    const before = b.enemy.hp;
+    performAction(p, b, { kind: 'attack' }, seeded(33));
+    return before - b.enemy.hp;
+  };
+  const m = dmg('mage', {});
+  assert(dmg('mage', { mag: 0.5 }) > m, '+MAG must raise the mage free action');
+  assertEquals(dmg('mage', { atk: 0.5 }), m, '+ATK must not touch the mage free action');
+  assert(dmg('mage', { weaken: 0.5 }) < m, 'Sapped must lower the mage free action');
+  const w = dmg('warrior', {});
+  assert(dmg('warrior', { atk: 0.5 }) > w, '+ATK must raise the warrior free action');
+  assertEquals(dmg('warrior', { mag: 0.5 }), w, '+MAG must not touch the warrior free action');
+  assert(dmg('warrior', { weaken: 0.5 }) < w, 'Sapped must lower the warrior free action');
+});
+
+Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () => {
+  // King Aldric's DEF (104) and RES (80) diverge enough that the expected
+  // damage identifies which mitigation stat the action targeted.
+  const expected = (
+    offense: number,
+    mitigation: number,
+    d: { crit: boolean; v: number },
+  ): number =>
+    Math.max(
+      1,
+      Math.round(
+        Math.max(1, offense - mitigation * 0.85) * (d.crit ? 1.6 : 1) * (0.9 + d.v * 0.2),
+      ),
+    );
+  const aldric = enemy('e_aldric')!;
+  const origin = { kind: 'explore', zoneId: 'crownspire' } as const;
+
+  const mage = createPlayer(702, 'T', 'mage');
+  mage.level = 45;
+  const mDraws = strikeDraws(34, statsOf(mage).luck);
+  const mb = startBattle('e_aldric', origin)!;
+  const mBefore = mb.enemy.hp;
+  performAction(mage, mb, { kind: 'attack' }, seeded(34));
+  const mDmg = mBefore - mb.enemy.hp;
+  const mRes = expected(statsOf(mage).mag, aldric.res, mDraws);
+  assertEquals(mDmg, mRes, 'mage free action must mitigate with RES');
+  assert(
+    mRes !== expected(statsOf(mage).mag, aldric.def, mDraws),
+    'case must distinguish RES from DEF',
+  );
+  // Enemy guard stance raises whichever stat the action targets.
+  mb.enemyGuardPct = 1.0;
+  const mBeforeGuard = mb.enemy.hp;
+  performAction(mage, mb, { kind: 'attack' }, seeded(34));
+  const mGuardDmg = mBeforeGuard - mb.enemy.hp;
+  assertEquals(
+    mGuardDmg,
+    expected(statsOf(mage).mag, aldric.res * 2, mDraws),
+    'enemy guard must double the RES mitigation',
+  );
+  assert(mGuardDmg < mDmg, 'enemy guard stance must cut the free action');
+
+  const warrior = createPlayer(703, 'T', 'warrior');
+  warrior.level = 45;
+  const wDraws = strikeDraws(34, statsOf(warrior).luck);
+  const wb = startBattle('e_aldric', origin)!;
+  const wBefore = wb.enemy.hp;
+  performAction(warrior, wb, { kind: 'attack' }, seeded(34));
+  const wDmg = wBefore - wb.enemy.hp;
+  const wDef = expected(statsOf(warrior).atk, aldric.def, wDraws);
+  assertEquals(wDmg, wDef, 'warrior free action must mitigate with DEF');
+  assert(
+    wDef !== expected(statsOf(warrior).atk, aldric.res, wDraws),
+    'case must distinguish DEF from RES',
+  );
+});
+
+Deno.test('combat: free action floors at 1 damage and surfaces crits (#70)', () => {
+  // Level-1 mage vs the Sundered King: ~21 MAG against ~80 RES clamps the
+  // raw roll to the 1-damage floor.
+  const p = createPlayer(704, 'T', 'mage');
+  const floor = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  const before = floor.enemy.hp;
+  const r = performAction(p, floor, { kind: 'attack' }, seeded(9));
+  assert(r.consumedTurn, 'the floored attack still consumes the turn');
+  const dealt = before - floor.enemy.hp;
+  if (strikeDraws(9, statsOf(p).luck).crit) {
+    assert([1, 2].includes(dealt), `floored crit deals 1-2, got ${dealt}`);
+  } else {
+    assertEquals(dealt, 1, 'raw below 1 must floor at exactly 1');
+  }
+  // A crit-carrying seed must surface the crit marker in the round line.
+  let critSeed = -1;
+  for (let s = 1; s <= 40; s++) {
+    if (strikeDraws(s, statsOf(p).luck).crit) {
+      critSeed = s;
+      break;
+    }
+  }
+  assert(critSeed > 0, 'expected a crit seed within 1..40');
+  const critBattle = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  const r2 = performAction(p, critBattle, { kind: 'attack' }, seeded(critSeed));
+  assert(r2.lines.some((l) => l.includes('critical')), 'crit line must carry the marker');
 });
 
 Deno.test('combat: skills consume mp and respect cooldown', () => {
