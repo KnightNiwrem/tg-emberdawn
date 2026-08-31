@@ -1,6 +1,6 @@
 /** Repair-pass-2 regressions: /start neutrality, meta-callback safety, save
- * meta-callback safety, save migration, engine authority checks, quest
- * delivery invariants, pool clamping, shop boundaries, forage cooldown. */
+ * migration, engine authority checks, quest delivery invariants, pool
+ * clamping, shop boundaries, forage cooldown. */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { prepareBot } from 'grammy-testing';

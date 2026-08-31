@@ -633,7 +633,7 @@ Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () 
   assert(!lines2.some((l) => l.includes('First clear')));
 });
 
-Deno.test("content integrity: every zone's dungeon/shop/npcs reference real ids", () => {
+Deno.test("content integrity: zones' exploration events and dungeon encounters reference real ids", () => {
   for (const z of ZONES) {
     for (const ev of z.explore) {
       if (ev.kind === 'battle' || ev.kind === 'elite') {
