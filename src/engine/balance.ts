@@ -1129,7 +1129,7 @@ export function buildSnapshot(): BalanceSnapshot {
   return {
     fightsPerCell: SNAPSHOT_FIGHTS,
     note:
-      'Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start; #84: effect-aware tactical cells + source-attributed effect metrics). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
+      'Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start; #84: effect-aware tactical cells + source-attributed effect metrics; #85: enemy-side DEF/RES/SPD/incoming folds through the symmetric effective-stat helpers). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
     eliteShare: eliteShareRecord,
     cells,
   };

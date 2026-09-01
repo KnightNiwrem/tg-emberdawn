@@ -7,13 +7,21 @@
 
 import { assert, assertEquals, assertExists } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
-import { performAction, type PlayerAction, startBattle } from '../src/engine/combat.ts';
+import {
+  dodgeChance,
+  effectiveEnemySpd,
+  effectivePlayerSpd,
+  performAction,
+  type PlayerAction,
+  startBattle,
+} from '../src/engine/combat.ts';
 import { applyInstance, grantShield, statPct } from '../src/engine/effects.ts';
 import type { InstanceSeed } from '../src/engine/effects.ts';
 import type { BattleOrigin, BattleState, ClassId, PlayerState } from '../src/engine/types.ts';
 import { skill } from '../src/content/skills.ts';
 import { enemy } from '../src/content/enemies.ts';
-import { seeded } from './helpers.ts';
+import { injectMod, seeded } from './helpers.ts';
+import type { StatKey } from '../src/content/types.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 const ABYSS = { kind: 'explore', zoneId: 'abyss' } as const;
@@ -366,4 +374,144 @@ Deno.test('#83: Swamp Curse breaks wards (RES down)', () => {
   assertEquals(wb.stat, 'res');
   assertEquals(wb.pct, -0.25);
   assertEquals(wb.tags.includes('ward-break'), true);
+});
+
+// ── #85: enemy-side folds — debuffs must change the actual numbers ──────
+
+function damageOf(lines: string[]): number | undefined {
+  for (const l of lines) {
+    const m = l.match(/for (\d+)/);
+    if (m) return Number(m[1]);
+  }
+  return undefined;
+}
+
+/** One basic-action strike vs e_rat under a fixed RNG stream, optionally
+ * after injecting enemy-side instances. Identical seeds mean identical
+ * crit/variance draws, so any damage delta comes purely from the folds. */
+function strike(
+  classId: ClassId,
+  mods: { stat: StatKey; pct: number; defId?: string }[] = [],
+): number {
+  const p = hero(940, classId, 10);
+  const b = fight('e_rat', p, 4242);
+  for (const m of mods) injectMod(b, 'enemy', m.stat, m.pct, m.defId ? { defId: m.defId } : {});
+  const d = damageOf(round(p, b, 777).lines);
+  assertExists(d, 'the strike must land and report its damage');
+  return d;
+}
+
+Deno.test('#85: enemy DEF modifiers measurably change physical player damage', () => {
+  const d1 = strike('warrior');
+  const d2 = strike('warrior', [{ stat: 'def', pct: -0.9 }]);
+  assert(d2 > d1, `DEF −90% must raise physical damage (${d1} → ${d2})`);
+});
+
+Deno.test('#85: enemy RES modifiers measurably change magical player damage', () => {
+  const d1 = strike('mage');
+  const d2 = strike('mage', [{ stat: 'res', pct: -0.9 }]);
+  assert(d2 > d1, `RES −90% must raise magical damage (${d1} → ${d2})`);
+});
+
+Deno.test('#85: enemy Vulnerable applies its incoming modifier exactly once', () => {
+  const base = strike('warrior');
+  assertEquals(
+    strike('warrior', [{ stat: 'incoming', pct: 1.0 }]),
+    base * 2,
+    `(1 + 1.0) applied ONCE doubles ${base}; a double application would quadruple it`,
+  );
+});
+
+Deno.test('#85: enemy self-buffs to DEF/RES/SPD cut player damage and mobility', () => {
+  const d0 = strike('warrior');
+  assert(
+    strike('warrior', [{ stat: 'def', pct: 0.5 }]) < d0,
+    'enemy DEF +50% must cut physical damage',
+  );
+  const m0 = strike('mage');
+  assert(
+    strike('mage', [{ stat: 'res', pct: 0.5 }]) < m0,
+    'enemy RES +50% must cut magical damage',
+  );
+  const p = hero(941, 'rogue', 10);
+  const b1 = fight('e_rat', p, 1);
+  const b2 = fight('e_rat', hero(941, 'rogue', 10), 1);
+  injectMod(b2, 'enemy', 'spd', 0.5);
+  assert(
+    effectiveEnemySpd(b2) > effectiveEnemySpd(b1),
+    'enemy SPD +50% must raise its effective SPD',
+  );
+});
+
+Deno.test('#85: enemy Slow cuts effective enemy SPD — dodge and flee odds inputs rise', () => {
+  const p = hero(942, 'warrior', 1);
+  const b1 = fight('e_rat', p, 1);
+  const pSpd = effectivePlayerSpd(p, b1);
+  const eSpd = effectiveEnemySpd(b1);
+  const b2 = fight('e_rat', hero(942, 'warrior', 1), 1);
+  injectMod(b2, 'enemy', 'spd', -0.95);
+  const eSlow = effectiveEnemySpd(b2);
+  assert(eSlow < eSpd, `Slow must cut effective enemy SPD (${eSpd} → ${eSlow})`);
+  assert(
+    dodgeChance(pSpd, eSlow) > dodgeChance(pSpd, eSpd),
+    'a slowed foe is slipped more often',
+  );
+  const flee = (e: number) => Math.min(0.9, Math.max(0.15, 0.5 + (pSpd - e) * 0.03));
+  assert(flee(eSlow) > flee(eSpd), 'a slowed foe is escaped more easily');
+});
+
+Deno.test('#85: a slowed enemy is genuinely easier to flee (end to end)', () => {
+  let found = -1;
+  for (let s = 1; s <= 300 && found < 0; s++) {
+    const attempt = (slow: boolean) => {
+      const p = hero(950 + s, 'warrior', 1);
+      const b = fight('e_rat', p, s);
+      if (slow) injectMod(b, 'enemy', 'spd', -0.95);
+      // The flee draw is the FIRST draw of this round's stream — vary the
+      // seed with s so the scan actually sweeps the chance interval.
+      return round(p, b, s, { kind: 'flee' }).lines.some((l) => l.includes('slip away'));
+    };
+    if (!attempt(false) && attempt(true)) found = s;
+  }
+  assert(found > 0, 'a seed exists where Slow flips a failed flee into an escape');
+});
+
+Deno.test('#85: a slowed enemy is genuinely easier to dodge (end to end)', () => {
+  let found = -1;
+  for (let s = 1; s <= 800 && found < 0; s++) {
+    const attempt = (slow: boolean) => {
+      const p = hero(1400 + s, 'warrior', 1);
+      const b = fight('e_rat', p, s);
+      if (slow) injectMod(b, 'enemy', 'spd', -0.95);
+      return round(p, b, s).lines.some((l) => l.includes('💨'));
+    };
+    if (!attempt(false) && attempt(true)) found = s;
+  }
+  assert(found > 0, 'a seed exists where Slow flips a hit into a slip');
+});
+
+Deno.test('#85: stacked breaks floor safely — mitigation and damage never invert', () => {
+  // Two independent DEF breaks stack to −120%: the stat itself floors at 1.
+  const one = strike('warrior', [{ stat: 'def', pct: -0.6 }]);
+  const two = strike('warrior', [
+    { stat: 'def', pct: -0.6, defId: 'brk1' },
+    { stat: 'def', pct: -0.6, defId: 'brk2' },
+  ]);
+  assert(two >= one && one >= 1, `stacked DEF breaks cannot invert (one ${one}, two ${two})`);
+  // Two independent mitigation-stance breaks stack to −120%: the stance
+  // multiplier floors at 5%.
+  const st1 = strike('warrior', [{ stat: 'mitigation', pct: -0.6 }]);
+  const st2 = strike('warrior', [
+    { stat: 'mitigation', pct: -0.6, defId: 'st1' },
+    { stat: 'mitigation', pct: -0.6, defId: 'st2' },
+  ]);
+  assert(st2 >= st1 && st1 >= 1, `stance stacking cannot invert (one ${st1}, two ${st2})`);
+  // Two independent incoming negatives stack to −120%: the multiplier
+  // floors at −95%, so a hit can be gutted but never heals.
+  const v1 = strike('warrior', [{ stat: 'incoming', pct: -0.6 }]);
+  const v2 = strike('warrior', [
+    { stat: 'incoming', pct: -0.6, defId: 'v1' },
+    { stat: 'incoming', pct: -0.6, defId: 'v2' },
+  ]);
+  assert(v2 >= 1 && v2 < v1, `deep mitigation guts but never heals (one ${v1}, two ${v2})`);
 });

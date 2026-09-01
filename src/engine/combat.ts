@@ -37,6 +37,9 @@ import {
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 
+/** Applies a stat-modifier percentage to a base stat. The result floors
+ * at 1 (#85): stacked breaks can shrink a stat to almost nothing but never
+ * invert it, so every downstream formula stays sign-safe. */
 function effStat(base: number, pct: number): number {
   return Math.max(1, Math.round(base * (1 + pct)));
 }
@@ -59,6 +62,50 @@ function playerMitigation(p: PlayerState, battle: BattleState, kind: 'phys' | 'm
     kind === 'phys' ? s.def : s.res,
     statPct(battle, 'player', kind === 'phys' ? 'def' : 'res'),
   );
+}
+
+/** Mitigation-stance multiplier (#85): live mitigation instances scale the
+ * side's mitigation, floored at 5% so stacked armor/ward breaks can slow
+ * damage growth but never invert the damage formula. */
+function stanceMul(battle: BattleState, side: 'player' | 'enemy'): number {
+  return Math.max(0.05, 1 + mitigationPct(battle, side));
+}
+
+/** Effective player SPD (#85): live SPD instances folded — the single
+ * authority for dodge, flee and (from #86) initiative inputs. */
+export function effectivePlayerSpd(p: PlayerState, battle: BattleState): number {
+  return effStat(statsOf(p).spd, statPct(battle, 'player', 'spd'));
+}
+
+/** Effective enemy SPD (#85): enemy Slow/self-SPD instances folded, so a
+ * slowed foe is easier to dodge and escape — and a hasted one harder. */
+export function effectiveEnemySpd(battle: BattleState): number {
+  const def = enemyDef(battle.enemy.id);
+  return def ? effStat(def.spd, statPct(battle, 'enemy', 'spd')) : 0;
+}
+
+/** Effective enemy offense of one damage kind (#85 symmetry with
+ * playerOffense): base stat sapped by live `outgoing` instances, then
+ * buffed by the stat's own instances. */
+function enemyOffense(battle: BattleState, kind: 'phys' | 'mag'): number {
+  const def = enemyDef(battle.enemy.id);
+  if (!def) return 0;
+  const base = (kind === 'phys' ? def.atk : def.mag) * (1 - sapPct(battle, 'enemy'));
+  return effStat(base, statPct(battle, 'enemy', kind === 'phys' ? 'atk' : 'mag'));
+}
+
+/** Effective enemy mitigation stat (#85 symmetry with playerMitigation):
+ * DEF/RES with the enemy's live stat modifiers folded, then mitigation-
+ * stance instances. The stat floors at 1 (effStat) and the stance
+ * multiplier at 5% — stacked breaks can never invert mitigation. */
+function enemyMitigation(battle: BattleState, kind: 'phys' | 'mag'): number {
+  const def = enemyDef(battle.enemy.id);
+  if (!def) return 0;
+  const base = effStat(
+    kind === 'phys' ? def.def : def.res,
+    statPct(battle, 'enemy', kind === 'phys' ? 'def' : 'res'),
+  );
+  return base * stanceMul(battle, 'enemy');
 }
 
 function dealDamage(
@@ -626,11 +673,13 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
   // moves never draw. The roll lives here rather than inside the damage
   // executor so the rng stream matches the pre-#78 resolver draw-for-draw.
   if (ctx.actor === 'enemy' && specs.some((sp) => sp.kind === 'damage' && sp.power > 0)) {
-    const s = statsOf(ctx.p);
-    const def = enemyDef(ctx.battle.enemy.id);
+    // Both sides read EFFECTIVE SPD (#85): a slowed enemy is slipped more
+    // often; a hasted one is harder to slip.
     if (
-      def &&
-      chance(ctx.rng, dodgeChance(effStat(s.spd, statPct(ctx.battle, 'player', 'spd')), def.spd))
+      chance(
+        ctx.rng,
+        dodgeChance(effectivePlayerSpd(ctx.p, ctx.battle), effectiveEnemySpd(ctx.battle)),
+      )
     ) {
       lines.push(
         `💨 ${ctx.battle.enemy.name} uses ${ctx.displayName} — you slip aside, untouched!`,
@@ -697,7 +746,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         // own sap scales it like any offense stat (#79).
         const base = ctx.actor === 'player'
           ? playerOffense(ctx.p, ctx.battle, 'mag')
-          : (enemyDef(ctx.battle.enemy.id)?.mag ?? 0) * (1 - sapPct(ctx.battle, 'enemy'));
+          : enemyOffense(ctx.battle, 'mag');
         const defBase = ctx.actor === 'player' ? playerMitigation(ctx.p, ctx.battle, 'phys') : 0;
         const amount = Math.round(
           base * (spec.magPower ?? 0) * 2 + defBase * (spec.defPower ?? 0) * 2 +
@@ -860,14 +909,13 @@ function applyDamageEffect(
   if (!def) return [];
   const lines: string[] = [];
   if (ctx.actor === 'player') {
-    // Player strike: crit (luck) + variance; enemy guard stance is a live
-    // mitigation instance (#78).
-    const mitigation = (spec.attack === 'phys' ? def.def : def.res) *
-      (1 + mitigationPct(battle, 'enemy'));
+    // Player strike: crit (luck) + variance; the target's mitigation is the
+    // EFFECTIVE enemy DEF/RES (#85) — Sunder/Crushed Guard/Condemned and
+    // enemy DEF/RES self-buffs all land — then stance modifiers.
     let dealt = dealDamage(
       spec.power,
       playerOffense(p, battle, spec.attack),
-      mitigation,
+      enemyMitigation(battle, spec.attack),
       rng,
       statsOf(p).luck,
     );
@@ -876,6 +924,14 @@ function applyDamageEffect(
     if (exec && battle.enemy.hp / battle.enemy.maxHp < exec.belowPct) {
       dealt = { ...dealt, dmg: Math.round(dealt.dmg * (1 + exec.bonusPct)) };
     }
+    // Vulnerable et al. (#85): the target side's incoming modifier applies
+    // EXACTLY ONCE — after crit/variance/execute, before shield routing.
+    // The multiplier floors at 0.05 (deep mitigation can gut a hit but a
+    // hit never heals), so stacked negatives cannot invert damage.
+    dealt = {
+      ...dealt,
+      dmg: Math.max(1, Math.round(dealt.dmg * (1 + incomingAmpPct(battle, 'enemy')))),
+    };
     // Shield routing (#79): normal damage pools into the target's ward
     // before HP; bypassShield lands on HP directly. lastDamage stays the
     // FULL resolved damage — lifesteal drains what was dealt.
@@ -904,9 +960,12 @@ function applyDamageEffect(
     if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
     return lines;
   }
-  const offense = (spec.attack === 'phys' ? def.atk : def.mag) * (1 - sapPct(battle, 'enemy'));
+  // #85: the enemy's offense folds its own live ATK/MAG instances (sap
+  // first, then stat buffs); the player's mitigation folds DEF/RES
+  // instances and mitigation stances, floored sign-safe.
+  const offense = enemyOffense(battle, spec.attack);
   const guard = battle.guarding ? 0.5 : 1;
-  const mitig = playerMitigation(p, battle, spec.attack) * 0.85;
+  const mitig = playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player') * 0.85;
   const raw = Math.max(
     1,
     (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, 'player')),
@@ -1116,11 +1175,13 @@ function applyPlayerAction(
       return { lines, consumedTurn: true };
     }
     case 'flee': {
-      // Effective SPD (live instances folded) drives escape odds — Rogue identity.
-      const spd = effStat(statsOf(p).spd, statPct(battle, 'player', 'spd'));
+      // Effective SPD both sides (#85) drives escape odds — Rogue identity,
+      // and enemy Slows now genuinely open the way out.
+      const spd = effectivePlayerSpd(p, battle);
+      const foeSpd = effectiveEnemySpd(battle);
       if (battle.enemy.isBoss) {
         lines.push('🚫 There is no escape from this fight.');
-      } else if (chance(rng, Math.min(0.9, Math.max(0.15, 0.5 + (spd - def.spd) * 0.03)))) {
+      } else if (chance(rng, Math.min(0.9, Math.max(0.15, 0.5 + (spd - foeSpd) * 0.03)))) {
         battle.phase = 'fled';
         lines.push('🏃 You slip away safely.');
       } else {
@@ -1164,9 +1225,10 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
 
 /** #72: SPD's combat payoff — capped avoidance. Every class keeps a 2%
  * baseline; out-sprinting the foe adds up to 18 more points, and enemy SPD
- * pushes the odds back down. Damaging moves only: status/heal/guard moves
- * are never dodged — the policy is structural (this roll lives only in the
- * damaging branch of the resolver) and test-enforced. */
+ * pushes the odds back down. Both inputs are EFFECTIVE SPD (#85): live
+ * instances on either side fold in. Damaging moves only: status/heal/guard
+ * moves are never dodged — the policy is structural (this roll lives only
+ * in the damaging branch of the resolver) and test-enforced. */
 export function dodgeChance(playerSpd: number, enemySpd: number): number {
   return Math.min(0.2, Math.max(0.02, 0.02 + (playerSpd - enemySpd) * 0.002));
 }
