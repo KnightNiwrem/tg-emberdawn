@@ -22,7 +22,8 @@ import { buy, currentStock } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onTalk, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
-import { diveDungeon, dungeonOf, explore, travel } from './world.ts';
+import { diveDungeon, dungeonOf, encounterEligible, explore, travel } from './world.ts';
+import { applyTutorialOutcome } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
 import { quest, zoneOfNpc } from '../content/quests.ts';
@@ -271,21 +272,25 @@ export interface EncounterSource {
   origin: BattleOrigin;
 }
 
-/** A zone's ordinary battle table (no elites). */
-export function zoneNormalPool(zoneId: string): EncounterSource[] {
+/** A zone's ordinary battle table (no elites), filtered to encounters the
+ * live explore() could actually roll at `level` (#74: one shared
+ * eligibility rule — the harness must never simulate an impossible state). */
+export function zoneNormalPool(zoneId: string, level: number): EncounterSource[] {
   const z = zoneDef(zoneId);
   if (!z) return [];
   return z.explore
     .filter((e) => e.kind === 'battle')
+    .filter((e) => encounterEligible(e, level))
     .map((e) => ({ enemyId: e.enemy, weight: e.weight, origin: { kind: 'explore', zoneId } }));
 }
 
-/** Battle + elite table, exactly as explore() rolls it. */
-export function zoneHostilePool(zoneId: string): EncounterSource[] {
+/** Battle + elite table, exactly as explore() rolls it at `level`. */
+export function zoneHostilePool(zoneId: string, level: number): EncounterSource[] {
   const z = zoneDef(zoneId);
   if (!z) return [];
   return z.explore
     .filter((e) => e.kind === 'battle' || e.kind === 'elite')
+    .filter((e) => encounterEligible(e, level))
     .map((e) => ({
       enemyId: e.enemy,
       weight: e.weight,
@@ -469,9 +474,17 @@ export function runCell(spec: CellSpec): CellStat {
 export const MATRIX_LEVELS = [1, 2, 4, 7, 9, 13, 16, 22, 31, 45] as const;
 export const MATRIX_FIGHTS = 120;
 
-/** Hostile zones with at least one ordinary battle. */
+/** Zones whose authored bands admit at least one ordinary battle (#74 —
+ * checked across the zone's own level range, the levels its hostiles
+ * target). */
 export function hostileZones(): ZoneDef[] {
-  return ZONES.filter((z) => !z.safeHaven && zoneNormalPool(z.id).length > 0);
+  return ZONES.filter((z) => {
+    if (z.safeHaven) return false;
+    for (let level = z.levels[0]; level <= z.levels[1]; level++) {
+      if (zoneNormalPool(z.id, level).length > 0) return true;
+    }
+    return false;
+  });
 }
 
 /** The full class/level/zone matrix (script report). */
@@ -483,6 +496,11 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
       const [lo, hi] = z.levels;
       for (const level of MATRIX_LEVELS) {
         if (level < lo - 2 || level > hi + 2) continue;
+        // #74: pools follow the live eligibility rule — a level whose band
+        // blocks every hostile simply has no cell (never simulate an
+        // impossible state).
+        const hostile = zoneHostilePool(z.id, level);
+        if (hostile.length === 0) continue;
         cells.push(
           runCell({
             classId: cid,
@@ -490,12 +508,14 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             gear: 'best',
             policy: POLICIES.rotation,
             pool: z.id,
-            sources: zoneHostilePool(z.id),
+            sources: hostile,
             fights,
             seed: seedBase + i++,
           }),
         );
         if (level <= 9) {
+          const normals = zoneNormalPool(z.id, level);
+          if (normals.length === 0) continue;
           cells.push(
             runCell({
               classId: cid,
@@ -503,7 +523,7 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
               gear: 'best',
               policy: POLICIES.free,
               pool: `${z.id}:normal`,
-              sources: zoneNormalPool(z.id),
+              sources: normals,
               fights,
               seed: seedBase + i++,
             }),
@@ -547,10 +567,10 @@ export interface BalanceSnapshot {
   cells: CellStat[];
 }
 
-/** The reviewed snapshot: opening band, per-enemy level-1 table, free-action
- * viability, the Aranya gear cliff, and elite exposure. Regenerate with
- * `deno task balance:update`; a deliberate balance change must refresh it
- * with an explanation. */
+/** The reviewed snapshot: opening band, per-enemy table at the Whisperwood's
+ * band start, free-action viability, the Aranya gear cliff, and elite
+ * exposure. Regenerate with `deno task balance:update`; a deliberate balance
+ * change must refresh it with an explanation. */
 export function buildSnapshot(): BalanceSnapshot {
   const cells: CellStat[] = [];
   let i = 0;
@@ -558,16 +578,24 @@ export function buildSnapshot(): BalanceSnapshot {
   const push = (c: Omit<CellSpec, 'seed' | 'fights'> & { fights?: number }): void => {
     cells.push(runCell({ ...c, fights: c.fights ?? SNAPSHOT_FIGHTS, seed: nextSeed() }));
   };
-  // 1. Opening band: rotation (no items) across Whisperwood's hostile table.
+  // 1. Opening band: rotation (no items) across each level's LIVE hostile
+  //    table (#74) — the Outskirts for the 1–2 band, the Whisperwood after.
+  const bandZoneFor = (level: number): string => {
+    for (const z of hostileZones()) {
+      if (zoneHostilePool(z.id, level).length > 0) return z.id;
+    }
+    return 'outskirts';
+  };
   for (const cid of CLASS_IDS) {
     for (const level of [1, 2, 4, 7, 9]) {
+      const zid = bandZoneFor(level);
       push({
         classId: cid,
         level,
         gear: 'best',
         policy: POLICIES.rotation,
-        pool: 'whisperwood',
-        sources: zoneHostilePool('whisperwood'),
+        pool: zid,
+        sources: zoneHostilePool(zid, level),
       });
     }
     // 2. Free-action viability at level 1 (weakest enemy + normal pool).
@@ -580,7 +608,7 @@ export function buildSnapshot(): BalanceSnapshot {
       sources: [{
         enemyId: 'e_rat',
         weight: 1,
-        origin: { kind: 'explore', zoneId: 'whisperwood' },
+        origin: { kind: 'explore', zoneId: 'outskirts' },
       }],
     });
     push({
@@ -588,17 +616,18 @@ export function buildSnapshot(): BalanceSnapshot {
       level: 1,
       gear: 'starting',
       policy: POLICIES.free,
-      pool: 'whisperwood:normal',
-      sources: zoneNormalPool('whisperwood'),
+      pool: 'outskirts:normal',
+      sources: zoneNormalPool('outskirts', 1),
     });
   }
-  // 3. Per-enemy level-1 table (rotation, no items) — the class-mechanics
-  //    table behind the onboarding redesign.
-  for (const src of zoneHostilePool('whisperwood')) {
+  // 3. Per-enemy table at the Whisperwood's band start (level 3) — every
+  //    enemy a hero can actually roll there (#74 live pools); the
+  //    class-mechanics table behind the onboarding redesign.
+  for (const src of zoneHostilePool('whisperwood', 3)) {
     for (const cid of CLASS_IDS) {
       push({
         classId: cid,
-        level: 1,
+        level: 3,
         gear: 'starting',
         policy: POLICIES.rotation,
         pool: `solo:${src.enemyId}`,
@@ -628,7 +657,7 @@ export function buildSnapshot(): BalanceSnapshot {
   return {
     fightsPerCell: SNAPSHOT_FIGHTS,
     note:
-      'Reviewed balance envelopes (#74). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
+      'Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
     eliteShare: eliteShareRecord,
     cells,
   };
@@ -649,12 +678,19 @@ export interface ProgressionBeat {
 export interface ProgressionReport {
   classId: ClassId;
   seed: number;
+  /** The level after the canonical tutorial outcome — always ≥ 2 (#74). */
+  startLevel: number;
   beats: ProgressionBeat[];
   endLevel: number;
   endGold: number;
   totalDeaths: number;
   totalFights: number;
+  /** Fights driven by quest objectives (kills, collections, boss dives). */
+  totalObjectiveFights: number;
+  /** Fights whose only purpose was levelling up. */
   totalGrindFights: number;
+  /** Every explore roll, including the non-battle outcomes. */
+  totalEncounterAttempts: number;
   totalItemsUsed: number;
   chapter1Done: boolean;
   aranyaLevel: number;
@@ -677,61 +713,73 @@ function weaponTier(p: PlayerState): number {
   return p.equipment.weapon ? itemDef(p.equipment.weapon)?.tier ?? 0 : 0;
 }
 
-/** Chapter 1 from a fresh level-1 hero with REAL combat, rewards, shops and
- * deaths. Reveals when story beats unlock, how much grinding the curve
- * demands, and what gear the boss actually needed. */
+/** Chapter 1 from a hero fresh OUT of the prologue (canonical tutorial
+ * outcome: level 2+, #74) with REAL combat, rewards, shops and deaths.
+ * Reveals when story beats unlock, how much grinding the curve demands,\ * and what gear the boss actually needed. */
 export function simulateChapterOne(classId: ClassId, seed: number): ProgressionReport {
   const rng: Rng = seededRng(seed);
   const p = createPlayer(0, 'Sim', classId);
   p.tutorial = 'done'; // the sim models a player past the prologue (#69)
+  // #74: start from the REAL post-tutorial state shared with the live
+  // handler — level 2+ and the replaced potion — never an impossible
+  // fresh level-1 hero.
+  applyTutorialOutcome(p);
   syncAvailability(p);
   let deaths = 0;
   let fights = 0;
   let grind = 0;
+  let objective = 0;
+  let explores = 0;
   let itemsUsed = 0;
   const beats: ProgressionBeat[] = [];
   const report: ProgressionReport = {
     classId,
     seed,
+    startLevel: p.level,
     beats,
     endLevel: 1,
     endGold: 0,
     totalDeaths: 0,
     totalFights: 0,
+    totalObjectiveFights: 0,
     totalGrindFights: 0,
+    totalEncounterAttempts: 0,
     totalItemsUsed: 0,
     chapter1Done: false,
     aranyaLevel: 0,
     aranyaGearTier: 0,
     aranyaDeathsBefore: 0,
   };
-  const healCount = (): number => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0);
-
   /** One real fight. 'death' applies the real death flow (revive at the
-   * safe haven, −10% gold); 'retreat' is a timeout — heal up, no death. */
-  const fight = (b: BattleState): 'win' | 'death' | 'retreat' => {
+   * safe haven, −10% gold); 'retreat' is a timeout — heal up, no death.
+   * `kind` separates quest-driven fights from pure level grinding (#74):
+   * the report names both, because conflating them hid a 300-fight
+   * collection jump behind a small "grind" number. */
+  const fight = (b: BattleState, kind: 'objective' | 'grind'): 'win' | 'death' | 'retreat' => {
     fights++;
-    const before = healCount();
+    if (kind === 'objective') objective++;
+    else grind++;
     let rounds = 0;
     let lastWasGuard = false;
     while (b.phase === 'active' && rounds < 200) {
       const action = chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
       lastWasGuard = action.kind === 'guard';
-      performAction(p, b, action, rng);
+      const res = performAction(p, b, action, rng);
+      // #74: count consumables when an item action is ACTUALLY consumed —
+      // never from inventory deltas, which drops and purchases drive
+      // negative.
+      if (action.kind === 'item' && res.consumedTurn) itemsUsed++;
       rounds++;
       if (b.enemy.hp <= 0) {
         resolveVictory(p, b, rng);
-        itemsUsed += before - healCount();
         return 'win';
       }
       if (p.hp <= 0) {
         applyDeath(p);
         deaths++;
-        itemsUsed += before - healCount();
         return 'death';
       }
     }
-    itemsUsed += before - healCount();
     return 'retreat';
   };
 
@@ -810,23 +858,28 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
     let n = 0;
     while (p.level === start && n < 300) {
       n++;
-      grind++;
+      explores++;
       goto(farmZone);
       const out = explore(p, rng, 0);
-      if (out.kind === 'battle' && fight(out.battle) !== 'win') restock();
+      if (out.kind === 'battle' && fight(out.battle, 'grind') !== 'win') restock();
     }
+    if (p.level > start) shop(); // #74: gear beats land right after level-ups
     return n;
   };
 
   const questCount = (qid: string, idx: number): number => p.quests[qid]?.counts[idx] ?? 0;
 
-  /** First unlocked zone whose hostile table spawns the enemy (#73) — the
-   * Outskirts come before the Whisperwood for shared early spawns. */
+  /** First unlocked zone whose hostile table spawns the enemy AT THE
+   * HERO'S LEVEL (#73 + the shared eligibility rule, #74) — the Outskirts
+   * come before the Whisperwood for shared early spawns. */
   const zoneOfEnemy = (enemyId: string): string | undefined => {
     for (const z of ZONES) {
       if (!p.unlockedZones.includes(z.id)) continue;
       if (
-        z.explore.some((e) => (e.kind === 'battle' || e.kind === 'elite') && e.enemy === enemyId)
+        z.explore.some((e) =>
+          (e.kind === 'battle' || e.kind === 'elite') && e.enemy === enemyId &&
+          encounterEligible(e, p.level)
+        )
       ) {
         return z.id;
       }
@@ -840,27 +893,56 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
     let local = 0;
     while (questCount(qid, objIdx) < need) {
       if (++local > 400) return false;
+      explores++;
       goto(zid);
       const out = explore(p, rng, 0);
       if (out.kind === 'battle') {
-        if (fight(out.battle) !== 'win') restock();
+        if (fight(out.battle, 'objective') !== 'win') restock();
       }
     }
     return true;
   };
 
+  /** Unlocked zones whose eligible explore tables actually drop the target
+   * (#74) — collection farming follows REAL sources instead of grinding a
+   * pool that can never pay out. */
+  const dropZonesFor = (target: string): string[] => {
+    const zones: { id: string; rate: number }[] = [];
+    for (const z of ZONES) {
+      if (!p.unlockedZones.includes(z.id)) continue;
+      let rate = 0;
+      for (const ev of z.explore) {
+        if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
+        if (!encounterEligible(ev, p.level)) continue;
+        const drops = ENEMIES.find((e) => e.id === ev.enemy)?.drops ?? {};
+        rate = Math.max(rate, drops[target] ?? 0);
+      }
+      if (rate > 0) zones.push({ id: z.id, rate });
+    }
+    return zones.sort((a, b) => b.rate - a.rate).map((z) => z.id);
+  };
+
   const farmCollect = (target: string, need: number): boolean => {
     let local = 0;
+    const price = itemDef(target)?.price ?? 0;
     while (countOf(p, target) < need) {
-      // Shop fallback (#73): some collect targets are primarily SOLD
-      // (m_iron_chunk) rather than wild-dropped — buy when stocked and
-      // affordable instead of grinding a pool that can never drop it.
-      const price = itemDef(target)?.price ?? 0;
+      if (++local > 120) return false; // bounded objective attempts (#74)
+      // Buy when a reachable shop stocks it and it's affordable (#73).
       if (currentStock(p).includes(target) && p.gold >= price + 20 && buy(p, target).ok) continue;
-      if (++local > 400) return false;
-      goto('outskirts');
-      const out = explore(p, rng, 0);
-      if (out.kind === 'battle' && fight(out.battle) !== 'win') restock();
+      // Else farm the best reachable DROP source — never an unrelated pool.
+      const zones = dropZonesFor(target);
+      if (zones.length > 0) {
+        goto(zones[0]!);
+        explores++;
+        const out = explore(p, rng, 0);
+        if (out.kind === 'battle' && fight(out.battle, 'objective') !== 'win') restock();
+        continue;
+      }
+      // No reachable drop source: hop the unlocked safe havens — the next
+      // loop iteration buys wherever the shelf actually carries it.
+      const shops = ZONES.filter((z) => p.unlockedZones.includes(z.id) && z.safeHaven);
+      if (shops.length === 0) return false;
+      goto(shops[local % shops.length]!.id);
     }
     return true;
   };
@@ -884,7 +966,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
         report.aranyaGearTier = weaponTier(p);
         report.aranyaDeathsBefore = deaths;
       }
-      const out = fight(res.battle);
+      const out = fight(res.battle, 'objective');
       if (out === 'win') {
         if (isBoss) {
           report.aranyaDeathsBefore = deaths - report.aranyaDeathsBefore;
@@ -922,6 +1004,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
           grindFights: grind,
           itemsUsed,
         });
+        shop(); // #74: gear beats land right after quest rewards
       }
     }
   };
@@ -985,7 +1068,9 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
   report.endGold = p.gold;
   report.totalDeaths = deaths;
   report.totalFights = fights;
+  report.totalObjectiveFights = objective;
   report.totalGrindFights = grind;
+  report.totalEncounterAttempts = explores;
   report.totalItemsUsed = itemsUsed;
   return report;
 }

@@ -12,10 +12,9 @@
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { startBattle } from '../engine/combat.ts';
-import { grantXp, statsOf } from '../engine/character.ts';
-import { grantItem } from '../engine/quests.ts';
-import { xpForNextLevel } from '../engine/classes.ts';
+import { statsOf } from '../engine/character.ts';
 import { CLASSES } from '../engine/classes.ts';
+import { applyTutorialOutcome } from '../engine/tutorial.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { skill as skillDef } from '../content/skills.ts';
 import type { MutationResult } from './session.ts';
@@ -81,13 +80,12 @@ export function coachTutorial(p: PlayerState): void {
 export function grantTutorialReward(p: PlayerState): string[] {
   if (p.flags['tut_reward']) return [];
   p.flags['tut_reward'] = 1;
-  const lines: string[] = ["🔥 The ember warms you — Maren's gift carries its own spark."];
-  if (p.level < 2) lines.push(...grantXp(p, xpForNextLevel(1) + 5 - p.xp));
-  // The item lesson spends a real potion — Maren's satchel replaces it, so
-  // the guided fight costs nothing permanent (#69 rework).
-  grantItem(p, 'c_minor_potion', 1);
-  lines.push("🎒 Maren's satchel replaces what the lesson spent.");
-  return lines;
+  // The canonical outcome lives in the ENGINE (#74) so the balance harness
+  // starts simulations from the same post-tutorial state as real heroes.
+  return [
+    "🔥 The ember warms you — Maren's gift carries its own spark.",
+    ...applyTutorialOutcome(p),
+  ];
 }
 
 /** Release into the real hub: the next contact, the next destination, and

@@ -106,7 +106,7 @@ if (tutors.length === 0) {
 }
 
 // ── 4. Progression simulation ───────────────────────────────────────────
-header('Chapter-one progression — fresh level-1 hero, real combat/rewards');
+header('Chapter-one progression — post-tutorial hero (Lv 2), real combat/rewards');
 for (const cid of CLASS_IDS) {
   const rep = simulateChapterOne(cid, 4100 + ['warrior', 'mage', 'rogue', 'cleric'].indexOf(cid));
   const beatStr = rep.beats
@@ -119,7 +119,7 @@ for (const cid of CLASS_IDS) {
   );
   console.log(`         beats: ${beatStr || 'none'}`);
   console.log(
-    `         end Lv${rep.endLevel} · ${rep.endGold}g · fights ${rep.totalFights} (grind ${rep.totalGrindFights}) · deaths ${rep.totalDeaths} · items ${rep.totalItemsUsed}`,
+    `         start Lv${rep.startLevel} · end Lv${rep.endLevel} · ${rep.endGold}g · fights ${rep.totalFights} (objective ${rep.totalObjectiveFights} / grind ${rep.totalGrindFights}) · explores ${rep.totalEncounterAttempts} · deaths ${rep.totalDeaths} · items ${rep.totalItemsUsed}`,
   );
   if (rep.aranyaLevel > 0) {
     console.log(

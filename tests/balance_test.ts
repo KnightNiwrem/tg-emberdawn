@@ -11,9 +11,12 @@ import {
   hostileZones,
   POLICIES,
   runCell,
+  simulateChapterOne,
   tutorialEnemies,
   zoneHostilePool,
+  zoneNormalPool,
 } from '../src/engine/balance.ts';
+import { encounterEligible } from '../src/engine/world.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
@@ -36,7 +39,7 @@ Deno.test('balance: every class has a viable free action (#74)', () => {
       gear: 'starting',
       policy: POLICIES.free,
       pool: 'solo:e_rat',
-      sources: solo('e_rat', 'whisperwood'),
+      sources: solo('e_rat', 'outskirts'),
       fights: FIGHTS,
       seed: 1101,
     });
@@ -58,7 +61,7 @@ Deno.test('balance: the opening normals do not require consumables (#74)', () =>
         gear: 'starting',
         policy: POLICIES.rotation,
         pool: `solo:${eid}`,
-        sources: solo(eid, 'whisperwood'),
+        sources: solo(eid, 'outskirts'),
         fights: FIGHTS,
         seed: 1201,
       });
@@ -248,7 +251,7 @@ Deno.test('spd curve: the rogue slips measurably more without flipping identitie
           gear: 'best',
           policy: POLICIES.rotation,
           pool: zid,
-          sources: zoneHostilePool(zid),
+          sources: zoneHostilePool(zid, level),
           fights: 200,
           seed: 7300 + level,
         }),
@@ -279,6 +282,44 @@ Deno.test('spd curve: the rogue slips measurably more without flipping identitie
         cells.get(`${cid}:${level}`)!.winRate > 0,
         `${cid} still fights at ${level}`,
       );
+    }
+  }
+});
+
+Deno.test('balance: harness fidelity — shared eligibility, real tutorial start, sane counters (#74)', () => {
+  // ONE eligibility rule everywhere: every pool source the harness builds
+  // is an encounter live explore() could actually roll at that level.
+  for (const z of ZONES) {
+    for (let level = 1; level <= 45; level++) {
+      for (const src of zoneNormalPool(z.id, level)) {
+        const ev = z.explore.find((x) => x.kind === 'battle' && x.enemy === src.enemyId);
+        assert(ev && encounterEligible(ev, level), `${z.id}@${level}: ${src.enemyId} ineligible`);
+      }
+    }
+  }
+  // The impossible state the old report measured is gone: a level-1/2 hero
+  // finds NO Whisperwood hostiles — exactly like live play.
+  assertEquals(zoneHostilePool('whisperwood', 1).length, 0);
+  assertEquals(zoneHostilePool('whisperwood', 2).length, 0);
+  assert(zoneHostilePool('whisperwood', 3).length > 0, 'band start has live hostiles');
+
+  // The chapter sim starts from the REAL tutorial outcome and stays sane:
+  // nonnegative item use, tier-2 steel before Aranya, bounded objective
+  // farming, and no unexplained fight discontinuities between beats.
+  for (const cid of CLASS_IDS) {
+    const rep = simulateChapterOne(cid, 4100 + ['warrior', 'mage', 'rogue', 'cleric'].indexOf(cid));
+    assert(rep.startLevel >= 2, `${cid}: post-tutorial start at Lv ${rep.startLevel}`);
+    assert(rep.totalItemsUsed >= 0, `${cid}: item use went negative`);
+    assert(rep.chapter1Done, `${cid}: chapter one completes`);
+    assert(rep.aranyaGearTier >= 2, `${cid}: Aranya met in gear tier ${rep.aranyaGearTier}`);
+    assert(
+      rep.totalObjectiveFights <= 250,
+      `${cid}: ${rep.totalObjectiveFights} objective fights (unbounded?)`,
+    );
+    let prev = 0;
+    for (const b of rep.beats) {
+      assert(b.fights - prev <= 150, `${cid}: ${b.questId} jumped ${b.fights - prev} fights`);
+      prev = b.fights;
     }
   }
 });
