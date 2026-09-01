@@ -280,12 +280,32 @@ export function performAction(
   const skipped = phase.skipped;
   const buffs = battle.buffs;
 
+  // #69 rework: the guided fight advances its lesson beats only on the
+  // intended action kinds, in order — the beats cannot be skipped or
+  // reordered, whatever the damage rolls do.
+  if (battle.tutorial && phase.consumedTurn) {
+    const step = battle.tutorialStep;
+    if (step === 'basic' && action.kind === 'attack') battle.tutorialStep = 'skill';
+    else if (step === 'skill' && action.kind === 'skill') battle.tutorialStep = 'guard';
+    else if (step === 'guard' && action.kind === 'guard') battle.tutorialStep = 'item';
+    else if (step === 'item' && action.kind === 'item') battle.tutorialStep = 'cleared';
+  }
+
   // Player won without retaliation (enemy felled by the action)…
   if (battle.enemy.hp <= 0) {
-    // The terminal round follows the SAME history model as every other
-    // consumed action (#67): kill rounds are recorded, never dropped.
-    battle.history.push({ round: actedRound, lines });
-    return { battle, lines, skipped, consumedTurn: true };
+    // #69 rework: the guided fight cannot end before every lesson beat has
+    // been performed — a killing blow merely staggers the fixture.
+    if (battle.tutorial && battle.tutorialStep !== 'cleared') {
+      battle.enemy.hp = 1;
+      lines.push(
+        `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
+      );
+    } else {
+      // The terminal round follows the SAME history model as every other
+      // consumed action (#67): kill rounds are recorded, never dropped.
+      battle.history.push({ round: actedRound, lines });
+      return { battle, lines, skipped, consumedTurn: true };
+    }
   }
   // Invalid action (cooldown/MP/unusable item): no turn consumed, no enemy
   // phase, and NO history round (#67) — the lines stay handler feedback only.
@@ -305,10 +325,28 @@ export function performAction(
     battle.effects = battle.effects.filter((e) => !(e.key === 'enemyStun' && e.side === 'enemy'));
     lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
   } else {
-    const move = enemyChooseMove(def, battle.enemy, rng);
-    const acted = enemyAct(p, battle, def, move, rng);
-    lines.push(...acted.lines);
-    guardCast = acted.guardCast;
+    const s = statsOf(p);
+    if (
+      battle.tutorial && battle.tutorialStep === 'item' &&
+      p.hp > Math.floor(s.maxHp * 0.7)
+    ) {
+      // #69 rework: the scripted teaching hit — deterministic, nonlethal,
+      // lands the hero clearly below the item-lesson threshold, so the
+      // lesson is always reachable through real play no matter how the
+      // damage rolls go.
+      const target = Math.max(1, Math.floor(s.maxHp * 0.45));
+      const dmg = Math.max(1, p.hp - target);
+      p.hp = Math.max(1, p.hp - dmg);
+      lines.push(`💥 ${battle.enemy.name} flares with old hearth-fire — ${dmg} damage to you!`);
+      if (battle.guarding) {
+        lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
+      }
+    } else {
+      const move = enemyChooseMove(def, battle.enemy, rng);
+      const acted = enemyAct(p, battle, def, move, rng);
+      lines.push(...acted.lines);
+      guardCast = acted.guardCast;
+    }
   }
 
   // ── End of round bookkeeping ────────────────────────────────────────

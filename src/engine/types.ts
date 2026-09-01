@@ -118,7 +118,20 @@ export interface BattleState {
   enemyGuardTurns: number;
   /** Structured provenance: for return-after-battle and victory hooks. */
   origin: BattleOrigin;
+  /** Guided-prologue marker (#69 rework): only the prologue battle carries
+   * this, set by the tutorial flow at creation. The engine phase-gates the
+   * encounter — the enemy cannot die before every lesson beat has been
+   * performed, and the beat after Guard delivers one scripted, nonlethal
+   * teaching hit that lands the hero clearly below the item-lesson
+   * threshold. Ordinary battles never set it. */
+  tutorial?: boolean;
+  /** The current lesson beat while `tutorial` is set. Advanced by the
+   * engine, only on the intended action kinds, in order. */
+  tutorialStep?: TutorialBeat;
 }
+
+/** The guided prologue's lesson beats, in order (#69 rework). */
+export type TutorialBeat = 'basic' | 'skill' | 'guard' | 'item' | 'cleared';
 
 export interface CombatBuffs {
   atkPct: number;

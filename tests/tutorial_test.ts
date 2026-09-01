@@ -1,7 +1,10 @@
 /** Guided prologue (#69): creation → Maren's brief → the controlled first
  * battle → deterministic level-2 reward → release into the real hub.
- * Covers the full tap flow through the real router, resume, replay
- * rejection, reward idempotency and the v4→v5 migration decision. */
+ * Covers the full tap flow through the real router for EVERY class — every
+ * lesson beat (basic → skill → guard → item) shown AND acted upon before
+ * victory, with no coach bypasses and no manual HP — plus the crit-seed
+ * sweep, resume, replay rejection, reward idempotency and the v4→v5
+ * migration decision. */
 
 import { assert, assertEquals } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
@@ -10,14 +13,15 @@ import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleStart } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
-import { fakeCtxCapture } from './helpers.ts';
+import { fakeCtxCapture, seeded } from './helpers.ts';
 import {
   createPlayer,
   CURRENT_STATE_VERSION,
   migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
-import { coachTutorial, grantTutorialReward } from '../src/handlers/tutorial.ts';
+import { performAction, startBattle } from '../src/engine/combat.ts';
+import { grantTutorialReward } from '../src/handlers/tutorial.ts';
 import { enemy } from '../src/content/enemies.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
@@ -86,65 +90,107 @@ Deno.test('prologue: Maren brief → ember → the controlled battle (#69)', asy
   assert(face.json.includes('free and always ready'), 'the free action is taught first');
 });
 
-Deno.test('prologue: coaching beats — free action, then skill/MP, then Guard (#69)', async () => {
-  const store = freshStore();
-  await prepareBot(createBot({ token: '123456…ESTS', store }));
-  await pickedHero(store);
-  await tap(store, 301, 'u:maren');
-  await tap(store, 301, 'u:out');
-  await tap(store, 301, 'u:face');
+Deno.test('prologue: every class reaches every lesson through real play (#69)', async () => {
+  for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    const store = freshStore();
+    await prepareBot(createBot({ token: '123456…ESTS', store }));
+    const pick = fakeCtxCapture(301, 555, `m:pk:${cid}`);
+    await handleCallback(pick.ctx, store);
+    await tap(store, 301, 'u:maren');
+    await tap(store, 301, 'u:out');
+    await tap(store, 301, 'u:face');
 
-  // Round 1: the free action; the coach then hands over to the skill.
-  const atk = await tap(store, 301, 'b:atk');
-  assert(atk.json.includes('Strike'), 'the free action resolved (warrior Strike)');
-  assert(
-    atk.json.includes('MP') && atk.json.includes('Cleave'),
-    'the next lesson is the starting skill and MP',
-  );
-  const p = await store.get(301);
-  assertEquals(p!.flags['tut_skill'], undefined, 'the lesson is advice, not a gate');
+    let p = await store.get(301);
+    const potionsBefore = p!.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
+    assert(potionsBefore >= 1, `${cid} starts with a healing item`);
 
-  // The full chain, unit-level: a fast kill may end the live fight before
-  // every lesson fires (good play, not a bug) — so coach directly.
-  coachTutorial(p!, { kind: 'skill', skillId: 'sk_cleave' });
-  assertEquals(p!.flags['tut_skill'], 1);
-  assert(p!.notices[0]?.includes('Guard'), 'next lesson: Guard');
-  coachTutorial(p!, { kind: 'guard' });
-  assertEquals(p!.flags['tut_guard'], 1);
-  p!.hp = Math.floor(statsOf(p!).maxHp * 0.5);
-  coachTutorial(p!, { kind: 'attack' });
-  assert(p!.notices[0]?.includes('Items'), 'next lesson: Items when the hurt is real');
+    // Beat 1 — the free action; the coach hands over to the skill.
+    const atk = await tap(store, 301, 'b:atk');
+    p = await store.get(301)!;
+    assertEquals(p!.battle!.tutorialStep, 'skill', `${cid}: basic performed`);
+    assert(p!.battle!.enemy.hp >= 1, `${cid}: the mite survives the opener`);
+    assert(atk.json.includes('Skills'), `${cid}: the skill lesson shows`);
+
+    // Beat 2 — the starting skill through the real skills panel.
+    const sk = p!.skills[0]!;
+    await tap(store, 301, 'b:sk');
+    const cast = await tap(store, 301, `b:us:${sk}`);
+    p = await store.get(301)!;
+    assertEquals(p!.battle!.tutorialStep, 'guard', `${cid}: skill performed`);
+    assert(p!.battle!.enemy.hp >= 1, `${cid}: the mite survives the skill`);
+    assert(cast.json.includes('Guard'), `${cid}: the guard lesson shows`);
+
+    // Beat 3 — Guard; the scripted teaching hit lands below the threshold.
+    const guard = await tap(store, 301, 'b:gd');
+    p = await store.get(301)!;
+    assertEquals(p!.battle!.tutorialStep, 'item', `${cid}: guard performed`);
+    assert(
+      p!.hp < statsOf(p!).maxHp * 0.7,
+      `${cid}: the scripted hit lands below the item threshold`,
+    );
+    assert(guard.json.includes('Items'), `${cid}: the item lesson shows`);
+
+    // Beat 4 — use the healing item through the real items panel.
+    const hpBefore = p!.hp;
+    await tap(store, 301, 'b:it');
+    await tap(store, 301, 'b:us:c_minor_potion');
+    p = await store.get(301)!;
+    assertEquals(p!.battle!.tutorialStep, 'cleared', `${cid}: item performed`);
+    assert(p!.hp > hpBefore, `${cid}: the potion actually healed`);
+
+    // The gate lifts — the next hits end the fight, and only now.
+    for (let i = 0; i < 10; i++) {
+      const cur = await store.get(301);
+      if (cur!.battle!.phase !== 'active') break;
+      await tap(store, 301, 'b:atk');
+    }
+    p = await store.get(301)!;
+    assertEquals(p!.battle!.phase, 'won', `${cid}: the controlled fight is won`);
+    assertEquals(p!.flags['tut_reward'], 1, `${cid}: the ember reward fired once`);
+
+    const release = await tap(store, 301, 'b:go');
+    p = await store.get(301)!;
+    assertEquals(p!.tutorial, 'done', `${cid}: Continue ends the prologue`);
+    assertEquals(p!.battle, undefined, `${cid}: the fight is cleared`);
+    assertEquals(p!.level, 2, `${cid}: deterministic level-2 exit`);
+    const potionsAfter = p!.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
+    assertEquals(
+      potionsAfter,
+      potionsBefore,
+      `${cid}: the reward replaces the lesson's potion`,
+    );
+    assert(release.json.includes("Maren's board has work"), `${cid}: next contact surfaced`);
+    assert(release.json.includes('Whisperwood'), `${cid}: next destination surfaced`);
+    assert(release.json.includes('Flee'), `${cid}: fleeing taught before exploration`);
+    assert(release.json.includes('🌾 Forage'), `${cid}: the real hub is open again`);
+    assert(release.json.includes('🚶 Travel'), `${cid}: travel unlocked`);
+  }
 });
 
-Deno.test('prologue: victory guarantees level 2 and releases the hub (#69)', async () => {
-  const store = freshStore();
-  await prepareBot(createBot({ token: '123456…ESTS', store }));
-  await pickedHero(store);
-  await tap(store, 301, 'u:maren');
-  await tap(store, 301, 'u:out');
-  await tap(store, 301, 'u:face');
-
-  // Win through the REAL engine — the mite cannot win (harness-invariant),
-  // so free-action spam is a correct play.
-  for (let i = 0; i < 30; i++) {
-    const p0 = await store.get(301);
-    if (p0!.battle!.phase !== 'active') break;
-    await tap(store, 301, 'b:atk');
+Deno.test('prologue: no damage roll can skip or end the lesson beats (#69)', () => {
+  for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    for (let seed = 1; seed <= 25; seed++) {
+      const rng = seeded(seed);
+      const p = createPlayer(2000 + seed, 'T', cid);
+      const b = startBattle('e_cinder_mite', { kind: 'explore', zoneId: 'outskirts' })!;
+      b.tutorial = true;
+      b.tutorialStep = 'basic';
+      p.battle = b;
+      performAction(p, b, { kind: 'attack' }, rng);
+      assertEquals(b.tutorialStep, 'skill', `${cid}/${seed}: basic advances`);
+      assert(b.enemy.hp >= 1, `${cid}/${seed}: the mite survives the opener`);
+      performAction(p, b, { kind: 'skill', skillId: p.skills[0]! }, rng);
+      assertEquals(b.tutorialStep, 'guard', `${cid}/${seed}: skill advances`);
+      assert(b.enemy.hp >= 1, `${cid}/${seed}: the mite survives the skill`);
+      assertEquals(b.phase, 'active', `${cid}/${seed}: the fight cannot end early`);
+      performAction(p, b, { kind: 'guard' }, rng);
+      assertEquals(b.tutorialStep, 'item', `${cid}/${seed}: guard advances`);
+      assert(
+        p.hp < statsOf(p).maxHp * 0.7,
+        `${cid}/${seed}: the scripted teaching hit lands`,
+      );
+    }
   }
-  let p = await store.get(301);
-  assertEquals(p!.battle!.phase, 'won', 'the controlled fight is won');
-  assertEquals(p!.flags['tut_reward'], 1, 'the ember reward fired exactly once');
-  assert(p!.level >= 2, 'the deterministic reward reaches level 2');
-
-  const release = await tap(store, 301, 'b:go');
-  p = await store.get(301);
-  assertEquals(p!.tutorial, 'done', 'Continue ends the prologue');
-  assertEquals(p!.battle, undefined);
-  assert(release.json.includes("Maren's board has work"), 'the next contact is surfaced');
-  assert(release.json.includes('Whisperwood'), 'the next destination is surfaced');
-  assert(release.json.includes('Flee'), 'fleeing is taught before ordinary exploration');
-  assert(release.json.includes('🌾 Forage'), 'the real hub is open again (safe haven)');
-  assert(release.json.includes('🚶 Travel'), 'travel is unlocked after the prologue');
 });
 
 Deno.test('prologue: replays and stale taps never duplicate progress (#69)', async () => {

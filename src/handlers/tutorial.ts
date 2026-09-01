@@ -11,9 +11,9 @@
 
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import type { PlayerAction } from '../engine/combat.ts';
 import { startBattle } from '../engine/combat.ts';
 import { grantXp, statsOf } from '../engine/character.ts';
+import { grantItem } from '../engine/quests.ts';
 import { xpForNextLevel } from '../engine/classes.ts';
 import { CLASSES } from '../engine/classes.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
@@ -37,34 +37,37 @@ export function tutorialIntro(p: PlayerState): string[] {
   ];
 }
 
-/** One concept at a time, inside the live battle: after the free action
- * comes the starting skill and MP; then Guard; then Items once the hurt
- * is real. Replaces the notices each consumed round — progressive
- * disclosure, not a wall of text. */
-export function coachTutorial(p: PlayerState, action: PlayerAction): void {
+/** One concept at a time, inside the live battle (#69 rework): the engine
+ * owns the lesson beats on the battle (basic → skill → guard → item →
+ * cleared) and the coach narrates the CURRENT one. The phase-gated fight
+ * guarantees every beat is reachable — a killing blow merely staggers the
+ * mite, and the scripted hit after Guard lands the hero below the item
+ * threshold — so every lesson is shown through real play. Replaces the
+ * notices each consumed round: progressive disclosure, not a wall of text. */
+export function coachTutorial(p: PlayerState): void {
   const b = p.battle;
-  if (!b || b.phase !== 'active') return;
-  if (action.kind === 'skill') p.flags['tut_skill'] = 1;
-  if (action.kind === 'guard') p.flags['tut_guard'] = 1;
-  if (action.kind === 'item') p.flags['tut_items'] = 1;
+  if (!b || b.phase !== 'active' || !b.tutorial) return;
   const s = statsOf(p);
   const lines: string[] = [];
-  if (!p.flags['tut_skill']) {
+  const basic = CLASSES[p.classId].basicAction;
+  if (b.tutorialStep === 'basic') {
+    lines.push(`${basic.icon} ${basic.name} is free — lead with it, then we'll talk skills.`);
+  } else if (b.tutorialStep === 'skill') {
     const sk = skillDef(p.skills[0] ?? '');
     lines.push(
       `✨ MP (💧) fuels skills. Open ✨ Skills and try ${
         sk?.name ?? 'your skill'
       } — it hits far harder than the free action, for a little MP.`,
     );
-    const heal = p.skills.map((id) => skillDef(id)).find((s) => s?.type === 'heal');
+    const heal = p.skills.map((id) => skillDef(id)).find((h) => h?.type === 'heal');
     if (heal) {
       lines.push(
         `❤️ ${heal.name} is yours from the start — healing is your craft; use it before the hurt wins.`,
       );
     }
-  } else if (!p.flags['tut_guard']) {
+  } else if (b.tutorialStep === 'guard') {
     lines.push("🛡️ Guard halves the enemy's next blow and recovers MP. Brace for one round.");
-  } else if (!p.flags['tut_items'] && p.hp < s.maxHp * 0.7) {
+  } else if (b.tutorialStep === 'item' && p.hp < s.maxHp * 0.7) {
     lines.push(
       '🎒 When the hurt is real, open 🎒 Items — a potion mid-fight beats a heroic death.',
     );
@@ -80,6 +83,10 @@ export function grantTutorialReward(p: PlayerState): string[] {
   p.flags['tut_reward'] = 1;
   const lines: string[] = ["🔥 The ember warms you — Maren's gift carries its own spark."];
   if (p.level < 2) lines.push(...grantXp(p, xpForNextLevel(1) + 5 - p.xp));
+  // The item lesson spends a real potion — Maren's satchel replaces it, so
+  // the guided fight costs nothing permanent (#69 rework).
+  grantItem(p, 'c_minor_potion', 1);
+  lines.push("🎒 Maren's satchel replaces what the lesson spent.");
   return lines;
 }
 
@@ -125,6 +132,10 @@ export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationR
       }
       const b = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone });
       if (!b) return { toast: 'Nothing stirs.' };
+      // #69 rework: the guided fight is phase-gated — the engine advances
+      // the lesson beats and refuses victory until every beat is performed.
+      b.tutorial = true;
+      b.tutorialStep = 'basic';
       p.battle = b;
       p.tutorial = 'fight';
       p.scene = { view: 'battle' };

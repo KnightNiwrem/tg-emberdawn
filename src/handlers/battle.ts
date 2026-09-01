@@ -113,7 +113,7 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // they keep their feedback. The prologue coaches on every consumed turn
   // (#69): one concept at a time replaces the empty banner.
   p.notices = res.consumedTurn ? [] : lines;
-  if (p.tutorial === 'fight' && res.consumedTurn) coachTutorial(p, action);
+  if (p.tutorial === 'fight' && res.consumedTurn) coachTutorial(p);
   p.scene = { view: 'battle' };
   return {};
 }
