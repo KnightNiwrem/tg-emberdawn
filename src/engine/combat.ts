@@ -1,109 +1,72 @@
-/**
- * Turn-based combat engine. Pure: mutates PlayerState + BattleState, returns
- * log lines. Zero grammY imports. Buffs/debuffs live on the battle so they
- * survive across messages.
- */
+/** Turn-based combat engine. Pure: mutates PlayerState + BattleState, returns
+ * log lines. Zero grammY imports. Live effect instances (#78) are the
+ * authoritative combat state — skills, enemy moves, equipment and encounter
+ * openings share one typed effect vocabulary, executed by the generic
+ * resolver in this file. No content-id branches. */
 
-import type { BattleOrigin, BattlePhase, BattleState, CombatBuffs, PlayerState } from './types.ts';
-import type { EnemyDef, EnemyMove, SkillDef } from '../content/types.ts';
+import type {
+  BattleOrigin,
+  BattlePhase,
+  BattleState,
+  EffectInstance,
+  EffectSource,
+  PlayerState,
+} from './types.ts';
+import type { EffectSpec, EnemyDef, EnemyMove, SkillDef, StatKey } from '../content/types.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { skill } from '../content/skills.ts';
 import { item as itemDefLookup } from '../content/items.ts';
 import { statsOf } from './character.ts';
 import { CLASSES } from './classes.ts';
+import {
+  applyInstance,
+  consumeStun,
+  incomingAmpPct,
+  mitigationPct,
+  removeTagged,
+  sapPct,
+  seedForSpec,
+  statPct,
+  tickEndOfRound,
+  tickPlayerTurnStart,
+} from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 
-function newBuffs(): CombatBuffs {
-  return {
-    atkPct: 0,
-    defPct: 0,
-    resPct: 0,
-    magPct: 0,
-    spdPct: 0,
-    durations: {},
-    weakenedPct: 0,
-    weakenTurns: 0,
-    enemyWeakenedPct: 0,
-    enemyWeakenTurns: 0,
-    stunnedTurns: 0,
-    stunnedEnemy: false,
-  };
+function effStat(base: number, pct: number): number {
+  return Math.max(1, Math.round(base * (1 + pct)));
 }
 
-/** Slots a structured effect entry (#67) can occupy: the five stat buffs plus
- * the side-specific bookkeeping keys (player sapped, enemy sapped, enemy
- * guard stance, enemy stunned). */
-type EffectKey =
-  | 'atk'
-  | 'def'
-  | 'res'
-  | 'mag'
-  | 'spd'
-  | 'weaken'
-  | 'enemyWeaken'
-  | 'guard'
-  | 'enemyStun';
-
-/** Off-buff keys defer their first decay on the cast round (#27/#38) — their
- * expiry sits one round later than defensive keys. Since #72 made SPD drive
- * enemy-response avoidance, SPD defends the cast round itself and now uses
- * the DEF/RES treatment (#77): a three-turn SPD buff covers at most three
- * enemy responses INCLUDING the casting round's. Only ATK and MAG — pure
- * offense keys that empower nothing on the round they're cast — defer. */
-const SKIPS_FIRST_DECAY: Record<EffectKey, boolean> = {
-  atk: true,
-  mag: true,
-  spd: false,
-  guard: true,
-  def: false,
-  res: false,
-  weaken: false,
-  enemyWeaken: false,
-  enemyStun: false,
-};
-
-/** Records (or replaces) the structured display metadata for one effect slot
- * (#67). Mechanics stay on CombatBuffs/BattleState; entries mirror them with
- * identity so the UI can name `Blessing` with magnitude and remaining
- * duration instead of surfacing only aggregate percentages. */
-function applyEffect(
-  battle: BattleState,
-  key: EffectKey,
-  id: string,
-  name: string,
-  side: 'player' | 'enemy',
-  magnitude: string,
-  source: string,
-  turns: number,
-): void {
-  battle.effects = battle.effects.filter((e) => !(e.key === key && e.side === side));
-  battle.effects.push({
-    key,
-    id,
-    name,
-    side,
-    magnitude,
-    source,
-    expiresRound: battle.round + turns - (SKIPS_FIRST_DECAY[key] ? 0 : 1),
-  });
-}
-
-/** Enemy weaken riders (Howl et al., #25): saps the PLAYER's offense. */
-function sapPlayer(battle: BattleState, moveName: string, weakenPct: number): string[] {
-  const buffs = battle.buffs;
-  buffs.weakenedPct = weakenPct;
-  buffs.weakenTurns = 2;
-  applyEffect(
-    battle,
-    'weaken',
-    `weaken:${moveName}`,
-    'Sapped',
-    'player',
-    `−${Math.round(weakenPct * 100)}% Offense`,
-    moveName,
-    2,
+/** Effective player offense of one damage kind: base stat sapped by live
+ * `outgoing` instances, then buffed by the stat's own instances (#78). */
+function playerOffense(p: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
+  const s = statsOf(p);
+  const base = kind === 'phys' ? s.atk : s.mag;
+  return effStat(
+    base * (1 - sapPct(battle, 'player')),
+    statPct(battle, 'player', kind === 'phys' ? 'atk' : 'mag'),
   );
-  return ['🩸 Your strength is sapped!'];
+}
+
+/** Effective player mitigation stat (DEF/RES) with its instances folded. */
+function playerMitigation(p: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
+  const s = statsOf(p);
+  return effStat(
+    kind === 'phys' ? s.def : s.res,
+    statPct(battle, 'player', kind === 'phys' ? 'def' : 'res'),
+  );
+}
+
+function dealDamage(
+  power: number,
+  offense: number,
+  defense: number,
+  rng: Rng,
+  critLuck = 0,
+): { dmg: number; crit: boolean } {
+  const critChance = Math.min(0.35, 0.04 + critLuck * 0.0035);
+  const crit = chance(rng, critChance);
+  const raw = Math.max(1, (offense * power - defense * 0.85) * (crit ? 1.6 : 1));
+  return { dmg: variance(rng, raw), crit };
 }
 
 export function startBattle(enemyId: string, origin: BattleOrigin): BattleState | undefined {
@@ -128,43 +91,16 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     round: 1,
     cooldowns: {},
     guarding: false,
-    phoenixUsed: false,
-    enemyGuardPct: 0,
-    enemyGuardTurns: 0,
-    buffs: newBuffs(),
+    effectInstances: [],
+    effectSeq: 0,
     // Structured history starts EMPTY (#67): the encounter introduction is
     // the zone/explore notice, not accumulated battle history — the battle
     // screen shows it once inside the opening "Your move" panel.
     history: [],
-    effects: [],
+    phoenixUsed: false,
     origin,
   };
   return battle;
-}
-
-function effStat(base: number, pct: number): number {
-  return Math.max(1, Math.round(base * (1 + pct)));
-}
-
-function playerEffectiveAtk(p: PlayerState, buffs: CombatBuffs): number {
-  return effStat(statsOf(p).atk * (1 - buffs.weakenedPct), buffs.atkPct);
-}
-
-function playerEffectiveMag(p: PlayerState, buffs: CombatBuffs): number {
-  return effStat(statsOf(p).mag * (1 - buffs.weakenedPct), buffs.magPct);
-}
-
-function dealDamage(
-  power: number,
-  offense: number,
-  defense: number,
-  rng: Rng,
-  critLuck = 0,
-): { dmg: number; crit: boolean } {
-  const critChance = Math.min(0.35, 0.04 + critLuck * 0.0035);
-  const crit = chance(rng, critChance);
-  const raw = Math.max(1, (offense * power - defense * 0.85) * (crit ? 1.6 : 1));
-  return { dmg: variance(rng, raw), crit };
 }
 
 export type PlayerAction =
@@ -207,34 +143,6 @@ function pickWeighted(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-/** End-of-round decay. `skipOffense` carries the keys applied THIS round
- * whose effect cannot help the cast round itself (#27, #38): offensive ATK/
- * MAG empower only future actions, so deferring their first decay delivers
- * exactly the advertised number of useful actions. Defensive DEF/RES/SPD
- * tick on the cast round — SPD (since #72) shields that round's enemy
- * response through avoidance, so it counts the response it protects (#77). */
-function tickBuffTurns(buffs: CombatBuffs, skipOffense?: Set<'atk' | 'mag'>): void {
-  for (const key of ['atk', 'def', 'res', 'mag', 'spd'] as const) {
-    if ((key === 'atk' || key === 'mag') && skipOffense?.has(key)) continue;
-    const d = buffs.durations[key];
-    if (d === undefined) continue;
-    if (d <= 1) {
-      buffs.durations[key] = 0;
-      buffs[`${key}Pct`] = 0;
-    } else {
-      buffs.durations[key] = d - 1;
-    }
-  }
-  if (buffs.weakenTurns > 0) {
-    buffs.weakenTurns--;
-    if (buffs.weakenTurns === 0) buffs.weakenedPct = 0;
-  }
-  if (buffs.enemyWeakenTurns > 0) {
-    buffs.enemyWeakenTurns--;
-    if (buffs.enemyWeakenTurns === 0) buffs.enemyWeakenedPct = 0;
-  }
-}
-
 /** Applies the player's action, then the enemy's response. Mutates state. */
 interface PlayerPhaseResult {
   lines: string[];
@@ -243,22 +151,30 @@ interface PlayerPhaseResult {
   consumedTurn: boolean;
 }
 
-/** Player half of a round: stun check, then the chosen action. */
+function maxHpOf(battle: BattleState, p: PlayerState) {
+  return (side: 'player' | 'enemy'): number =>
+    side === 'player' ? statsOf(p).maxHp : battle.enemy.maxHp;
+}
+
+/** Player half of a round: turn-start periodic ticks (#78), stun check,
+ * then the chosen action. */
 function playerPhase(
   p: PlayerState,
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
-  freshBuffs: Set<'atk' | 'mag'>,
 ): PlayerPhaseResult {
-  const buffs = battle.buffs;
   const lines: string[] = [];
-  if (buffs.stunnedTurns > 0) {
-    buffs.stunnedTurns--;
+  // Turn-start periodic effects (#78) tick before anything else — poison
+  // does not care whether you can act.
+  for (const t of tickPlayerTurnStart(battle, maxHpOf(battle, p))) {
+    lines.push(...applyPeriodicTick(p, battle, t));
+  }
+  if (consumeStun(battle, 'player')) {
     lines.push('💫 You are stunned and lose your turn!');
     return { lines, skipped: true, consumedTurn: true };
   }
-  const res = applyPlayerAction(p, battle, action, rng, freshBuffs);
+  const res = applyPlayerAction(p, battle, action, rng);
   return { lines: res.lines, skipped: false, consumedTurn: res.consumedTurn };
 }
 
@@ -276,11 +192,9 @@ export function performAction(
   // The round these lines belong to: the one in which the player acted —
   // captured before end-of-round bookkeeping advances the counter (#67).
   const actedRound = battle.round;
-  const freshBuffs = new Set<'atk' | 'mag'>();
-  const phase = playerPhase(p, battle, action, rng, freshBuffs);
+  const phase = playerPhase(p, battle, action, rng);
   const lines = [...phase.lines];
   const skipped = phase.skipped;
-  const buffs = battle.buffs;
 
   // #69 rework: the guided fight advances its lesson beats only on the
   // intended action kinds, in order — the beats cannot be skipped or
@@ -320,11 +234,9 @@ export function performAction(
 
   // ── Enemy phase ─────────────────────────────────────────────────────
   battle.enemy.turn++;
-  let guardCast = false;
-  if (buffs.stunnedEnemy) {
-    buffs.stunnedEnemy = false;
-    // The stun is consumed the moment the enemy loses its action (#67).
-    battle.effects = battle.effects.filter((e) => !(e.key === 'enemyStun' && e.side === 'enemy'));
+  if (consumeStun(battle, 'enemy')) {
+    // The stun is consumed the moment the enemy loses its action (#78;
+    // was the stunnedEnemy flag).
     lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
   } else {
     const s = statsOf(p);
@@ -345,22 +257,15 @@ export function performAction(
       }
     } else {
       const move = enemyChooseMove(def, battle.enemy, rng);
-      const acted = enemyAct(p, battle, def, move, rng);
-      lines.push(...acted.lines);
-      guardCast = acted.guardCast;
+      lines.push(...enemyAct(p, battle, move, rng));
     }
   }
 
   // ── End of round bookkeeping ────────────────────────────────────────
   battle.guarding = false;
-  // Enemy guard (#25): the casting round doesn't consume it — it shields
-  // the NEXT `guardTurns` rounds of player attacks.
-  if (!guardCast && battle.enemyGuardTurns > 0) {
-    battle.enemyGuardTurns--;
-    if (battle.enemyGuardTurns === 0) battle.enemyGuardPct = 0;
-  }
   battle.round++;
-  tickBuffTurns(buffs, freshBuffs);
+  const { ticks } = tickEndOfRound(battle, maxHpOf(battle, p));
+  for (const t of ticks) lines.push(...applyPeriodicTick(p, battle, t));
   for (const [k, v] of Object.entries(battle.cooldowns)) {
     if (v <= 1) delete battle.cooldowns[k];
     else battle.cooldowns[k] = v - 1;
@@ -368,46 +273,371 @@ export function performAction(
   // Complete-round history (#67): every consumed turn records exactly one
   // round — the whole player action + enemy response, never truncated here.
   battle.history.push({ round: actedRound, lines });
-  // Retire display entries whose mechanical slot expired with the round (#67).
-  battle.effects = battle.effects.filter((e) => e.expiresRound >= battle.round);
   return { battle, lines, skipped, consumedTurn: true };
 }
 
-/** Shared physical/magical strike: damage roll, crit text, stun roll. */
-function strike(
+/** Applies one periodic tick (#78): heal or damage the target side, with
+ * lethal handling for the player. Enemy-death from ticks leaves hp <= 0
+ * for the normal victory resolution. */
+function applyPeriodicTick(
   p: PlayerState,
   battle: BattleState,
-  sk: SkillDef,
-  rng: Rng,
-  kind: 'phys' | 'mag',
-): { lines: string[]; dmg: number } {
-  const def = enemyDef(battle.enemy.id);
-  if (!def) return { lines: [], dmg: 0 };
-  const buffs = battle.buffs;
-  const offense = kind === 'phys' ? playerEffectiveAtk(p, buffs) : playerEffectiveMag(p, buffs);
-  const mitigation = (kind === 'phys' ? def.def : def.res) *
-    (1 + battle.enemyGuardPct);
-  const res = dealDamage(sk.power, offense, mitigation, rng, statsOf(p).luck);
-  battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
-  const verb = kind === 'phys' ? 'hits' : 'sears';
-  const lines = [
-    `${sk.name} ${verb} ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical!' : ''}!`,
-  ];
-  if (sk.stunChance && battle.enemy.hp > 0 && chance(rng, sk.stunChance)) {
-    buffs.stunnedEnemy = true;
-    applyEffect(
-      battle,
-      'enemyStun',
-      'stunned',
-      'Stunned',
-      'enemy',
-      'loses next action',
-      sk.name,
-      1,
-    );
-    lines.push(`💫 ${battle.enemy.name} is stunned!`);
+  t: { side: 'player' | 'enemy'; amount: number; name: string },
+): string[] {
+  const lines: string[] = [];
+  if (t.amount >= 0) {
+    if (t.side === 'player') {
+      const max = statsOf(p).maxHp;
+      const heal = Math.min(t.amount, max - p.hp);
+      p.hp = Math.min(max, p.hp + t.amount);
+      if (heal > 0) lines.push(`💚 You recover ${heal} HP (${t.name}).`);
+    } else {
+      const heal = Math.min(t.amount, battle.enemy.maxHp - battle.enemy.hp);
+      battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + t.amount);
+      if (heal > 0) lines.push(`💚 ${battle.enemy.name} recovers ${heal} HP (${t.name}).`);
+    }
+    return lines;
   }
-  return { lines, dmg: res.dmg };
+  const dmg = Math.min(-t.amount, t.side === 'player' ? p.hp : battle.enemy.hp);
+  if (t.side === 'player') {
+    p.hp = Math.max(0, p.hp - dmg);
+    lines.push(`☠️ You take ${dmg} damage (${t.name}).`);
+    if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
+  } else {
+    battle.enemy.hp = Math.max(0, battle.enemy.hp - dmg);
+    lines.push(`☠️ ${battle.enemy.name} takes ${dmg} damage (${t.name}).`);
+  }
+  return lines;
+}
+
+// ── The generic effect resolver (#78) ───────────────────────────────────
+
+interface ExecCtx {
+  p: PlayerState;
+  battle: BattleState;
+  rng: Rng;
+  /** Who is applying the specs: skills cast as the player; enemy moves as
+   * the enemy. Equipment/encounter sources (later issues) reuse this. */
+  actor: 'player' | 'enemy';
+  source: EffectSource;
+  /** Display name for default log lines (skill or move name). */
+  displayName: string;
+  /** Damage dealt by the most recent damage effect in this list (for
+   * lifesteal). */
+  lastDamage: number;
+  /** True when the last damage effect felled its target — later riders
+   * with requireSurvivor skip. */
+  targetFelled: boolean;
+}
+
+function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
+  return side === 'player' ? 'enemy' : 'player';
+}
+
+/** Caster-relative target resolution (#78): damage/control/periodic/dispel
+ * default to the opponent; the rest default to the caster. Lifesteal always
+ * feeds the caster. */
+function targetSideOf(spec: EffectSpec, actor: 'player' | 'enemy'): 'player' | 'enemy' {
+  if (spec.kind === 'lifesteal') return actor;
+  if (spec.target) return spec.target === 'self' ? actor : other(actor);
+  switch (spec.kind) {
+    case 'damage':
+    case 'control':
+    case 'periodic':
+    case 'dispel':
+      return other(actor);
+    default:
+      return actor;
+  }
+}
+
+/** Executes an ordered effect-spec list generically (#78). No content-id
+ * branches: every behavior comes from the spec data. */
+function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
+  const lines: string[] = [];
+  // SPD avoidance (#72): an enemy move with real damage behind it draws ONE
+  // dodge roll before any spec — a slip skips the strike AND the move's
+  // remaining riders (#25-era parity). Guard casts and zero-power status
+  // moves never draw. The roll lives here rather than inside the damage
+  // executor so the rng stream matches the pre-#78 resolver draw-for-draw.
+  if (ctx.actor === 'enemy' && specs.some((sp) => sp.kind === 'damage' && sp.power > 0)) {
+    const s = statsOf(ctx.p);
+    const def = enemyDef(ctx.battle.enemy.id);
+    if (
+      def &&
+      chance(ctx.rng, dodgeChance(effStat(s.spd, statPct(ctx.battle, 'player', 'spd')), def.spd))
+    ) {
+      lines.push(
+        `💨 ${ctx.battle.enemy.name} uses ${ctx.displayName} — you slip aside, untouched!`,
+      );
+      return lines;
+    }
+  }
+  for (const spec of specs) {
+    // Riders never land on a corpse — checked BEFORE the chance draw so a
+    // felled target never consumes a roll (long-standing rng parity).
+    if (spec.requireSurvivor && ctx.targetFelled) continue;
+    if (spec.chance !== undefined && !chance(ctx.rng, spec.chance)) continue;
+    const side = targetSideOf(spec, ctx.actor);
+    switch (spec.kind) {
+      case 'damage': {
+        lines.push(...applyDamageEffect(ctx, spec));
+        break;
+      }
+      case 'restore': {
+        lines.push(...applyRestoreEffect(ctx, spec, side));
+        break;
+      }
+      case 'lifesteal': {
+        if (ctx.lastDamage > 0) {
+          const heal = Math.floor(ctx.lastDamage * spec.pct);
+          if (heal > 0) {
+            const max = statsOf(ctx.p).maxHp;
+            ctx.p.hp = Math.min(max, ctx.p.hp + heal);
+            lines.push(`🩸 You drain ${heal} HP.`);
+          }
+        }
+        break;
+      }
+      case 'statmod':
+      case 'control':
+      case 'periodic':
+      case 'shield': {
+        const defId = instanceDefId(ctx, spec);
+        const seed = seedForSpec(
+          spec,
+          defId,
+          // All saps share one named condition (#77 copy) regardless of
+          // which move or skill sapped it.
+          defId === 'sap' ? 'Sapped' : ctx.displayName,
+          side,
+          ctx.source,
+        );
+        applyInstance(ctx.battle, seed);
+        const line = defaultInstanceLine(ctx, spec, side);
+        if (line) lines.push(line);
+        break;
+      }
+      case 'cleanse': {
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max);
+        if (removed.length > 0 && !spec.quiet) {
+          const line = spec.line?.replace('{n}', String(removed.length)) ??
+            (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
+          if (line) lines.push(line);
+        }
+        break;
+      }
+      case 'dispel': {
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max);
+        if (removed.length > 0 && !spec.quiet) {
+          lines.push(
+            spec.line?.replace('{n}', String(removed.length)) ??
+              `✨ ${ctx.battle.enemy.name}'s benefits are stripped.`,
+          );
+        }
+        break;
+      }
+      case 'resource': {
+        const max = statsOf(ctx.p).maxMp;
+        const target = side === 'player' ? ctx.p : null;
+        if (target && spec.mpPctOfMax) {
+          const before = target.mp;
+          target.mp = Math.min(max, target.mp + Math.floor(max * spec.mpPctOfMax));
+          if (target.mp > before && !spec.quiet) {
+            lines.push(
+              spec.line?.replace('{n}', String(target.mp - before)) ??
+                `💧 You restore ${target.mp - before} MP.`,
+            );
+          }
+        }
+        break;
+      }
+    }
+  }
+  return lines;
+}
+
+/** Stacking identity: all saps share the generic `sap` slot (strongest
+ * wins), everything else keys on the applying content id. */
+function instanceDefId(ctx: ExecCtx, spec: EffectSpec): string {
+  if (spec.kind === 'statmod' && spec.stat === 'outgoing' && (spec.pct ?? 0) < 0) return 'sap';
+  return ctx.source.id;
+}
+
+/** Default success lines, reproducing the long-standing copy per effect
+ * shape. Content may override via spec.line or suppress via quiet. */
+function defaultInstanceLine(
+  ctx: ExecCtx,
+  spec: EffectSpec,
+  side: 'player' | 'enemy',
+): string | undefined {
+  if (spec.quiet) return undefined;
+  if (spec.line) {
+    const n = primaryAmount(spec);
+    return spec.line.replace('{n}', String(n));
+  }
+  const enemyName = ctx.battle.enemy.name;
+  switch (spec.kind) {
+    case 'statmod': {
+      if (spec.stat === 'mitigation') {
+        return `🛡️ ${enemyName} braces behind ${ctx.displayName}!`;
+      }
+      if (spec.stat === 'outgoing' && (spec.pct ?? 0) < 0) {
+        return side === 'player'
+          ? '🩸 Your strength is sapped!'
+          : `🩸 ${enemyName} is weakened by ${Math.round(-(spec.pct ?? 0) * 100)}%!`;
+      }
+      if (side === 'player' && ctx.actor === 'player') return undefined; // the 🔆 intro carries it
+      return undefined;
+    }
+    case 'control':
+      return side === 'player' ? '💫 You are stunned!' : `💫 ${enemyName} is stunned!`;
+    case 'periodic':
+      return side === 'player'
+        ? `⏳ You are afflicted with ${spec.name}.`
+        : `⏳ ${enemyName} is afflicted with ${spec.name}.`;
+    case 'shield':
+      return side === 'player' ? '🛡️ A ward settles over you.' : `🛡️ ${enemyName} is warded.`;
+    default:
+      return undefined;
+  }
+}
+
+function primaryAmount(spec: EffectSpec): number {
+  switch (spec.kind) {
+    case 'restore':
+      return spec.hpPctOfMax ?? spec.mpPctOfMax ?? 0;
+    case 'statmod':
+      return Math.abs(Math.round((spec.pct ?? 0) * 100));
+    case 'shield':
+      return spec.amount ?? 0;
+    default:
+      return 0;
+  }
+}
+
+/** One damage effect: attacker rolls, target mitigates, HP resolves — the
+ * single authoritative damage path for skills and enemy moves (#78). */
+function applyDamageEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'damage' }>,
+): string[] {
+  const { p, battle, rng } = ctx;
+  const def = enemyDef(battle.enemy.id);
+  if (!def) return [];
+  const lines: string[] = [];
+  if (ctx.actor === 'player') {
+    // Player strike: crit (luck) + variance; enemy guard stance is a live
+    // mitigation instance (#78).
+    const mitigation = (spec.attack === 'phys' ? def.def : def.res) *
+      (1 + mitigationPct(battle, 'enemy'));
+    const res = dealDamage(
+      spec.power,
+      playerOffense(p, battle, spec.attack),
+      mitigation,
+      rng,
+      statsOf(p).luck,
+    );
+    battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
+    ctx.lastDamage = res.dmg;
+    ctx.targetFelled = battle.enemy.hp <= 0;
+    const verb = spec.attack === 'phys' ? 'hits' : 'sears';
+    const critSuffix = res.crit ? (spec.critText ?? ' — critical!') : '';
+    lines.push(
+      spec.line
+        ? spec.line.replace('{n}', String(res.dmg)).replace('{verb}', verb).replace(
+          '{crit}',
+          critSuffix,
+        )
+        : `${ctx.displayName} ${verb} ${battle.enemy.name} for ${res.dmg}${critSuffix}!`,
+    );
+    return lines;
+  }
+  const offense = (spec.attack === 'phys' ? def.atk : def.mag) * (1 - sapPct(battle, 'enemy'));
+  const guard = battle.guarding ? 0.5 : 1;
+  const mitig = playerMitigation(p, battle, spec.attack) * 0.85;
+  const raw = Math.max(
+    1,
+    (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, 'player')),
+  );
+  const dmg = variance(rng, raw);
+  p.hp = Math.max(0, p.hp - dmg);
+  ctx.lastDamage = dmg;
+  ctx.targetFelled = p.hp <= 0;
+  lines.push(`💥 ${battle.enemy.name} uses ${ctx.displayName} — ${dmg} damage to you!`);
+  if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
+  return lines;
+}
+
+/** One restore effect: MAG-scaled, flat, max-HP-fraction or full. */
+function applyRestoreEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'restore' }>,
+  side: 'player' | 'enemy',
+): string[] {
+  const { p, battle } = ctx;
+  const lines: string[] = [];
+  if (side === 'player') {
+    const max = statsOf(p).maxHp;
+    let heal = 0;
+    if (spec.hpFull) heal = max;
+    else if (spec.hpPctOfMax !== undefined) heal = Math.floor(max * spec.hpPctOfMax);
+    else if (spec.hpPower !== undefined) {
+      heal = Math.round(playerOffense(p, battle, 'mag') * spec.hpPower * 2.0 + (spec.hpFlat ?? 0));
+    }
+    // Full restores announce even at full HP (Miracle parity); computed
+    // heals show their formulaic amount, clamped on apply (#78).
+    if (spec.hpFull || heal > 0) {
+      p.hp = Math.min(max, p.hp + heal);
+      lines.push(
+        spec.line?.replace('{n}', String(heal)) ??
+          (ctx.actor === 'enemy'
+            ? `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${heal} HP!`
+            : `💚 ${ctx.displayName} restores ${heal} HP.`),
+      );
+    }
+    if (spec.mpPctOfMax) {
+      const maxMp = statsOf(p).maxMp;
+      const before = p.mp;
+      p.mp = Math.min(maxMp, p.mp + Math.floor(maxMp * spec.mpPctOfMax));
+      if (p.mp > before) lines.push(`💧 You restore ${p.mp - before} MP.`);
+    }
+  } else {
+    const max = battle.enemy.maxHp;
+    let heal = 0;
+    if (spec.hpFull) heal = max - battle.enemy.hp;
+    else if (spec.hpPctOfMax !== undefined) heal = Math.floor(max * spec.hpPctOfMax);
+    if (heal > 0) {
+      battle.enemy.hp = Math.min(max, battle.enemy.hp + heal);
+      lines.push(
+        spec.line?.replace('{n}', String(heal)) ??
+          `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${heal} HP!`,
+      );
+    }
+  }
+  return lines;
+}
+
+function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng): string[] {
+  const lines: string[] = [];
+  // Buff-style skills announce ONCE with their full rules text (#67 copy,
+  // #78 mechanics): the statmods themselves stay quiet.
+  const selfBuff = sk.effects.some((e) =>
+    e.kind === 'statmod' && targetSideOf(e, 'player') === 'player' && !e.quiet
+  );
+  if (selfBuff) lines.push(`🔆 ${sk.name}! ${sk.desc}`);
+  const ctx: ExecCtx = {
+    p,
+    battle,
+    rng,
+    actor: 'player',
+    source: { kind: 'skill', id: sk.id, name: sk.name },
+    displayName: sk.name,
+    lastDamage: 0,
+    targetFelled: false,
+  };
+  lines.push(...executeSpecs(ctx, sk.effects));
+  return lines;
 }
 
 /** Applies one player action (attack/skill/item/guard/flee). Returns the
@@ -419,36 +649,33 @@ function applyPlayerAction(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
-  freshBuffs: Set<'atk' | 'mag'>,
 ): { lines: string[]; consumedTurn: boolean } {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
   if (!def) return { lines, consumedTurn: false };
-  const buffs = battle.buffs;
   switch (action.kind) {
     case 'attack': {
       // The free basic action is class-typed (#70): Warrior/Rogue swing ATK
       // vs DEF, Mage/Cleric channel MAG vs RES — read from the class
       // catalog so button labels, history text and mechanics agree.
       const basic = CLASSES[p.classId].basicAction;
-      const offense = basic.kind === 'phys'
-        ? playerEffectiveAtk(p, buffs)
-        : playerEffectiveMag(p, buffs);
-      const mitigation = (basic.kind === 'phys' ? def.def : def.res) *
-        (1 + battle.enemyGuardPct);
-      const res = dealDamage(
-        basic.power,
-        offense,
-        mitigation,
+      const ctx: ExecCtx = {
+        p,
+        battle,
         rng,
-        statsOf(p).luck,
-      );
-      battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
-      lines.push(
-        `${basic.icon} ${basic.name} ${
-          basic.kind === 'phys' ? 'hits' : 'sears'
-        } ${battle.enemy.name} for ${res.dmg}${res.crit ? ' — critical hit!' : ''}`,
-      );
+        actor: 'player',
+        source: { kind: 'skill', id: 'basic', name: basic.name },
+        displayName: basic.name,
+        lastDamage: 0,
+        targetFelled: false,
+      };
+      lines.push(...executeSpecs(ctx, [{
+        kind: 'damage',
+        attack: basic.kind,
+        power: basic.power,
+        line: `${basic.icon} ${basic.name} {verb} ${battle.enemy.name} for {n}{crit}`,
+        critText: ' — critical hit!',
+      }]));
       return { lines, consumedTurn: true };
     }
     case 'skill': {
@@ -473,7 +700,7 @@ function applyPlayerAction(
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng, freshBuffs));
+      lines.push(...applySkill(p, battle, sk, rng));
       return { lines, consumedTurn: true };
     }
     case 'item': {
@@ -513,8 +740,8 @@ function applyPlayerAction(
       return { lines, consumedTurn: true };
     }
     case 'flee': {
-      // Effective SPD (buffs included) drives escape odds — Rogue identity.
-      const spd = effStat(statsOf(p).spd, buffs.spdPct);
+      // Effective SPD (live instances folded) drives escape odds — Rogue identity.
+      const spd = effStat(statsOf(p).spd, statPct(battle, 'player', 'spd'));
       if (battle.enemy.isBoss) {
         lines.push('🚫 There is no escape from this fight.');
       } else if (chance(rng, Math.min(0.9, Math.max(0.15, 0.5 + (spd - def.spd) * 0.03)))) {
@@ -526,145 +753,6 @@ function applyPlayerAction(
       return { lines, consumedTurn: true };
     }
   }
-}
-
-function applySkill(
-  p: PlayerState,
-  battle: BattleState,
-  sk: SkillDef,
-  rng: Rng,
-  freshBuffs: Set<'atk' | 'mag'>,
-): string[] {
-  const lines: string[] = [];
-  const def = enemyDef(battle.enemy.id);
-  if (!def) return lines;
-  const buffs = battle.buffs;
-  const s = statsOf(p);
-  switch (sk.type) {
-    case 'phys': {
-      lines.push(...strike(p, battle, sk, rng, 'phys').lines);
-      break;
-    }
-    case 'mag': {
-      const res = strike(p, battle, sk, rng, 'mag');
-      lines.push(...res.lines);
-      if (sk.id === 'sk_drain_life' && res.dmg > 0) {
-        const heal = Math.floor(res.dmg * (sk.potency ?? 0.5));
-        p.hp = Math.min(s.maxHp, p.hp + heal);
-        lines.push(`🩸 You drain ${heal} HP.`);
-      }
-      break;
-    }
-    case 'heal': {
-      if (sk.id === 'sk_miracle') {
-        p.hp = s.maxHp;
-        buffs.weakenedPct = 0;
-        buffs.weakenTurns = 0;
-        // Cleanse removes the matching display entries too (#67).
-        battle.effects = battle.effects.filter((e) => !(e.key === 'weaken' && e.side === 'player'));
-        lines.push('✨ Miracle! HP fully restored, sapped strength lifted.');
-      } else if (sk.id === 'sk_adrenaline') {
-        const heal = Math.floor(s.maxHp * (sk.potency ?? 0.3));
-        p.hp = Math.min(s.maxHp, p.hp + heal);
-        buffs.atkPct += 0.2;
-        buffs.durations.atk = Math.max(buffs.durations.atk ?? 0, 2);
-        freshBuffs.add('atk'); // cast round doesn't consume it (#27)
-        // Effect identity tracks the STACKED total (#67): Adrenaline Surge
-        // adds onto any ATK buff already running, so the entry shows the
-        // combined magnitude under the longest-running label.
-        const atkEffect = battle.effects.find((e) => e.key === 'atk' && e.side === 'player');
-        if (atkEffect) {
-          atkEffect.magnitude = `+${Math.round(buffs.atkPct * 100)}% ATK`;
-          atkEffect.expiresRound = Math.max(atkEffect.expiresRound, battle.round + 2);
-        } else {
-          applyEffect(
-            battle,
-            'atk',
-            'sk_adrenaline',
-            'Adrenaline Surge',
-            'player',
-            `+${Math.round(buffs.atkPct * 100)}% ATK`,
-            sk.name,
-            2,
-          );
-        }
-        lines.push(`🩹 You recover ${heal} HP and feel the rush (+20% ATK).`);
-      } else {
-        const heal = Math.round(playerEffectiveMag(p, buffs) * sk.power * 2.0 + 20);
-        p.hp = Math.min(s.maxHp, p.hp + heal);
-        lines.push(`💚 ${sk.name} restores ${heal} HP.`);
-      }
-      break;
-    }
-    case 'buff': {
-      const potency = sk.potency ?? 0.3;
-      const dur = sk.duration ?? 3;
-      const apply = (key: 'atk' | 'def' | 'res' | 'mag' | 'spd', pct: number): void => {
-        buffs[`${key}Pct`] = pct;
-        buffs.durations[key] = dur;
-        // Keys whose effect cannot help the cast round skip their first
-        // decay (#27, #38): ATK/MAG empower only future actions. SPD no
-        // longer defers (#77): since #72 it shapes the enemy RESPONSE via
-        // avoidance, so — like DEF/RES — it defends the cast round itself
-        // and ticks immediately.
-        if (key === 'atk' || key === 'mag') freshBuffs.add(key);
-        // Structured identity for the battle screen (#67): the effect is
-        // named for the skill that cast it, not just its stat delta.
-        applyEffect(
-          battle,
-          key,
-          sk.id,
-          sk.name,
-          'player',
-          `+${Math.round(pct * 100)}% ${key.toUpperCase()}`,
-          sk.name,
-          dur,
-        );
-      };
-      if (sk.id === 'sk_war_cry') apply('atk', potency);
-      else if (sk.id === 'sk_iron_wall') apply('def', potency);
-      else if (sk.id === 'sk_barrier') {
-        apply('def', potency);
-        apply('res', potency);
-      } else if (sk.id === 'sk_time_warp') {
-        apply('mag', potency);
-        apply('spd', potency);
-      } else if (sk.id === 'sk_smoke_step') apply('spd', potency);
-      else if (sk.id === 'sk_blessing') {
-        // #77: Blessing empowers the Cleric's ACTUAL offense. Every Cleric
-        // damage action is MAG vs RES (Radiant Strike, Smite, …) and Cleric
-        // weapons raise MAG — an ATK leg could never affect any class-owned
-        // action, so the buff targets MAG/DEF instead.
-        apply('mag', potency);
-        apply('def', potency);
-      } else if (sk.id === 'sk_holy_ward') apply('res', potency);
-      lines.push(`🔆 ${sk.name}! ${sk.desc}`);
-      break;
-    }
-    case 'debuff': {
-      const res = strike(p, battle, sk, rng, 'phys');
-      lines.push(...res.lines);
-      // Player-applied debuffs weaken the ENEMY's offense (P1-6), never the
-      // caster. Skipped if the strike already felled the target.
-      if (sk.potency && battle.enemy.hp > 0) {
-        buffs.enemyWeakenedPct = sk.potency;
-        buffs.enemyWeakenTurns = sk.duration ?? 3;
-        applyEffect(
-          battle,
-          'enemyWeaken',
-          sk.id,
-          sk.name,
-          'enemy',
-          `−${Math.round(sk.potency * 100)}% Offense`,
-          sk.name,
-          sk.duration ?? 3,
-        );
-        lines.push(`🩸 ${battle.enemy.name} is weakened by ${Math.round(sk.potency * 100)}%!`);
-      }
-      break;
-    }
-  }
-  return lines;
 }
 
 /** Consumes a battle-usable item. Caller validates kind. */
@@ -687,17 +775,11 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
     lines.push(`💧 ${itemDef.name} restores ${p.mp - before} MP.`);
   }
   if (eff.cureStatus) {
-    const buffs = p.battle?.buffs;
-    if (buffs) {
-      buffs.weakenedPct = 0;
-      buffs.weakenTurns = 0;
-    }
-    if (p.battle) {
-      p.battle.effects = p.battle.effects.filter((e) =>
-        !(e.key === 'weaken' && e.side === 'player')
-      );
-    }
-    lines.push(`🧴 ${itemDef.name} lifts sapped strength.`);
+    // Real tagged cleanse (#78): removes every removable harmful instance —
+    // today that is the sapped-strength family; tomorrow it is whatever the
+    // shared vocabulary ships.
+    const removed = p.battle ? removeTagged(p.battle, 'player', ['harmful']) : [];
+    if (removed.length > 0) lines.push(`🧴 ${itemDef.name} cleanses your harmful effects.`);
   }
   entry.qty--;
   if (entry.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== itemId);
@@ -706,78 +788,41 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
 
 /** #72: SPD's combat payoff — capped avoidance. Every class keeps a 2%
  * baseline; out-sprinting the foe adds up to 18 more points, and enemy SPD
- * pushes the odds back down. Damaging moves only: self-heals, enemy guard
- * stances, and zero-power status moves are never dodged — the policy is
- * structural (this roll lives only in the damaging branch of enemyAct) and
- * test-enforced. */
+ * pushes the odds back down. Damaging moves only: status/heal/guard moves
+ * are never dodged — the policy is structural (this roll lives only in the
+ * damaging branch of the resolver) and test-enforced. */
 export function dodgeChance(playerSpd: number, enemySpd: number): number {
   return Math.min(0.2, Math.max(0.02, 0.02 + (playerSpd - enemySpd) * 0.002));
 }
 
+/** Enemy-side execution of one move through the shared resolver (#78).
+ * Pure status moves (no damage, no heal, no guard stance) announce with the
+ * 🌀 intro (#25 parity: never any implicit chip damage, and heal/guard
+ * moves carry their own headline lines). */
 function enemyAct(
   p: PlayerState,
   battle: BattleState,
-  def: EnemyDef,
   move: EnemyMove,
   rng: Rng,
-): { lines: string[]; guardCast: boolean } {
+): string[] {
   const lines: string[] = [];
-  const buffs = battle.buffs;
-  if (move.selfHealPct) {
-    const heal = Math.floor(battle.enemy.maxHp * move.selfHealPct);
-    battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + heal);
-    lines.push(`💚 ${battle.enemy.name} uses ${move.name} and recovers ${heal} HP!`);
-    return { lines, guardCast: false };
-  }
-  // Defensive moves actually defend (#25): they raise the enemy's own
-  // mitigation for the next few rounds instead of swinging.
-  if (move.guardPct) {
-    battle.enemyGuardPct = move.guardPct;
-    battle.enemyGuardTurns = move.guardTurns ?? 2;
-    // Named guard stance on the ENEMY side of the effects row (#67); the
-    // casting round doesn't consume one (#25), so expiry skips a decay.
-    applyEffect(
-      battle,
-      'guard',
-      `guard:${move.name}`,
-      move.name,
-      'enemy',
-      `+${Math.round(move.guardPct * 100)}% DEF`,
-      move.name,
-      move.guardTurns ?? 2,
-    );
-    lines.push(`🛡️ ${battle.enemy.name} braces behind ${move.name}!`);
-    return { lines, guardCast: true };
-  }
-  if (move.power <= 0) {
-    // Zero-power status moves carry only their rider (#25) — no implicit
-    // chip damage from the min-1 strike clamp below.
-    lines.push(`🌀 ${battle.enemy.name} uses ${move.name}.`);
-    if (move.weakenPct) lines.push(...sapPlayer(battle, move.name, move.weakenPct));
-    return { lines, guardCast: false };
-  }
-  const s = statsOf(p);
-  // SPD avoidance (#72): damaging moves can be slipped entirely. Player SPD
-  // includes buffs (Smoke Step / Time Warp); enemy SPD pushes back. One
-  // draw, before mitigation/variance — deterministic order.
-  if (chance(rng, dodgeChance(effStat(s.spd, buffs.spdPct), def.spd))) {
-    lines.push(`💨 ${battle.enemy.name} uses ${move.name} — you slip aside, untouched!`);
-    return { lines, guardCast: false };
-  }
-  // Player-applied weaken (Venom Cut et al.) cuts ENEMY offense.
-  const offense = (move.kind === 'phys' ? def.atk : def.mag) *
-    (1 - buffs.enemyWeakenedPct);
-  const guard = battle.guarding ? 0.5 : 1;
-  const mitig = move.kind === 'phys'
-    ? effStat(s.def, buffs.defPct) * 0.85
-    : effStat(s.res, buffs.resPct) * 0.85;
-  const raw = Math.max(1, (offense * move.power - mitig) * guard);
-  const dmg = variance(rng, raw);
-  p.hp = Math.max(0, p.hp - dmg);
-  lines.push(`💥 ${battle.enemy.name} uses ${move.name} — ${dmg} damage to you!`);
-  if (move.weakenPct) lines.push(...sapPlayer(battle, move.name, move.weakenPct));
-  if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
-  return { lines, guardCast: false };
+  const announcesIntro = !move.effects.some((e) =>
+    e.kind === 'damage' || e.kind === 'restore' ||
+    (e.kind === 'statmod' && e.stat === 'mitigation')
+  );
+  if (announcesIntro) lines.push(`🌀 ${battle.enemy.name} uses ${move.name}.`);
+  const ctx: ExecCtx = {
+    p,
+    battle,
+    rng,
+    actor: 'enemy',
+    source: { kind: 'enemyMove', id: move.name, name: move.name },
+    displayName: move.name,
+    lastDamage: 0,
+    targetFelled: false,
+  };
+  lines.push(...executeSpecs(ctx, move.effects));
+  return lines;
 }
 
 /** Lethal-hit handling: Phoenix Cinder auto-revives ONCE per battle, then
@@ -807,3 +852,12 @@ export function rollRewards(
     drops,
   };
 }
+
+/** UI/test helper: live instances on one side (render derives from these). */
+export function liveEffects(b: BattleState, side: 'player' | 'enemy'): EffectInstance[] {
+  return b.effectInstances.filter((i) => i.side === side);
+}
+
+/** Re-export for balance metrics consumers. */
+export { mitigationPct as foldedMitigationPct, sapPct as foldedSapPct, statPct as foldedStatPct };
+export type { StatKey };

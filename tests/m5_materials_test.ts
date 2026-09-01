@@ -23,7 +23,7 @@ import {
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { isEquippable, item as itemDef } from '../src/content/items.ts';
-import { skill as skillDef } from '../src/content/skills.ts';
+import { isDamageSkill, skill as skillDef, skillMaxDamagePower } from '../src/content/skills.ts';
 import type { SkillDef } from '../src/content/types.ts';
 import { zone as zoneDef } from '../src/content/zones.ts';
 import { seeded } from './helpers.ts';
@@ -49,8 +49,8 @@ function fightToConclusion(
       .filter((s): s is SkillDef => !!s && s.id !== lastSkill && p.mp >= s.mpCost);
     const heal = castable.find((s) => s.type === 'heal');
     const offensive = castable
-      .filter((s) => s.type === 'phys' || s.type === 'mag' || s.type === 'debuff')
-      .sort((a, b2) => b2.power - a.power)[0];
+      .filter(isDamageSkill)
+      .sort((a, b2) => skillMaxDamagePower(b2) - skillMaxDamagePower(a))[0];
     if (p.hp < maxHp * 0.5 && (heal || countOf(p, 'c_minor_potion') > 0)) {
       if (heal) {
         lastSkill = heal.id;

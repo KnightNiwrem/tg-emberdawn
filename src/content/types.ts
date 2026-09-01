@@ -7,6 +7,174 @@
 
 import type { ClassId } from '../engine/types.ts';
 
+/** ── Shared combat-effect vocabulary (#78) ──────────────────────────────
+ *
+ * One typed effect language for skills, enemy moves, equipment and
+ * encounter openings. Content is plain data — never callbacks — and the
+ * generic engine resolver executes specs in order without branching on
+ * content ids. Equipment/encounter authoring wires in via #80/#82.
+ */
+
+/** Stats a `statmod` effect can target. `outgoing` scales ALL damage the
+ * combatant deals (the old weaken slots reduced both ATK and MAG legs);
+ * `incoming` amplifies damage taken; `mitigation` multiplies the combatant's
+ * DEF/RES mitigation (the old enemy guard stances). */
+export type StatKey =
+  | 'atk'
+  | 'mag'
+  | 'def'
+  | 'res'
+  | 'spd'
+  | 'luck'
+  | 'outgoing'
+  | 'incoming'
+  | 'mitigation';
+
+/** Same-source reapplication policy (#78). Different sources always
+ * coexist as independent instances and fold additively.
+ * - `replace`: retire the prior same-source instance, apply a fresh one.
+ * - `refresh`: keep the existing magnitude, renew expiry.
+ * - `stack`: add an independent contribution.
+ * - `strongest`: keep the stronger magnitude (renewing expiry on ties). */
+export type StackingPolicy = 'replace' | 'refresh' | 'stack' | 'strongest';
+
+/** Effect tags drive cleanse/dispel targeting and UI colouring. */
+export type EffectTag =
+  | 'beneficial'
+  | 'harmful'
+  | 'control'
+  | 'periodic'
+  | 'weaken'
+  | 'poison'
+  | 'burn'
+  | 'bleed'
+  | 'regen'
+  | 'mark'
+  | 'vulnerable'
+  | 'slow'
+  | 'armor-break'
+  | 'ward-break';
+
+/** Common spec fields. */
+interface EffectSpecBase {
+  /** Application chance (0..1) — one seeded draw per attempt, in spec
+   * order. Unauthored = always applies. */
+  chance?: number;
+  tags?: EffectTag[];
+  /** Cleanse/dispel-removable (default true; encounter conditions opt
+   * out). */
+  removable?: boolean;
+  /** Same-source reapplication policy (default `replace`). */
+  stacking?: StackingPolicy;
+  /** Overrides the effect's default success log line; `{n}` interpolates
+   * the effect's primary amount. Authored copy, honored generically. */
+  line?: string;
+  /** Suppresses the default success log line. */
+  quiet?: true;
+  /** Skips this effect when the preceding damage effect in the same list
+   * felled its target (riders never land on a corpse). Checked BEFORE the
+   * chance draw, so dead targets never consume a roll. */
+  requireSurvivor?: true;
+}
+
+export type EffectSpec =
+  | (EffectSpecBase & {
+    kind: 'damage';
+    /** Caster-relative target. Default: opponent. */
+    target?: 'self' | 'opponent';
+    attack: 'phys' | 'mag';
+    /** Multiplier on the attacker's effective ATK (phys) / MAG (mag). */
+    power: number;
+    /** Critical suffix when the line template's `{crit}` placeholder is
+     * used (default ' — critical!'). */
+    critText?: string;
+  })
+  | (EffectSpecBase & {
+    kind: 'restore';
+    target?: 'self' | 'opponent';
+    /** MAG-scaled HP restoration: effectiveMag * hpPower * 2 + hpFlat. */
+    hpPower?: number;
+    hpFlat?: number;
+    /** Fraction of the TARGET's max HP. */
+    hpPctOfMax?: number;
+    hpFull?: true;
+    /** Fraction of the target's max MP. */
+    mpPctOfMax?: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'lifesteal';
+    /** Heals the CASTER for pct of the damage dealt by the most recent
+     * damage effect in the same spec list. */
+    pct: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'statmod';
+    target?: 'self' | 'opponent';
+    stat: StatKey;
+    /** Signed magnitude: 0.3 = +30%, −0.25 = −25%. */
+    pct: number;
+    /** Rounds the effect stays active. */
+    duration: number;
+    /** `defer`: the cast round cannot use the stat (offensive self-buffs) —
+     * the first end-of-round tick is skipped, so the effect is active for
+     * `duration` rounds starting with the NEXT round. `immediate`: active
+     * the round it is cast — defensive stats count the cast round's enemy
+     * response, enemy guards their following rounds. */
+    timing: 'defer' | 'immediate';
+    /** Display name (defaults to the casting skill/move name). */
+    name?: string;
+  })
+  | (EffectSpecBase & {
+    kind: 'control';
+    target?: 'self' | 'opponent';
+    control: 'stun';
+    /** How many of the target's actions are consumed. */
+    actions: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'periodic';
+    target?: 'self' | 'opponent';
+    /** Signed per-tick amount: negative damages, positive heals. Exactly
+     * one of `perRound` (flat) / `pctOfMaxPerRound` (of target max HP —
+     * author boss caps carefully, #83) must be set. */
+    perRound?: number;
+    pctOfMaxPerRound?: number;
+    duration: number;
+    tickPhase: 'roundEnd' | 'playerTurnStart';
+    /** Display name (Poison, Regeneration…). */
+    name: string;
+  })
+  | (EffectSpecBase & {
+    kind: 'cleanse';
+    target?: 'self' | 'opponent';
+    /** Removes removable instances carrying ANY of these tags. */
+    tags: EffectTag[];
+    /** Cap on removed instances. */
+    max?: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'dispel';
+    target?: 'self' | 'opponent';
+    tags: EffectTag[];
+    max?: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'resource';
+    target?: 'self' | 'opponent';
+    mpPctOfMax?: number;
+  })
+  | (EffectSpecBase & {
+    kind: 'shield';
+    target?: 'self' | 'opponent';
+    /** Flat capacity, or MAG-scaled when `magPower` is set. The absorbable
+     * pool itself is wired by #79 — #78 grants and displays the instance. */
+    amount?: number;
+    magPower?: number;
+    duration: number;
+    timing: 'defer' | 'immediate';
+    name?: string;
+  });
+
 export type ItemKind = 'weapon' | 'armor' | 'trinket' | 'consumable' | 'material' | 'quest';
 
 export interface ItemStats {
@@ -40,6 +208,9 @@ export interface ItemDef {
     /** Battle-only: guaranteed escape from non-boss fights. */
     flee?: true;
   };
+  /** Typed combat effects (#78 vocabulary) — referenced by equipment
+   * authoring; trigger timing wires in with #82. */
+  effects?: EffectSpec[];
   /** short flavor / description line */
   desc?: string;
   /** Tier for shop/loot organization (1..8). 0 = special. */
@@ -58,33 +229,25 @@ export interface SkillDef {
   learnLevel: number;
   mpCost: number;
   cooldown: number;
-  /** Damage/heal multiplier applied to atk/mag (phys vs mag) — 1.0 = basic attack. */
-  power: number;
-  type: SkillType;
   desc: string;
-  /** Buff/debuff magnitude (e.g. 0.5 = +50% def for buff). */
-  potency?: number;
-  /** Duration of buffs/debuffs in enemy turns. */
-  duration?: number;
-  /** Flat chance-based stun (0..1) applied on hit. */
-  stunChance?: number;
+  /** Ordered combat effects executed by the generic resolver (#78) — the
+   * sole mechanical contract. Flavor lives in `desc`; the catalog test
+   * validates that desc and effects agree. */
+  effects: EffectSpec[];
+  /** UI classification (menu icons, balance reporting). Derived at author
+   * time from effects; mechanics never read it. */
+  type: SkillType;
 }
 
 export interface EnemyMove {
   name: string;
-  /** Multiplier vs player def (phys) or res (mag). */
-  power: number;
-  kind: 'phys' | 'mag';
   /** Weight in the AI pick table. */
   weight: number;
-  /** Heals self instead of damaging (pct of maxHp). */
-  selfHealPct?: number;
-  /** Applies a temporary debuff to the player (pct atk/mag reduction). */
-  weakenPct?: number;
-  /** Defensive move (#25): raises the enemy's own mitigation for the next
-   * `guardTurns` rounds instead of dealing damage. */
-  guardPct?: number;
-  guardTurns?: number;
+  /** Ordered combat effects (#78) — same vocabulary as skills. Damage
+   * specs multiply the ENEMY's atk/mag vs the player's DEF/RES; moves
+   * without a damage spec never roll dodge and never deal chip damage
+   * (#25). */
+  effects: EffectSpec[];
 }
 
 export interface EnemyDef {

@@ -51,7 +51,15 @@ import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import type { PlayerState } from '../src/engine/types.ts';
-import { fakeCtx, fakeCtxCapture, seeded } from './helpers.ts';
+import {
+  fakeCtx,
+  fakeCtxCapture,
+  injectMod,
+  mitigationPct,
+  modRemaining,
+  seeded,
+  statPct,
+} from './helpers.ts';
 
 // ── /start is pure re-centering (P0-2) ───────────────────────────────────
 
@@ -191,8 +199,8 @@ Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)
   const p2 = createPlayer(904, 'T', 'warrior');
   const b2 = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
   assertEquals(b2.phoenixUsed, false);
-  assertEquals(b2.enemyGuardPct, 0);
-  assertEquals(b2.enemyGuardTurns, 0);
+  assertEquals(mitigationPct(b2, 'enemy'), 0);
+  assertEquals(b2.effectInstances, []);
   p2.battle = b2;
   performAction(p2, b2, { kind: 'attack' }, seeded(9));
   assert(Number.isFinite(p2.hp), 'player hp finite');
@@ -936,10 +944,10 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
   assert(!rendered.includes('+30% ATK'), 'the dead ATK leg is gone (#77)');
   assert(rendered.includes('fades end of round'), 'expiry round is shown');
   // Engine and display agree: one entry per covered stat key.
-  assertEquals(b.effects.length, 2, 'one entry per covered stat key');
-  assertEquals(b.buffs.durations.mag, 3, 'off-buff defers its first decay');
-  assertEquals(b.buffs.durations.def, 2, 'def buff ticks on the cast round');
-  assertEquals(b.buffs.atkPct, 0, 'Blessing never buffs the unusable ATK stat (#77)');
+  assertEquals(b.effectInstances.length, 2, 'one instance per covered stat leg');
+  assertEquals(modRemaining(b, 'player', 'mag'), 3, 'off-buff defers its first decay');
+  assertEquals(modRemaining(b, 'player', 'def'), 2, 'def buff ticks on the cast round');
+  assertEquals(statPct(b, 'player', 'atk'), 0, 'Blessing never buffs the unusable ATK stat (#77)');
 });
 
 Deno.test('battle screen: only the latest round expands; earlier rounds collapse in order (#67)', () => {
@@ -1278,7 +1286,7 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   assert(bossMenu.includes('no use here'), 'inapplicable items render disabled');
 
   const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  wolf.buffs.weakenTurns = 2;
+  injectMod(wolf, 'player', 'outgoing', -0.2, { defId: 'sap', name: 'Sapped' });
   p.battle = wolf;
   const wolfMenu = JSON.stringify(renderItemMenu(p));
   assert(wolfMenu.includes('b:us:c_antidote'), 'Antidote usable when a debuff is active');

@@ -35,6 +35,13 @@ import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS, shopStock } from '../content/items.ts';
 import { quest, zoneOfNpc } from '../content/quests.ts';
 import { skill as skillDef } from '../content/skills.ts';
+import {
+  isDamageSkill,
+  isHealSkill,
+  skillHealPower,
+  skillMaxDamagePower,
+} from '../content/skills.ts';
+import { sapPct, statPct } from './effects.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
 
@@ -114,10 +121,13 @@ function chooseAction(
     .map((id) => skillDef(id))
     .filter((sk): sk is SkillDef => Boolean(sk));
   const usable = (sk: SkillDef): boolean => (b.cooldowns[sk.id] ?? 0) === 0 && p.mp >= sk.mpCost;
+  // #78: policies read public effect shapes, never legacy scalar fields.
   const offense = learned
-    .filter((sk) => sk.type === 'phys' || sk.type === 'mag' || sk.type === 'debuff')
-    .sort((a, z) => z.power - a.power);
-  const heals = learned.filter((sk) => sk.type === 'heal').sort((a, z) => z.power - a.power);
+    .filter(isDamageSkill)
+    .sort((a, z) => skillMaxDamagePower(z) - skillMaxDamagePower(a));
+  const heals = learned
+    .filter(isHealSkill)
+    .sort((a, z) => skillHealPower(z) - skillHealPower(a));
 
   if (policy.name === 'skill') {
     const sk = offense.find(usable);
@@ -171,16 +181,23 @@ const CRIT = '— critical';
 const DODGE = 'slip aside';
 const ENEMY_HEAL = /recovers (\d+) HP/;
 
-/** Expected heal of a heal-type skill (mirrors combat.ts formulas). */
+/** Expected heal of a heal-type skill (mirrors combat.ts formulas, #78:
+ * read from the ordered restore effect, folded live buffs included). */
 function expectedSkillHeal(p: PlayerState, sk: SkillDef): number {
   const s = statsOf(p);
-  if (sk.id === 'sk_miracle') return s.maxHp;
-  if (sk.potency && sk.power === 0) return Math.floor(s.maxHp * sk.potency);
-  const buffs = p.battle?.buffs;
-  const magPct = buffs ? buffs.magPct : 0;
-  const weakened = buffs ? buffs.weakenedPct : 0;
-  const mag = Math.max(1, Math.round(s.mag * (1 - weakened) * (1 + magPct)));
-  return Math.round(mag * sk.power * 2.0 + 20);
+  for (const e of sk.effects) {
+    if (e.kind !== 'restore') continue;
+    if (e.hpFull) return s.maxHp;
+    if (e.hpPctOfMax !== undefined) return Math.floor(s.maxHp * e.hpPctOfMax);
+    if (e.hpPower !== undefined) {
+      const battle = p.battle;
+      const magPct = battle ? statPct(battle, 'player', 'mag') : 0;
+      const sap = battle ? sapPct(battle, 'player') : 0;
+      const mag = Math.max(1, Math.round(s.mag * (1 - sap) * (1 + magPct)));
+      return Math.round(mag * e.hpPower * 2.0 + (e.hpFlat ?? 0));
+    }
+  }
+  return 0;
 }
 
 /** Runs ONE real fight on a cloned hero. Never mutates the passed hero and
@@ -240,7 +257,7 @@ export function runFight(
     // overheal against the formulaic expectation.
     if (action.kind === 'skill') {
       const sk = skillDef(action.skillId);
-      if (sk?.type === 'heal') {
+      if (sk && isHealSkill(sk)) {
         const applied = Math.max(0, p.hp - hpBefore + result.taken);
         result.healDone += applied;
         result.overheal += Math.max(0, expectedSkillHeal(p, sk) - applied);

@@ -3,7 +3,7 @@
  * Pure functions over PlayerState + content lookups.
  */
 
-import type { BattleState, ClassId, DerivedStats, PlayerState } from './types.ts';
+import type { BattleState, ClassId, DerivedStats, EffectInstance, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
@@ -92,7 +92,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 5;
+export const CURRENT_STATE_VERSION = 6;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -143,7 +143,6 @@ export function migratePlayer(p: PlayerState): void {
     if (battle) {
       delete battle.log;
       battle.history = [];
-      battle.effects = [];
     }
     p.stateVersion = 4;
   }
@@ -155,6 +154,192 @@ export function migratePlayer(p: PlayerState): void {
   if (p.stateVersion === 4) {
     p.tutorial = 'done';
     p.stateVersion = 5;
+  }
+  // v5 → v6 (#78): combat effects became data-driven instances. The fixed
+  // CombatBuffs aggregate slots, the display-only ActiveEffect[] and the
+  // enemy guard fields are retired; every live mechanical effect is
+  // rebuilt as an authoritative instance from the persisted aggregates.
+  // HP, MP, enemy HP, cooldowns, history and origin carry over untouched.
+  // Documented approximation: deferred-key buffs (ATK/MAG) lost their
+  // transient "skip first tick" marker — freshBuffs was never persisted —
+  // so a migrated offensive buff expires one round earlier than it would
+  // have under the old engine. Magnitudes and remaining rounds map
+  // exactly; the degenerate same-slot overwrite is gone (instances keep
+  // independent identity), which is the #78 fix, not drift.
+  if (p.stateVersion === 5) {
+    const battle = p.battle as
+      | (BattleState & {
+        buffs?: {
+          atkPct: number;
+          defPct: number;
+          resPct: number;
+          magPct: number;
+          spdPct: number;
+          durations: Record<string, number>;
+          weakenedPct: number;
+          weakenTurns: number;
+          enemyWeakenedPct: number;
+          enemyWeakenTurns: number;
+          stunnedTurns: number;
+          stunnedEnemy: boolean;
+        };
+        effects?: Array<{
+          key: string;
+          id: string;
+          name: string;
+          side: string;
+          source: string;
+        }>;
+        enemyGuardPct?: number;
+        enemyGuardTurns?: number;
+      })
+      | undefined;
+    if (battle) {
+      const legacy = battle.buffs;
+      const oldEffects = battle.effects ?? [];
+      const round = battle.round;
+      const instances: EffectInstance[] = [];
+      const push = (i: Omit<EffectInstance, 'iid'>): void => {
+        instances.push({ iid: `mig${instances.length + 1}`, ...i });
+      };
+      const metaFor = (
+        key: string,
+        side: string,
+      ): { name: string; id: string; source: string } | undefined => {
+        const e = oldEffects.find((x) => x.key === key && x.side === side);
+        return e ? { name: e.name, id: e.id, source: e.source } : undefined;
+      };
+      if (legacy) {
+        for (const key of ['atk', 'def', 'res', 'mag', 'spd'] as const) {
+          const pct = legacy[`${key}Pct`];
+          const remaining = legacy.durations[key] ?? 0;
+          if (!pct || remaining <= 0) continue;
+          const meta = metaFor(key, 'player');
+          push({
+            defId: `legacy:${key}`,
+            name: meta?.name ?? key.toUpperCase(),
+            side: 'player',
+            source: {
+              kind: 'legacy',
+              id: meta?.id ?? key,
+              name: meta?.source ?? 'migrated save',
+            },
+            kind: 'statmod',
+            stat: key,
+            pct,
+            tags: ['beneficial'],
+            stacking: 'replace',
+            appliedRound: round,
+            remaining,
+            removable: true,
+            expiresRound: round + remaining - 1,
+          });
+        }
+        if (legacy.weakenedPct > 0 && legacy.weakenTurns > 0) {
+          push({
+            defId: 'sap',
+            name: 'Sapped',
+            side: 'player',
+            source: { kind: 'legacy', id: 'sap', name: 'migrated save' },
+            kind: 'statmod',
+            stat: 'outgoing',
+            pct: -legacy.weakenedPct,
+            tags: ['harmful'],
+            stacking: 'strongest',
+            appliedRound: round,
+            remaining: legacy.weakenTurns,
+            removable: true,
+            expiresRound: round + legacy.weakenTurns - 1,
+          });
+        }
+        if (legacy.enemyWeakenedPct > 0 && legacy.enemyWeakenTurns > 0) {
+          const meta = metaFor('enemyWeaken', 'enemy');
+          push({
+            defId: 'sap',
+            name: meta?.name ?? 'Sapped',
+            side: 'enemy',
+            source: {
+              kind: 'legacy',
+              id: meta?.id ?? 'sap',
+              name: meta?.source ?? 'migrated save',
+            },
+            kind: 'statmod',
+            stat: 'outgoing',
+            pct: -legacy.enemyWeakenedPct,
+            tags: ['harmful'],
+            stacking: 'strongest',
+            appliedRound: round,
+            remaining: legacy.enemyWeakenTurns,
+            removable: true,
+            expiresRound: round + legacy.enemyWeakenTurns - 1,
+          });
+        }
+        if (legacy.stunnedTurns > 0) {
+          push({
+            defId: 'legacy:stun',
+            name: 'Stunned',
+            side: 'player',
+            source: { kind: 'legacy', id: 'stun', name: 'migrated save' },
+            kind: 'control',
+            control: 'stun',
+            actions: legacy.stunnedTurns,
+            tags: ['harmful', 'control'],
+            stacking: 'replace',
+            appliedRound: round,
+            remaining: legacy.stunnedTurns,
+            removable: true,
+            expiresRound: round,
+          });
+        }
+        if (legacy.stunnedEnemy) {
+          push({
+            defId: 'legacy:stun',
+            name: 'Stunned',
+            side: 'enemy',
+            source: { kind: 'legacy', id: 'stun', name: 'migrated save' },
+            kind: 'control',
+            control: 'stun',
+            actions: 1,
+            tags: ['harmful', 'control'],
+            stacking: 'replace',
+            appliedRound: round,
+            remaining: 1,
+            removable: true,
+            expiresRound: round,
+          });
+        }
+      }
+      if ((battle.enemyGuardPct ?? 0) > 0 && (battle.enemyGuardTurns ?? 0) > 0) {
+        const meta = metaFor('guard', 'enemy');
+        push({
+          defId: 'legacy:guard',
+          name: meta?.name ?? 'Guard',
+          side: 'enemy',
+          source: {
+            kind: 'legacy',
+            id: meta?.id ?? 'guard',
+            name: meta?.source ?? 'migrated save',
+          },
+          kind: 'statmod',
+          stat: 'mitigation',
+          pct: battle.enemyGuardPct!,
+          tags: ['beneficial'],
+          stacking: 'replace',
+          appliedRound: round,
+          remaining: battle.enemyGuardTurns!,
+          removable: true,
+          expiresRound: round + battle.enemyGuardTurns! - 1,
+        });
+      }
+      battle.effectInstances = instances;
+      battle.effectSeq = instances.length;
+      const rec = battle as unknown as Record<string, unknown>;
+      delete rec.buffs;
+      delete rec.effects;
+      delete rec.enemyGuardPct;
+      delete rec.enemyGuardTurns;
+    }
+    p.stateVersion = 6;
   }
   if (p.stateVersion === CURRENT_STATE_VERSION) return;
   // Pre-launch saves older than the earliest migration step are disposable:

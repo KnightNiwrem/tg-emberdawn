@@ -27,7 +27,7 @@ import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { shopStock } from '../src/content/items.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
-import { seeded } from './helpers.ts';
+import { modInstance, sapPct, seeded } from './helpers.ts';
 
 // ── content maps: where can each enemy be fought? ─────────────────────────
 
@@ -252,9 +252,9 @@ Deno.test('combat: Venom Cut weakens the ENEMY, not the rogue', () => {
   b.enemy.maxHp = 99999;
   p.battle = b;
   performAction(p, b, { kind: 'skill', skillId: 'sk_venom_cut' }, rng);
-  assertEquals(b.buffs.enemyWeakenedPct, 0.25, 'enemy offense is weakened');
-  assertEquals(b.buffs.enemyWeakenTurns, 2); // set for 3; first tick elapsed
-  assertEquals(b.buffs.weakenedPct, 0, 'the player is NOT self-weakened');
+  assertEquals(sapPct(b, 'enemy'), 0.25, 'enemy offense is weakened');
+  assertEquals(modInstance(b, 'enemy', 'outgoing')!.remaining, 2); // set for 3; first tick elapsed
+  assertEquals(sapPct(b, 'player'), 0, 'the player is NOT self-weakened');
 });
 
 Deno.test('combat: invalid skill use costs no turn and no enemy phase', () => {

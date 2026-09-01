@@ -1,4 +1,7 @@
 import type { Context } from 'grammy';
+import type { BattleState, EffectInstance } from '../src/engine/types.ts';
+import type { SkillDef, StatKey } from '../src/content/types.ts';
+import { statPct } from '../src/engine/effects.ts';
 
 /** Deterministic RNG (mulberry32) — shared by the engine test suites. */
 export function seeded(seed: number): () => number {
@@ -11,6 +14,88 @@ export function seeded(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+// ── Effect-instance fixtures (#78) ──────────────────────────────────────
+
+/** Injects a live statmod instance — the test-fixture replacement for the
+ * old direct CombatBuffs slot pokes. */
+export function injectMod(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  stat: StatKey,
+  pct: number,
+  opts: {
+    remaining?: number;
+    defer?: boolean;
+    defId?: string;
+    name?: string;
+    removable?: boolean;
+  } = {},
+): EffectInstance {
+  b.effectSeq++;
+  const remaining = opts.remaining ?? 9;
+  const inst: EffectInstance = {
+    iid: `test${b.effectSeq}`,
+    defId: opts.defId ?? `test:${stat}`,
+    name: opts.name ?? `Test ${stat.toUpperCase()}`,
+    side,
+    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    kind: 'statmod',
+    stat,
+    pct,
+    tags: pct < 0 ? ['harmful'] : ['beneficial'],
+    stacking: 'replace',
+    appliedRound: b.round,
+    remaining,
+    deferFirstTick: opts.defer ?? false,
+    removable: opts.removable ?? true,
+    expiresRound: b.round + remaining - (opts.defer ? 0 : 1),
+  };
+  b.effectInstances.push(inst);
+  return inst;
+}
+
+/** Max remaining rounds among live statmods of one stat on one side. */
+export function modRemaining(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  stat: StatKey,
+): number {
+  let max = 0;
+  for (const i of b.effectInstances) {
+    if (i.side === side && i.kind === 'statmod' && i.stat === stat) {
+      max = Math.max(max, i.remaining);
+    }
+  }
+  return max;
+}
+
+/** First live statmod instance of one stat on one side (undefined if none). */
+export function modInstance(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  stat: StatKey,
+): EffectInstance | undefined {
+  return b.effectInstances.find((i) => i.side === side && i.kind === 'statmod' && i.stat === stat);
+}
+
+/** A skill's statmod effect for one stat (undefined when it has none) —
+ * lets tests pin content durations through the effect contract (#78). */
+export function statmodSpec(
+  sk: SkillDef,
+  stat: StatKey,
+): { pct: number; duration: number; timing: 'defer' | 'immediate' } | undefined {
+  for (const e of sk.effects) {
+    if (e.kind === 'statmod' && e.stat === stat) {
+      return { pct: e.pct, duration: e.duration, timing: e.timing };
+    }
+  }
+  return undefined;
+}
+
+/** Folded live magnitude of one stat (sum of statmod instances). */
+export { statPct };
+export { mitigationPct, sapPct } from '../src/engine/effects.ts';
 
 /** Minimal grammy Context stand-in shared by the handler suites: edits
  * succeed, sends return a fresh id. `tapped` sets the tapped message id;

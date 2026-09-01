@@ -3,6 +3,8 @@
  * class instances, no functions, no grammY imports. Persistence depends on it.
  */
 
+import type { EffectTag, StackingPolicy, StatKey } from '../content/types.ts';
+
 export type ClassId = 'warrior' | 'mage' | 'rogue' | 'cleric';
 
 export const CLASS_IDS: readonly ClassId[] = ['warrior', 'mage', 'rogue', 'cleric'] as const;
@@ -55,29 +57,58 @@ export interface BattleRound {
   lines: string[];
 }
 
-/** Structured active-effect metadata (#67): identity and presentation for
- * what CombatBuffs tracks mechanically. Purely presentational — mechanics
- * never read it — but persisted with the battle so the UI can name
- * `Blessing`, show magnitude and remaining duration, instead of surfacing
- * only aggregate percentages keyed by stat. */
-export interface ActiveEffect {
-  /** Mechanical slot mirrored: a stat key (atk|def|res|mag|spd), 'weaken'
-   * (player offense sapped), 'enemyWeaken' (enemy offense sapped), 'guard'
-   * (enemy guard stance) or 'enemyStun' (enemy loses next action). */
-  key: string;
-  /** Stable id (skill id, or slot-prefixed move name for enemy effects). */
+/** Provenance of a live effect instance (#78): what applied it, for logs,
+ * UI and cleanse/dispel source policy. */
+export interface EffectSource {
+  kind: 'skill' | 'enemyMove' | 'item' | 'encounter' | 'legacy';
   id: string;
-  /** Display name, e.g. 'Blessing'. */
+  name: string;
+}
+
+/** A live mechanical effect instance (#78) — the single authoritative
+ * battle-effect state. Mechanics READ these (stats fold from live
+ * instances, control consumes actions, periodic ticks damage/heal) and the
+ * battle UI DERIVES its rows from them; there is no second presentational
+ * collection to drift. Plain JSON, deterministic. */
+export interface EffectInstance {
+  /** Unique within the battle (allocated from `effectSeq`). */
+  iid: string;
+  /** Authored effect identity: skill id, move name, item id — or a slot
+   * key for legacy-migrated state. Reapplication policies key on this. */
+  defId: string;
+  /** Display name ('Blessing', 'Sapped', 'Guard Stance'). */
   name: string;
   /** Which combatant the effect applies to. */
   side: 'player' | 'enemy';
-  /** Human-readable magnitude, e.g. '+30% ATK'. */
-  magnitude: string;
-  /** What applied it (skill or move name). */
-  source: string;
-  /** The round at whose END the effect stops applying — engine-computed
-   * with the cast-round decay semantics (#27/#38), so display turns derived
-   * from it always match the mechanical durations. */
+  source: EffectSource;
+  kind: 'statmod' | 'control' | 'periodic' | 'shield';
+  // ── statmod / shield payloads ──
+  stat?: StatKey;
+  pct?: number;
+  // ── control payloads ──
+  control?: 'stun';
+  /** Remaining target actions this control effect consumes. */
+  actions?: number;
+  // ── periodic payloads ──
+  perRound?: number;
+  pctOfMaxPerRound?: number;
+  tickPhase?: 'roundEnd' | 'playerTurnStart';
+  // ── shield payloads (#79 wires absorption) ──
+  shieldAmount?: number;
+  tags: EffectTag[];
+  stacking: StackingPolicy;
+  /** Round the effect was applied (UI/history provenance). */
+  appliedRound: number;
+  /** Rounds left; decremented at end of round (deferred effects skip their
+   * first tick). Removed when <= 0. */
+  remaining: number;
+  /** Set for deferred timing: the cast round cannot use the stat, so the
+   * first end-of-round tick is skipped (#27/#38/#77). */
+  deferFirstTick?: boolean;
+  /** Cleanse/dispel-removable (encounter conditions may opt out). */
+  removable: boolean;
+  /** Last round the effect is active in — engine-computed so display turns
+   * derived from it always match the mechanical countdown. */
   expiresRound: number;
 }
 
@@ -94,15 +125,17 @@ export interface BattleState {
   /** Skill id -> turns remaining on cooldown. */
   cooldowns: Record<string, number>;
   guarding: boolean;
-  /** Combat buffs/debuffs (runtime, persisted with the battle). */
-  buffs: CombatBuffs;
+  /** Live mechanical effect instances (#78) — the authoritative combat
+   * state. Derived stats, cleanse/dispel, UI rows and the balance metrics
+   * all read from here. */
+  effectInstances: EffectInstance[];
+  /** Monotonic allocator for effect instance ids (persisted for
+   * determinism across save/load). */
+  effectSeq: number;
   /** Completed rounds, oldest first (#67) — each a full player action +
    * enemy response. The renderer expands only the newest round and collapses
    * the rest; truncation (if ever needed) must keep rounds whole. */
   history: BattleRound[];
-  /** Structured effect metadata for the battle screen (#67). Pruned each
-   * round; mechanics never read it. */
-  effects: ActiveEffect[];
   /** Rewards staged on victory. `xpConvertedGold` is the amount actually
    * granted by post-cap conversion (stamped by `resolveVictory` BEFORE the
    * XP grant, #40) — renderers must never re-infer it from the player's
@@ -111,11 +144,6 @@ export interface BattleState {
   /** Phoenix Cinder already spent this battle (revive is once per battle).
    * Required in the current battle shape; initialized by startBattle (#44). */
   phoenixUsed: boolean;
-  /** Enemy-side guard (Guard Stance et al., #25): mitigation multiplier and
-   * rounds left. Required in the current battle shape; initialized by
-   * startBattle (#44). */
-  enemyGuardPct: number;
-  enemyGuardTurns: number;
   /** Structured provenance: for return-after-battle and victory hooks. */
   origin: BattleOrigin;
   /** Guided-prologue marker (#69 rework): only the prologue battle carries
@@ -132,26 +160,6 @@ export interface BattleState {
 
 /** The guided prologue's lesson beats, in order (#69 rework). */
 export type TutorialBeat = 'basic' | 'skill' | 'guard' | 'item' | 'cleared';
-
-export interface CombatBuffs {
-  atkPct: number;
-  defPct: number;
-  resPct: number;
-  magPct: number;
-  spdPct: number;
-  /** Turns remaining per buff key (atk|def|res|mag|spd). */
-  durations: Record<string, number>;
-  /** Player-side weaken (from enemy debuffs), with turns left. */
-  weakenedPct: number;
-  weakenTurns: number;
-  /** Enemy-side weaken (player debuffs like Venom Cut), with turns left. */
-  enemyWeakenedPct: number;
-  enemyWeakenTurns: number;
-  /** Player skips next action. */
-  stunnedTurns: number;
-  /** Enemy skips its next action. */
-  stunnedEnemy: boolean;
-}
 
 export type ViewId =
   | 'tutorial'

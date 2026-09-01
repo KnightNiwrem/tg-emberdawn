@@ -42,7 +42,16 @@ import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
-import { seeded } from './helpers.ts';
+import {
+  injectMod,
+  mitigationPct,
+  modInstance,
+  modRemaining,
+  sapPct,
+  seeded,
+  statmodSpec,
+  statPct,
+} from './helpers.ts';
 
 Deno.test('character creation gives class kit and full pools', () => {
   const p = createPlayer(1, 'Test', 'warrior');
@@ -154,9 +163,11 @@ Deno.test('combat: MAG/ATK buffs and Sapped modify the correct free action (#70)
   const dmg = (cid: ClassId, pct: { atk?: number; mag?: number; weaken?: number }): number => {
     const p = createPlayer(701, 'T', cid);
     const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
-    b.buffs.atkPct = pct.atk ?? 0;
-    b.buffs.magPct = pct.mag ?? 0;
-    b.buffs.weakenedPct = pct.weaken ?? 0;
+    // Live instances fold into the free action (#78): ATK/MAG buffs raise
+    // their own stat; Sapped cuts the outgoing damage of both legs.
+    if (pct.atk) injectMod(b, 'player', 'atk', pct.atk);
+    if (pct.mag) injectMod(b, 'player', 'mag', pct.mag);
+    if (pct.weaken) injectMod(b, 'player', 'outgoing', -pct.weaken);
     const before = b.enemy.hp;
     performAction(p, b, { kind: 'attack' }, seeded(33));
     return before - b.enemy.hp;
@@ -202,7 +213,9 @@ Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () 
     'case must distinguish RES from DEF',
   );
   // Enemy guard stance raises whichever stat the action targets.
-  mb.enemyGuardPct = 1.0;
+  // Enemy guard stance is a live mitigation instance (#78): 1.0 doubles
+  // whichever mitigation stat the action targets.
+  injectMod(mb, 'enemy', 'mitigation', 1.0);
   const mBeforeGuard = mb.enemy.hp;
   performAction(mage, mb, { kind: 'attack' }, seeded(34));
   const mGuardDmg = mBeforeGuard - mb.enemy.hp;
@@ -388,10 +401,11 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
 });
 
 Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => {
-  // Fixture sanity: the content contract advertises these durations.
-  assertEquals(SKILLS.find((s) => s.id === 'sk_war_cry')!.duration, 3);
-  assertEquals(SKILLS.find((s) => s.id === 'sk_time_warp')!.duration, 3);
-  // (Adrenaline's 2 turns are set by the engine's heal branch, not content.)
+  // Fixture sanity: the content contract advertises these durations —
+  // pinned through the effect specs (#78); Adrenaline's ATK leg is
+  // content-authored too, stacking as its own instance.
+  assertEquals(statmodSpec(SKILLS.find((s) => s.id === 'sk_war_cry')!, 'atk')!.duration, 3);
+  assertEquals(statmodSpec(SKILLS.find((s) => s.id === 'sk_time_warp')!, 'mag')!.duration, 3);
 
   const mkBattle = (cls: 'warrior' | 'mage' | 'rogue', userId: number, skillId: string) => {
     const p = createPlayer(userId, 'T', cls);
@@ -408,14 +422,18 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
   // War Cry (atk, 3): cast round not consumed → exactly 3 empowered attacks.
   const w = mkBattle('warrior', 62, 'sk_war_cry');
   performAction(w.p, w.b, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(61));
-  assertEquals(w.b.buffs.durations.atk, 3, 'cast round must not tick the offensive buff');
+  assertEquals(
+    modRemaining(w.b, 'player', 'atk'),
+    3,
+    'cast round must not tick the offensive buff',
+  );
   performAction(w.p, w.b, { kind: 'attack' }, seeded(62)); // empowered 1
-  assertEquals(w.b.buffs.durations.atk, 2);
+  assertEquals(modRemaining(w.b, 'player', 'atk'), 2);
   performAction(w.p, w.b, { kind: 'attack' }, seeded(63)); // empowered 2
-  assertEquals(w.b.buffs.durations.atk, 1);
+  assertEquals(modRemaining(w.b, 'player', 'atk'), 1);
   performAction(w.p, w.b, { kind: 'attack' }, seeded(64)); // empowered 3
-  assertEquals(w.b.buffs.durations.atk, 0, 'exactly the advertised 3 empowered actions');
-  assertEquals(w.b.buffs.atkPct, 0);
+  assertEquals(modRemaining(w.b, 'player', 'atk'), 0, 'exactly the advertised 3 empowered actions');
+  assertEquals(statPct(w.b, 'player', 'atk'), 0);
 
   // Time Warp (mage: mag + spd): the legs have DIFFERENT phase semantics
   // since #77. MAG empowers only future actions — the cast round cannot
@@ -425,24 +443,28 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
   // enemy responses from a three-turn buff.
   const m = mkBattle('mage', 63, 'sk_time_warp');
   performAction(m.p, m.b, { kind: 'skill', skillId: 'sk_time_warp' }, seeded(66));
-  assertEquals(m.b.buffs.durations.mag, 3, 'mag deferred on the cast round');
-  assertEquals(m.b.buffs.durations.spd, 2, 'spd ticks on the cast round it defends (#77)');
+  assertEquals(modRemaining(m.b, 'player', 'mag'), 3, 'mag deferred on the cast round');
+  assertEquals(
+    modRemaining(m.b, 'player', 'spd'),
+    2,
+    'spd ticks on the cast round it defends (#77)',
+  );
   performAction(m.p, m.b, { kind: 'attack' }, seeded(67));
-  assertEquals(m.b.buffs.durations.mag, 2);
-  assertEquals(m.b.buffs.durations.spd, 1);
+  assertEquals(modRemaining(m.b, 'player', 'mag'), 2);
+  assertEquals(modRemaining(m.b, 'player', 'spd'), 1);
   performAction(m.p, m.b, { kind: 'attack' }, seeded(68));
-  assertEquals(m.b.buffs.durations.mag, 1);
-  assertEquals(m.b.buffs.durations.spd, 0, 'spd covered the cast round + two responses');
+  assertEquals(modRemaining(m.b, 'player', 'mag'), 1);
+  assertEquals(modRemaining(m.b, 'player', 'spd'), 0, 'spd covered the cast round + two responses');
 
   // Adrenaline Surge (heal + atk 2): defers like other offensive keys.
   const a = mkBattle('warrior', 64, 'sk_adrenaline');
   a.p.hp = 10; // let the heal component land
   performAction(a.p, a.b, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(69));
-  assertEquals(a.b.buffs.durations.atk, 2);
+  assertEquals(modRemaining(a.b, 'player', 'atk'), 2);
   performAction(a.p, a.b, { kind: 'attack' }, seeded(70));
-  assertEquals(a.b.buffs.durations.atk, 1);
+  assertEquals(modRemaining(a.b, 'player', 'atk'), 1);
   performAction(a.p, a.b, { kind: 'attack' }, seeded(71));
-  assertEquals(a.b.buffs.durations.atk, 0, 'exactly the advertised 2 empowered actions');
+  assertEquals(modRemaining(a.b, 'player', 'atk'), 0, 'exactly the advertised 2 empowered actions');
 
   // Smoke Step (rogue: SPD only, 3 turns): since #72 SPD shapes the enemy
   // RESPONSE through avoidance, so it defends the cast round itself and
@@ -450,20 +472,32 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
   // AT MOST three enemy responses from a three-turn buff.
   const sk = mkBattle('rogue', 78, 'sk_smoke_step');
   performAction(sk.p, sk.b, { kind: 'skill', skillId: 'sk_smoke_step' }, seeded(79));
-  assertEquals(sk.b.buffs.durations.spd, 2, 'cast round counts — SPD defended that response (#77)');
+  assertEquals(
+    modRemaining(sk.b, 'player', 'spd'),
+    2,
+    'cast round counts — SPD defended that response (#77)',
+  );
   performAction(sk.p, sk.b, { kind: 'attack' }, seeded(80));
-  assertEquals(sk.b.buffs.durations.spd, 1);
+  assertEquals(modRemaining(sk.b, 'player', 'spd'), 1);
   performAction(sk.p, sk.b, { kind: 'attack' }, seeded(81));
-  assertEquals(sk.b.buffs.durations.spd, 0, 'at most three responses, incl. the cast round');
-  assertEquals(sk.b.buffs.spdPct, 0);
+  assertEquals(
+    modRemaining(sk.b, 'player', 'spd'),
+    0,
+    'at most three responses, incl. the cast round',
+  );
+  assertEquals(statPct(sk.b, 'player', 'spd'), 0);
 
   // Iron Wall (def): RETAINS the cast-round tick — it protects against the
   // enemy response on the casting round, exactly as before.
-  const wallDur = SKILLS.find((s) => s.id === 'sk_iron_wall')!.duration ?? 3;
+  const wallDur = statmodSpec(SKILLS.find((s) => s.id === 'sk_iron_wall')!, 'def')!.duration;
   const d = mkBattle('warrior', 65, 'sk_iron_wall');
   performAction(d.p, d.b, { kind: 'skill', skillId: 'sk_iron_wall' }, seeded(72));
-  assertEquals(d.b.buffs.durations.def, wallDur - 1, 'defensive buffs tick on the cast round');
-  assertEquals(d.b.buffs.defPct > 0, true, 'protection active during the cast-round response');
+  assertEquals(
+    modRemaining(d.b, 'player', 'def'),
+    wallDur - 1,
+    'defensive buffs tick on the cast round',
+  );
+  assert(statPct(d.b, 'player', 'def') > 0, 'protection active during the cast-round response');
 });
 
 Deno.test('combat: Blessing empowers MAG/DEF — never Cleric-dead ATK (#77)', () => {
@@ -483,11 +517,15 @@ Deno.test('combat: Blessing empowers MAG/DEF — never Cleric-dead ATK (#77)', (
   // Cleric weapons raise MAG).
   const c = mkCleric(90);
   performAction(c.p, c.b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(91));
-  assertEquals(c.b.buffs.atkPct, 0, 'no ATK leg — no Cleric action could use it (#77)');
-  assertEquals(c.b.buffs.magPct, 0.3, 'MAG is the Cleric offense leg');
-  assertEquals(c.b.buffs.defPct, 0.3, 'DEF leg unchanged');
   assertEquals(
-    c.b.effects.map((e) => e.key).sort().join(','),
+    statPct(c.b, 'player', 'atk'),
+    0,
+    'no ATK leg — no Cleric action could use it (#77)',
+  );
+  assertEquals(statPct(c.b, 'player', 'mag'), 0.3, 'MAG is the Cleric offense leg');
+  assertEquals(statPct(c.b, 'player', 'def'), 0.3, 'DEF leg unchanged');
+  assertEquals(
+    c.b.effectInstances.map((e) => e.stat).sort().join(','),
     'def,mag',
     'effect entries mirror the actual legs',
   );
@@ -521,18 +559,22 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
     if (res.lines.some((l) => l.includes('Guard Stance'))) {
       guardSeen = true;
       assertEquals(p.hp, before, 'Guard Stance must not deal damage');
-      assertEquals(b.enemyGuardPct, 0.4, 'guard raises the enemy mitigation');
-      assertEquals(b.enemyGuardTurns, 2, 'the cast round does not consume the guard');
+      assertEquals(mitigationPct(b, 'enemy'), 0.4, 'guard raises the enemy mitigation');
+      assertEquals(
+        modInstance(b, 'enemy', 'mitigation')!.remaining,
+        2,
+        'the cast round does not consume the guard',
+      );
     }
   }
   assert(guardSeen, 'Guard Stance must appear within 40 rounds');
   // Two protected rounds, then the guard expires (seed is fixed, so the
   // sentinel's move sequence — including any re-cast — is deterministic).
   performAction(p, b, { kind: 'attack' }, rng);
-  assertEquals(b.enemyGuardTurns, 1, 'one protected round consumed');
+  assertEquals(modInstance(b, 'enemy', 'mitigation')!.remaining, 1, 'one protected round consumed');
   performAction(p, b, { kind: 'attack' }, rng);
-  assertEquals(b.enemyGuardPct, 0, 'guard expired after its turns');
-  assertEquals(b.enemyGuardTurns, 0);
+  assertEquals(mitigationPct(b, 'enemy'), 0, 'guard expired after its turns');
+  assertEquals(modInstance(b, 'enemy', 'mitigation'), undefined);
 
   // Grey Wolf's Howl (power 0, weaken rider): pure status, no chip damage.
   const rng2 = seeded(76);
@@ -552,7 +594,7 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
         `Howl must not chip: ${res.lines.join(' | ')}`,
       );
       assert(res.lines.some((l) => l.includes('sapped')), 'the weaken rider still lands');
-      assertEquals(wb.buffs.weakenedPct, 0.15);
+      assertEquals(sapPct(wb, 'player'), 0.15);
     }
   }
   assert(howlSeen, 'Howl must appear within 60 rounds');
@@ -599,16 +641,18 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   assertEquals(p.stats.bossesSlain, afterElite + 1, 'dungeon Warden counts as a boss slain');
 });
 
-Deno.test('damage-skill descriptions state their exact multiplier (#34)', () => {
+Deno.test('damage-skill descriptions state their exact multiplier (#34, #78)', () => {
   for (const sk of SKILLS) {
-    if (sk.type !== 'phys' && sk.type !== 'mag' && sk.type !== 'debuff') continue;
-    const m = sk.desc.match(/(\d+)% (ATK|MAG)/);
-    if (!m) continue;
-    assertEquals(
-      Number(m[1]) / 100,
-      sk.power,
-      `${sk.id}: desc says ${m[1]}% but power is ${sk.power}`,
-    );
+    for (const e of sk.effects) {
+      if (e.kind !== 'damage') continue;
+      const m = sk.desc.match(/(\d+)% (ATK|MAG)/);
+      if (!m) continue;
+      assertEquals(
+        Number(m[1]) / 100,
+        e.power,
+        `${sk.id}: desc says ${m[1]}% but power is ${e.power}`,
+      );
+    }
   }
 });
 
@@ -758,7 +802,7 @@ Deno.test('migratePlayer: in-flight v3 battles normalize to the structured histo
   const raw = p.battle as unknown as Record<string, unknown>;
   assertEquals(raw['log'], undefined, 'the retired flat log is stripped from the save');
   assertEquals(p.battle!.history, [], 'structured history starts empty');
-  assertEquals(p.battle!.effects, [], 'structured effect metadata starts empty');
+  assertEquals(p.battle!.effectInstances, [], 'live effect instances start empty (#78)');
   assertEquals(p.battle!.enemy.hp, hpBefore, 'mechanics are preserved');
   assertEquals(p.battle!.phase, 'active', 'the fight is still live');
 });
@@ -1112,27 +1156,57 @@ Deno.test('skill cadence: each class demonstrates its role by level 2 (#71)', ()
   }
 });
 
-Deno.test('catalog: skill descriptions state the exact authored mechanics (#71)', () => {
+Deno.test('catalog: skill descriptions state the exact authored mechanics (#71, #78)', () => {
+  // Rules text cannot silently omit a structured mechanical component:
+  // EVERY effect spec must be quoted by the desc (#78).
   const pct = (n: number): string => `${Math.round(n * 100)}%`;
   for (const s of SKILLS) {
-    if (s.type === 'phys' || s.type === 'mag') {
-      assert(s.desc.includes(pct(s.power)), `${s.id} must quote ${pct(s.power)}: ${s.desc}`);
-    } else if (s.type === 'debuff') {
-      if (s.power > 0) assert(s.desc.includes(pct(s.power)), `${s.id}: ${s.desc}`);
-      assert(s.desc.includes(pct(s.potency ?? 0)), `${s.id}: ${s.desc}`);
-    } else if (s.type === 'heal') {
-      if (s.id === 'sk_miracle') {
-        assert(s.desc.includes('Fully restore'), `${s.id}: ${s.desc}`);
-      } else if (s.potency) {
-        assert(s.desc.includes(`${pct(s.potency)} of max HP`), `${s.id}: ${s.desc}`);
-      } else {
-        assert(s.desc.includes(`${Math.round(s.power * 200)}% of MAG`), `${s.id}: ${s.desc}`);
+    for (const e of s.effects) {
+      switch (e.kind) {
+        case 'damage':
+          assert(s.desc.includes(pct(e.power)), `${s.id} must quote ${pct(e.power)}: ${s.desc}`);
+          break;
+        case 'statmod':
+          assert(
+            s.desc.includes(pct(Math.abs(e.pct))),
+            `${s.id}: ${e.stat} leg ${pct(e.pct)} must be quoted: ${s.desc}`,
+          );
+          break;
+        case 'restore':
+          if (e.hpFull) {
+            assert(s.desc.includes('Fully restore'), `${s.id}: ${s.desc}`);
+          } else if (e.hpPctOfMax !== undefined) {
+            assert(s.desc.includes(`${pct(e.hpPctOfMax)} of max HP`), `${s.id}: ${s.desc}`);
+          } else if (e.hpPower !== undefined) {
+            assert(
+              s.desc.includes(`${Math.round(e.hpPower * 200)}% of MAG`),
+              `${s.id}: ${s.desc}`,
+            );
+            assert(
+              s.desc.includes(`+ ${e.hpFlat ?? 0} HP`),
+              `${s.id}: flat heal component must be quoted (#77): ${s.desc}`,
+            );
+          }
+          if (e.mpPctOfMax !== undefined) {
+            assert(s.desc.includes(pct(e.mpPctOfMax)), `${s.id}: ${s.desc}`);
+          }
+          break;
+        case 'lifesteal':
+          assert(
+            s.desc.includes('heal half the damage') || s.desc.includes(pct(e.pct)),
+            `${s.id}: lifesteal must be quoted: ${s.desc}`,
+          );
+          break;
+        case 'control':
+          assert(
+            s.desc.includes(`${pct(e.chance ?? 1)} chance`),
+            `${s.id}: control chance must be quoted: ${s.desc}`,
+          );
+          break;
+        default:
+          // cleanse/dispel/resource/shield copy is covered by behavior tests.
+          break;
       }
-    } else {
-      assert(s.desc.includes(pct(s.potency ?? 0)), `${s.id}: ${s.desc}`);
-    }
-    if (s.stunChance) {
-      assert(s.desc.includes(`${pct(s.stunChance)} chance`), `${s.id}: ${s.desc}`);
     }
   }
 });

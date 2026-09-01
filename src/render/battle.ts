@@ -1,30 +1,70 @@
 /** Battle screen renderer: labelled combatant sections, structured effects,
- * round history, action buttons (#67). */
+ * round history, action buttons (#67). Effect rows are DERIVED from the live
+ * mechanical instances (#78) — there is no second presentational state to
+ * drift during cleanse/expiry. */
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
-import type { ActiveEffect, BattleState, PlayerState } from '../engine/types.ts';
+import type { BattleState, EffectInstance, PlayerState } from '../engine/types.ts';
+import type { StatKey } from '../content/types.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { item } from '../content/items.ts';
 import { CLASSES } from '../engine/classes.ts';
 import { statsOf } from '../engine/character.ts';
 import { consumables } from '../engine/inventory.ts';
+import { hasRemovableTagged } from '../engine/effects.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { bar, buttonsRow, cbBtn, disabledBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
 
-/** Glyph per effect slot — buffs glow, saps bleed, guards brace, stuns daze. */
-const EFFECT_EMOJI: Record<string, string> = {
-  atk: '🔆',
-  def: '🔆',
-  res: '🔆',
-  mag: '🔆',
-  spd: '🔆',
-  weaken: '🩸',
-  enemyWeaken: '🩸',
-  guard: '🛡️',
-  enemyStun: '💫',
-};
+/** Glyph per effect shape — buffs glow, saps bleed, guards brace, stuns
+ * daze, periodic effects drip. */
+function effectEmoji(i: EffectInstance): string {
+  switch (i.kind) {
+    case 'control':
+      return '💫';
+    case 'periodic':
+      return (i.perRound ?? 0) < 0 || (i.pctOfMaxPerRound ?? 0) < 0 ? '🩸' : '💚';
+    case 'shield':
+      return '🛡️';
+    case 'statmod':
+      if (i.stat === 'mitigation') return '🛡️';
+      if (i.stat === 'outgoing' && (i.pct ?? 0) < 0) return '🩸';
+      return '🔆';
+  }
+}
+
+function statLabel(stat: StatKey): string {
+  switch (stat) {
+    case 'outgoing':
+      return 'Offense';
+    case 'incoming':
+      return 'damage taken';
+    case 'mitigation':
+      return 'mitigation';
+    default:
+      return stat.toUpperCase();
+  }
+}
+
+/** Human magnitude derived from the instance's own mechanical data. */
+function describeMagnitude(i: EffectInstance): string {
+  switch (i.kind) {
+    case 'statmod': {
+      const pct = Math.round((i.pct ?? 0) * 100);
+      return `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}% ${statLabel(i.stat!)}`;
+    }
+    case 'control':
+      return i.control === 'stun' ? 'loses next action' : 'restricted';
+    case 'periodic': {
+      const per = i.perRound ?? Math.round((i.pctOfMaxPerRound ?? 0) * 100);
+      const unit = i.pctOfMaxPerRound !== undefined ? '% HP/round' : ' HP/round';
+      return `${per >= 0 ? '+' : '−'}${Math.abs(per)}${unit}`;
+    }
+    case 'shield':
+      return `${i.shieldAmount ?? 0} absorb`;
+  }
+}
 
 /** Earlier rounds shown inside the collapsed history block; anything older
  * is omitted WITH an explicit disclosure (#67) — never truncated silently. */
@@ -35,37 +75,43 @@ function turnsLabel(n: number): string {
 }
 
 interface EffectGroup {
-  effect: ActiveEffect;
-  /** Magnitudes of every live slot this identity covers, e.g. Blessing's
-   * ATK and DEF legs. */
+  defId: string;
+  name: string;
+  emoji: string;
+  /** Magnitudes of every live instance this identity covers, e.g.
+   * Blessing's MAG and DEF legs. */
   magnitudes: string[];
   minTurns: number;
   maxTurns: number;
   expiresRound: number;
+  source: string;
 }
 
-/** Groups one combatant's live effects by identity (#67), application order
- * preserved. Entries whose mechanical slot already expired are skipped —
- * the engine prunes each round, this is a belt-and-braces filter. */
+/** Groups one combatant's live effect instances by identity (#78),
+ * application order preserved. Expired instances are skipped — the engine
+ * prunes each round, this is a belt-and-braces filter. */
 function effectGroups(b: BattleState, side: 'player' | 'enemy'): EffectGroup[] {
   const groups: EffectGroup[] = [];
-  for (const e of b.effects) {
-    if (e.side !== side) continue;
-    const turns = e.expiresRound - b.round + 1;
+  for (const i of b.effectInstances) {
+    if (i.side !== side) continue;
+    const turns = i.kind === 'control' ? Math.max(1, i.actions ?? 1) : i.remaining;
     if (turns <= 0) continue;
-    const g = groups.find((x) => x.effect.id === e.id);
+    const g = groups.find((x) => x.defId === i.defId);
     if (g) {
-      g.magnitudes.push(e.magnitude);
+      g.magnitudes.push(describeMagnitude(i));
       g.minTurns = Math.min(g.minTurns, turns);
       g.maxTurns = Math.max(g.maxTurns, turns);
-      g.expiresRound = Math.max(g.expiresRound, e.expiresRound);
+      g.expiresRound = Math.max(g.expiresRound, i.expiresRound);
     } else {
       groups.push({
-        effect: e,
-        magnitudes: [e.magnitude],
+        defId: i.defId,
+        name: i.name,
+        emoji: effectEmoji(i),
+        magnitudes: [describeMagnitude(i)],
         minTurns: turns,
         maxTurns: turns,
-        expiresRound: e.expiresRound,
+        expiresRound: i.expiresRound,
+        source: i.source.name,
       });
     }
   }
@@ -76,17 +122,18 @@ function turnsRangeLabel(g: EffectGroup): string {
   return g.minTurns === g.maxTurns ? turnsLabel(g.minTurns) : `${g.minTurns}–${g.maxTurns} rounds`;
 }
 
-/** One combatant's stable effects area (#67): `Effects: none`, or a native
- * details block — expandable in the client, no bot callback — whose summary
- * names the active effects and whose body explains source, numerical
- * effect, target, remaining duration and when each expires. */
+/** One combatant's stable effects area (#67/#78): `Effects: none`, or a
+ * native details block — expandable in the client, no bot callback — whose
+ * summary names the active effects and whose body explains source, numerical
+ * effect, target, remaining duration and when each expires. Everything is
+ * derived from the live mechanical instances. */
 function effectsBlocks(b: BattleState, side: 'player' | 'enemy'): InputRichBlock[] {
   const groups = effectGroups(b, side);
   if (groups.length === 0) return [para('Effects: none')];
   const target = side === 'player' ? 'You' : b.enemy.name;
   const summary = `Effects: ${
     groups
-      .map((g) => `${EFFECT_EMOJI[g.effect.key] ?? '✨'} ${g.effect.name} · ${turnsRangeLabel(g)}`)
+      .map((g) => `${g.emoji} ${g.name} · ${turnsRangeLabel(g)}`)
       .join(', ')
   }`;
   return [{
@@ -94,8 +141,8 @@ function effectsBlocks(b: BattleState, side: 'player' | 'enemy'): InputRichBlock
     summary,
     blocks: groups.map((g) =>
       para(
-        `${EFFECT_EMOJI[g.effect.key] ?? '✨'} ${g.effect.name} — ${g.magnitudes.join(' · ')}` +
-          ` (${g.effect.source}). ${target} · ${turnsLabel(g.maxTurns)} remaining` +
+        `${g.emoji} ${g.name} — ${g.magnitudes.join(' · ')}` +
+          ` (${g.source}). ${target} · ${turnsLabel(g.maxTurns)} remaining` +
           ` · fades end of round ${g.expiresRound}.`,
       )
     ),
@@ -263,12 +310,16 @@ export function renderItemMenu(p: PlayerState): InputRichMessage {
     return Boolean(eff.healHp || eff.healMp || eff.cureStatus || eff.flee);
   };
   // Context checks (#35): a button that cannot do anything renders
-  // disabled instead of promising an action the handler must refuse.
+  // disabled instead of promising an action the engine must refuse.
   const applicable = (id: string): boolean => {
     const eff = item(id)?.effect;
     if (!eff) return true;
     if (eff.flee) return !b.enemy.isBoss; // Smoke Bomb never touches bosses
-    if (eff.cureStatus && !eff.healHp && !eff.healMp) return b.buffs.weakenTurns > 0;
+    // Real tagged cleanse (#78): usable when any removable harmful effect
+    // is live (today: the sapped-strength family).
+    if (eff.cureStatus && !eff.healHp && !eff.healMp) {
+      return hasRemovableTagged(b, 'player', ['harmful']);
+    }
     return true;
   };
   const items = consumables(p).filter((e) => manual(e.id));

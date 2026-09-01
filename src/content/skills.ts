@@ -1,12 +1,64 @@
 /** Skill catalog — 8 skills per class, learned at fixed levels. Authored in
  * ascending learn-level order per class (ties keep authored order); the
  * helper enforces this too (#77), so menus can never leak insertion order.
- */
+ *
+ * Mechanics live entirely in ordered `effects` specs (#78) — the shared
+ * combat vocabulary executed by the generic resolver. `type` is display
+ * classification only. Every desc is validated against its effects. */
 
-import type { SkillDef } from './types.ts';
+import type { EffectSpec, SkillDef } from './types.ts';
 import type { ClassId } from '../engine/types.ts';
 
 const S = (s: SkillDef): SkillDef => s;
+
+/** Damage — the overwhelmingly common shape. */
+const dmg = (attack: 'phys' | 'mag', power: number): EffectSpec => ({
+  kind: 'damage',
+  attack,
+  power,
+});
+/** Self-buff statmod: offensive stats defer their first decay (#27/#38),
+ * defensive stats count the cast round (#77). */
+const buff = (
+  stat: 'atk' | 'mag' | 'def' | 'res' | 'spd',
+  pct: number,
+  dur: number,
+): EffectSpec => ({
+  kind: 'statmod',
+  stat,
+  pct,
+  duration: dur,
+  timing: stat === 'atk' || stat === 'mag' ? 'defer' : 'immediate',
+  tags: ['beneficial'],
+});
+/** Stun rider: only rolls when the target survived the strike (old rng
+ * parity), consumed on the target's next action. */
+const stun = (chance: number): EffectSpec => ({
+  kind: 'control',
+  control: 'stun',
+  actions: 1,
+  chance,
+  requireSurvivor: true,
+});
+/** MAG-scaled heal: effectiveMag * power * 2 + flat (#77: the flat 20 is
+ * part of the contract and appears in the desc). */
+const mend = (power: number): EffectSpec => ({
+  kind: 'restore',
+  hpPower: power,
+  hpFlat: 20,
+});
+/** Player-applied offense sap on the enemy (Venom Cut): strongest-wins,
+ * survivor-gated. */
+const sapEnemy = (pct: number, dur: number): EffectSpec => ({
+  kind: 'statmod',
+  target: 'opponent',
+  stat: 'outgoing',
+  pct: -pct,
+  duration: dur,
+  timing: 'immediate',
+  stacking: 'strongest',
+  requireSurvivor: true,
+});
 
 export const SKILLS: readonly SkillDef[] = [
   // ── Warrior ─────────────────────────────────────────────────────────
@@ -17,8 +69,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 1,
     mpCost: 4,
     cooldown: 0,
-    power: 1.35,
     type: 'phys',
+    effects: [dmg('phys', 1.35)],
     desc: 'A heavy diagonal cut. 135% ATK.',
   }),
   S({
@@ -28,9 +80,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 4,
     mpCost: 8,
     cooldown: 3,
-    power: 1.0,
     type: 'phys',
-    stunChance: 0.35,
+    effects: [dmg('phys', 1.0), stun(0.35)],
     desc: '100% ATK, 35% chance to stun the enemy for a turn.',
   }),
   S({
@@ -40,10 +91,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 8,
     mpCost: 10,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.35,
-    duration: 3,
+    effects: [buff('atk', 0.35, 3)],
     desc: '+35% ATK for 3 turns.',
   }),
   S({
@@ -53,8 +102,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 13,
     mpCost: 14,
     cooldown: 2,
-    power: 1.75,
     type: 'phys',
+    effects: [dmg('phys', 1.75)],
     desc: 'Spinning strike. 175% ATK.',
   }),
   S({
@@ -64,10 +113,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 16,
     mpCost: 10,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.6,
-    duration: 3,
+    effects: [buff('def', 0.6, 3)],
     desc: '+60% DEF for 3 turns.',
   }),
   S({
@@ -77,8 +124,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 22,
     mpCost: 20,
     cooldown: 3,
-    power: 2.4,
     type: 'phys',
+    effects: [dmg('phys', 2.4)],
     desc: 'A killing stroke. 240% ATK.',
   }),
   S({
@@ -88,9 +135,18 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 28,
     mpCost: 18,
     cooldown: 5,
-    power: 0,
     type: 'heal',
-    potency: 0.3,
+    // #78: the heal and the ATK leg are separate ordered effects — the ATK
+    // contribution STACKS as its own instance instead of fusing into a
+    // shared slot (War Cry + Adrenaline now keep independent magnitudes).
+    effects: [
+      {
+        kind: 'restore',
+        hpPctOfMax: 0.3,
+        line: '🩹 You recover {n} HP and feel the rush (+20% ATK).',
+      },
+      { ...buff('atk', 0.2, 2), stacking: 'stack', quiet: true },
+    ],
     desc: 'Heal 30% of max HP and gain +20% ATK for 2 turns.',
   }),
   S({
@@ -100,8 +156,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 36,
     mpCost: 30,
     cooldown: 4,
-    power: 3.1,
     type: 'phys',
+    effects: [dmg('phys', 3.1)],
     desc: 'Bring the sky down. 310% ATK.',
   }),
 
@@ -113,8 +169,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 1,
     mpCost: 5,
     cooldown: 0,
-    power: 1.4,
     type: 'mag',
+    effects: [dmg('mag', 1.4)],
     desc: 'A dart of flame. 140% MAG.',
   }),
   S({
@@ -124,9 +180,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 5,
     mpCost: 10,
     cooldown: 2,
-    power: 1.55,
     type: 'mag',
-    stunChance: 0.2,
+    effects: [dmg('mag', 1.55), stun(0.2)],
     desc: '155% MAG, 20% chance to freeze the enemy.',
   }),
   S({
@@ -136,10 +191,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 9,
     mpCost: 12,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.5,
-    duration: 3,
+    effects: [buff('def', 0.5, 3), buff('res', 0.5, 3)],
     desc: '+50% DEF/RES for 3 turns.',
   }),
   S({
@@ -149,8 +202,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 13,
     mpCost: 16,
     cooldown: 2,
-    power: 2.1,
     type: 'mag',
+    effects: [dmg('mag', 2.1)],
     desc: '210% MAG.',
   }),
   S({
@@ -160,9 +213,10 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 17,
     mpCost: 18,
     cooldown: 3,
-    power: 1.5,
     type: 'mag',
-    potency: 0.5,
+    // #78: ordered damage → lifesteal derived from the dealt damage, no
+    // id-specific branch.
+    effects: [dmg('mag', 1.5), { kind: 'lifesteal', pct: 0.5 }],
     desc: '150% MAG and heal half the damage dealt.',
   }),
   S({
@@ -172,8 +226,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 24,
     mpCost: 26,
     cooldown: 3,
-    power: 3.0,
     type: 'mag',
+    effects: [dmg('mag', 3.0)],
     desc: '300% MAG. The classic.',
   }),
   S({
@@ -183,10 +237,10 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 30,
     mpCost: 22,
     cooldown: 5,
-    power: 0,
     type: 'buff',
-    potency: 0.4,
-    duration: 3,
+    // #77 semantics, now data-driven: MAG defers (the cast round cannot use
+    // it), SPD counts the cast round it defends.
+    effects: [buff('mag', 0.4, 3), buff('spd', 0.4, 3)],
     desc: '+40% MAG/SPD for 3 turns.',
   }),
   S({
@@ -196,8 +250,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 40,
     mpCost: 40,
     cooldown: 4,
-    power: 4.2,
     type: 'mag',
+    effects: [dmg('mag', 4.2)],
     desc: '420% MAG. For endings.',
   }),
 
@@ -209,8 +263,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 1,
     mpCost: 3,
     cooldown: 0,
-    power: 1.25,
     type: 'phys',
+    effects: [dmg('phys', 1.25)],
     desc: 'Fast cut. 125% ATK.',
   }),
   S({
@@ -220,8 +274,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 5,
     mpCost: 9,
     cooldown: 2,
-    power: 1.8,
     type: 'phys',
+    effects: [dmg('phys', 1.8)],
     desc: "Where the light doesn't reach. 180% ATK.",
   }),
   S({
@@ -231,10 +285,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 9,
     mpCost: 8,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.45,
-    duration: 3,
+    effects: [buff('spd', 0.45, 3)],
     desc: '+45% SPD for 3 turns — outpace the foe and slip its blows.',
   }),
   S({
@@ -244,8 +296,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 13,
     mpCost: 13,
     cooldown: 2,
-    power: 2.0,
     type: 'phys',
+    effects: [dmg('phys', 2.0)],
     desc: 'Two blades, one breath. 200% ATK.',
   }),
   S({
@@ -255,10 +307,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 17,
     mpCost: 12,
     cooldown: 3,
-    power: 1.3,
     type: 'debuff',
-    potency: 0.25,
-    duration: 3,
+    effects: [dmg('phys', 1.3), sapEnemy(0.25, 3)],
     desc: '130% ATK and weaken the enemy by 25% for 3 turns.',
   }),
   S({
@@ -268,8 +318,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 22,
     mpCost: 18,
     cooldown: 3,
-    power: 2.6,
     type: 'phys',
+    effects: [dmg('phys', 2.6)],
     desc: '260% ATK, delivered from three directions.',
   }),
   S({
@@ -279,8 +329,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 30,
     mpCost: 24,
     cooldown: 4,
-    power: 3.2,
     type: 'phys',
+    effects: [dmg('phys', 3.2)],
     desc: 'One target. One ending. 320% ATK.',
   }),
   S({
@@ -290,8 +340,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 40,
     mpCost: 34,
     cooldown: 4,
-    power: 4.0,
     type: 'phys',
+    effects: [dmg('phys', 4.0)],
     desc: '400% ATK. The last thing they see.',
   }),
 
@@ -303,8 +353,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 1,
     mpCost: 5,
     cooldown: 0,
-    power: 1.3,
     type: 'mag',
+    effects: [dmg('mag', 1.3)],
     desc: 'Holy light as a weapon. 130% MAG.',
   }),
   S({
@@ -314,8 +364,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 1,
     mpCost: 8,
     cooldown: 0,
-    power: 1.1,
     type: 'heal',
+    effects: [mend(1.1)],
     desc: 'Heal 220% of MAG + 20 HP.',
   }),
   S({
@@ -325,10 +375,9 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 8,
     mpCost: 12,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.3,
-    duration: 3,
+    // #77: MAG/DEF — every Cleric damage action is MAG vs RES.
+    effects: [buff('mag', 0.3, 3), buff('def', 0.3, 3)],
     desc: '+30% MAG/DEF for 3 turns.',
   }),
   S({
@@ -338,8 +387,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 11,
     mpCost: 16,
     cooldown: 2,
-    power: 1.85,
     type: 'mag',
+    effects: [dmg('mag', 1.85)],
     desc: '185% MAG.',
   }),
   S({
@@ -349,10 +398,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 16,
     mpCost: 12,
     cooldown: 4,
-    power: 0,
     type: 'buff',
-    potency: 0.55,
-    duration: 3,
+    effects: [buff('res', 0.55, 3)],
     desc: '+55% RES for 3 turns.',
   }),
   S({
@@ -362,8 +409,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 20,
     mpCost: 20,
     cooldown: 2,
-    power: 1.9,
     type: 'heal',
+    effects: [mend(1.9)],
     desc: 'Heal 380% of MAG + 20 HP.',
   }),
   S({
@@ -373,9 +420,8 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 26,
     mpCost: 24,
     cooldown: 3,
-    power: 2.9,
     type: 'mag',
-    stunChance: 0.15,
+    effects: [dmg('mag', 2.9), stun(0.15)],
     desc: '290% MAG, 15% chance to stun.',
   }),
   S({
@@ -385,10 +431,18 @@ export const SKILLS: readonly SkillDef[] = [
     learnLevel: 36,
     mpCost: 32,
     cooldown: 5,
-    power: 2.5,
     type: 'heal',
-    potency: 1,
-    desc: 'Fully restore HP and lift sapped strength.',
+    // #78: the cleanse is REAL now — a tagged removal of every removable
+    // harmful instance (#77 scoped the copy until this framework landed).
+    effects: [
+      {
+        kind: 'restore',
+        hpFull: true,
+        line: '✨ Miracle! HP fully restored, harmful effects cleansed.',
+      },
+      { kind: 'cleanse', tags: ['harmful'], quiet: true },
+    ],
+    desc: 'Fully restore HP and cleanse harmful effects.',
   }),
 ];
 
@@ -410,4 +464,36 @@ export function skillsForClass(classId: ClassId, upToLevel: number): SkillDef[] 
 /** Skills that become newly available exactly at `level`. */
 export function skillsLearnedAt(classId: ClassId, level: number): SkillDef[] {
   return SKILLS.filter((s) => s.classId === classId && s.learnLevel === level);
+}
+
+// ── Effect-shape helpers (#78) ── shared by the balance harness, the
+// tutorial flow and the catalog validation tests. Mechanics never branch
+// on ids; policies read these public shapes instead.
+
+/** True when the skill's ordered effects deal damage. */
+export function isDamageSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) => e.kind === 'damage');
+}
+
+/** Highest damage multiplier in the skill's effects (0 when none). */
+export function skillMaxDamagePower(sk: SkillDef): number {
+  let max = 0;
+  for (const e of sk.effects) {
+    if (e.kind === 'damage') max = Math.max(max, e.power);
+  }
+  return max;
+}
+
+/** True when the skill's ordered effects restore HP/MP. */
+export function isHealSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) => e.kind === 'restore');
+}
+
+/** MAG-scaled heal multiplier for heal sorting/expected-value (0 when the
+ * skill heals by another shape). */
+export function skillHealPower(sk: SkillDef): number {
+  for (const e of sk.effects) {
+    if (e.kind === 'restore' && e.hpPower !== undefined) return e.hpPower;
+  }
+  return 0;
 }
