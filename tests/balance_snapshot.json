@@ -21,14 +21,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.08,
+      "avgRoundsWin": 2.07,
       "avgHpPctEnd": 0.9852,
-      "avgMpPctEnd": 0.7227,
-      "avgDealt": 51.27,
+      "avgMpPctEnd": 0.7247,
+      "avgDealt": 50.97,
       "avgTaken": 0.98,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.1,
+      "critsPerFight": 0.105,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -39,7 +39,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.32,
+      "avgMpSpent": 8.26,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -47,13 +47,13 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 2.08
+        "sk_cleave": 2.065
       },
       "effectRounds": {
         "enemy:Fibrous Hide": 0.105
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.085
+        "enemy:Fibrous Hide": 0.07
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -120,13 +120,13 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.15,
-      "avgHpPctEnd": 0.9824,
-      "avgMpPctEnd": 0.8089,
-      "avgDealt": 74.82,
-      "avgTaken": 2.54,
+      "avgHpPctEnd": 0.973,
+      "avgMpPctEnd": 0.8093,
+      "avgDealt": 75.64,
+      "avgTaken": 2.63,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.15,
+      "critsPerFight": 0.155,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -137,7 +137,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.6,
+      "avgMpSpent": 8.58,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -145,16 +145,22 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 2.15
+        "sk_cleave": 2.145
       },
       "effectRounds": {
-        "player:sap": 0.16
+        "player:Venom Bite": 0.315,
+        "player:Web Snare": 0.105,
+        "player:sap": 0.045
       },
       "effectApplications": {
-        "player:sap": 0.14
+        "player:Venom Bite": 0.27,
+        "player:Web Snare": 0.105,
+        "player:sap": 0.04
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sap": "enemyMove:Howl"
       }
     },
     {
@@ -169,9 +175,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.42,
-      "avgHpPctEnd": 0.9968,
+      "avgHpPctEnd": 0.9945,
       "avgMpPctEnd": 0.9057,
-      "avgDealt": 90.91,
+      "avgDealt": 91.44,
       "avgTaken": 0.75,
       "avgItems": 0,
       "guardFreq": 0,
@@ -197,16 +203,22 @@
         "sk_cleave": 1.415
       },
       "effectRounds": {
+        "player:Venom Bite": 0.135,
         "enemy:t_9": 0.105,
-        "player:sap": 0.05
+        "player:sap": 0.015,
+        "player:Web Snare": 0.035
       },
       "effectApplications": {
+        "player:Venom Bite": 0.135,
         "enemy:t_9": 0.105,
-        "player:sap": 0.05
+        "player:sap": 0.015,
+        "player:Web Snare": 0.035
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Howl"
+        "player:sap": "enemyMove:Howl",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -221,9 +233,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.26,
-      "avgHpPctEnd": 0.9991,
+      "avgHpPctEnd": 0.9971,
       "avgMpPctEnd": 0.928,
-      "avgDealt": 91.18,
+      "avgDealt": 91.68,
       "avgTaken": 0.26,
       "avgItems": 0,
       "guardFreq": 0,
@@ -249,16 +261,19 @@
         "sk_cleave": 1.26
       },
       "effectRounds": {
+        "player:Venom Bite": 0.145,
         "enemy:t_9": 0.11,
-        "player:sap": 0.03
+        "player:Web Snare": 0.03
       },
       "effectApplications": {
+        "player:Venom Bite": 0.145,
         "enemy:t_9": 0.11,
-        "player:sap": 0.03
+        "player:Web Snare": 0.03
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -313,15 +328,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.54,
-      "avgHpPctEnd": 0.9793,
+      "avgRoundsWin": 2.55,
+      "avgHpPctEnd": 0.9792,
       "avgMpPctEnd": 1,
-      "avgDealt": 44.4,
-      "avgTaken": 1.37,
+      "avgDealt": 44.55,
+      "avgTaken": 1.38,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.145,
-      "dodgesPerFight": 0.015,
+      "dodgesPerFight": 0.025,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -340,10 +355,10 @@
       "avgDispelCasts": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.23
+        "enemy:Fibrous Hide": 0.24
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.16
+        "enemy:Fibrous Hide": 0.145
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -458,11 +473,11 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.06,
-      "avgHpPctEnd": 0.9238,
-      "avgMpPctEnd": 0.8777,
-      "avgDealt": 81.12,
-      "avgTaken": 8.01,
+      "avgRoundsWin": 2.07,
+      "avgHpPctEnd": 0.9067,
+      "avgMpPctEnd": 0.8771,
+      "avgDealt": 82.55,
+      "avgTaken": 8.18,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.175,
@@ -476,7 +491,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 10.28,
+      "avgMpSpent": 10.33,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -484,16 +499,22 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_firebolt": 2.055
+        "sk_firebolt": 2.065
       },
       "effectRounds": {
-        "player:sap": 0.175
+        "player:sap": 0.05,
+        "player:Venom Bite": 0.405,
+        "player:Web Snare": 0.125
       },
       "effectApplications": {
-        "player:sap": 0.165
+        "player:sap": 0.05,
+        "player:Venom Bite": 0.36,
+        "player:Web Snare": 0.125
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:sap": "enemyMove:Howl",
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -508,9 +529,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.26,
-      "avgHpPctEnd": 0.985,
+      "avgHpPctEnd": 0.9822,
       "avgMpPctEnd": 0.9179,
-      "avgDealt": 90.68,
+      "avgDealt": 91.48,
       "avgTaken": 2.26,
       "avgItems": 0,
       "guardFreq": 0,
@@ -538,18 +559,21 @@
       },
       "effectRounds": {
         "enemy:sk_frost_lance": 0.22,
-        "player:sap": 0.055,
-        "enemy:t_9": 0.075
+        "player:Web Snare": 0.055,
+        "enemy:t_9": 0.075,
+        "player:Venom Bite": 0.105
       },
       "effectApplications": {
         "enemy:sk_frost_lance": 0.22,
-        "player:sap": 0.055,
-        "enemy:t_9": 0.075
+        "player:Web Snare": 0.055,
+        "enemy:t_9": 0.075,
+        "player:Venom Bite": 0.105
       },
       "effectSources": {
         "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:sap": "enemyMove:Web Snare",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Web Snare": "enemyMove:Web Snare",
+        "enemy:t_9": "item:Thorn Ring",
+        "player:Venom Bite": "enemyMove:Venom Bite"
       }
     },
     {
@@ -564,9 +588,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.23,
-      "avgHpPctEnd": 0.9848,
+      "avgHpPctEnd": 0.9839,
       "avgMpPctEnd": 0.9328,
-      "avgDealt": 104.54,
+      "avgDealt": 104.94,
       "avgTaken": 2.74,
       "avgItems": 0,
       "guardFreq": 0,
@@ -595,17 +619,20 @@
       "effectRounds": {
         "enemy:sk_frost_lance": 0.155,
         "enemy:t_9": 0.06,
-        "player:sap": 0.025
+        "player:Web Snare": 0.025,
+        "player:Venom Bite": 0.035
       },
       "effectApplications": {
         "enemy:sk_frost_lance": 0.155,
         "enemy:t_9": 0.06,
-        "player:sap": 0.025
+        "player:Web Snare": 0.025,
+        "player:Venom Bite": 0.035
       },
       "effectSources": {
         "enemy:sk_frost_lance": "skill:Frost Lance",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:Venom Bite": "enemyMove:Venom Bite"
       }
     },
     {
@@ -661,14 +688,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.54,
-      "avgHpPctEnd": 0.8967,
+      "avgHpPctEnd": 0.896,
       "avgMpPctEnd": 1,
-      "avgDealt": 47.06,
-      "avgTaken": 6.2,
+      "avgDealt": 46.97,
+      "avgTaken": 6.24,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.18,
-      "dodgesPerFight": 0.04,
+      "critsPerFight": 0.19,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -687,10 +714,10 @@
       "avgDispelCasts": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.12
+        "enemy:Fibrous Hide": 0.125
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.095
+        "enemy:Fibrous Hide": 0.085
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -707,15 +734,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.58,
-      "avgHpPctEnd": 0.954,
-      "avgMpPctEnd": 0.742,
-      "avgDealt": 45.22,
-      "avgTaken": 2.76,
+      "avgRoundsWin": 2.59,
+      "avgHpPctEnd": 0.9576,
+      "avgMpPctEnd": 0.741,
+      "avgDealt": 45.6,
+      "avgTaken": 2.55,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.19,
-      "dodgesPerFight": 0.05,
+      "critsPerFight": 0.225,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -725,7 +752,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.74,
+      "avgMpSpent": 7.77,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -733,13 +760,13 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.58
+        "sk_quick_slash": 2.59
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.17
+        "enemy:Fibrous Hide": 0.26
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.145
+        "enemy:Fibrous Hide": 0.165
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -756,15 +783,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.46,
-      "avgHpPctEnd": 0.967,
-      "avgMpPctEnd": 0.8058,
-      "avgDealt": 49.15,
-      "avgTaken": 2.61,
+      "avgRoundsWin": 2.38,
+      "avgHpPctEnd": 0.9601,
+      "avgMpPctEnd": 0.8117,
+      "avgDealt": 48.34,
+      "avgTaken": 3.15,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.18,
-      "dodgesPerFight": 0.07,
+      "critsPerFight": 0.245,
+      "dodgesPerFight": 0.065,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -774,7 +801,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.38,
+      "avgMpSpent": 7.16,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -782,13 +809,13 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.46
+        "sk_quick_slash": 2.385
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.21
+        "enemy:Fibrous Hide": 0.15
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.155
+        "enemy:Fibrous Hide": 0.1
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -805,14 +832,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.97,
-      "avgHpPctEnd": 0.9136,
-      "avgMpPctEnd": 0.8353,
-      "avgDealt": 70.8,
-      "avgTaken": 10.11,
+      "avgRoundsWin": 2.9,
+      "avgHpPctEnd": 0.891,
+      "avgMpPctEnd": 0.8389,
+      "avgDealt": 71.4,
+      "avgTaken": 10.2,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.32,
+      "critsPerFight": 0.355,
       "dodgesPerFight": 0.07,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -823,7 +850,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.9,
+      "avgMpSpent": 8.7,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -831,16 +858,22 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.965
+        "sk_quick_slash": 2.9
       },
       "effectRounds": {
-        "player:sap": 0.34
+        "player:sap": 0.11,
+        "player:Web Snare": 0.17,
+        "player:Venom Bite": 0.625
       },
       "effectApplications": {
-        "player:sap": 0.275
+        "player:sap": 0.1,
+        "player:Web Snare": 0.17,
+        "player:Venom Bite": 0.53
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:sap": "enemyMove:Howl",
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:Venom Bite": "enemyMove:Venom Bite"
       }
     },
     {
@@ -855,9 +888,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.57,
-      "avgHpPctEnd": 0.9747,
+      "avgHpPctEnd": 0.9711,
       "avgMpPctEnd": 0.8556,
-      "avgDealt": 98.42,
+      "avgDealt": 98.69,
       "avgTaken": 4.41,
       "avgItems": 0,
       "guardFreq": 0,
@@ -884,16 +917,19 @@
         "sk_quick_slash": 0.47
       },
       "effectRounds": {
+        "player:Venom Bite": 0.155,
         "enemy:t_9": 0.165,
-        "player:sap": 0.025
+        "player:Web Snare": 0.025
       },
       "effectApplications": {
+        "player:Venom Bite": 0.155,
         "enemy:t_9": 0.165,
-        "player:sap": 0.025
+        "player:Web Snare": 0.025
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -908,9 +944,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.3,
-      "avgHpPctEnd": 0.9924,
+      "avgHpPctEnd": 0.9904,
       "avgMpPctEnd": 0.8947,
-      "avgDealt": 99.06,
+      "avgDealt": 99.63,
       "avgTaken": 1.62,
       "avgItems": 0,
       "guardFreq": 0,
@@ -937,16 +973,19 @@
         "sk_quick_slash": 0.3
       },
       "effectRounds": {
+        "player:Venom Bite": 0.095,
         "enemy:t_9": 0.07,
-        "player:sap": 0.04
+        "player:Web Snare": 0.04
       },
       "effectApplications": {
+        "player:Venom Bite": 0.095,
         "enemy:t_9": 0.07,
-        "player:sap": 0.04
+        "player:Web Snare": 0.04
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -1002,14 +1041,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 3.39,
-      "avgHpPctEnd": 0.9401,
+      "avgHpPctEnd": 0.9377,
       "avgMpPctEnd": 1,
-      "avgDealt": 45.6,
-      "avgTaken": 3.6,
+      "avgDealt": 45.78,
+      "avgTaken": 3.74,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.3,
-      "dodgesPerFight": 0.08,
+      "critsPerFight": 0.325,
+      "dodgesPerFight": 0.075,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1028,10 +1067,10 @@
       "avgDispelCasts": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.31
+        "enemy:Fibrous Hide": 0.245
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.215
+        "enemy:Fibrous Hide": 0.15
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -1048,15 +1087,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.42,
-      "avgHpPctEnd": 0.9748,
-      "avgMpPctEnd": 0.5975,
-      "avgDealt": 47.56,
-      "avgTaken": 1.67,
+      "avgRoundsWin": 2.4,
+      "avgHpPctEnd": 0.9752,
+      "avgMpPctEnd": 0.5992,
+      "avgDealt": 47.49,
+      "avgTaken": 1.64,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.155,
-      "dodgesPerFight": 0.025,
+      "critsPerFight": 0.16,
+      "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1066,7 +1105,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 12.08,
+      "avgMpSpent": 12.03,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1074,13 +1113,13 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 2.415
+        "sk_smite": 2.405
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.21
+        "enemy:Fibrous Hide": 0.23
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.15
+        "enemy:Fibrous Hide": 0.145
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -1097,15 +1136,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.3,
-      "avgHpPctEnd": 0.9803,
-      "avgMpPctEnd": 0.7262,
-      "avgDealt": 51.46,
-      "avgTaken": 1.72,
+      "avgRoundsWin": 2.31,
+      "avgHpPctEnd": 0.9799,
+      "avgMpPctEnd": 0.725,
+      "avgDealt": 51.78,
+      "avgTaken": 1.75,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.18,
-      "dodgesPerFight": 0.025,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1115,7 +1154,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.5,
+      "avgMpSpent": 11.55,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1123,13 +1162,13 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 2.3
+        "sk_smite": 2.31
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.165
+        "enemy:Fibrous Hide": 0.16
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.125
+        "enemy:Fibrous Hide": 0.105
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -1147,10 +1186,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.8,
-      "avgHpPctEnd": 0.9627,
+      "avgHpPctEnd": 0.9464,
       "avgMpPctEnd": 0.7883,
-      "avgDealt": 74.81,
-      "avgTaken": 4.81,
+      "avgDealt": 75.61,
+      "avgTaken": 4.77,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.245,
@@ -1175,13 +1214,19 @@
         "sk_smite": 2.795
       },
       "effectRounds": {
-        "player:sap": 0.255
+        "player:Venom Bite": 0.53,
+        "player:sap": 0.14,
+        "player:Web Snare": 0.125
       },
       "effectApplications": {
-        "player:sap": 0.23
+        "player:Venom Bite": 0.455,
+        "player:sap": 0.125,
+        "player:Web Snare": 0.125
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:sap": "enemyMove:Howl",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -1195,25 +1240,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.79,
-      "avgHpPctEnd": 0.9927,
-      "avgMpPctEnd": 0.9123,
-      "avgDealt": 82.38,
-      "avgTaken": 1.52,
+      "avgRoundsWin": 1.78,
+      "avgHpPctEnd": 0.9885,
+      "avgMpPctEnd": 0.9127,
+      "avgDealt": 81.9,
+      "avgTaken": 1.62,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.175,
-      "dodgesPerFight": 0.015,
+      "critsPerFight": 0.16,
+      "dodgesPerFight": 0.01,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 0.28,
+      "avgEquipProcs": 0.275,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.95,
+      "avgMpSpent": 8.9,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1221,19 +1266,25 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 1.79
+        "sk_smite": 1.78
       },
       "effectRounds": {
-        "enemy:t_9": 0.24,
-        "player:sap": 0.09
+        "player:Venom Bite": 0.19,
+        "enemy:t_9": 0.235,
+        "player:Web Snare": 0.04,
+        "player:sap": 0.045
       },
       "effectApplications": {
-        "enemy:t_9": 0.24,
-        "player:sap": 0.09
+        "player:Venom Bite": 0.19,
+        "enemy:t_9": 0.235,
+        "player:Web Snare": 0.04,
+        "player:sap": 0.045
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sap": "enemyMove:Howl"
       }
     },
     {
@@ -1248,9 +1299,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.91,
-      "avgHpPctEnd": 0.9934,
+      "avgHpPctEnd": 0.9905,
       "avgMpPctEnd": 0.9244,
-      "avgDealt": 98.78,
+      "avgDealt": 99.41,
       "avgTaken": 1.66,
       "avgItems": 0,
       "guardFreq": 0,
@@ -1277,14 +1328,20 @@
       },
       "effectRounds": {
         "enemy:t_9": 0.27,
-        "player:sap": 0.095
+        "player:Venom Bite": 0.175,
+        "player:Web Snare": 0.05,
+        "player:sap": 0.045
       },
       "effectApplications": {
         "enemy:t_9": 0.27,
-        "player:sap": 0.095
+        "player:Venom Bite": 0.175,
+        "player:Web Snare": 0.05,
+        "player:sap": 0.045
       },
       "effectSources": {
         "enemy:t_9": "item:Thorn Ring",
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -1340,14 +1397,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.25,
-      "avgHpPctEnd": 0.9614,
+      "avgRoundsWin": 3.23,
+      "avgHpPctEnd": 0.9608,
       "avgMpPctEnd": 1,
-      "avgDealt": 46.46,
-      "avgTaken": 2.55,
+      "avgDealt": 46.29,
+      "avgTaken": 2.59,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.205,
+      "critsPerFight": 0.215,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -1367,10 +1424,10 @@
       "avgDispelCasts": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.36
+        "enemy:Fibrous Hide": 0.335
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.26
+        "enemy:Fibrous Hide": 0.22
       },
       "effectSources": {
         "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
@@ -1583,15 +1640,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.32,
-      "avgHpPctEnd": 0.9256,
-      "avgMpPctEnd": 0.6685,
-      "avgDealt": 93.32,
-      "avgTaken": 8.78,
+      "avgRoundsWin": 3.05,
+      "avgHpPctEnd": 0.8803,
+      "avgMpPctEnd": 0.695,
+      "avgDealt": 89.03,
+      "avgTaken": 7.41,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.205,
-      "dodgesPerFight": 0.04,
+      "critsPerFight": 0.195,
+      "dodgesPerFight": 0.045,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1601,7 +1658,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 13.26,
+      "avgMpSpent": 12.2,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1609,16 +1666,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 3.315
+        "sk_cleave": 3.05
       },
       "effectRounds": {
-        "player:sap": 0.545
+        "player:Venom Bite": 1.675,
+        "player:Web Snare": 0.56
       },
       "effectApplications": {
-        "player:sap": 0.445
+        "player:Venom Bite": 1.445,
+        "player:Web Snare": 0.56
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -1633,14 +1693,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.93,
-      "avgHpPctEnd": 0.7647,
-      "avgMpPctEnd": 0.7907,
-      "avgDealt": 93.82,
-      "avgTaken": 21.18,
+      "avgHpPctEnd": 0.7053,
+      "avgMpPctEnd": 0.7911,
+      "avgDealt": 96.95,
+      "avgTaken": 20.56,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.205,
-      "dodgesPerFight": 0.03,
+      "critsPerFight": 0.19,
+      "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1650,7 +1710,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 14.65,
+      "avgMpSpent": 14.63,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1658,16 +1718,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_firebolt": 2.93
+        "sk_firebolt": 2.925
       },
       "effectRounds": {
-        "player:sap": 0.485
+        "player:Venom Bite": 1.49,
+        "player:Web Snare": 0.53
       },
       "effectApplications": {
-        "player:sap": 0.385
+        "player:Venom Bite": 1.355,
+        "player:Web Snare": 0.53
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -1681,15 +1744,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 4.71,
-      "avgHpPctEnd": 0.7217,
-      "avgMpPctEnd": 0.6932,
-      "avgDealt": 91.06,
-      "avgTaken": 27.27,
+      "avgRoundsWin": 4.56,
+      "avgHpPctEnd": 0.596,
+      "avgMpPctEnd": 0.7029,
+      "avgDealt": 93.92,
+      "avgTaken": 26.76,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.4,
-      "dodgesPerFight": 0.185,
+      "critsPerFight": 0.465,
+      "dodgesPerFight": 0.155,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1699,7 +1762,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 14.12,
+      "avgMpSpent": 13.67,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1707,16 +1770,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_quick_slash": 4.705
+        "sk_quick_slash": 4.555
       },
       "effectRounds": {
-        "player:sap": 0.93
+        "player:Venom Bite": 3.1,
+        "player:Web Snare": 0.845
       },
       "effectApplications": {
-        "player:sap": 0.76
+        "player:Venom Bite": 2.555,
+        "player:Web Snare": 0.845
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -1730,15 +1796,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.98,
-      "avgHpPctEnd": 0.85,
-      "avgMpPctEnd": 0.6319,
-      "avgDealt": 90.59,
-      "avgTaken": 16.2,
+      "avgRoundsWin": 3.91,
+      "avgHpPctEnd": 0.7589,
+      "avgMpPctEnd": 0.638,
+      "avgDealt": 91.44,
+      "avgTaken": 16,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.315,
-      "dodgesPerFight": 0.09,
+      "critsPerFight": 0.195,
+      "dodgesPerFight": 0.06,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1748,7 +1814,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 19.88,
+      "avgMpSpent": 19.55,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1756,16 +1822,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 3.975
+        "sk_smite": 3.91
       },
       "effectRounds": {
-        "player:sap": 0.765
+        "player:Venom Bite": 2.46,
+        "player:Web Snare": 0.765
       },
       "effectApplications": {
-        "player:sap": 0.635
+        "player:Venom Bite": 2.085,
+        "player:Web Snare": 0.765
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -2464,18 +2533,18 @@
       "items": false,
       "pool": "boss:e_aranya@t1",
       "fights": 200,
-      "winRate": 0.025,
-      "lossRate": 0.975,
+      "winRate": 0.695,
+      "lossRate": 0.305,
       "timeoutRate": 0,
-      "avgRoundsWin": 22.2,
-      "avgHpPctEnd": 0.0019,
-      "avgMpPctEnd": 0.0656,
-      "avgDealt": 410.97,
-      "avgTaken": 200.76,
+      "avgRoundsWin": 22.02,
+      "avgHpPctEnd": 0.0961,
+      "avgMpPctEnd": 0.0527,
+      "avgDealt": 485.61,
+      "avgTaken": 178.34,
       "avgItems": 0,
-      "guardFreq": 4.85,
-      "critsPerFight": 1.55,
-      "dodgesPerFight": 0.48,
+      "guardFreq": 3.58,
+      "critsPerFight": 1.51,
+      "dodgesPerFight": 0.375,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2485,7 +2554,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 75.64,
+      "avgMpSpent": 70,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2493,16 +2562,16 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 18.91
+        "sk_cleave": 17.5
       },
       "effectRounds": {
-        "player:sap": 7.02
+        "player:Silk Prison": 6.595
       },
       "effectApplications": {
-        "player:sap": 5.24
+        "player:Silk Prison": 6.595
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison"
+        "player:Silk Prison": "enemyMove:Silk Prison"
       }
     },
     {
@@ -2516,25 +2585,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 11.33,
-      "avgHpPctEnd": 0.8284,
-      "avgMpPctEnd": 0.2447,
-      "avgDealt": 491.02,
-      "avgTaken": 40.34,
+      "avgRoundsWin": 10.18,
+      "avgHpPctEnd": 0.8501,
+      "avgMpPctEnd": 0.3213,
+      "avgDealt": 501.45,
+      "avgTaken": 35.22,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.965,
-      "dodgesPerFight": 0.23,
+      "critsPerFight": 0.85,
+      "dodgesPerFight": 0.145,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 2.235,
+      "avgEquipProcs": 1.98,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 45.32,
+      "avgMpSpent": 40.72,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2542,18 +2611,18 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 11.33
+        "sk_cleave": 10.18
       },
       "effectRounds": {
-        "player:sap": 3.335,
-        "enemy:t_9": 2.215
+        "player:Silk Prison": 2.965,
+        "enemy:t_9": 1.5
       },
       "effectApplications": {
-        "player:sap": 2.425,
-        "enemy:t_9": 2.215
+        "player:Silk Prison": 2.965,
+        "enemy:t_9": 1.5
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -2568,25 +2637,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 9.69,
-      "avgHpPctEnd": 0.939,
-      "avgMpPctEnd": 0.4463,
-      "avgDealt": 498.24,
-      "avgTaken": 17.51,
+      "avgRoundsWin": 8.47,
+      "avgHpPctEnd": 0.9471,
+      "avgMpPctEnd": 0.516,
+      "avgDealt": 499.25,
+      "avgTaken": 15.18,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.855,
-      "dodgesPerFight": 0.19,
+      "critsPerFight": 0.795,
+      "dodgesPerFight": 0.165,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 1.81,
+      "avgEquipProcs": 1.715,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 38.76,
+      "avgMpSpent": 33.88,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2594,18 +2663,18 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 9.69
+        "sk_cleave": 8.47
       },
       "effectRounds": {
-        "player:sap": 2.64,
-        "enemy:t_9": 1.8
+        "player:Silk Prison": 2.415,
+        "enemy:t_9": 1.38
       },
       "effectApplications": {
-        "player:sap": 2,
-        "enemy:t_9": 1.8
+        "player:Silk Prison": 2.415,
+        "enemy:t_9": 1.38
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -2622,13 +2691,13 @@
       "timeoutRate": 0,
       "avgRoundsWin": 0,
       "avgHpPctEnd": 0,
-      "avgMpPctEnd": 0.5223,
-      "avgDealt": 283.51,
-      "avgTaken": 147.75,
+      "avgMpPctEnd": 0.5205,
+      "avgDealt": 321.97,
+      "avgTaken": 147.51,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.65,
-      "dodgesPerFight": 0.195,
+      "critsPerFight": 0.615,
+      "dodgesPerFight": 0.17,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2638,7 +2707,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 53.5,
+      "avgMpSpent": 53.7,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2647,19 +2716,19 @@
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_frost_lance": 2.97,
-        "sk_firebolt": 4.76
+        "sk_firebolt": 4.8
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 2.38,
-        "player:sap": 2.285
+        "player:Silk Prison": 2.33,
+        "enemy:sk_frost_lance": 1.96
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 2.38,
-        "player:sap": 1.69
+        "player:Silk Prison": 2.33,
+        "enemy:sk_frost_lance": 1.96
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:sap": "enemyMove:Silk Prison"
+        "player:Silk Prison": "enemyMove:Silk Prison",
+        "enemy:sk_frost_lance": "skill:Frost Lance"
       }
     },
     {
@@ -2670,28 +2739,28 @@
       "items": false,
       "pool": "boss:e_aranya@t2",
       "fights": 200,
-      "winRate": 0.97,
-      "lossRate": 0.03,
+      "winRate": 0.99,
+      "lossRate": 0.01,
       "timeoutRate": 0,
-      "avgRoundsWin": 9.67,
-      "avgHpPctEnd": 0.1612,
-      "avgMpPctEnd": 0.5185,
-      "avgDealt": 494.64,
-      "avgTaken": 125.92,
+      "avgRoundsWin": 8.57,
+      "avgHpPctEnd": 0.2525,
+      "avgMpPctEnd": 0.5759,
+      "avgDealt": 499.85,
+      "avgTaken": 112.15,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.735,
-      "dodgesPerFight": 0.21,
+      "critsPerFight": 0.68,
+      "dodgesPerFight": 0.19,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 2.005,
+      "avgEquipProcs": 1.725,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 66.45,
+      "avgMpSpent": 58.53,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2699,23 +2768,23 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 3.63,
-        "sk_firebolt": 6.03
+        "sk_frost_lance": 3.135,
+        "sk_firebolt": 5.435
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 3.17,
-        "enemy:t_9": 2.005,
-        "player:sap": 2.695
+        "enemy:sk_frost_lance": 2.39,
+        "enemy:t_9": 1.3,
+        "player:Silk Prison": 2.475
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 3.17,
-        "enemy:t_9": 2.005,
-        "player:sap": 2.03
+        "enemy:sk_frost_lance": 2.39,
+        "enemy:t_9": 1.3,
+        "player:Silk Prison": 2.475
       },
       "effectSources": {
         "enemy:sk_frost_lance": "skill:Frost Lance",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Silk Prison"
+        "player:Silk Prison": "enemyMove:Silk Prison"
       }
     },
     {
@@ -2729,25 +2798,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 7.96,
-      "avgHpPctEnd": 0.4602,
-      "avgMpPctEnd": 0.6693,
-      "avgDealt": 501.99,
-      "avgTaken": 97.16,
+      "avgRoundsWin": 7.21,
+      "avgHpPctEnd": 0.5102,
+      "avgMpPctEnd": 0.6944,
+      "avgDealt": 513.45,
+      "avgTaken": 88.17,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.65,
-      "dodgesPerFight": 0.19,
+      "critsPerFight": 0.665,
+      "dodgesPerFight": 0.155,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 1.61,
+      "avgEquipProcs": 1.49,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 54.9,
+      "avgMpSpent": 50.73,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2755,23 +2824,23 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 3.025,
-        "sk_firebolt": 4.93
+        "sk_frost_lance": 2.935,
+        "sk_firebolt": 4.275
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 2.71,
-        "player:sap": 2.145,
-        "enemy:t_9": 1.595
+        "enemy:sk_frost_lance": 1.85,
+        "enemy:t_9": 1.23,
+        "player:Silk Prison": 2.01
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 2.71,
-        "player:sap": 1.62,
-        "enemy:t_9": 1.595
+        "enemy:sk_frost_lance": 1.85,
+        "enemy:t_9": 1.23,
+        "player:Silk Prison": 2.01
       },
       "effectSources": {
         "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:sap": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "enemy:t_9": "item:Thorn Ring",
+        "player:Silk Prison": "enemyMove:Silk Prison"
       }
     },
     {
@@ -2787,13 +2856,13 @@
       "timeoutRate": 0,
       "avgRoundsWin": 0,
       "avgHpPctEnd": 0,
-      "avgMpPctEnd": 0.1801,
-      "avgDealt": 208.18,
-      "avgTaken": 163.9,
+      "avgMpPctEnd": 0.1731,
+      "avgDealt": 255.25,
+      "avgTaken": 164.62,
       "avgItems": 0,
-      "guardFreq": 0.09,
-      "critsPerFight": 1.205,
-      "dodgesPerFight": 0.51,
+      "guardFreq": 0.075,
+      "critsPerFight": 1.305,
+      "dodgesPerFight": 0.445,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2803,7 +2872,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 57.93,
+      "avgMpSpent": 58.34,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2811,17 +2880,17 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_backstab": 4.145,
-        "sk_quick_slash": 6.875
+        "sk_backstab": 4.185,
+        "sk_quick_slash": 6.89
       },
       "effectRounds": {
-        "player:sap": 3.195
+        "player:Silk Prison": 3.35
       },
       "effectApplications": {
-        "player:sap": 2.325
+        "player:Silk Prison": 3.35
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison"
+        "player:Silk Prison": "enemyMove:Silk Prison"
       }
     },
     {
@@ -2835,25 +2904,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 13.34,
-      "avgHpPctEnd": 0.3249,
-      "avgMpPctEnd": 0.1263,
-      "avgDealt": 484.89,
-      "avgTaken": 117.47,
+      "avgRoundsWin": 11.73,
+      "avgHpPctEnd": 0.392,
+      "avgMpPctEnd": 0.2277,
+      "avgDealt": 492.2,
+      "avgTaken": 105.8,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 1.62,
-      "dodgesPerFight": 0.655,
+      "critsPerFight": 1.49,
+      "dodgesPerFight": 0.43,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 2.26,
+      "avgEquipProcs": 2.125,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 68.15,
+      "avgMpSpent": 60.24,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2861,19 +2930,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_backstab": 4.69,
-        "sk_quick_slash": 8.645
+        "sk_backstab": 4.175,
+        "sk_quick_slash": 7.555
       },
       "effectRounds": {
-        "player:sap": 3.58,
-        "enemy:t_9": 2.25
+        "player:Silk Prison": 3.275,
+        "enemy:t_9": 1.74
       },
       "effectApplications": {
-        "player:sap": 2.685,
-        "enemy:t_9": 2.25
+        "player:Silk Prison": 3.275,
+        "enemy:t_9": 1.74
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -2888,25 +2957,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 11.04,
-      "avgHpPctEnd": 0.6349,
-      "avgMpPctEnd": 0.3885,
-      "avgDealt": 491.79,
-      "avgTaken": 77.41,
+      "avgRoundsWin": 10.07,
+      "avgHpPctEnd": 0.6633,
+      "avgMpPctEnd": 0.4292,
+      "avgDealt": 507.76,
+      "avgTaken": 71.38,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 1.53,
-      "dodgesPerFight": 0.575,
+      "critsPerFight": 1.27,
+      "dodgesPerFight": 0.43,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 1.995,
+      "avgEquipProcs": 1.875,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 57.48,
+      "avgMpSpent": 53.66,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2914,19 +2983,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_backstab": 4.06,
-        "sk_quick_slash": 6.98
+        "sk_backstab": 3.91,
+        "sk_quick_slash": 6.155
       },
       "effectRounds": {
-        "player:sap": 2.925,
-        "enemy:t_9": 1.985
+        "player:Silk Prison": 2.54,
+        "enemy:t_9": 1.505
       },
       "effectApplications": {
-        "player:sap": 2.27,
-        "enemy:t_9": 1.985
+        "player:Silk Prison": 2.54,
+        "enemy:t_9": 1.505
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -2941,16 +3010,16 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 66.31,
-      "avgHpPctEnd": 0.5272,
-      "avgMpPctEnd": 0.0423,
-      "avgDealt": 491.97,
-      "avgTaken": 769.16,
+      "avgRoundsWin": 38.89,
+      "avgHpPctEnd": 0.5515,
+      "avgMpPctEnd": 0.0406,
+      "avgDealt": 492.9,
+      "avgTaken": 451.66,
       "avgItems": 0,
-      "guardFreq": 6.645,
-      "critsPerFight": 4.465,
-      "dodgesPerFight": 0.865,
-      "healPerFight": 4308.23,
+      "guardFreq": 2.535,
+      "critsPerFight": 2.855,
+      "dodgesPerFight": 0.6,
+      "healPerFight": 1505.78,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
@@ -2959,7 +3028,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 139.35,
+      "avgMpSpent": 106.63,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2967,17 +3036,17 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 14.19,
-        "sk_mend": 8.55
+        "sk_smite": 14.35,
+        "sk_mend": 4.36
       },
       "effectRounds": {
-        "player:sap": 19.085
+        "player:Silk Prison": 11.37
       },
       "effectApplications": {
-        "player:sap": 14.26
+        "player:Silk Prison": 11.37
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison"
+        "player:Silk Prison": "enemyMove:Silk Prison"
       }
     },
     {
@@ -2991,25 +3060,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 16.62,
-      "avgHpPctEnd": 0.7053,
-      "avgMpPctEnd": 0.1731,
-      "avgDealt": 481,
-      "avgTaken": 103.92,
+      "avgRoundsWin": 14.45,
+      "avgHpPctEnd": 0.6661,
+      "avgMpPctEnd": 0.2856,
+      "avgDealt": 489.47,
+      "avgTaken": 91.48,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 1.495,
-      "dodgesPerFight": 0.25,
-      "healPerFight": 88.25,
+      "critsPerFight": 1.28,
+      "dodgesPerFight": 0.235,
+      "healPerFight": 45.91,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 2.725,
+      "avgEquipProcs": 2.495,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 84.35,
+      "avgMpSpent": 72.87,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -3017,19 +3086,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 16.205,
-        "sk_mend": 0.415
+        "sk_smite": 14.23,
+        "sk_mend": 0.215
       },
       "effectRounds": {
-        "player:sap": 4.885,
-        "enemy:t_9": 2.715
+        "player:Silk Prison": 4.075,
+        "enemy:t_9": 1.97
       },
       "effectApplications": {
-        "player:sap": 3.64,
-        "enemy:t_9": 2.715
+        "player:Silk Prison": 4.075,
+        "enemy:t_9": 1.97
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -3044,25 +3113,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 13.33,
-      "avgHpPctEnd": 0.7701,
-      "avgMpPctEnd": 0.4712,
-      "avgDealt": 487.58,
-      "avgTaken": 57.25,
+      "avgRoundsWin": 11.57,
+      "avgHpPctEnd": 0.7947,
+      "avgMpPctEnd": 0.5411,
+      "avgDealt": 494.84,
+      "avgTaken": 51.13,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 1.335,
-      "dodgesPerFight": 0.25,
+      "critsPerFight": 1.185,
+      "dodgesPerFight": 0.205,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 2.335,
+      "avgEquipProcs": 2.155,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 66.63,
+      "avgMpSpent": 57.83,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -3070,18 +3139,18 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 13.325
+        "sk_smite": 11.565
       },
       "effectRounds": {
-        "player:sap": 3.855,
-        "enemy:t_9": 2.335
+        "player:Silk Prison": 3.36,
+        "enemy:t_9": 1.795
       },
       "effectApplications": {
-        "player:sap": 2.79,
-        "enemy:t_9": 2.335
+        "player:Silk Prison": 3.36,
+        "enemy:t_9": 1.795
       },
       "effectSources": {
-        "player:sap": "enemyMove:Silk Prison",
+        "player:Silk Prison": "enemyMove:Silk Prison",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -3097,9 +3166,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.53,
-      "avgHpPctEnd": 1,
+      "avgHpPctEnd": 0.9954,
       "avgMpPctEnd": 0.7647,
-      "avgDealt": 96.62,
+      "avgDealt": 97.53,
       "avgTaken": 0,
       "avgItems": 0,
       "guardFreq": 0,
@@ -3127,15 +3196,21 @@
       },
       "effectRounds": {
         "player:sk_bulwark": 1.465,
-        "player:sap": 0.155
+        "player:Web Snare": 0.07,
+        "player:sap": 0.085,
+        "player:Venom Bite": 0.27
       },
       "effectApplications": {
         "player:sk_bulwark": 1,
-        "player:sap": 0.135
+        "player:Web Snare": 0.07,
+        "player:sap": 0.08,
+        "player:Venom Bite": 0.25
       },
       "effectSources": {
         "player:sk_bulwark": "skill:Bulwark",
-        "player:sap": "enemyMove:Howl"
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sap": "enemyMove:Howl",
+        "player:Venom Bite": "enemyMove:Venom Bite"
       }
     },
     {
@@ -3149,25 +3224,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.11,
-      "avgHpPctEnd": 1,
-      "avgMpPctEnd": 0.6794,
-      "avgDealt": 108.77,
+      "avgRoundsWin": 3.09,
+      "avgHpPctEnd": 0.9955,
+      "avgMpPctEnd": 0.6806,
+      "avgDealt": 109.93,
       "avgTaken": 0,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.075,
-      "dodgesPerFight": 0.055,
+      "critsPerFight": 0.1,
+      "dodgesPerFight": 0.06,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 84,
-      "avgShieldAbsorbed": 1.92,
+      "avgShieldAbsorbed": 1.89,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 8.92,
+      "avgShieldExpiryLost": 7.3,
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 22.44,
+      "avgMpSpent": 22.36,
       "avgBuffCasts": 1,
       "avgShieldCasts": 1,
       "avgDotCasts": 0,
@@ -3177,22 +3252,28 @@
       "skillCasts": {
         "sk_bulwark": 1,
         "sk_war_cry": 1,
-        "sk_cleave": 1.11
+        "sk_cleave": 1.09
       },
       "effectRounds": {
         "player:sk_bulwark": 2,
-        "player:sk_war_cry": 1.11,
-        "player:sap": 0.285
+        "player:sk_war_cry": 1.09,
+        "player:Venom Bite": 0.325,
+        "player:Web Snare": 0.125,
+        "player:sap": 0.145
       },
       "effectApplications": {
         "player:sk_bulwark": 1,
         "player:sk_war_cry": 1,
-        "player:sap": 0.225
+        "player:Venom Bite": 0.265,
+        "player:Web Snare": 0.125,
+        "player:sap": 0.125
       },
       "effectSources": {
         "player:sk_bulwark": "skill:Bulwark",
         "player:sk_war_cry": "skill:War Cry",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sap": "enemyMove:Howl"
       }
     },
     {
@@ -3276,9 +3357,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.26,
-      "avgHpPctEnd": 0.9826,
+      "avgHpPctEnd": 0.9794,
       "avgMpPctEnd": 0.9174,
-      "avgDealt": 78.1,
+      "avgDealt": 78.79,
       "avgTaken": 2.61,
       "avgItems": 0,
       "guardFreq": 0,
@@ -3308,19 +3389,22 @@
       "effectRounds": {
         "enemy:sk_scorch": 0.26,
         "enemy:sk_frost_lance": 0.04,
-        "player:sap": 0.045,
+        "player:Venom Bite": 0.12,
+        "player:Web Snare": 0.045,
         "enemy:t_9": 0.06
       },
       "effectApplications": {
         "enemy:sk_scorch": 0.22,
         "enemy:sk_frost_lance": 0.04,
-        "player:sap": 0.045,
+        "player:Venom Bite": 0.12,
+        "player:Web Snare": 0.045,
         "enemy:t_9": 0.06
       },
       "effectSources": {
         "enemy:sk_scorch": "skill:Scorch",
         "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:sap": "enemyMove:Web Snare",
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare",
         "enemy:t_9": "item:Thorn Ring"
       }
     },
@@ -3335,57 +3419,59 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.14,
-      "avgHpPctEnd": 0.9905,
-      "avgMpPctEnd": 0.8649,
-      "avgDealt": 82.67,
-      "avgTaken": 1.71,
+      "avgRoundsWin": 2.11,
+      "avgHpPctEnd": 0.9844,
+      "avgMpPctEnd": 0.8668,
+      "avgDealt": 80.86,
+      "avgTaken": 1.68,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.12,
-      "dodgesPerFight": 0.075,
+      "critsPerFight": 0.125,
+      "dodgesPerFight": 0.08,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 0.35,
+      "avgEquipProcs": 0.385,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 22.43,
+      "avgMpSpent": 22.12,
       "avgBuffCasts": 1,
       "avgShieldCasts": 0,
-      "avgDotCasts": 0.95,
+      "avgDotCasts": 0.985,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_barrier": 1,
-        "sk_scorch": 0.95,
-        "sk_frost_lance": 0.185,
-        "sk_firebolt": 0.005
+        "sk_scorch": 0.985,
+        "sk_frost_lance": 0.125
       },
       "effectRounds": {
-        "player:sk_barrier": 2.27,
-        "player:sap": 0.135,
-        "enemy:t_9": 0.315,
-        "enemy:sk_scorch": 0.14,
-        "enemy:sk_frost_lance": 0.005
+        "player:sk_barrier": 2.22,
+        "player:Web Snare": 0.07,
+        "enemy:t_9": 0.32,
+        "player:Venom Bite": 0.18,
+        "player:sap": 0.05,
+        "enemy:sk_scorch": 0.11
       },
       "effectApplications": {
         "player:sk_barrier": 2,
-        "player:sap": 0.125,
-        "enemy:t_9": 0.315,
-        "enemy:sk_scorch": 0.135,
-        "enemy:sk_frost_lance": 0.005
+        "player:Web Snare": 0.07,
+        "enemy:t_9": 0.32,
+        "player:Venom Bite": 0.17,
+        "player:sap": 0.05,
+        "enemy:sk_scorch": 0.11
       },
       "effectSources": {
         "player:sk_barrier": "skill:Arcane Ward",
-        "player:sap": "enemyMove:Web Snare",
+        "player:Web Snare": "enemyMove:Web Snare",
         "enemy:t_9": "item:Thorn Ring",
-        "enemy:sk_scorch": "skill:Scorch",
-        "enemy:sk_frost_lance": "skill:Frost Lance"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:sap": "enemyMove:Howl",
+        "enemy:sk_scorch": "skill:Scorch"
       }
     },
     {
@@ -3465,9 +3551,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.39,
-      "avgHpPctEnd": 0.9844,
+      "avgHpPctEnd": 0.9821,
       "avgMpPctEnd": 0.8667,
-      "avgDealt": 92.11,
+      "avgDealt": 92.85,
       "avgTaken": 2.72,
       "avgItems": 0,
       "guardFreq": 0,
@@ -3495,15 +3581,18 @@
       },
       "effectRounds": {
         "enemy:t_9": 0.125,
-        "player:sap": 0.07
+        "player:Venom Bite": 0.1,
+        "player:Web Snare": 0.07
       },
       "effectApplications": {
         "enemy:t_9": 0.125,
-        "player:sap": 0.07
+        "player:Venom Bite": 0.1,
+        "player:Web Snare": 0.07
       },
       "effectSources": {
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Web Snare"
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -3517,25 +3606,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.34,
-      "avgHpPctEnd": 0.9858,
-      "avgMpPctEnd": 0.8083,
-      "avgDealt": 100.88,
-      "avgTaken": 3,
+      "avgRoundsWin": 2.32,
+      "avgHpPctEnd": 0.9808,
+      "avgMpPctEnd": 0.8091,
+      "avgDealt": 100.27,
+      "avgTaken": 2.78,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.215,
-      "dodgesPerFight": 0.16,
+      "critsPerFight": 0.2,
+      "dodgesPerFight": 0.165,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 0.365,
+      "avgEquipProcs": 0.36,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 18.02,
+      "avgMpSpent": 17.95,
       "avgBuffCasts": 1,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -3545,20 +3634,26 @@
       "skillCasts": {
         "sk_smoke_step": 1,
         "sk_backstab": 1,
-        "sk_quick_slash": 0.34
+        "sk_quick_slash": 0.315
       },
       "effectRounds": {
-        "player:sk_smoke_step": 1.255,
-        "player:sap": 0.135,
-        "enemy:t_9": 0.345
+        "player:sk_smoke_step": 1.24,
+        "player:Web Snare": 0.085,
+        "player:Venom Bite": 0.31,
+        "player:sap": 0.04,
+        "enemy:t_9": 0.335
       },
       "effectApplications": {
         "player:sk_smoke_step": 1,
-        "player:sap": 0.115,
-        "enemy:t_9": 0.345
+        "player:Web Snare": 0.085,
+        "player:Venom Bite": 0.28,
+        "player:sap": 0.04,
+        "enemy:t_9": 0.335
       },
       "effectSources": {
         "player:sk_smoke_step": "skill:Smoke Step",
+        "player:Web Snare": "enemyMove:Web Snare",
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
         "enemy:t_9": "item:Thorn Ring"
       }
@@ -3639,25 +3734,25 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.96,
-      "avgHpPctEnd": 0.9898,
-      "avgMpPctEnd": 0.9042,
-      "avgDealt": 88.24,
-      "avgTaken": 2.11,
+      "avgRoundsWin": 1.87,
+      "avgHpPctEnd": 0.9884,
+      "avgMpPctEnd": 0.9086,
+      "avgDealt": 84.8,
+      "avgTaken": 1.67,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.15,
-      "dodgesPerFight": 0.03,
+      "dodgesPerFight": 0.045,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
       "avgShieldExpiryLost": 0,
-      "avgEquipProcs": 0.305,
+      "avgEquipProcs": 0.28,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 9.78,
+      "avgMpSpent": 9.32,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -3665,19 +3760,25 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smite": 1.955
+        "sk_smite": 1.865
       },
       "effectRounds": {
-        "enemy:t_9": 0.275,
-        "player:sap": 0.11
+        "player:Venom Bite": 0.185,
+        "enemy:t_9": 0.26,
+        "player:sap": 0.05,
+        "player:Web Snare": 0.05
       },
       "effectApplications": {
-        "enemy:t_9": 0.275,
-        "player:sap": 0.11
+        "player:Venom Bite": 0.185,
+        "enemy:t_9": 0.26,
+        "player:sap": 0.05,
+        "player:Web Snare": 0.05
       },
       "effectSources": {
+        "player:Venom Bite": "enemyMove:Venom Bite",
         "enemy:t_9": "item:Thorn Ring",
-        "player:sap": "enemyMove:Howl"
+        "player:sap": "enemyMove:Howl",
+        "player:Web Snare": "enemyMove:Web Snare"
       }
     },
     {
@@ -3692,9 +3793,9 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.41,
-      "avgHpPctEnd": 0.9948,
+      "avgHpPctEnd": 0.9886,
       "avgMpPctEnd": 0.8488,
-      "avgDealt": 97.36,
+      "avgDealt": 98.28,
       "avgTaken": 1.3,
       "avgItems": 0,
       "guardFreq": 0,
@@ -3723,16 +3824,22 @@
       "effectRounds": {
         "player:sk_blessing": 2.755,
         "enemy:t_9": 0.36,
-        "player:sap": 0.135
+        "player:Venom Bite": 0.385,
+        "player:Web Snare": 0.06,
+        "player:sap": 0.075
       },
       "effectApplications": {
         "player:sk_blessing": 2,
         "enemy:t_9": 0.36,
-        "player:sap": 0.115
+        "player:Venom Bite": 0.345,
+        "player:Web Snare": 0.06,
+        "player:sap": 0.06
       },
       "effectSources": {
         "player:sk_blessing": "skill:Blessing",
         "enemy:t_9": "item:Thorn Ring",
+        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Web Snare": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },

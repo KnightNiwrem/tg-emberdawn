@@ -321,16 +321,56 @@ export interface ActionResult {
   consumedTurn: boolean;
 }
 
-function enemyChooseMove(def: EnemyDef, e: BattleState['enemy'], rng: Rng): EnemyMove {
+function enemyChooseMove(def: EnemyDef, battle: BattleState, rng: Rng): EnemyMove {
   // e.turn is ALREADY the count of enemy actions taken (performAction
   // increments before the phase) — `every: N` fires on the Nth action:
   // 3, 6, 9… with no extra offset (#26; it used to fire on 2, 5, 8…).
   // Stunned turns advance the counter — time passes — but choose no move,
   // so a stun never fires a special.
-  const t = e.turn;
-  if (def.special && t % def.special.every === 0) return def.special.move;
-  const idx = pickWeighted(def.moves.map((m) => m.weight), rng);
-  return def.moves[idx] ?? def.moves[0]!;
+  const due = def.special && battle.enemy.turn % def.special.every === 0
+    ? def.special.move
+    : undefined;
+  // #83 AI legality: obviously wasted moves (healing at full HP,
+  // re-warding over a live ward, refreshing a live same-source buff) are
+  // skipped; the special cadence is preserved — a wasted special falls
+  // through to the legal ordinary moves and retries next window.
+  if (due && !wastedMove(due, battle)) return due;
+  const pool = def.moves.filter((m) => !wastedMove(m, battle));
+  const list = pool.length > 0 ? pool : def.moves;
+  const idx = pickWeighted(list.map((m) => m.weight), rng);
+  return list[idx] ?? list[0]!;
+}
+
+/** A move is WASTED when every effect it would apply is already satisfied —
+ * ordinary damage, control and debuffs are never wasted (#83). */
+function wastedMove(m: EnemyMove, battle: BattleState): boolean {
+  return m.effects.length > 0 && m.effects.every((sp) => wastedEffect(sp, battle, m));
+}
+
+function wastedEffect(sp: EffectSpec, battle: BattleState, move: EnemyMove): boolean {
+  switch (sp.kind) {
+    case 'restore':
+      // Healing at full HP restores 0 — wasted.
+      return battle.enemy.hp >= battle.enemy.maxHp;
+    case 'shield':
+      // Re-casting while an equal-or-stronger ward from THIS move is still
+      // live only refreshes it — wasted (#79 capacity semantics).
+      return battle.effectInstances.some((i) =>
+        i.side === 'enemy' && i.kind === 'shield' && i.defId === move.name &&
+        (i.shieldAmount ?? 0) >= (sp.amount ?? 0) &&
+        (i.battleLifetime || i.remaining > 0)
+      );
+    case 'statmod':
+      if (sp.target === 'opponent') return false;
+      // Refreshing a live same-source self-buff with an equal-or-shorter
+      // duration is wasted.
+      return battle.effectInstances.some((i) =>
+        i.side === 'enemy' && i.kind === 'statmod' && i.defId === move.name &&
+        i.remaining >= sp.duration
+      );
+    default:
+      return false;
+  }
 }
 
 function pickWeighted(weights: number[], rng: Rng): number {
@@ -457,7 +497,7 @@ export function performAction(
         lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
       }
     } else {
-      const move = enemyChooseMove(def, battle.enemy, rng);
+      const move = enemyChooseMove(def, battle, rng);
       lines.push(...enemyAct(p, battle, move, rng));
     }
   }
@@ -605,8 +645,23 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     // Riders gated on real HP damage (#79): a fully-shielded hit never
     // triggered the on-flesh effect. Checked BEFORE the chance draw.
     if (spec.requireHpDamage && !ctx.hpDamaged) continue;
-    if (spec.chance !== undefined && !chance(ctx.rng, spec.chance)) continue;
     const side = targetSideOf(spec, ctx.actor);
+    // #83 status resistance: harmful statuses applied BY THE PLAYER to a
+    // resistant enemy fail outright with visible "resists" feedback —
+    // authored resistance, never blanket immunity. One injected draw;
+    // deterministic. Benign kinds (damage/heal/shield/cleanse/dispel) and
+    // enemy self-effects are never resisted.
+    if (
+      ctx.actor === 'player' && side === 'enemy' &&
+      (spec.kind === 'statmod' || spec.kind === 'control' || spec.kind === 'periodic')
+    ) {
+      const resist = enemyDef(ctx.battle.enemy.id)?.statusResist ?? 0;
+      if (resist > 0 && !chance(ctx.rng, 1 - resist)) {
+        lines.push(`✨ ${ctx.battle.enemy.name} resists ${ctx.displayName}!`);
+        continue;
+      }
+    }
+    if (spec.chance !== undefined && !chance(ctx.rng, spec.chance)) continue;
     switch (spec.kind) {
       case 'damage': {
         lines.push(...applyDamageEffect(ctx, spec));
@@ -617,12 +672,20 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'lifesteal': {
+        // Lifesteal always feeds the CASTER (#78) — enemy-side drains heal
+        // the enemy (#83: first enemy-side user is the Marsh Leech's Drain).
         if (ctx.lastDamage > 0) {
           const heal = Math.floor(ctx.lastDamage * spec.pct);
           if (heal > 0) {
-            const max = statsOf(ctx.p).maxHp;
-            ctx.p.hp = Math.min(max, ctx.p.hp + heal);
-            lines.push(`🩸 You drain ${heal} HP.`);
+            if (ctx.actor === 'player') {
+              const max = statsOf(ctx.p).maxHp;
+              ctx.p.hp = Math.min(max, ctx.p.hp + heal);
+              lines.push(`🩸 You drain ${heal} HP.`);
+            } else {
+              const maxHp = ctx.battle.enemy.maxHp;
+              ctx.battle.enemy.hp = Math.min(maxHp, ctx.battle.enemy.hp + heal);
+              lines.push(`🩸 ${ctx.battle.enemy.name} drains ${heal} HP from you!`);
+            }
           }
         }
         break;
@@ -691,7 +754,9 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         if (removed.length > 0 && !spec.quiet) {
           lines.push(
             spec.line?.replace('{n}', String(removed.length)) ??
-              `✨ ${ctx.battle.enemy.name}'s benefits are stripped.`,
+              (side === 'player'
+                ? '✨ Your benefits are stripped away!'
+                : `✨ ${ctx.battle.enemy.name}'s benefits are stripped.`),
           );
         }
         // A stripped ward contribution's capacity leaves the pool (#79).

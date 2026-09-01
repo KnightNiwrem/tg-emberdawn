@@ -518,10 +518,12 @@ export const SKILLS: readonly SkillDef[] = [
         duration: 3,
         tickPhase: 'roundEnd',
         name: 'Venom',
-        tags: ['poison'],
+        tags: ['poison', 'harmful'],
+        // #83 DoT identity: Poison is the ONLY shield-bypassing DoT.
+        bypassShield: true,
       },
     ],
-    desc: '125% ATK and envenom: 16 poison damage for 3 turns.',
+    desc: '125% ATK and envenom: 16 poison damage for 3 turns, ignoring wards.',
   }),
   S({
     id: 'sk_shadow_dance',
@@ -576,10 +578,13 @@ export const SKILLS: readonly SkillDef[] = [
       duration: 3,
       tickPhase: 'roundEnd',
       name: 'Ambush Venom',
-      tags: ['poison'],
+      tags: ['poison', 'harmful'],
+      // #83 DoT identity: Poison is the ONLY shield-bypassing DoT.
+      bypassShield: true,
       chance: 0.5,
     }],
-    desc: 'Battle open: 50% chance to envenom the foe — 20 poison damage for 3 turns.',
+    desc:
+      'Battle open: 50% chance to envenom the foe — 20 poison damage for 3 turns, ignoring wards.',
   }),
   S({
     id: 'sk_death_mark',

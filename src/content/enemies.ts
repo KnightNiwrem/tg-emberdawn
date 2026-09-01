@@ -53,6 +53,67 @@ const GUARD = (pct: number, turns = 2): EffectSpec => ({
  * damage coefficient). */
 const HEAL = (pct: number): EffectSpec => ({ kind: 'restore', hpPctOfMax: pct });
 
+/** #83 shared-status policy for enemies (same vocabulary as skills and
+ * equipment — no id branches anywhere):
+ * - **Poison** is the ONLY DoT that bypasses shields — it bites HP
+ *   directly. Flat per-round caps are inherently boss-safe.
+ * - **Burn** routes through the target's ward like ordinary damage.
+ * - **Slow** (and its Chill/Petrify/Ageing flavor copies) cuts SPD, which
+ *   also cuts dodge and flee odds. Freeze/paralysis beyond Slow is
+ *   deliberately NOT shipped; heavy "freeze" moments are Slow with a
+ *   bigger magnitude under one coherent policy.
+ * - **Ward Break** cuts RES; Weaken (SAP) cuts all outgoing damage.
+ * - **statusResist** (bosses/elites): harmful statuses applied BY THE
+ *   PLAYER to this enemy fail outright that fraction of the time, with
+ *   visible "resists" feedback — authored resistance, never blanket
+ *   immunity, and the roll draws the injected RNG exactly once. */
+const POISON = (perRound: number, turns = 3): EffectSpec => ({
+  kind: 'periodic',
+  target: 'opponent',
+  perRound: -perRound,
+  duration: turns,
+  tickPhase: 'roundEnd',
+  name: 'Poison',
+  tags: ['poison', 'harmful'],
+  bypassShield: true,
+  line: `☠️ The venom bites in — Poison (${perRound} damage/round, ignores wards)!`,
+});
+
+const SLOW = (pct = 0.25, turns = 2, name = 'Slowed', flavor?: string): EffectSpec => ({
+  kind: 'statmod',
+  target: 'opponent',
+  stat: 'spd',
+  pct: -pct,
+  duration: turns,
+  timing: 'immediate',
+  name,
+  tags: ['slow', 'harmful'],
+  line: flavor ?? `🐌 ${name} — SPD −${Math.round(pct * 100)}% for ${turns} rounds!`,
+});
+
+const BURN = (perRound: number, turns = 3): EffectSpec => ({
+  kind: 'periodic',
+  target: 'opponent',
+  perRound: -perRound,
+  duration: turns,
+  tickPhase: 'roundEnd',
+  name: 'Burn',
+  tags: ['burn', 'harmful'],
+  line: `🔥 Burning — ${perRound} damage/round for ${turns} rounds!`,
+});
+
+const WARD_BREAK = (pct = 0.25, turns = 2): EffectSpec => ({
+  kind: 'statmod',
+  target: 'opponent',
+  stat: 'res',
+  pct: -pct,
+  duration: turns,
+  timing: 'immediate',
+  name: 'Ward Break',
+  tags: ['ward-break', 'harmful'],
+  line: `💔 Ward Break — RES −${Math.round(pct * 100)}% for ${turns} rounds!`,
+});
+
 const BITE = (n = 'Bite'): EnemyMove => hit(n, 1.0, 'phys', 3);
 const CLAW = (n = 'Claw'): EnemyMove => hit(n, 1.15, 'phys', 2);
 
@@ -75,6 +136,9 @@ interface EnemySpec {
     gold?: number;
   };
   boss?: boolean;
+  /** #83 status resistance (0..1): share of player-applied harmful
+   * statuses this enemy resists outright, with visible feedback. */
+  statusResist?: number;
   openingShield?: EnemyDef['openingShield'];
   opening?: EnemyDef['opening'];
   special?: EnemyDef['special'];
@@ -103,6 +167,7 @@ function mk(s: EnemySpec): EnemyDef {
     xp: mul('xp', Math.round(16 * Math.pow(L, 1.75))),
     gold: mul('gold', Math.round(4 * Math.pow(L, 1.55))),
     boss: s.boss,
+    statusResist: s.statusResist,
     openingShield: s.openingShield,
     opening: s.opening,
     special: s.special,
@@ -187,7 +252,16 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Woodfang Spider',
     emoji: '🕷️',
     level: 5,
-    moves: [BITE('Venom Bite'), hit('Web Snare', 0.6, 'phys', 1, SAP(0.2))],
+    moves: [
+      hit('Venom Bite', 1.0, 'phys', 3, POISON(4)),
+      hit(
+        'Web Snare',
+        0.6,
+        'phys',
+        1,
+        SLOW(0.25, 2, 'Webbed', '🕸️ The webbing binds your legs — Webbed (SPD −25%, 2 rounds)!'),
+      ),
+    ],
     drops: { m_ember_shard: 0.4 },
   }),
   mk({
@@ -212,7 +286,16 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Thornling',
     emoji: '🌿',
     level: 7,
-    moves: [hit('Thorn Lash', 1.1, 'phys', 3), hit('Root Snare', 0.7, 'phys', 1, SAP(0.2))],
+    moves: [
+      hit('Thorn Lash', 1.1, 'phys', 3),
+      hit(
+        'Root Snare',
+        0.7,
+        'phys',
+        1,
+        SLOW(0.25, 2, 'Rooted', '🌿 Roots coil around your ankles — Rooted (SPD −25%, 2 rounds)!'),
+      ),
+    ],
   }),
   mk({
     id: 'e_stag',
@@ -230,9 +313,21 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 9,
     boss: true,
     mul: { hp: 2.6, xp: 3, gold: 3.2, def: 1.25 },
+    statusResist: 0.2,
     moves: [
       hit('Skittering Bite', 1.1, 'phys', 3),
-      hit('Silk Prison', 0.8, 'phys', 2, SAP(0.3)),
+      hit(
+        'Silk Prison',
+        0.8,
+        'phys',
+        2,
+        SLOW(
+          0.3,
+          2,
+          'Silked',
+          '🕸️ Silk binds you into a living cocoon — Silked (SPD −30%, 2 rounds)!',
+        ),
+      ),
     ],
     // #77 authored this as a PURE heal (its old damage coefficient was
     // silently ignored); #78 expresses it as an ordered heal spec with no
@@ -256,10 +351,16 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Marsh Leech',
     emoji: '🪱',
     level: 11,
-    // #77 authored Drain as a PURE heal; #78 gives it a heal spec with no
-    // damage coefficient to silently ignore. Damage-and-drain lifesteal
-    // becomes expressible later as ordered [damage, lifesteal] specs.
-    moves: [BITE('Leech'), move('Drain', 2, HEAL(0.05))],
+    // #77 authored Drain as a PURE heal; #83 finally re-authors it as the
+    // ordered [damage, lifesteal] pair the shared resolver has supported
+    // since #78 — the name finally means drain.
+    moves: [
+      BITE('Leech'),
+      move('Drain', 2, { kind: 'damage', attack: 'phys', power: 1.0 }, {
+        kind: 'lifesteal',
+        pct: 0.6,
+      }),
+    ],
     drops: { m_mystic_dust: 0.5, q_toxin_sample: 0.55 },
   }),
   mk({
@@ -269,7 +370,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 12,
     moves: [
       hit('Cackle Bolt', 1.2, 'mag', 3),
-      hit('Swamp Curse', 0.9, 'mag', 2, SAP(0.25)),
+      hit('Swamp Curse', 0.9, 'mag', 2, WARD_BREAK(0.25)),
     ],
     drops: { c_ether: 0.15 },
   }),
@@ -315,7 +416,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 15,
     moves: [
       hit('Coil Strike', 1.25, 'phys', 3),
-      hit('Venom Spit', 1.1, 'mag', 2, SAP(0.2)),
+      hit('Venom Spit', 1.1, 'mag', 2, POISON(7)),
     ],
   }),
   mk({
@@ -325,6 +426,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 16,
     boss: true,
     mul: { hp: 2.7, xp: 3, gold: 3.2, def: 1.3 },
+    statusResist: 0.25,
     moves: [hit("Tyrant's Tongue", 1.3, 'phys', 3), hit('Miasma', 1.0, 'mag', 2, SAP(0.3))],
     special: { every: 3, move: hit('Swallow Whole', 1.9, 'phys', 1) },
     drops: { m_mystic_dust: 1.0, t_2: 0.5 },
@@ -419,7 +521,17 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 22,
     boss: true,
     mul: { hp: 2.8, xp: 3, gold: 3.4, mag: 1.2, def: 1.3 },
-    moves: [hit('Sandstream', 1.3, 'mag', 3), hit('Ageing Touch', 1.1, 'mag', 2, SAP(0.3))],
+    statusResist: 0.3,
+    moves: [
+      hit('Sandstream', 1.3, 'mag', 3),
+      hit(
+        'Ageing Touch',
+        1.1,
+        'mag',
+        2,
+        SLOW(0.3, 2, 'Withered', '⏳ Years wash over you — Withered (SPD −30%, 2 rounds)!'),
+      ),
+    ],
     special: { every: 4, move: hit('Temporal Collapse', 2.1, 'mag', 1) },
     drops: { m_frost_core: 0.6, t_3: 0.5 },
     desc: 'It has counted every hour since the flame was lit. It wants the last one.',
@@ -432,7 +544,16 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🦇',
     level: 23,
     mul: { hp: 0.8, spd: 1.3 },
-    moves: [BITE('Chill Bite'), hit('Screech', 0.8, 'mag', 1, SAP(0.15))],
+    moves: [
+      hit(
+        'Chill Bite',
+        1.0,
+        'phys',
+        3,
+        SLOW(0.2, 2, 'Chilled', '❄️ Your joints stiffen — Chilled (SPD −20%, 2 rounds)!'),
+      ),
+      hit('Screech', 0.8, 'mag', 1, SAP(0.15)),
+    ],
     drops: { m_frost_core: 0.3 },
   }),
   mk({
@@ -457,7 +578,18 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 25,
     moves: [
       hit('Frozen Grasp', 1.25, 'mag', 3),
-      hit('Chill Whisper', 1.0, 'mag', 2, SAP(0.25)),
+      hit(
+        'Chill Whisper',
+        1.0,
+        'mag',
+        2,
+        SLOW(
+          0.25,
+          2,
+          'Chilled',
+          '❄️ The whisper freezes your marrow — Chilled (SPD −25%, 2 rounds)!',
+        ),
+      ),
     ],
     drops: { m_frost_core: 0.5, q_frost_emblem: 0.4 },
   }),
@@ -469,7 +601,16 @@ export const ENEMIES: readonly EnemyDef[] = [
     mul: { def: 1.3 },
     moves: [
       hit('Icicle Volley', 1.2, 'mag', 3),
-      move('Frost Shell', 1, GUARD(0.4, 2)),
+      // #83: a SHELL is a real ward under #79 semantics — capacity that
+      // absorbs before HP, expires, and is visible as such — not a private
+      // mitigation stance. Guard Stance stays the mitigation move.
+      move('Frost Shell', 1, {
+        kind: 'shield',
+        amount: 65,
+        duration: 2,
+        timing: 'immediate',
+        name: 'Frost Shell',
+      }),
     ],
   }),
   mk({
@@ -488,8 +629,25 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 30,
     boss: true,
     mul: { hp: 3.0, xp: 3, gold: 3.6, def: 1.35, res: 1.3 },
+    statusResist: 0.3,
     moves: [hit('Frost Breath', 1.45, 'mag', 3), hit('Tail Sweep', 1.2, 'phys', 2)],
-    special: { every: 3, move: hit('Absolute Zero', 2.0, 'mag', 1) },
+    special: {
+      every: 3,
+      // #83: one coherent freeze policy — Absolute Zero is a devastating
+      // strike plus a heavy Slow, not a separate unshipped status.
+      move: hit(
+        'Absolute Zero',
+        2.0,
+        'mag',
+        1,
+        SLOW(
+          0.35,
+          2,
+          'Frozen Solid',
+          '🧊 Absolute Zero locks your limbs — Frozen Solid (SPD −35%, 2 rounds)!',
+        ),
+      ),
+    },
     drops: { m_frost_core: 1.0, t_4: 0.6 },
     desc: "The mountain's heartbeat, coiled around the flame's twin.",
   }),
@@ -503,7 +661,14 @@ export const ENEMIES: readonly EnemyDef[] = [
     mul: { hp: 1.3, spd: 0.6 },
     moves: [
       hit('Lava Engulf', 1.3, 'mag', 3),
-      move('Cooled Crust', 1, GUARD(0.4, 2)),
+      // #83: a crust is a real ward under #79 semantics.
+      move('Cooled Crust', 1, {
+        kind: 'shield',
+        amount: 75,
+        duration: 2,
+        timing: 'immediate',
+        name: 'Cooled Crust',
+      }),
     ],
     drops: { m_cinder_heart: 0.3 },
   }),
@@ -521,7 +686,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Cinder Hound',
     emoji: '🔥',
     level: 32,
-    moves: [hit('Blazing Bite', 1.3, 'phys', 3), hit('Ember Howl', 1.0, 'mag', 2)],
+    moves: [hit('Blazing Bite', 1.3, 'phys', 3, BURN(8)), hit('Ember Howl', 1.0, 'mag', 2)],
   }),
   mk({
     id: 'e_revenant',
@@ -560,6 +725,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 38,
     boss: true,
     mul: { hp: 3.2, xp: 3, gold: 3.8, mag: 1.3, def: 1.35 },
+    statusResist: 0.3,
     moves: [hit('Solar Flare', 1.5, 'mag', 3), hit('Cinder Storm', 1.3, 'mag', 2)],
     special: { every: 4, move: move('Rekindling', 1, HEAL(0.12)) },
     drops: { m_cinder_heart: 1.0, t_5: 0.6 },
@@ -635,6 +801,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 45,
     boss: true,
     mul: { hp: 3.4, xp: 4, gold: 4, atk: 1.2, mag: 1.25, def: 1.4, res: 1.35 },
+    statusResist: 0.4,
     // #79: the Sundered King opens boss-provenance fights behind a large
     // one-time ward (long expiry, no regeneration, not dispellable).
     openingShield: { amount: 250, duration: 4, name: 'Sovereign Ward' },
@@ -685,11 +852,24 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 45,
     boss: true,
     mul: { hp: 3.6, xp: 4, gold: 4.5, atk: 1.25, mag: 1.3, def: 1.45, res: 1.4 },
+    statusResist: 0.4,
     moves: [
       hit('Void Lance', 1.6, 'mag', 3),
       hit('Entropy Field', 1.35, 'mag', 2, SAP(0.3)),
     ],
-    special: { every: 3, move: hit('Final Silence', 2.3, 'mag', 1) },
+    special: {
+      every: 3,
+      // #83: "Final Silence" silences your VOICE — it strips one active
+      // blessing (dispel) on top of the strike. The Silence ACTION-status
+      // is deliberately NOT shipped (#83: explicit action-category policy
+      // and AI fallback required first).
+      move: move(
+        'Final Silence',
+        1,
+        { kind: 'damage', attack: 'mag', power: 2.3 },
+        { kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 },
+      ),
+    },
     drops: { m_void_fragment: 1.0, t_7: 0.5 },
     desc: 'It guards nothing now. It simply ends those who arrive.',
   }),

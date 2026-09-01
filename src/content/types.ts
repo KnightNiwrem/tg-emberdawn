@@ -334,6 +334,11 @@ export interface EnemyDef {
   tutorial?: true;
   /** Staged special move: used every `every` turns (turn counts from 1). */
   special?: { every: number; move: EnemyMove };
+  /** #83 status resistance (bosses/elites): harmful statuses applied BY THE
+   * PLAYER to this enemy fail outright this fraction of the time, with
+   * visible "resists" feedback — authored resistance, never blanket
+   * immunity. */
+  statusResist?: number;
   moves: EnemyMove[];
   /** Item id -> drop chance (0..1). */
   drops?: Record<string, number>;

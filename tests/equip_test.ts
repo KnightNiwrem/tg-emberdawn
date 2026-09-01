@@ -32,13 +32,11 @@ function tankyWolf(p: PlayerState, seed: number): BattleState {
   return b;
 }
 
-/** The Warden of the Void actually scratches a high-level warrior — the
- * whisperwood wolf cannot (mitigation eats the whole bite), so late-band
- * proc tests fight the endgame elite instead. */
-const ABYSS = { kind: 'explore', zoneId: 'abyss' } as const;
-
-function tankyWarden(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_warden', ABYSS, { player: p, rng: seeded(seed) })!;
+/** The Forge Warden hits hard but has NO status resistance — late-band
+ * proc tests that must observe a LANDED application use it instead of the
+ * Void Warden (whose #83 statusResist can eat the proc attempt). */
+function tankyForge(p: PlayerState, seed: number): BattleState {
+  const b = startBattle('e_forge_warden', ORIGIN, { player: p, rng: seeded(seed) })!;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -61,8 +59,10 @@ function reactiveSeed(
   for (let s = 1; s <= 300; s++) {
     const p = hero(900 + s, 'warrior', level, trinket);
     const b = enemy(p, s);
-    const res = round(p, b, s);
-    if (res.lines.some((l) => l.startsWith('⚡ ')) === wantProc) return s;
+    round(p, b, s);
+    // Hunt on a LANDED application — a resisted attempt (⚡-prefixed resist
+    // line) must not read as a proc (#83 statusResist).
+    if (b.effectInstances.some((i) => i.defId === trinket) === wantProc) return s;
   }
   throw new Error(`no ${wantProc ? 'proc' : 'miss'} seed found for ${trinket}`);
 }
@@ -192,7 +192,7 @@ Deno.test('#82: maxProcs caps reactive procs per battle', () => {
 Deno.test('#82: cooldown spaces reactive procs apart', () => {
   const run = (seed: number): { rounds: number[]; count: number } => {
     const p = hero(10, 'warrior', 36, 't_16');
-    const b = tankyWarden(p, seed);
+    const b = tankyForge(p, seed);
     const rounds: number[] = [];
     for (let r = 0; r < 7; r++) {
       p.hp = statsOf(p).maxHp; // survival is not the variable under test
@@ -283,9 +283,9 @@ function procInstance(
 }
 
 Deno.test('#82: forge temper never scales proc data', () => {
-  const s = reactiveSeed('t_16', 36, true, tankyWarden);
-  const base = procInstance('t_16', 36, s, false, tankyWarden);
-  const tempered = procInstance('t_16', 36, s, true, tankyWarden);
+  const s = reactiveSeed('t_16', 36, true, tankyForge);
+  const base = procInstance('t_16', 36, s, false, tankyForge);
+  const tempered = procInstance('t_16', 36, s, true, tankyForge);
   assertEquals(tempered.perRound, base.perRound);
   assertEquals(tempered.perRound, -12, 'temper is stat-only; potency is authored data');
   assertEquals(tempered.remaining, base.remaining);
