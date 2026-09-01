@@ -256,6 +256,12 @@ function nextFloor(p: PlayerState, d: DungeonDef): number {
 }
 
 /** True once this dungeon's boss has been defeated (rematches stay open). */
+/** The next uncleared normal floor (1-based); past the last floor = boss
+ * floor. Exported for the balance sim + tests to enumerate floors (#73). */
+export function nextDungeonFloor(p: PlayerState, d: DungeonDef): number {
+  return nextFloor(p, d);
+}
+
 export function dungeonCleared(p: PlayerState, d: DungeonDef): boolean {
   return p.flags[bossKey(d)] === true;
 }

@@ -149,8 +149,12 @@ export const ZONES: readonly ZoneDef[] = [
       bossGate: { quest: 'm3_roots', requireDone: false },
       recommendedLevel: 7,
       floors: [
-        { enemies: ['e_spider', 'e_mycelid'], treasure: { gold: 60 } },
-        { enemies: ['e_mycelid', 'e_thornling'] },
+        // #73: the first two normal floors GUARANTEE the two Iron Chunks
+        // m5_arms asks for — the quest's taught route (Mycelid iron in the
+        // Hollow) must be reliable, not a 4.8% dice roll. Mycelids keep
+        // their ordinary 30% bonus drop on top.
+        { enemies: ['e_spider', 'e_mycelid'], treasure: { gold: 60, item: 'm_iron_chunk' } },
+        { enemies: ['e_mycelid', 'e_thornling'], treasure: { item: 'm_iron_chunk' } },
         { enemies: ['e_thornling', 'e_spider', 'e_mycelid'], treasure: { item: 'c_potion' } },
       ],
       firstClear: { xp: 400, gold: 250, item: 't_12', flags: ['rootboundCleared'] },

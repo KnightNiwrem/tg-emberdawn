@@ -191,7 +191,8 @@ export type ExploreEvent =
   };
 
 export interface DungeonFloor {
-  /** Chance the floor holds a treasure cache. */
+  /** Cache granted ONCE, on first clearing the floor (#73) — deterministic,
+   * never rerolled (cleared floors cannot be refought). */
   treasure?: { gold?: number; item?: string };
   enemies: string[];
 }
