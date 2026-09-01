@@ -5,6 +5,7 @@
 
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
+import { answerCallbackBestEffort } from './ack.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import {
   commit,
@@ -35,7 +36,7 @@ const STALE = 'That message is stale — use the latest game message (/start re-
 export async function handleCallback(ctx: Context, store: PlayerStore): Promise<void> {
   const cb = ctx.callbackQuery?.data ? decodeCb(ctx.callbackQuery.data) : undefined;
   if (!cb) {
-    await ctx.answerCallbackQuery({ text: 'Unknown control.' });
+    await answerCallbackBestEffort(ctx, { text: 'Unknown control.' });
     return;
   }
   const from = ctx.from;
@@ -52,7 +53,7 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   // adoption made by the staleness guard below.
   const p = await store.get(from.id);
   if (!p) {
-    await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
+    await answerCallbackBestEffort(ctx, { text: 'Tap /start to begin your tale.' });
     return;
   }
 
@@ -61,7 +62,7 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   // before any mutation; a newer message copy is adopted together with the
   // revision it was rendered with.
   if (!tapIsCurrent(p, ctx, cb.rev)) {
-    await ctx.answerCallbackQuery({ text: STALE });
+    await answerCallbackBestEffort(ctx, { text: STALE });
     return;
   }
 
@@ -157,18 +158,18 @@ async function handleMeta(
   // can never overwrite an existing hero.
   if (cb.a === 'pick') {
     if (existing) {
-      await ctx.answerCallbackQuery({ text: 'You already have a character.' });
+      await answerCallbackBestEffort(ctx, { text: 'You already have a character.' });
       return;
     }
     const fresh = pickClass(cb, userId, name);
     if (!fresh) {
-      await ctx.answerCallbackQuery({ text: 'Unknown class.' });
+      await answerCallbackBestEffort(ctx, { text: 'Unknown class.' });
       return;
     }
     fresh.notices = ['Your tale begins, Dawncaller. The dawn is out there, waiting to be found.'];
     fresh.scene = { view: 'zone' };
     if (ctx.callbackQuery?.message) fresh.messageId = ctx.callbackQuery.message.message_id;
-    await ctx.answerCallbackQuery();
+    await answerCallbackBestEffort(ctx);
     // Deliver FIRST, then persist: commit may fall back to resending, and
     // the save must capture the final live-message pointer.
     if (ctx.chat) await commit(ctx, fresh);
@@ -181,17 +182,17 @@ async function handleMeta(
   if (cb.a === 'resetYes' && !existing) {
     // Redelivered confirmation after the save is already gone (#62): the
     // reset happened — a harmless no-op, nothing left to delete or persist.
-    await ctx.answerCallbackQuery({ text: 'Already reset — pick a class to begin anew.' });
+    await answerCallbackBestEffort(ctx, { text: 'Already reset — pick a class to begin anew.' });
     return;
   }
   if (!existing) {
-    await ctx.answerCallbackQuery({ text: 'Tap /start to begin your tale.' });
+    await answerCallbackBestEffort(ctx, { text: 'Tap /start to begin your tale.' });
     return;
   }
   // Everything else (help, reset confirmations) obeys the combined
   // staleness + render-revision guard (#16).
   if (!tapIsCurrent(existing, ctx, cb.rev)) {
-    await ctx.answerCallbackQuery({ text: STALE });
+    await answerCallbackBestEffort(ctx, { text: STALE });
     return;
   }
 
@@ -202,7 +203,7 @@ async function handleMeta(
     // delivery leaves the old save untouched; only once the picker is on
     // screen does the store drop the row. The picker is stateless: nothing
     // is persisted again until pickClass() runs on a real class tap.
-    await ctx.answerCallbackQuery({ text: 'Hero deleted. A new tale awaits.' });
+    await answerCallbackBestEffort(ctx, { text: 'Hero deleted. A new tale awaits.' });
     if (!ctx.chat) return; // nowhere to deliver the picker — keep the save
     await deliverClassPicker(ctx, existing.messageId);
     await store.delete(userId);

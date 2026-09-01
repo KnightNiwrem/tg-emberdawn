@@ -8,6 +8,7 @@ import type { InputRichMessage } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import { withRev } from '../codec.ts';
+import { answerCallbackBestEffort } from './ack.ts';
 import { migratePlayer, SaveTooNewError, SaveTooOldError } from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
@@ -170,9 +171,12 @@ export async function deliverClassPicker(ctx: Context, editId?: number): Promise
   await ctx.api.sendRichMessage(ctx.chat.id, msg);
 }
 
-/** Answer the tap (toast) and commit the new view. */
+/** Answer the tap (toast) and commit the new view. The acknowledgment is
+ * best effort (#75): a failed answer never aborts the update — commit and
+ * save still run, and the webhook answers 2xx so Telegram does not
+ * redeliver an already-old callback query. */
 async function respond(ctx: Context, p: PlayerState, toast?: string): Promise<void> {
-  await ctx.answerCallbackQuery(toast ? { text: toast.slice(0, 190) } : undefined);
+  await answerCallbackBestEffort(ctx, toast ? { text: toast.slice(0, 190) } : undefined);
   await commit(ctx, p);
 }
 
@@ -201,7 +205,7 @@ export async function withLoadedPlayer(
     if (e instanceof SaveTooOldError) {
       // Pre-launch save with no migration path (#44): refuse to guess — the
       // player must explicitly reset.
-      await ctx.answerCallbackQuery().catch(() => {});
+      await answerCallbackBestEffort(ctx);
       await ctx
         .reply(
           '⚠️ This save predates the released game and cannot be loaded. Send /reset to start fresh.',
@@ -212,7 +216,7 @@ export async function withLoadedPlayer(
     if (!(e instanceof SaveTooNewError)) throw e;
     // A NEWER binary wrote this save. Never read-mutate-write it: a rollback
     // must not silently downgrade player data (#4).
-    await ctx.answerCallbackQuery().catch(() => {});
+    await answerCallbackBestEffort(ctx);
     await ctx
       .reply(
         '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
