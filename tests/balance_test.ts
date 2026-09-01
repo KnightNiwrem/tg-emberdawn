@@ -7,7 +7,10 @@ import { assert, assertEquals } from '@std/assert';
 import {
   buildSnapshot,
   type CellStat,
+  dungeonFloorsYield,
+  eliteShare,
   type EncounterSource,
+  exploreDropZonesFor,
   hostileZones,
   POLICIES,
   runCell,
@@ -16,12 +19,14 @@ import {
   zoneHostilePool,
   zoneNormalPool,
 } from '../src/engine/balance.ts';
-import { encounterEligible } from '../src/engine/world.ts';
+import { createPlayer } from '../src/engine/character.ts';
+import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
+import { dungeonOf, encounterEligible } from '../src/engine/world.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
-import { ZONES } from '../src/content/zones.ts';
+import { zone as zoneDef, ZONES } from '../src/content/zones.ts';
 
 const FIGHTS = 300;
 
@@ -320,6 +325,88 @@ Deno.test('balance: harness fidelity — shared eligibility, real tutorial start
     for (const b of rep.beats) {
       assert(b.fights - prev <= 150, `${cid}: ${b.questId} jumped ${b.fights - prev} fights`);
       prev = b.fights;
+    }
+  }
+});
+
+Deno.test('balance: the reviewed opening band follows the authored bands (#74)', () => {
+  const snap = buildSnapshot();
+  for (const cid of CLASS_IDS) {
+    for (const level of [1, 2]) {
+      const cell = snap.cells.find((c) =>
+        c.classId === cid && c.level === level && c.policy === POLICIES.rotation.name &&
+        c.gear === 'best'
+      );
+      assertEquals(cell?.pool, 'outskirts', `${cid}@${level}`);
+    }
+    for (const level of [4, 7, 9]) {
+      const cell = snap.cells.find((c) =>
+        c.classId === cid && c.level === level && c.policy === POLICIES.rotation.name &&
+        c.gear === 'best'
+      );
+      assertEquals(cell?.pool, 'whisperwood', `${cid}@${level}`);
+    }
+  }
+  // Elite exposure recorded AT the reviewed levels, level-aware (#74):
+  assertEquals(snap.eliteShare['whisperwood@3'], 0); // the stag is band-locked out
+  assert((snap.eliteShare['whisperwood@7'] ?? 0) > 0);
+  assertEquals('whisperwood' in snap.eliteShare, false); // flat key retired
+});
+
+Deno.test('balance: elite exposure is level-aware (#74)', () => {
+  assertEquals(eliteShare('whisperwood', 3), 0);
+  assertEquals(eliteShare('whisperwood', 4), 0);
+  assert(eliteShare('whisperwood', 5) > 0);
+  assertEquals(eliteShare('outskirts', 1), 0); // no elite authored at all
+});
+
+Deno.test('balance: the canonical post-tutorial state is the fresh class kit (#74)', () => {
+  for (const cid of CLASS_IDS) {
+    const canon = createPostTutorialPlayer(1, 'T', cid);
+    assertEquals(canon.level, 2, `${cid}: exits the prologue at level 2`);
+    const fresh = createPlayer(1, 'T', cid);
+    assertEquals(
+      canon.inventory,
+      fresh.inventory,
+      `${cid}: kit untouched (the lesson spends and the reward replaces)`,
+    );
+    assertEquals(canon.equipment, fresh.equipment, `${cid}: gear untouched`);
+  }
+});
+
+Deno.test('balance: the collection planner sees explore AND dungeon-floor sources (#74)', () => {
+  // Iron Chunks have NO wild source at any level — they live in the Hollow.
+  assertEquals(
+    exploreDropZonesFor('m_iron_chunk', ['emberdawn', 'outskirts', 'whisperwood'], 6),
+    [],
+  );
+  const d = dungeonOf(zoneDef('whisperwood')!);
+  assert(d, 'the Whisperwood authors a dungeon');
+  assert(dungeonFloorsYield('m_iron_chunk', d, 1), '#73 caches on floors 1-2');
+  assert(dungeonFloorsYield('m_iron_chunk', d, 3), 'Mycelids still roam floor 3');
+  assert(!dungeonFloorsYield('m_iron_chunk', d, 4), 'fully cleared → no source');
+  // Wild drops still resolve through eligibility: rats drop ember shards.
+  assert(exploreDropZonesFor('m_ember_shard', ['outskirts'], 1).includes('outskirts'));
+});
+
+Deno.test('balance: broad progression envelope holds across seeds (#74)', () => {
+  for (const cid of CLASS_IDS) {
+    for (let s = 0; s < 25; s++) {
+      const rep = simulateChapterOne(cid, 21000 + s * 37);
+      assert(rep.chapter1Done, `${cid}@${s}: chapter one completes`);
+      assertEquals(rep.startLevel, 2, `${cid}@${s}: canonical start`);
+      assert(rep.totalItemsUsed >= 0, `${cid}@${s}: item use nonnegative`);
+      assert(rep.aranyaGearTier >= 2, `${cid}@${s}: tier-2 steel before Aranya`);
+      assert(rep.totalFights <= 140, `${cid}@${s}: ${rep.totalFights} fights (unbounded?)`);
+      assert(
+        rep.totalEncounterAttempts <= 500,
+        `${cid}@${s}: ${rep.totalEncounterAttempts} explores (no-op loops?)`,
+      );
+      let prev = 0;
+      for (const b of rep.beats) {
+        assert(b.fights - prev <= 80, `${cid}@${s}: ${b.questId} jumped ${b.fights - prev}`);
+        prev = b.fights;
+      }
     }
   }
 });

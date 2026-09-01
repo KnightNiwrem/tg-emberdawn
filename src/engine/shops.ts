@@ -1,6 +1,7 @@
 /** Shop economy: buying and selling. Pure over PlayerState. */
 
 import type { PlayerState } from './types.ts';
+import type { ZoneDef } from '../content/types.ts';
 import { isEquippable, item, itemName, sellPrice, shopStock } from '../content/items.ts';
 import { removeItem } from './inventory.ts';
 import { grantItem } from './quests.ts';
@@ -15,18 +16,24 @@ export function tierForLevel(level: number): number {
   return Math.min(8, Math.floor((level - 1) / 6) + 1);
 }
 
-function shopTierFor(p: PlayerState): number {
-  const levelTier = tierForLevel(p.level);
-  const z = zone(p.currentZone);
-  if (!z) return levelTier;
+/** Pure tier resolution (#74): the shop tier a zone offers a hero of
+ * `level` — the level tier clamped into the zone's band. One rule shared
+ * by the live shop and the harness's stock planning. */
+export function shopTierForZone(z: ZoneDef, level: number): number {
   const loTier = Math.min(8, Math.floor((z.levels[0] - 1) / 6) + 1);
   const hiTier = Math.min(8, Math.floor((z.levels[1] - 1) / 6) + 1);
+  return Math.min(hiTier, Math.max(loTier, tierForLevel(level)));
+}
+
+function shopTierFor(p: PlayerState): number {
+  const z = zone(p.currentZone);
+  if (!z) return tierForLevel(p.level);
   // The band clamp still governs the SHOP's identity (consumables and
   // materials are always usable, so the local tier is pure flavor). Gear
   // usability is NOT decided here anymore: shopStock filters every shelved
   // piece against the shopper's class and level, so the old clamp-up can
   // no longer bait a low-level traveler with level-locked gear (#22).
-  return Math.min(hiTier, Math.max(loTier, levelTier));
+  return shopTierForZone(z, p.level);
 }
 
 export function currentStock(p: PlayerState): string[] {

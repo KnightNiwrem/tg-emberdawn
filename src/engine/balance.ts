@@ -13,19 +13,26 @@
 
 import type { BattleOrigin, BattleState, ClassId, PlayerState } from './types.ts';
 import { CLASS_IDS } from './types.ts';
-import type { EnemyDef, SkillDef, ZoneDef } from '../content/types.ts';
+import type { DungeonDef, EnemyDef, SkillDef, ZoneDef } from '../content/types.ts';
 import { xpForNextLevel } from './classes.ts';
 import { applyDeath, createPlayer, grantXp, statsOf } from './character.ts';
 import { performAction, type PlayerAction, startBattle } from './combat.ts';
 import { resolveVictory } from './world.ts';
-import { buy, currentStock } from './shops.ts';
+import { buy, currentStock, shopTierForZone } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onTalk, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
-import { diveDungeon, dungeonOf, encounterEligible, explore, travel } from './world.ts';
-import { applyTutorialOutcome } from './tutorial.ts';
+import {
+  diveDungeon,
+  dungeonOf,
+  encounterEligible,
+  explore,
+  nextDungeonFloor,
+  travel,
+} from './world.ts';
+import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
-import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
+import { isEquippable, item as itemDef, ITEMS, shopStock } from '../content/items.ts';
 import { quest, zoneOfNpc } from '../content/quests.ts';
 import { skill as skillDef } from '../content/skills.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
@@ -298,14 +305,45 @@ export function zoneHostilePool(zoneId: string, level: number): EncounterSource[
     }));
 }
 
-/** Share of HOSTILE explores (battle+elite) that roll the elite. */
-export function eliteShare(zoneId: string): number {
-  const z = zoneDef(zoneId);
-  if (!z) return 0;
-  const hostile = z.explore.filter((e) => e.kind === 'battle' || e.kind === 'elite');
-  const total = hostile.reduce((a, e) => a + e.weight, 0);
-  const elite = hostile.filter((e) => e.kind === 'elite').reduce((a, e) => a + e.weight, 0);
-  return total > 0 ? elite / total : 0;
+/** Elite exposure AT `level` (#74): the elite's share of the hostile weight
+ * the hero can actually roll there — 0 while the elite is band-locked out
+ * or when the level has no live hostiles. */
+export function eliteShare(zoneId: string, level: number): number {
+  const pool = zoneHostilePool(zoneId, level);
+  const total = pool.reduce((a, s) => a + s.weight, 0);
+  if (total === 0) return 0;
+  const elite = pool.filter((s) => s.origin.kind === 'elite').reduce((a, s) => a + s.weight, 0);
+  return elite / total;
+}
+
+/** Pure collection planner (#74): unlocked zones whose ELIGIBLE explore
+ * tables actually drop `target` at `level`, best rate first. */
+export function exploreDropZonesFor(target: string, unlocked: string[], level: number): string[] {
+  const zones: { id: string; rate: number }[] = [];
+  for (const z of ZONES) {
+    if (!unlocked.includes(z.id)) continue;
+    let rate = 0;
+    for (const ev of z.explore) {
+      if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
+      if (!encounterEligible(ev, level)) continue;
+      const drops = ENEMIES.find((e) => e.id === ev.enemy)?.drops ?? {};
+      rate = Math.max(rate, drops[target] ?? 0);
+    }
+    if (rate > 0) zones.push({ id: z.id, rate });
+  }
+  return zones.sort((a, b) => b.rate - a.rate).map((z) => z.id);
+}
+
+/** Pure collection planner (#74): do the dungeon's REMAINING normal floors
+ * (fromFloor = the next uncleared floor, 1-based) still yield `target`,
+ * through an authored cache or an enemy drop? */
+export function dungeonFloorsYield(target: string, d: DungeonDef, fromFloor: number): boolean {
+  for (let f = Math.max(1, fromFloor); f <= d.floors.length; f++) {
+    const floor = d.floors[f - 1]!;
+    if (floor.treasure?.item === target) return true;
+    if (floor.enemies.some((id) => ENEMIES.find((e) => e.id === id)?.drops?.[target])) return true;
+  }
+  return false;
 }
 
 export function dungeonBossSource(zoneId: string): EncounterSource | undefined {
@@ -582,10 +620,22 @@ export function buildSnapshot(): BalanceSnapshot {
   //    table (#74) — the Outskirts for the 1–2 band, the Whisperwood after.
   const bandZoneFor = (level: number): string => {
     for (const z of hostileZones()) {
+      // #74: the authored band must CONTAIN the level — ordinary encounters
+      // keep no max level, so eligibility alone always matched the
+      // Outskirts and the reviewed snapshot never left it.
+      if (level < z.levels[0] || level > z.levels[1]) continue;
       if (zoneHostilePool(z.id, level).length > 0) return z.id;
     }
     return 'outskirts';
   };
+  const eliteShareRecord: Record<string, number> = {};
+  // #74: exposure recorded AT the levels the snapshot reviews — the live
+  // share is 0 while the elite is band-locked out, 7.14% after.
+  for (const level of [1, 2, 4, 7, 9]) {
+    const zid = bandZoneFor(level);
+    eliteShareRecord[`${zid}@${level}`] = r4(eliteShare(zid, level));
+  }
+  eliteShareRecord['whisperwood@3'] = r4(eliteShare('whisperwood', 3));
   for (const cid of CLASS_IDS) {
     for (const level of [1, 2, 4, 7, 9]) {
       const zid = bandZoneFor(level);
@@ -648,11 +698,6 @@ export function buildSnapshot(): BalanceSnapshot {
         sources: [aranya],
       });
     }
-  }
-  const eliteShareRecord: Record<string, number> = {};
-  for (const z of hostileZones()) {
-    const share = eliteShare(z.id);
-    if (share > 0) eliteShareRecord[z.id] = r4(share);
   }
   return {
     fightsPerCell: SNAPSHOT_FIGHTS,
@@ -718,12 +763,12 @@ function weaponTier(p: PlayerState): number {
  * Reveals when story beats unlock, how much grinding the curve demands,\ * and what gear the boss actually needed. */
 export function simulateChapterOne(classId: ClassId, seed: number): ProgressionReport {
   const rng: Rng = seededRng(seed);
-  const p = createPlayer(0, 'Sim', classId);
+  // #74: ONE canonical post-tutorial constructor — the fresh class kit at
+  // level 2. The live item lesson spends a potion and the reward replaces
+  // it (net zero), so the canonical inventory is the untouched kit; the
+  // full-flow tutorial test pins real play to this exact state.
+  const p = createPostTutorialPlayer(0, 'Sim', classId);
   p.tutorial = 'done'; // the sim models a player past the prologue (#69)
-  // #74: start from the REAL post-tutorial state shared with the live
-  // handler — level 2+ and the replaced potion — never an impossible
-  // fresh level-1 hero.
-  applyTutorialOutcome(p);
   syncAvailability(p);
   let deaths = 0;
   let fights = 0;
@@ -906,30 +951,44 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
   /** Unlocked zones whose eligible explore tables actually drop the target
    * (#74) — collection farming follows REAL sources instead of grinding a
    * pool that can never pay out. */
-  const dropZonesFor = (target: string): string[] => {
-    const zones: { id: string; rate: number }[] = [];
+  const dropZonesFor = (target: string): string[] =>
+    exploreDropZonesFor(target, p.unlockedZones, p.level);
+
+  /** Reachable dungeon whose remaining normal floors can still yield the
+   * target (#74) — the sim dives REAL floors instead of pretending wilds
+   * or shops are the only sources. */
+  const dungeonSourceFor = (target: string): { zoneId: string; d: DungeonDef } | undefined => {
+    for (const z of ZONES) {
+      if (!p.unlockedZones.includes(z.id) || !z.dungeon) continue;
+      if (dungeonFloorsYield(target, z.dungeon, nextDungeonFloor(p, z.dungeon))) {
+        return { zoneId: z.id, d: z.dungeon };
+      }
+    }
+    return undefined;
+  };
+
+  /** Unlocked zones whose shop GENUINELY stocks the target at the hero's
+   * current level (#74) — hops go where the shelf actually carries it. */
+  const stockedZones = (target: string): string[] => {
+    const out: string[] = [];
     for (const z of ZONES) {
       if (!p.unlockedZones.includes(z.id)) continue;
-      let rate = 0;
-      for (const ev of z.explore) {
-        if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
-        if (!encounterEligible(ev, p.level)) continue;
-        const drops = ENEMIES.find((e) => e.id === ev.enemy)?.drops ?? {};
-        rate = Math.max(rate, drops[target] ?? 0);
+      const tier = shopTierForZone(z, p.level);
+      if (shopStock(z.id, tier, { level: p.level, classId: p.classId }).includes(target)) {
+        out.push(z.id);
       }
-      if (rate > 0) zones.push({ id: z.id, rate });
     }
-    return zones.sort((a, b) => b.rate - a.rate).map((z) => z.id);
+    return out;
   };
 
   const farmCollect = (target: string, need: number): boolean => {
-    let local = 0;
     const price = itemDef(target)?.price ?? 0;
+    let local = 0;
     while (countOf(p, target) < need) {
-      if (++local > 120) return false; // bounded objective attempts (#74)
-      // Buy when a reachable shop stocks it and it's affordable (#73).
+      if (++local > 60) return false; // safety net, never the plan (#74)
+      // 1. Buy when THIS shelf genuinely stocks it and it's affordable (#73).
       if (currentStock(p).includes(target) && p.gold >= price + 20 && buy(p, target).ok) continue;
-      // Else farm the best reachable DROP source — never an unrelated pool.
+      // 2. Farm the best eligible wild drop source.
       const zones = dropZonesFor(target);
       if (zones.length > 0) {
         goto(zones[0]!);
@@ -938,11 +997,28 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
         if (out.kind === 'battle' && fight(out.battle, 'objective') !== 'win') restock();
         continue;
       }
-      // No reachable drop source: hop the unlocked safe havens — the next
-      // loop iteration buys wherever the shelf actually carries it.
-      const shops = ZONES.filter((z) => p.unlockedZones.includes(z.id) && z.safeHaven);
-      if (shops.length === 0) return false;
-      goto(shops[local % shops.length]!.id);
+      // 3. Dive REAL dungeon floors that still yield it (#73: the taught
+      //    route — caches + Mycelids in the Rootbound Hollow).
+      const ds = dungeonSourceFor(target);
+      if (ds) {
+        goto(ds.zoneId);
+        const res = diveDungeonLocal(p, ds.d, rng);
+        if (res.ok && res.battle) {
+          if (fight(res.battle, 'objective') !== 'win') restock();
+        } else {
+          restock();
+        }
+        continue;
+      }
+      // 4. Hop to a zone whose shelf GENUINELY stocks it — next loop buys.
+      const stocking = stockedZones(target);
+      if (stocking.length > 0 && p.gold >= price) {
+        goto(stocking[0]!);
+        continue;
+      }
+      // No source at this level at all — say so immediately (#74); the
+      // outer loop may level (unlocking sources) and retry.
+      return false;
     }
     return true;
   };

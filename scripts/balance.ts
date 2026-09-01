@@ -13,6 +13,7 @@ import {
   buildSnapshot,
   type CellStat,
   dungeonBossSource,
+  eliteShare,
   hostileZones,
   MATRIX_FIGHTS,
   MATRIX_LEVELS,
@@ -129,12 +130,15 @@ for (const cid of CLASS_IDS) {
 }
 
 // ── 5. Elite exposure ───────────────────────────────────────────────────
-header('Elite exposure in hostile tables (weight share of hostile explores)');
+header('Elite exposure in hostile tables (live share at the levels that matter, #74)');
 for (const z of hostileZones()) {
   for (const ev of z.explore) {
     if (ev.kind !== 'elite') continue;
+    const locked = ev.minPlayerLevel ?? 1;
+    const hi = Math.min(z.levels[1], Math.max(locked, z.levels[0]));
+    const at = (lv: number): string => `${pct(eliteShare(z.id, lv))} @Lv${lv}`;
     console.log(
-      `${z.id}: ${ev.enemy} (${enemyDef(ev.enemy)?.name}) — elite share recorded in snapshot`,
+      `${z.id}: ${ev.enemy} (${enemyDef(ev.enemy)?.name}) — ${at(z.levels[0])} · ${at(hi)}`,
     );
   }
 }

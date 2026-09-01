@@ -21,6 +21,7 @@ import {
   statsOf,
 } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
+import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { grantTutorialReward } from '../src/handlers/tutorial.ts';
 import { enemy } from '../src/content/enemies.ts';
 import type { PlayerState } from '../src/engine/types.ts';
@@ -159,6 +160,9 @@ Deno.test('prologue: every class reaches every lesson through real play (#69)', 
       potionsBefore,
       `${cid}: the reward replaces the lesson's potion`,
     );
+    // #74: the live outcome IS the canonical constructor state — the WHOLE
+    // inventory, not just the potion count.
+    assertEquals(p!.inventory, createPostTutorialPlayer(301, 'T', cid).inventory);
     assert(release.json.includes("Maren's board has work"), `${cid}: next contact surfaced`);
     assert(release.json.includes('Whisperwood'), `${cid}: next destination surfaced`);
     assert(release.json.includes('Flee'), `${cid}: fleeing taught before exploration`);
