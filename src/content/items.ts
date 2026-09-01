@@ -403,7 +403,8 @@ function buildItems(): ItemDef[] {
       timing: 'immediate',
       lifetime: 'battle',
       name: 'Wardstone Ward',
-      line: '🪨 The Wardstone hums awake — a ward settles over you (25 absorb, whole battle).',
+      line:
+        '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to 25 damage (whole battle).',
     }],
     desc: 'Opens every battle with a 25-damage ward that lasts the whole fight.',
   });

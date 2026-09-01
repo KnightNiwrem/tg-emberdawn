@@ -94,8 +94,13 @@ function equipBest(p: PlayerState): void {
 export interface Policy {
   /** `free` — only the class free action. `skill` — best damage skill when
    * it pays MP, else free. `rotation` — heal when hurt, best skill when
-   * affordable, guard to recover MP when starved, else free. */
-  name: 'free' | 'skill' | 'rotation';
+   * affordable, guard to recover MP when starved, else free. `tactical`
+   * (#84) — effect-aware: cleanses meaningful harm, dispels live enemy
+   * benefits, shields an empty pool, buffs once, applies DoTs/debuffs when
+   * the remaining fight is long enough to pay, then plays the damage
+   * rotation. Same transparent family as `rotation` — a scripted policy,
+   * never an optimizer. */
+  name: 'free' | 'skill' | 'rotation' | 'tactical';
   items: boolean;
 }
 
@@ -104,7 +109,63 @@ export const POLICIES = {
   skill: { name: 'skill', items: false } as Policy,
   rotation: { name: 'rotation', items: false } as Policy,
   rotationWithItems: { name: 'rotation', items: true } as Policy,
+  tactical: { name: 'tactical', items: false } as Policy,
+  tacticalWithItems: { name: 'tactical', items: true } as Policy,
 };
+
+// ── Effect-shape classifiers (#84) — public spec shapes only ────────────
+
+/** Self-targeted beneficial statmod (War Cry, Iron Wall, Time Warp…). */
+function isBuffSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) =>
+    e.kind === 'statmod' && e.target !== 'opponent' && (e.pct ?? 0) > 0
+  );
+}
+
+/** A shield-granting skill (Aegis of Dawn…). */
+function isShieldSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) => e.kind === 'shield');
+}
+
+/** Enemy-side damage-over-time (Poison…): negative periodic on the foe. */
+function isDotSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) =>
+    e.kind === 'periodic' && e.target === 'opponent' &&
+    ((e.perRound ?? 0) < 0 || (e.pctOfMaxPerRound ?? 0) < 0)
+  );
+}
+
+/** Pure enemy debuff — a negative opponent statmod with NO damage rider
+ * (damage+debuff hybrids stay in the offense family, #84 ordering). */
+function isPureDebuffSkill(sk: SkillDef): boolean {
+  if (isDamageSkill(sk)) return false;
+  return sk.effects.some((e) =>
+    e.kind === 'statmod' && e.target === 'opponent' && (e.pct ?? 0) < 0
+  );
+}
+
+function isCleanseSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) => e.kind === 'cleanse');
+}
+
+function isDispelSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) => e.kind === 'dispel');
+}
+
+/** Expected total DoT damage over its full authored duration, against this
+ * fight's enemy (mirrors the periodic formulas; folded sap ignored — the
+ * policy wants an order-of-magnitude payoff check, not a prediction). */
+function expectedDotTotal(sk: SkillDef, enemyMaxHp: number): number {
+  let total = 0;
+  for (const e of sk.effects) {
+    if (e.kind !== 'periodic') continue;
+    const flat = e.perRound ?? 0;
+    const pctMax = e.pctOfMaxPerRound ?? 0;
+    if (flat >= 0 && pctMax >= 0) continue;
+    total += (Math.abs(flat) + Math.abs(pctMax) * enemyMaxHp) * e.duration;
+  }
+  return total;
+}
 
 const HEAL_ITEMS = ['c_super_potion', 'c_greater_potion', 'c_potion', 'c_minor_potion'];
 const MP_ITEMS = ['c_greater_ether', 'c_ether', 'c_minor_ether'];
@@ -120,7 +181,11 @@ function chooseAction(
   const learned = p.skills
     .map((id) => skillDef(id))
     .filter((sk): sk is SkillDef => Boolean(sk));
-  const usable = (sk: SkillDef): boolean => (b.cooldowns[sk.id] ?? 0) === 0 && p.mp >= sk.mpCost;
+  // #84: pre-emptive skills are NOT castable (they fire in the battle
+  // opening, #80) — no policy may ever select one, or the engine refuses
+  // the action and the hero burns its turn.
+  const usable = (sk: SkillDef): boolean =>
+    !sk.preEmptive && (b.cooldowns[sk.id] ?? 0) === 0 && p.mp >= sk.mpCost;
   // #78: policies read public effect shapes, never legacy scalar fields.
   const offense = learned
     .filter(isDamageSkill)
@@ -132,6 +197,10 @@ function chooseAction(
   if (policy.name === 'skill') {
     const sk = offense.find(usable);
     return sk ? { kind: 'skill', skillId: sk.id } : { kind: 'attack' };
+  }
+
+  if (policy.name === 'tactical') {
+    return tacticalAction(p, b, policy, lastWasGuard, learned, usable, offense, heals);
   }
 
   // rotation — a sensibly played hero.
@@ -157,6 +226,92 @@ function chooseAction(
   return { kind: 'attack' };
 }
 
+/** The effect-aware policy brain (#84): transparent, ordered, driven by
+ * PUBLIC effect shapes and live battle state. It never selects an unusable
+ * skill (`usable` already excludes pre-emptive, cooldown and MP gates) and
+ * never refreshes a live same-source effect — setup is cast once, then the
+ * hero plays damage. Order: cleanse real harm → dispel live enemy benefit
+ * → heal under the hurt gate → shield an empty pool → buff once → DoT when
+ * the remaining fight pays → pure debuff while it has time → damage
+ * rotation → item/guard/attack fallbacks (shared with the plain rotation). */
+function tacticalAction(
+  p: PlayerState,
+  b: BattleState,
+  policy: Policy,
+  lastWasGuard: boolean,
+  learned: SkillDef[],
+  usable: (sk: SkillDef) => boolean,
+  offense: SkillDef[],
+  heals: SkillDef[],
+): PlayerAction {
+  const s = statsOf(p);
+  const liveOn = (side: 'player' | 'enemy', defId: string): boolean =>
+    b.effectInstances.some((i) => i.side === side && i.defId === defId);
+  const firstUsable = (skills: SkillDef[]): SkillDef | undefined => skills.find(usable);
+
+  // 1. Cleanse MEANINGFUL harm: a live control effect, or several harmful
+  //    instances at once. A single mild debuff is not worth the action.
+  const harmful = b.effectInstances.filter(
+    (i) => i.side === 'player' && i.tags.includes('harmful') && i.removable,
+  );
+  const cleanser = firstUsable(learned.filter(isCleanseSkill));
+  if (cleanser && (harmful.some((i) => i.kind === 'control') || harmful.length >= 2)) {
+    return { kind: 'skill', skillId: cleanser.id };
+  }
+  // 2. Dispel a live, removable enemy benefit (boss wards, enemy buffs).
+  const dispeller = firstUsable(learned.filter(isDispelSkill));
+  if (
+    dispeller &&
+    b.effectInstances.some((i) =>
+      i.side === 'enemy' && i.tags.includes('beneficial') && i.removable
+    )
+  ) {
+    return { kind: 'skill', skillId: dispeller.id };
+  }
+  // 3. Heal under the same hurt gate as the plain rotation.
+  if (p.hp < s.maxHp * 0.5) {
+    const heal = firstUsable(heals);
+    if (heal) return { kind: 'skill', skillId: heal.id };
+  }
+  // 4. Shield an empty pool — never re-grant over a live same-source ward
+  //    (over-shield waste is a structural failure, #84).
+  const shield = firstUsable(learned.filter(isShieldSkill));
+  if (shield && b.shield.player === 0 && !liveOn('player', shield.id)) {
+    return { kind: 'skill', skillId: shield.id };
+  }
+  // 5. Buff once per live window; setup only pays while the fight lasts.
+  const buff = learned.filter(isBuffSkill).find((sk) => usable(sk) && !liveOn('player', sk.id));
+  if (buff && b.enemy.hp > b.enemy.maxHp * 0.3) {
+    return { kind: 'skill', skillId: buff.id };
+  }
+  // 6. DoT when the remaining fight is long enough for the ticks to pay.
+  const dot = learned.filter(isDotSkill).find((sk) => usable(sk) && !liveOn('enemy', sk.id));
+  if (dot && b.enemy.hp > expectedDotTotal(dot, b.enemy.maxHp)) {
+    return { kind: 'skill', skillId: dot.id };
+  }
+  // 7. Pure debuff (sap / armor-break / vulnerable) while it has time.
+  const debuff = learned.filter(isPureDebuffSkill).find((sk) =>
+    usable(sk) && !liveOn('enemy', sk.id)
+  );
+  if (debuff && b.enemy.hp > b.enemy.maxHp * 0.35) {
+    return { kind: 'skill', skillId: debuff.id };
+  }
+  // 8. Damage rotation, then the shared fallbacks.
+  const sk = offense.find(usable);
+  if (sk) return { kind: 'skill', skillId: sk.id };
+  const cheapest = offense.map((x) => x.mpCost).sort((a, z) => a - z)[0] ?? 0;
+  if (policy.items && p.hp < s.maxHp * 0.35) {
+    const potion = HEAL_ITEMS.find((id) => countOf(p, id) > 0);
+    if (potion) return { kind: 'item', itemId: potion };
+  }
+  if (policy.items && p.mp < cheapest) {
+    const ether = MP_ITEMS.find((id) => countOf(p, id) > 0);
+    if (ether) return { kind: 'item', itemId: ether };
+  }
+  if (p.hp < s.maxHp * 0.4 && p.mp < cheapest && !lastWasGuard) return { kind: 'guard' };
+  return { kind: 'attack' };
+}
+
 // ── Fights ──────────────────────────────────────────────────────────────
 
 export interface FightResult {
@@ -177,6 +332,28 @@ export interface FightResult {
   shieldAbsorbed: number;
   shieldWasted: number;
   shieldExpiryLost: number;
+  /** Rounds lost to control (the hero was stunned out of acting) (#84). */
+  skippedRounds: number;
+  /** Policy selections the engine REFUSED — must stay 0 for every sane
+   * policy (#84 invariant: never select an unusable skill). */
+  invalidActions: number;
+  /** MP spent on skills (guard/item MP gains excluded) (#84). */
+  mpSpent: number;
+  /** Action frequency by skill id (#84 selection evidence). */
+  skillCasts: Record<string, number>;
+  /** Utility-cast counters by effect family (#84). */
+  buffCasts: number;
+  shieldCasts: number;
+  dotCasts: number;
+  debuffCasts: number;
+  cleanseCasts: number;
+  dispelCasts: number;
+  /** Live-instance observation, attributed by `side:defId` (#84): the
+   * rounds each effect was live, the applications (new iids) and the
+   * applying source — sampled at the top of every round. */
+  effectRounds: Record<string, number>;
+  effectApplications: Record<string, number>;
+  effectSources: Record<string, string>;
 }
 
 const STRIKE = /(?:hits|sears) .* for (\d+)/;
@@ -226,6 +403,7 @@ export function runFight(
   p.battle = b;
   let rounds = 0;
   let lastWasGuard = false;
+  const seenIids = new Set<string>();
   const result: FightResult = {
     outcome: 'timeout',
     rounds: 0,
@@ -244,15 +422,25 @@ export function runFight(
     shieldAbsorbed: 0,
     shieldWasted: 0,
     shieldExpiryLost: 0,
+    skippedRounds: 0,
+    invalidActions: 0,
+    mpSpent: 0,
+    skillCasts: {},
+    buffCasts: 0,
+    shieldCasts: 0,
+    dotCasts: 0,
+    debuffCasts: 0,
+    cleanseCasts: 0,
+    dispelCasts: 0,
+    effectRounds: {},
+    effectApplications: {},
+    effectSources: {},
   };
-  while (b.phase === 'active' && rounds < 200) {
-    const action = chooseAction(p, b, policy, lastWasGuard);
-    lastWasGuard = action.kind === 'guard';
-    const hpBefore = p.hp;
-    const mpBefore = p.mp;
-    const res = performAction(p, b, action, rng);
-    rounds++;
-    for (const line of res.lines) {
+  /** Line-metric scan (#74 regexes) — now also fed the resolved opening
+   * log ONCE per fight (#84): opening shields/damage are outcomes of the
+   * fight and must count toward grant/absorb/contribution metrics. */
+  const scanLines = (lines: readonly string[]): void => {
+    for (const line of lines) {
       const strike = STRIKE.exec(line);
       if (strike) result.dealt += Number(strike[1]);
       const taken = TAKEN.exec(line);
@@ -270,6 +458,42 @@ export function runFight(
       const faded = SHIELD_FADE.exec(line);
       if (faded) result.shieldExpiryLost += Number(faded[1]);
     }
+  };
+  if (b.opening?.lines.length) scanLines(b.opening.lines);
+  while (b.phase === 'active' && rounds < 200) {
+    // #84: sample live instances BEFORE acting — opening effects surface on
+    // round 1, uptime counts observed rounds, applications count new iids.
+    for (const i of b.effectInstances) {
+      const key = `${i.side}:${i.defId}`;
+      result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
+      if (!seenIids.has(i.iid)) {
+        seenIids.add(i.iid);
+        result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
+        result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
+      }
+    }
+    const action = chooseAction(p, b, policy, lastWasGuard);
+    lastWasGuard = action.kind === 'guard';
+    const hpBefore = p.hp;
+    const mpBefore = p.mp;
+    const res = performAction(p, b, action, rng);
+    rounds++;
+    if (res.skipped) result.skippedRounds++;
+    if (!res.consumedTurn) result.invalidActions++;
+    result.mpSpent += Math.max(0, mpBefore - p.mp);
+    if (action.kind === 'skill' && res.consumedTurn) {
+      result.skillCasts[action.skillId] = (result.skillCasts[action.skillId] ?? 0) + 1;
+      const cast = skillDef(action.skillId);
+      if (cast) {
+        if (isBuffSkill(cast)) result.buffCasts++;
+        if (isShieldSkill(cast)) result.shieldCasts++;
+        if (isDotSkill(cast)) result.dotCasts++;
+        if (isPureDebuffSkill(cast)) result.debuffCasts++;
+        if (isCleanseSkill(cast)) result.cleanseCasts++;
+        if (isDispelSkill(cast)) result.dispelCasts++;
+      }
+    }
+    scanLines(res.lines);
     if (action.kind === 'guard') {
       result.guardRounds++;
       result.mpFromGuard += Math.max(0, p.mp - mpBefore);
@@ -460,11 +684,39 @@ export interface CellStat {
   avgShieldAbsorbed: number;
   avgShieldWasted: number;
   avgShieldExpiryLost: number;
+  /** #84 effect-aware aggregates: per-fight averages of control losses,
+   * MP spent and utility casts; the TOTAL refused selections (must be 0);
+   * and source-attributed live-effect observation maps. */
+  avgSkippedRounds: number;
+  invalidActions: number;
+  avgMpSpent: number;
+  avgBuffCasts: number;
+  avgShieldCasts: number;
+  avgDotCasts: number;
+  avgDebuffCasts: number;
+  avgCleanseCasts: number;
+  avgDispelCasts: number;
+  skillCasts: Record<string, number>;
+  effectRounds: Record<string, number>;
+  effectApplications: Record<string, number>;
+  effectSources: Record<string, string>;
 }
 
 const r4 = (n: number): number => Math.round(n * 10000) / 10000;
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+/** Sums per-fight observation maps into a cell accumulator (#84). */
+function addInto(dst: Record<string, number>, src: Record<string, number>): void {
+  for (const [k, v] of Object.entries(src)) dst[k] = (dst[k] ?? 0) + v;
+}
+
+/** Per-fight average of an observation map, rounded (#84). */
+function avgMap(m: Record<string, number>, f: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(m)) out[k] = r3(v / f);
+  return out;
+}
 
 export function runCell(spec: CellSpec): CellStat {
   const hero = makeHero(spec.classId, spec.level, spec.gear);
@@ -488,6 +740,19 @@ export function runCell(spec: CellSpec): CellStat {
     shieldAbsorbed: 0,
     shieldWasted: 0,
     shieldExpiryLost: 0,
+    skipped: 0,
+    invalid: 0,
+    mpSpent: 0,
+    buffCasts: 0,
+    shieldCasts: 0,
+    dotCasts: 0,
+    debuffCasts: 0,
+    cleanseCasts: 0,
+    dispelCasts: 0,
+    skillCasts: {} as Record<string, number>,
+    effectRounds: {} as Record<string, number>,
+    effectApplications: {} as Record<string, number>,
+    effectSources: {} as Record<string, string>,
   };
   const rng = (() => {
     let a = spec.seed >>> 0;
@@ -529,6 +794,19 @@ export function runCell(spec: CellSpec): CellStat {
     acc.shieldAbsorbed += res.shieldAbsorbed;
     acc.shieldWasted += res.shieldWasted;
     acc.shieldExpiryLost += res.shieldExpiryLost;
+    acc.skipped += res.skippedRounds;
+    acc.invalid += res.invalidActions;
+    acc.mpSpent += res.mpSpent;
+    acc.buffCasts += res.buffCasts;
+    acc.shieldCasts += res.shieldCasts;
+    acc.dotCasts += res.dotCasts;
+    acc.debuffCasts += res.debuffCasts;
+    acc.cleanseCasts += res.cleanseCasts;
+    acc.dispelCasts += res.dispelCasts;
+    addInto(acc.skillCasts, res.skillCasts);
+    addInto(acc.effectRounds, res.effectRounds);
+    addInto(acc.effectApplications, res.effectApplications);
+    for (const [k, v] of Object.entries(res.effectSources)) acc.effectSources[k] = v;
   }
   const f = spec.fights;
   const wins = acc.wins;
@@ -558,13 +836,28 @@ export function runCell(spec: CellSpec): CellStat {
     avgShieldAbsorbed: r2(acc.shieldAbsorbed / f),
     avgShieldWasted: r3(acc.shieldWasted / f),
     avgShieldExpiryLost: r3(acc.shieldExpiryLost / f),
+    avgSkippedRounds: r3(acc.skipped / f),
+    invalidActions: acc.invalid,
+    avgMpSpent: r2(acc.mpSpent / f),
+    avgBuffCasts: r3(acc.buffCasts / f),
+    avgShieldCasts: r3(acc.shieldCasts / f),
+    avgDotCasts: r3(acc.dotCasts / f),
+    avgDebuffCasts: r3(acc.debuffCasts / f),
+    avgCleanseCasts: r3(acc.cleanseCasts / f),
+    avgDispelCasts: r3(acc.dispelCasts / f),
+    skillCasts: avgMap(acc.skillCasts, f),
+    effectRounds: avgMap(acc.effectRounds, f),
+    effectApplications: avgMap(acc.effectApplications, f),
+    effectSources: acc.effectSources,
   };
 }
 
 // ── Standard matrices ───────────────────────────────────────────────────
 
-/** Levels the issue names, then representative gear/zone breakpoints. */
-export const MATRIX_LEVELS = [1, 2, 4, 7, 9, 13, 16, 22, 31, 45] as const;
+/** Levels the issue names, then representative gear/zone breakpoints.
+ * #84: every skill-unlock breakpoint is covered (12 Expose Weakness,
+ * 13/14 Whirlwind/Aegis, 16, 17 Venom Cut, 22, 28, 31, 45 postgame). */
+export const MATRIX_LEVELS = [1, 2, 4, 7, 9, 12, 13, 14, 16, 17, 22, 28, 31, 45] as const;
 export const MATRIX_FIGHTS = 120;
 
 /** Zones whose authored bands admit at least one ordinary battle (#74 —
@@ -606,6 +899,20 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             seed: seedBase + i++,
           }),
         );
+        // #84: the effect-aware policy runs the SAME cells beside the
+        // plain rotation — before/after comparisons for #81–#83 cite these.
+        cells.push(
+          runCell({
+            classId: cid,
+            level,
+            gear: 'best',
+            policy: POLICIES.tactical,
+            pool: `${z.id}:tactical`,
+            sources: hostile,
+            fights,
+            seed: seedBase + i++,
+          }),
+        );
         if (level <= 9) {
           const normals = zoneNormalPool(z.id, level);
           if (normals.length === 0) continue;
@@ -636,6 +943,18 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             gear: 'best',
             policy: POLICIES.rotation,
             pool: `boss:${boss.enemyId}`,
+            sources: [boss],
+            fights,
+            seed: seedBase + i++,
+          }),
+        );
+        cells.push(
+          runCell({
+            classId: cid,
+            level,
+            gear: 'best',
+            policy: POLICIES.tactical,
+            pool: `boss:${boss.enemyId}:tactical`,
             sources: [boss],
             fights,
             seed: seedBase + i++,
@@ -754,10 +1073,38 @@ export function buildSnapshot(): BalanceSnapshot {
       });
     }
   }
+  // 5. Effect-aware policy evidence (#84): rotation vs tactical at the
+  //    mid-band breakpoint, plus an opening-heavy solo (the Chrono Wisp's
+  //    Chrono Anchor) — the reviewed cells that #81–#83 evidence cites.
+  for (const cid of CLASS_IDS) {
+    for (const level of [7, 9]) {
+      const zid = bandZoneFor(level);
+      push({
+        classId: cid,
+        level,
+        gear: 'best',
+        policy: POLICIES.tactical,
+        pool: `${zid}:tactical`,
+        sources: zoneHostilePool(zid, level),
+      });
+    }
+    push({
+      classId: cid,
+      level: 19,
+      gear: 'best',
+      policy: POLICIES.tactical,
+      pool: 'solo:e_chronowisp',
+      sources: [{
+        enemyId: 'e_chronowisp',
+        weight: 1,
+        origin: { kind: 'explore', zoneId: 'sunspire' },
+      }],
+    });
+  }
   return {
     fightsPerCell: SNAPSHOT_FIGHTS,
     note:
-      'Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
+      'Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start; #84: effect-aware tactical cells + source-attributed effect metrics). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.',
     eliteShare: eliteShareRecord,
     cells,
   };
@@ -1226,6 +1573,7 @@ function seededRng(seed: number): Rng {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+export { seededRng };
 
 /** Enemies explicitly flagged as tutorial fixtures (#69). */
 export function tutorialEnemies(): EnemyDef[] {

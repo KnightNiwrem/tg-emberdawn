@@ -1,6 +1,6 @@
 {
   "fightsPerCell": 200,
-  "note": "Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.",
+  "note": "Reviewed balance envelopes (#74: live-eligible pools, post-tutorial sim start; #84: effect-aware tactical cells + source-attributed effect metrics). Regenerate with deno task balance:update; a deliberate balance change must refresh this file with an explanation in its commit message.",
   "eliteShare": {
     "outskirts@1": 0,
     "outskirts@2": 0,
@@ -35,7 +35,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 8.32,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 2.08
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.105
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.085
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "warrior",
@@ -62,7 +83,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 7.7,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.925
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.065
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.065
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "warrior",
@@ -89,7 +131,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 8.6,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 2.15
+      },
+      "effectRounds": {
+        "player:sap": 0.16
+      },
+      "effectApplications": {
+        "player:sap": 0.14
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "warrior",
@@ -116,7 +179,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 5.9,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.475
+      },
+      "effectRounds": {
+        "player:sap": 0.05
+      },
+      "effectApplications": {
+        "player:sap": 0.05
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "warrior",
@@ -143,7 +227,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 5.18,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.295
+      },
+      "effectRounds": {
+        "player:sap": 0.03
+      },
+      "effectApplications": {
+        "player:sap": 0.03
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "warrior",
@@ -170,7 +275,20 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "warrior",
@@ -197,7 +315,26 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.23
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.16
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "mage",
@@ -224,7 +361,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.85,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 1.97
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.09
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.08
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "mage",
@@ -251,7 +409,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.13,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 1.825
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.075
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.075
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "mage",
@@ -278,7 +457,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.28,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 2.055
+      },
+      "effectRounds": {
+        "player:sap": 0.175
+      },
+      "effectApplications": {
+        "player:sap": 0.165
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "mage",
@@ -305,7 +505,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.38,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 1,
+        "sk_firebolt": 0.275
+      },
+      "effectRounds": {
+        "player:sap": 0.055
+      },
+      "effectApplications": {
+        "player:sap": 0.055
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "mage",
@@ -332,7 +554,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.15,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 1,
+        "sk_firebolt": 0.23
+      },
+      "effectRounds": {
+        "player:sap": 0.01
+      },
+      "effectApplications": {
+        "player:sap": 0.01
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "mage",
@@ -359,7 +603,20 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "mage",
@@ -386,7 +643,26 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.12
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.095
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "rogue",
@@ -413,7 +689,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 7.74,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 2.58
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.17
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.145
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "rogue",
@@ -440,7 +737,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 7.38,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 2.46
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.21
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.155
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "rogue",
@@ -467,7 +785,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 8.9,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 2.965
+      },
+      "effectRounds": {
+        "player:sap": 0.34
+      },
+      "effectApplications": {
+        "player:sap": 0.275
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "rogue",
@@ -494,7 +833,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.34,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 1.045,
+        "sk_quick_slash": 0.31
+      },
+      "effectRounds": {
+        "player:sap": 0.04
+      },
+      "effectApplications": {
+        "player:sap": 0.04
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "rogue",
@@ -521,7 +882,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.84,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 1,
+        "sk_quick_slash": 0.28
+      },
+      "effectRounds": {
+        "player:sap": 0.02
+      },
+      "effectApplications": {
+        "player:sap": 0.02
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "rogue",
@@ -548,7 +931,20 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "rogue",
@@ -575,7 +971,26 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.31
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.215
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "cleric",
@@ -602,7 +1017,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 12.08,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.415
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.21
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.15
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "cleric",
@@ -629,7 +1065,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.5,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.3
+      },
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.165
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.125
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "cleric",
@@ -656,7 +1113,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 13.98,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.795
+      },
+      "effectRounds": {
+        "player:sap": 0.255
+      },
+      "effectApplications": {
+        "player:sap": 0.23
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "cleric",
@@ -683,7 +1161,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.88,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 1.975
+      },
+      "effectRounds": {
+        "player:sap": 0.06
+      },
+      "effectApplications": {
+        "player:sap": 0.055
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "cleric",
@@ -710,7 +1209,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.07,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 1.815
+      },
+      "effectRounds": {
+        "player:sap": 0.085
+      },
+      "effectApplications": {
+        "player:sap": 0.085
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "cleric",
@@ -737,7 +1257,20 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "cleric",
@@ -764,7 +1297,26 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 0,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {},
+      "effectRounds": {
+        "enemy:Fibrous Hide": 0.36
+      },
+      "effectApplications": {
+        "enemy:Fibrous Hide": 0.26
+      },
+      "effectSources": {
+        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+      }
     },
     {
       "classId": "warrior",
@@ -791,7 +1343,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.94,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 2.735
+      },
+      "effectRounds": {
+        "player:sap": 0.38
+      },
+      "effectApplications": {
+        "player:sap": 0.33
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "mage",
@@ -818,7 +1391,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.48,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 2.295
+      },
+      "effectRounds": {
+        "player:sap": 0.295
+      },
+      "effectApplications": {
+        "player:sap": 0.26
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "rogue",
@@ -845,7 +1439,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.37,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 3.455
+      },
+      "effectRounds": {
+        "player:sap": 0.715
+      },
+      "effectApplications": {
+        "player:sap": 0.595
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "cleric",
@@ -872,7 +1487,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 15.03,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 3.005
+      },
+      "effectRounds": {
+        "player:sap": 0.54
+      },
+      "effectApplications": {
+        "player:sap": 0.465
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
     },
     {
       "classId": "warrior",
@@ -899,7 +1535,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 13.26,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 3.315
+      },
+      "effectRounds": {
+        "player:sap": 0.545
+      },
+      "effectApplications": {
+        "player:sap": 0.445
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "mage",
@@ -926,7 +1583,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 14.65,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 2.93
+      },
+      "effectRounds": {
+        "player:sap": 0.485
+      },
+      "effectApplications": {
+        "player:sap": 0.385
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "rogue",
@@ -953,7 +1631,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 14.12,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 4.705
+      },
+      "effectRounds": {
+        "player:sap": 0.93
+      },
+      "effectApplications": {
+        "player:sap": 0.76
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "cleric",
@@ -980,7 +1679,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 19.88,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 3.975
+      },
+      "effectRounds": {
+        "player:sap": 0.765
+      },
+      "effectApplications": {
+        "player:sap": 0.635
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
     },
     {
       "classId": "warrior",
@@ -1007,7 +1727,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.54,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 2.385
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "mage",
@@ -1034,7 +1769,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 2
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "rogue",
@@ -1061,7 +1811,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.39,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 3.13
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "cleric",
@@ -1088,7 +1853,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 14.43,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.885
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "warrior",
@@ -1115,7 +1895,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 7.94,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.985
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "mage",
@@ -1142,7 +1937,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.73,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 1.945
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "rogue",
@@ -1169,7 +1979,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 8.49,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 2.83
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "cleric",
@@ -1196,7 +2021,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.88,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.375
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "warrior",
@@ -1223,7 +2063,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 7.8,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.95
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "mage",
@@ -1250,7 +2105,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.68,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 1.935
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "rogue",
@@ -1277,7 +2147,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 5.94,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 1.98
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "cleric",
@@ -1304,7 +2189,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.8,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 1.96
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "warrior",
@@ -1331,7 +2231,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.84,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 2.71
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "mage",
@@ -1358,7 +2273,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.53,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_firebolt": 2.105
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "rogue",
@@ -1385,7 +2315,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 9.65,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_quick_slash": 3.215
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "cleric",
@@ -1412,7 +2357,22 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 14.7,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.94
+      },
+      "effectRounds": {},
+      "effectApplications": {},
+      "effectSources": {}
     },
     {
       "classId": "warrior",
@@ -1439,7 +2399,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 75.64,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 18.91
+      },
+      "effectRounds": {
+        "player:sap": 7.02
+      },
+      "effectApplications": {
+        "player:sap": 5.24
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "warrior",
@@ -1466,7 +2447,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 46.9,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 11.725
+      },
+      "effectRounds": {
+        "player:sap": 3.445
+      },
+      "effectApplications": {
+        "player:sap": 2.555
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "warrior",
@@ -1493,7 +2495,28 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 39.74,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 9.935
+      },
+      "effectRounds": {
+        "player:sap": 2.615
+      },
+      "effectApplications": {
+        "player:sap": 2.04
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "mage",
@@ -1520,7 +2543,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 56.28,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 3.09,
+        "sk_firebolt": 5.075
+      },
+      "effectRounds": {
+        "player:sap": 2.275
+      },
+      "effectApplications": {
+        "player:sap": 1.705
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "mage",
@@ -1547,7 +2592,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 65.93,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 3.595,
+        "sk_firebolt": 5.995
+      },
+      "effectRounds": {
+        "player:sap": 2.44
+      },
+      "effectApplications": {
+        "player:sap": 1.9
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "mage",
@@ -1574,7 +2641,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 55.55,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 3.055,
+        "sk_firebolt": 5
+      },
+      "effectRounds": {
+        "player:sap": 2.19
+      },
+      "effectApplications": {
+        "player:sap": 1.615
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "rogue",
@@ -1601,7 +2690,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 57.93,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 4.145,
+        "sk_quick_slash": 6.875
+      },
+      "effectRounds": {
+        "player:sap": 3.195
+      },
+      "effectApplications": {
+        "player:sap": 2.325
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "rogue",
@@ -1628,7 +2739,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 70.88,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 4.84,
+        "sk_quick_slash": 9.105
+      },
+      "effectRounds": {
+        "player:sap": 3.755
+      },
+      "effectApplications": {
+        "player:sap": 2.82
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "rogue",
@@ -1655,7 +2788,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 59.45,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 4.175,
+        "sk_quick_slash": 7.29
+      },
+      "effectRounds": {
+        "player:sap": 3.02
+      },
+      "effectApplications": {
+        "player:sap": 2.24
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "cleric",
@@ -1682,7 +2837,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 139.35,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 14.19,
+        "sk_mend": 8.55
+      },
+      "effectRounds": {
+        "player:sap": 19.085
+      },
+      "effectApplications": {
+        "player:sap": 14.26
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "cleric",
@@ -1709,7 +2886,29 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 89.56,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 16.96,
+        "sk_mend": 0.595
+      },
+      "effectRounds": {
+        "player:sap": 5.04
+      },
+      "effectApplications": {
+        "player:sap": 3.74
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
     },
     {
       "classId": "cleric",
@@ -1736,7 +2935,677 @@
       "avgShieldGranted": 0,
       "avgShieldAbsorbed": 0,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 69.05,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 13.81
+      },
+      "effectRounds": {
+        "player:sap": 4.005
+      },
+      "effectApplications": {
+        "player:sap": 2.9
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Silk Prison"
+      }
+    },
+    {
+      "classId": "warrior",
+      "level": 7,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 1.51,
+      "avgHpPctEnd": 0.9974,
+      "avgMpPctEnd": 0.8997,
+      "avgDealt": 94.63,
+      "avgTaken": 0.62,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.09,
+      "dodgesPerFight": 0.02,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 6.02,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_cleave": 1.505
+      },
+      "effectRounds": {
+        "player:sap": 0.075
+      },
+      "effectApplications": {
+        "player:sap": 0.075
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
+    },
+    {
+      "classId": "warrior",
+      "level": 9,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 2.1,
+      "avgHpPctEnd": 0.9964,
+      "avgMpPctEnd": 0.7946,
+      "avgDealt": 109.2,
+      "avgTaken": 1.03,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.065,
+      "dodgesPerFight": 0.03,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 14.38,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_war_cry": 1,
+        "sk_cleave": 1.095
+      },
+      "effectRounds": {
+        "player:sk_war_cry": 1.095,
+        "player:sap": 0.06
+      },
+      "effectApplications": {
+        "player:sk_war_cry": 1,
+        "player:sap": 0.06
+      },
+      "effectSources": {
+        "player:sk_war_cry": "skill:War Cry",
+        "player:sap": "enemyMove:Howl"
+      }
+    },
+    {
+      "classId": "warrior",
+      "level": 19,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "solo:e_chronowisp",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 5.68,
+      "avgHpPctEnd": 0.7745,
+      "avgMpPctEnd": 0.6548,
+      "avgDealt": 624.33,
+      "avgTaken": 133.26,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.53,
+      "dodgesPerFight": 0.18,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 51.78,
+      "avgBuffCasts": 2.01,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_war_cry": 1.005,
+        "sk_iron_wall": 1.005,
+        "sk_whirlwind": 1.7,
+        "sk_cleave": 1.97
+      },
+      "effectRounds": {
+        "player:e_chronowisp": 2,
+        "player:sk_war_cry": 3.01,
+        "player:sk_iron_wall": 2.005,
+        "player:sap": 1.61
+      },
+      "effectApplications": {
+        "player:e_chronowisp": 1,
+        "player:sk_war_cry": 1.005,
+        "player:sk_iron_wall": 1.005,
+        "player:sap": 1.18
+      },
+      "effectSources": {
+        "player:e_chronowisp": "enemyMove:Chrono Anchor",
+        "player:sk_war_cry": "skill:War Cry",
+        "player:sk_iron_wall": "skill:Iron Wall",
+        "player:sap": "enemyMove:Stutter"
+      }
+    },
+    {
+      "classId": "mage",
+      "level": 7,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 1.35,
+      "avgHpPctEnd": 0.9828,
+      "avgMpPctEnd": 0.9149,
+      "avgDealt": 96.03,
+      "avgTaken": 2.58,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.105,
+      "dodgesPerFight": 0.01,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 11.75,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_frost_lance": 1,
+        "sk_firebolt": 0.35
+      },
+      "effectRounds": {
+        "player:sap": 0.07
+      },
+      "effectApplications": {
+        "player:sap": 0.07
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
+    },
+    {
+      "classId": "mage",
+      "level": 9,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 2.27,
+      "avgHpPctEnd": 0.9868,
+      "avgMpPctEnd": 0.8593,
+      "avgDealt": 105.3,
+      "avgTaken": 2.38,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.15,
+      "dodgesPerFight": 0.01,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 23.35,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_barrier": 1,
+        "sk_frost_lance": 1,
+        "sk_firebolt": 0.27
+      },
+      "effectRounds": {
+        "player:sk_barrier": 2.41,
+        "player:sap": 0.155
+      },
+      "effectApplications": {
+        "player:sk_barrier": 2,
+        "player:sap": 0.14
+      },
+      "effectSources": {
+        "player:sk_barrier": "skill:Barrier",
+        "player:sap": "enemyMove:Web Snare"
+      }
+    },
+    {
+      "classId": "mage",
+      "level": 19,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "solo:e_chronowisp",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 4.76,
+      "avgHpPctEnd": 0.9793,
+      "avgMpPctEnd": 0.8111,
+      "avgDealt": 654,
+      "avgTaken": 9.51,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.45,
+      "dodgesPerFight": 0.13,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 68.01,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_barrier": 1,
+        "sk_arcane_surge": 1.75,
+        "sk_frost_lance": 1.01,
+        "sk_drain_life": 0.995
+      },
+      "effectRounds": {
+        "player:e_chronowisp": 2,
+        "player:sk_barrier": 4,
+        "player:sap": 1.4
+      },
+      "effectApplications": {
+        "player:e_chronowisp": 1,
+        "player:sk_barrier": 2,
+        "player:sap": 1.005
+      },
+      "effectSources": {
+        "player:e_chronowisp": "enemyMove:Chrono Anchor",
+        "player:sk_barrier": "skill:Barrier",
+        "player:sap": "enemyMove:Stutter"
+      }
+    },
+    {
+      "classId": "rogue",
+      "level": 7,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 1.45,
+      "avgHpPctEnd": 0.9819,
+      "avgMpPctEnd": 0.8623,
+      "avgDealt": 94.35,
+      "avgTaken": 3.15,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.165,
+      "dodgesPerFight": 0.01,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.74,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_backstab": 1.065,
+        "sk_quick_slash": 0.385
+      },
+      "effectRounds": {
+        "player:sap": 0.06
+      },
+      "effectApplications": {
+        "player:sap": 0.06
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Web Snare"
+      }
+    },
+    {
+      "classId": "rogue",
+      "level": 9,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 2.31,
+      "avgHpPctEnd": 0.9894,
+      "avgMpPctEnd": 0.8086,
+      "avgDealt": 100.05,
+      "avgTaken": 2.26,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.21,
+      "dodgesPerFight": 0.17,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 17.99,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smoke_step": 1,
+        "sk_backstab": 1.01,
+        "sk_quick_slash": 0.3
+      },
+      "effectRounds": {
+        "player:sk_smoke_step": 1.245,
+        "player:sap": 0.155
+      },
+      "effectApplications": {
+        "player:sk_smoke_step": 1,
+        "player:sap": 0.145
+      },
+      "effectSources": {
+        "player:sk_smoke_step": "skill:Smoke Step",
+        "player:sap": "enemyMove:Howl"
+      }
+    },
+    {
+      "classId": "rogue",
+      "level": 19,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "solo:e_chronowisp",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 5.59,
+      "avgHpPctEnd": 0.7562,
+      "avgMpPctEnd": 0.7062,
+      "avgDealt": 612.84,
+      "avgTaken": 98.02,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.94,
+      "dodgesPerFight": 0.655,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 59.94,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smoke_step": 1,
+        "sk_twin_strike": 1.97,
+        "sk_backstab": 1.58,
+        "sk_venom_cut": 1,
+        "sk_quick_slash": 0.035
+      },
+      "effectRounds": {
+        "player:e_chronowisp": 2,
+        "player:sk_smoke_step": 2,
+        "player:sap": 1.44,
+        "enemy:sap": 1.55,
+        "enemy:sk_expose_weakness": 1.68
+      },
+      "effectApplications": {
+        "player:e_chronowisp": 1,
+        "player:sk_smoke_step": 1,
+        "player:sap": 1.055,
+        "enemy:sap": 0.97,
+        "enemy:sk_expose_weakness": 0.56
+      },
+      "effectSources": {
+        "player:e_chronowisp": "enemyMove:Chrono Anchor",
+        "player:sk_smoke_step": "skill:Smoke Step",
+        "player:sap": "enemyMove:Stutter",
+        "enemy:sap": "skill:Venom Cut",
+        "enemy:sk_expose_weakness": "skill:Expose Weakness"
+      }
+    },
+    {
+      "classId": "cleric",
+      "level": 7,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 2.04,
+      "avgHpPctEnd": 0.9871,
+      "avgMpPctEnd": 0.9,
+      "avgDealt": 93.24,
+      "avgTaken": 2.67,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.215,
+      "dodgesPerFight": 0.015,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 10.2,
+      "avgBuffCasts": 0,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_smite": 2.04
+      },
+      "effectRounds": {
+        "player:sap": 0.16
+      },
+      "effectApplications": {
+        "player:sap": 0.145
+      },
+      "effectSources": {
+        "player:sap": "enemyMove:Howl"
+      }
+    },
+    {
+      "classId": "cleric",
+      "level": 9,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "whisperwood:tactical",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 2.42,
+      "avgHpPctEnd": 0.9948,
+      "avgMpPctEnd": 0.8484,
+      "avgDealt": 99.33,
+      "avgTaken": 1.31,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.14,
+      "dodgesPerFight": 0.03,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 19.1,
+      "avgBuffCasts": 1,
+      "avgShieldCasts": 0,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_blessing": 1,
+        "sk_smite": 1.42
+      },
+      "effectRounds": {
+        "player:sk_blessing": 2.775,
+        "player:sap": 0.195
+      },
+      "effectApplications": {
+        "player:sk_blessing": 2,
+        "player:sap": 0.18
+      },
+      "effectSources": {
+        "player:sk_blessing": "skill:Blessing",
+        "player:sap": "enemyMove:Web Snare"
+      }
+    },
+    {
+      "classId": "cleric",
+      "level": 19,
+      "gear": "best",
+      "policy": "tactical",
+      "items": false,
+      "pool": "solo:e_chronowisp",
+      "fights": 200,
+      "winRate": 1,
+      "lossRate": 0,
+      "timeoutRate": 0,
+      "avgRoundsWin": 11.42,
+      "avgHpPctEnd": 0.9955,
+      "avgMpPctEnd": 0.513,
+      "avgDealt": 589.72,
+      "avgTaken": 2.27,
+      "avgItems": 0,
+      "guardFreq": 0,
+      "critsPerFight": 0.59,
+      "dodgesPerFight": 0.265,
+      "healPerFight": 0,
+      "overhealPerFight": 0,
+      "avgShieldGranted": 769.26,
+      "avgShieldAbsorbed": 45.65,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 587.2,
+      "avgSkippedRounds": 0,
+      "invalidActions": 0,
+      "avgMpSpent": 134.43,
+      "avgBuffCasts": 3.9,
+      "avgShieldCasts": 3.025,
+      "avgDotCasts": 0,
+      "avgDebuffCasts": 0,
+      "avgCleanseCasts": 0,
+      "avgDispelCasts": 0,
+      "skillCasts": {
+        "sk_aegis": 3.025,
+        "sk_blessing": 1.95,
+        "sk_holy_ward": 1.95,
+        "sk_radiant_burst": 2.075,
+        "sk_smite": 2.415
+      },
+      "effectRounds": {
+        "player:e_chronowisp": 2,
+        "player:sk_aegis": 5.9,
+        "player:sk_blessing": 9.75,
+        "player:sap": 4.065,
+        "player:sk_holy_ward": 3.9
+      },
+      "effectApplications": {
+        "player:e_chronowisp": 1,
+        "player:sk_aegis": 3.025,
+        "player:sk_blessing": 3.9,
+        "player:sap": 2.575,
+        "player:sk_holy_ward": 1.95
+      },
+      "effectSources": {
+        "player:e_chronowisp": "enemyMove:Chrono Anchor",
+        "player:sk_aegis": "skill:Aegis of Dawn",
+        "player:sk_blessing": "skill:Blessing",
+        "player:sap": "enemyMove:Stutter",
+        "player:sk_holy_ward": "skill:Holy Ward"
+      }
     }
   ]
 }

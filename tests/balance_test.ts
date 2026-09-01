@@ -12,8 +12,11 @@ import {
   type EncounterSource,
   exploreDropZonesFor,
   hostileZones,
+  makeHero,
   POLICIES,
   runCell,
+  runFight,
+  seededRng,
   simulateChapterOne,
   tutorialEnemies,
   zoneHostilePool,
@@ -22,6 +25,7 @@ import {
 import { createPlayer } from '../src/engine/character.ts';
 import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { dungeonOf, encounterEligible } from '../src/engine/world.ts';
+import type { BattleOrigin, ClassId } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
@@ -409,4 +413,70 @@ Deno.test('balance: broad progression envelope holds across seeds (#74)', () => 
       }
     }
   }
+});
+
+Deno.test('balance: the tactical policy is effect-aware and always legal (#84)', () => {
+  const run = (cid: ClassId, level: number, enemyId: string, origin: BattleOrigin): CellStat =>
+    runCell({
+      classId: cid,
+      level,
+      gear: 'best',
+      policy: POLICIES.tactical,
+      pool: `tac:${cid}@${level}`,
+      sources: [{ enemyId, weight: 1, origin }],
+      fights: 120,
+      seed: 8401,
+    });
+
+  const clericStag = run('cleric', 14, 'e_stag', { kind: 'elite', zoneId: 'whisperwood' });
+  const rogueWolf = run('rogue', 12, 'e_wolf', { kind: 'explore', zoneId: 'whisperwood' });
+  const mageWolf = run('mage', 13, 'e_wolf', { kind: 'explore', zoneId: 'whisperwood' });
+  const warriorWolf = run('warrior', 13, 'e_wolf', { kind: 'explore', zoneId: 'whisperwood' });
+  const cells = [clericStag, rogueWolf, mageWolf, warriorWolf];
+
+  // HARD INVARIANT: the engine never refuses a tactical selection — no
+  // pre-emptive, silenced, on-cooldown or unaffordable skill is ever chosen
+  // (#84: policies select only legal actions).
+  for (const cell of cells) assertEquals(cell.invalidActions, 0, 'unusable skill selected');
+
+  // Utility actually casts: the cleric shields (Aegis of Dawn at 14) under
+  // stag pressure, and SOME scenario exercises buffs/DoTs/debuffs.
+  assert(clericStag.avgShieldCasts > 0, `cleric never shielded (${clericStag.avgShieldCasts})`);
+  assert(
+    cells.some((c) => c.avgBuffCasts > 0 || c.avgDotCasts > 0 || c.avgDebuffCasts > 0),
+    'no scenario exercised buffs/DoTs/debuffs',
+  );
+
+  // Pre-emptive skills arrive through the OPENING pipeline, not casts:
+  // Expose Weakness appears as an enemy-side effect application (#80/#84).
+  assert(
+    (rogueWolf.effectApplications['enemy:sk_expose_weakness'] ?? 0) > 0,
+    'Expose Weakness never fired in the opening',
+  );
+
+  // Control never dominates: stunned rounds stay the exception.
+  for (const cell of cells) {
+    assert(cell.avgSkippedRounds < 1, `control dominates (${cell.avgSkippedRounds})`);
+  }
+});
+
+Deno.test('balance: unique equipment effects have a deterministic trigger scenario (#84)', () => {
+  // equipBest never picks the Wardstone Pendant (its stat weight loses to
+  // stat trinkets), so its trigger scenario is TARGETED: the hero equips
+  // it explicitly and every fight opens with the battle-lifetime ward.
+  const p = makeHero('rogue', 20, 'best');
+  p.equipment.trinket = 't_wardstone';
+  const res = runFight(
+    p,
+    'e_wolf',
+    POLICIES.tactical,
+    seededRng(9001),
+    { kind: 'explore', zoneId: 'whisperwood' },
+  );
+  assert(res.shieldGranted >= 25, `wardstone ward granted (${res.shieldGranted})`);
+  assert(
+    (res.effectApplications['player:t_wardstone'] ?? 0) > 0,
+    'the wardstone opening was never observed',
+  );
+  assertEquals(res.invalidActions, 0);
 });

@@ -41,14 +41,26 @@ function cellLine(c: CellStat): string {
     `items ${c.avgItems.toFixed(2)}`,
     `guard ${c.guardFreq.toFixed(2)}`,
     `crit ${c.critsPerFight.toFixed(2)}`,
+    `skip ${c.avgSkippedRounds.toFixed(2)}`,
+    `util ${c.avgBuffCasts.toFixed(2)}/${c.avgShieldCasts.toFixed(2)}/${c.avgDotCasts.toFixed(2)}`,
   ].join(' · ');
+}
+
+/** The source-attributed effect observation for one cell (#84) — the top
+ * few live effects by uptime, with their applying source. */
+function effectLine(c: CellStat): string {
+  return Object.entries(c.effectRounds)
+    .sort((a, z) => z[1] - a[1])
+    .slice(0, 4)
+    .map(([k, v]) => `${k} [${c.effectSources[k] ?? '?'}] ${v.toFixed(1)}r`)
+    .join(' · ');
 }
 
 function header(title: string): void {
   console.log(`\n━━ ${title} ${'━'.repeat(Math.max(2, 70 - title.length))}`);
 }
 
-console.log('Emberdawn balance report (#74) — seeded, real-engine simulation');
+console.log('Emberdawn balance report (#74/#84) — seeded, real-engine simulation');
 console.log(`classes: ${CLASS_IDS.join(', ')} · matrix levels: ${MATRIX_LEVELS.join('/')}`);
 
 // ── 1. Matrix ───────────────────────────────────────────────────────────
@@ -64,6 +76,17 @@ for (const zone of hostileZones()) {
   if (free.length > 0) {
     console.log(`— free-action policy (level ≤ 9, normals only) —`);
     for (const c of free) console.log(cellLine(c));
+  }
+  // #84: the effect-aware policy beside the plain rotation — the reviewed
+  // before/after pair for #81–#83 balance evidence.
+  const tactical = matrix.filter((x) => x.pool === `${zone.id}:tactical`);
+  if (tactical.length > 0) {
+    console.log(`— tactical policy (effect-aware, #84) —`);
+    for (const c of tactical) {
+      console.log(cellLine(c));
+      const eff = effectLine(c);
+      if (eff) console.log(`         effects: ${eff}`);
+    }
   }
 }
 
@@ -92,7 +115,7 @@ for (const zone of hostileZones()) {
 
 // ── 2. Gear cliff ───────────────────────────────────────────────────────
 header('Boss gear cliff — Aranya (tier-1 starting kit vs tier-2 breakpoint)');
-for (const c of matrix.filter((x) => x.pool.startsWith('boss:'))) {
+for (const c of matrix.filter((x) => x.pool.startsWith('boss:') && !x.pool.endsWith(':tactical'))) {
   const bossId = c.pool.slice(5);
   console.log(`${bossId.padEnd(10)} ${cellLine(c)}`);
 }
