@@ -2,6 +2,7 @@
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
+import type { ItemDef } from '../content/types.ts';
 import { item, itemName } from '../content/items.ts';
 import { isEquippable } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
@@ -56,6 +57,26 @@ export function renderInventory(p: PlayerState, page: number): InputRichMessage 
   return { blocks };
 }
 
+/** Exact-mechanics disclosure lines for equipment triggers (#82). Derived
+ * from the trigger data — chance, limits and cooldown come from the
+ * fields; magnitude wording from the authored desc. Shared by the
+ * inventory detail, equipment, shop and forge views. */
+export function triggerDisclosure(def: ItemDef | undefined): string[] {
+  if (!def?.triggers?.length) return [];
+  return def.triggers.map((tg) => {
+    const bits: string[] = [];
+    if (tg.chance !== undefined) bits.push(`${Math.round(tg.chance * 100)}% chance`);
+    if (tg.maxProcs !== undefined) bits.push(`up to ${tg.maxProcs}×/battle`);
+    if (tg.cooldown !== undefined) bits.push(`${tg.cooldown}-round cooldown`);
+    const when = tg.trigger === 'battleStart'
+      ? 'Battle start'
+      : tg.trigger === 'onHpDamage'
+      ? 'On taking HP damage'
+      : 'On guard';
+    return `⚡ ${when}: ${tg.desc}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
+  });
+}
+
 export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessage {
   const def = item(itemId);
   const qty = p.inventory.find((e) => e.id === itemId)?.qty ?? 0;
@@ -81,6 +102,9 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
     if (e.cureStatus) parts.push('Cures debuffs');
     if (e.revivePct) parts.push(`Auto-revive at ${e.revivePct}% HP`);
     blocks.push(para(parts.join(' · ')));
+  }
+  if (def.triggers?.length) {
+    blocks.push(para(triggerDisclosure(def).join('\n')));
   }
   if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
   if (def.level > 1 && (def.kind === 'weapon' || def.kind === 'armor' || def.kind === 'trinket')) {
@@ -157,6 +181,9 @@ export function renderEquipment(p: PlayerState): InputRichMessage {
     const name = id ? itemName(id) : '— empty —';
     const lvl = slot !== 'trinket' && id ? temperText(p, slot) : '';
     blocks.push(para(`${label}: ${name}${lvl}`));
+    for (const line of triggerDisclosure(id ? item(id) : undefined)) {
+      blocks.push(para(line));
+    }
     if (id) {
       blocks.push(
         buttonsRow([

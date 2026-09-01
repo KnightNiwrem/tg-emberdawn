@@ -12,6 +12,7 @@ import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { currentStock } from '../engine/shops.ts';
+import { triggerDisclosure } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
@@ -258,6 +259,8 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
       } as RichText,
       { type: 'italic', text: def.desc ? `\n${def.desc}` : '' } as RichText,
     ]));
+    const trig = triggerDisclosure(def);
+    if (trig.length > 0) blocks.push(para(trig.join('\n')));
     blocks.push(buttonsRow([
       afford
         ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: id }), 'success')
@@ -326,6 +329,9 @@ export function renderForge(p: PlayerState): InputRichMessage {
     heading('⚒️ The Forge', 3),
     para(
       "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. Mastery binds to the pattern: every copy of this gear you ever own — forged, bought or looted — carries your forge-work.",
+    ),
+    para(
+      '⚡ Triggered item effects are fixed authored data — tempering never changes their chance, potency or duration.',
     ),
     ...noticesBlocks(p),
     para(

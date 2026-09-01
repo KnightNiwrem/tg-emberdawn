@@ -4,7 +4,7 @@
  */
 
 import type { ClassId } from '../engine/types.ts';
-import type { ItemDef, ItemStats } from './types.ts';
+import type { EquipTrigger, ItemDef, ItemStats } from './types.ts';
 
 const WEAPON_ATK = (tier: number): number => Math.round(3 * Math.pow(tier, 1.6) + 2 * tier + 1);
 const ARMOR_DEF = (tier: number): number => Math.round(2.2 * Math.pow(tier, 1.5)) + tier;
@@ -187,6 +187,86 @@ const TRINKET_TIERS: { name: string; lvl: number; stats: ItemStats; desc: string
     desc: 'Holds a spark that never quite goes out.',
   },
 ];
+
+/** Triggered equipment effects (#82): keyed by stocked trinket id. Boss
+ * trophies carry theirs inline (below). Everything rides the shared #78
+ * vocabulary — the engine never branches on item ids. */
+const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
+  // #82 class-relevance audit: Ember Sigil's MAG is offensively dead for
+  // warrior/rogue — a retaliation burn makes it useful for every class.
+  t_3: [{
+    name: 'Ember Backlash',
+    trigger: 'onHpDamage',
+    chance: 0.35,
+    maxProcs: 3,
+    effects: [{
+      kind: 'periodic',
+      target: 'opponent',
+      perRound: -6,
+      duration: 2,
+      tickPhase: 'roundEnd',
+      name: 'Ember Burn',
+      tags: ['burn', 'harmful'],
+      line: '🔥 The Ember Sigil flares — the attacker is burning (6 damage ×2 rounds)!',
+    }],
+    desc: 'the attacker burns for 6×2 rounds.',
+  }],
+  // Glass Arrowhead's ATK is dead for mage/cleric — an opening Expose is
+  // genuinely universal (everyone deals damage).
+  t_7: [{
+    name: 'Keen Fracture',
+    trigger: 'battleStart',
+    chance: 0.45,
+    effects: [{
+      kind: 'statmod',
+      target: 'opponent',
+      stat: 'incoming',
+      pct: 0.25,
+      duration: 3,
+      timing: 'immediate',
+      name: 'Exposed',
+      tags: ['vulnerable', 'harmful'],
+      line:
+        '🎯 The Glass Arrowhead opens a fault line — the foe is Exposed (+25% damage taken, 3 rounds).',
+    }],
+    desc: 'Expose the foe (+25% damage taken, 3 rounds).',
+  }],
+  // Thorn Ring: bounded retaliation (the issue's named example).
+  t_9: [{
+    name: 'Bramble Prick',
+    trigger: 'onHpDamage',
+    chance: 0.3,
+    maxProcs: 3,
+    effects: [{
+      kind: 'periodic',
+      target: 'opponent',
+      perRound: -4,
+      duration: 2,
+      tickPhase: 'roundEnd',
+      name: 'Bramble Bleed',
+      tags: ['bleed', 'harmful'],
+      line: '🌵 The Thorn Ring brambles bite back — the attacker bleeds (4 damage ×2 rounds)!',
+    }],
+    desc: 'the attacker bleeds for 4×2 rounds.',
+  }],
+  // Ember Locket's MAG is bait for warrior/rogue — an opening smolder.
+  t_11: [{
+    name: 'Smoldering Wake',
+    trigger: 'battleStart',
+    chance: 0.4,
+    effects: [{
+      kind: 'periodic',
+      target: 'opponent',
+      perRound: -8,
+      duration: 2,
+      tickPhase: 'roundEnd',
+      name: 'Smolder',
+      tags: ['burn', 'harmful'],
+      line: '🔥 The Ember Locket wakes — the foe is smoldering (8 damage ×2 rounds)!',
+    }],
+    desc: 'set the foe smoldering (8×2 rounds).',
+  }],
+};
 
 interface ConsumableDef {
   id: string;
@@ -383,10 +463,13 @@ function buildItems(): ItemDef[] {
       tier: i + 1,
       stats: tk.stats,
       desc: tk.desc,
+      // #82: declared triggers ride along; undefined stays absent.
+      ...(TRINKET_TRIGGERS[`t_${i + 1}`] ? { triggers: TRINKET_TRIGGERS[`t_${i + 1}`] } : {}),
     });
   });
-  // Standalone effect trinket (#80): explicit id — a new TRINKET_TIERS
-  // entry would mint t_12 and collide with the boss trinkets' ids.
+  // Standalone effect trinket (#80, migrated to the #82 trigger model):
+  // explicit id — a new TRINKET_TIERS entry would mint t_12 and collide
+  // with the boss trinkets' ids.
   out.push({
     id: 't_wardstone',
     name: 'Wardstone Pendant',
@@ -395,16 +478,21 @@ function buildItems(): ItemDef[] {
     price: Math.round(price(Math.max(1, 20 / 6))),
     tier: 5,
     stats: { def: 8 },
-    effects: [{
-      kind: 'shield',
-      target: 'self',
-      amount: 25,
-      duration: 1,
-      timing: 'immediate',
-      lifetime: 'battle',
+    triggers: [{
       name: 'Wardstone Ward',
-      line:
-        '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to 25 damage (whole battle).',
+      trigger: 'battleStart',
+      effects: [{
+        kind: 'shield',
+        target: 'self',
+        amount: 25,
+        duration: 1,
+        timing: 'immediate',
+        lifetime: 'battle',
+        name: 'Wardstone Ward',
+        line:
+          '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to 25 damage (whole battle).',
+      }],
+      desc: 'a ward absorbing up to 25 damage (whole battle).',
     }],
     desc: 'Opens every battle with a 25-damage ward that lasts the whole fight.',
   });
@@ -452,6 +540,7 @@ function buildItems(): ItemDef[] {
     stats: ItemStats;
     price: number;
     desc: string;
+    triggers?: EquipTrigger[];
   }[] = [
     {
       id: 't_12',
@@ -460,6 +549,20 @@ function buildItems(): ItemDef[] {
       stats: { def: 6, hp: 30 },
       price: 260,
       desc: 'Woven from living root; still faintly growing.',
+      triggers: [{
+        name: 'Living Ward',
+        trigger: 'battleStart',
+        effects: [{
+          kind: 'shield',
+          target: 'self',
+          defPower: 0.8,
+          duration: 2,
+          timing: 'immediate',
+          name: 'Living Ward',
+          line: '🌿 Living root weaves a ward around you, absorbing up to {n} damage.',
+        }],
+        desc: 'a ward absorbing up to 160% of your DEF for 2 rounds.',
+      }],
     },
     {
       id: 't_13',
@@ -468,6 +571,17 @@ function buildItems(): ItemDef[] {
       stats: { mp: 45, res: 9 },
       price: 640,
       desc: "Hums with the drowned shrine's tide.",
+      triggers: [{
+        name: "Tide's Return",
+        trigger: 'onGuard',
+        maxProcs: 3,
+        effects: [{
+          kind: 'restore',
+          target: 'self',
+          mpPctOfMax: 0.08,
+        }],
+        desc: 'restore 8% of max MP.',
+      }],
     },
     {
       id: 't_14',
@@ -476,6 +590,23 @@ function buildItems(): ItemDef[] {
       stats: { spd: 12, mag: 10 },
       price: 1150,
       desc: 'Sand falls upward when you act.',
+      triggers: [{
+        name: 'Stolen Seconds',
+        trigger: 'battleStart',
+        chance: 0.5,
+        effects: [{
+          kind: 'statmod',
+          target: 'opponent',
+          stat: 'spd',
+          pct: -0.25,
+          duration: 2,
+          timing: 'immediate',
+          name: 'Slowed',
+          tags: ['slow', 'harmful'],
+          line: '⏳ Sand falls upward — the foe is Slowed (−25% SPD, 2 rounds).',
+        }],
+        desc: 'Slow the foe (−25% SPD, 2 rounds).',
+      }],
     },
     {
       id: 't_15',
@@ -484,6 +615,20 @@ function buildItems(): ItemDef[] {
       stats: { res: 16, hp: 80 },
       price: 1900,
       desc: 'Cold that protects, not consumes.',
+      triggers: [{
+        name: 'Rime Ward',
+        trigger: 'battleStart',
+        effects: [{
+          kind: 'shield',
+          target: 'self',
+          amount: 35,
+          duration: 2,
+          timing: 'immediate',
+          name: 'Rime Ward',
+          line: '❄️ Rime crystals settle over you, absorbing up to {n} damage.',
+        }],
+        desc: 'a ward absorbing up to 35 damage for 2 rounds.',
+      }],
     },
     {
       id: 't_16',
@@ -492,6 +637,24 @@ function buildItems(): ItemDef[] {
       stats: { atk: 30, hp: 100 },
       price: 3100,
       desc: "Plaited from the caldera's own temper.",
+      triggers: [{
+        name: 'Caldera Wrath',
+        trigger: 'onHpDamage',
+        chance: 0.5,
+        maxProcs: 3,
+        cooldown: 2,
+        effects: [{
+          kind: 'periodic',
+          target: 'opponent',
+          perRound: -12,
+          duration: 3,
+          tickPhase: 'roundEnd',
+          name: 'Caldera Burn',
+          tags: ['burn', 'harmful'],
+          line: '🌋 The caldera answers — the attacker is burning (12 damage ×3 rounds)!',
+        }],
+        desc: 'the attacker burns for 12×3 rounds.',
+      }],
     },
     {
       id: 't_17',
@@ -500,6 +663,34 @@ function buildItems(): ItemDef[] {
       stats: { atk: 24, mag: 24, def: 18, res: 18, spd: 12, luck: 14 },
       price: 5200,
       desc: "A king's worth of morning, reclaimed.",
+      triggers: [{
+        name: "Dawn's Blessing",
+        trigger: 'battleStart',
+        effects: [{
+          kind: 'statmod',
+          target: 'self',
+          stat: 'atk',
+          pct: 0.1,
+          duration: 1,
+          timing: 'immediate',
+          lifetime: 'battle',
+          name: "Dawn's Might",
+          tags: ['beneficial'],
+          line: "🌅 Dawn's Might settles into your arms (+10% ATK, whole battle).",
+        }, {
+          kind: 'statmod',
+          target: 'self',
+          stat: 'mag',
+          pct: 0.1,
+          duration: 1,
+          timing: 'immediate',
+          lifetime: 'battle',
+          name: "Dawn's Insight",
+          tags: ['beneficial'],
+          line: "🌅 Dawn's Insight settles into your mind (+10% MAG, whole battle).",
+        }],
+        desc: '+10% ATK and +10% MAG for the whole battle — both offenses, whichever you wield.',
+      }],
     },
     {
       id: 't_18',
@@ -508,6 +699,24 @@ function buildItems(): ItemDef[] {
       stats: { atk: 34, mag: 34, luck: 18 },
       price: 6600,
       desc: 'Through it, the dark looks away first.',
+      triggers: [{
+        name: 'Void Gaze',
+        trigger: 'battleStart',
+        chance: 0.6,
+        effects: [{
+          kind: 'statmod',
+          target: 'opponent',
+          stat: 'incoming',
+          pct: 0.25,
+          duration: 3,
+          timing: 'immediate',
+          name: 'Voidmarked',
+          tags: ['vulnerable', 'mark', 'harmful'],
+          line:
+            '🕳️ The Lens finds the seam in reality — the foe is Voidmarked (+25% damage taken, 3 rounds).',
+        }],
+        desc: 'Voidmark the foe (+25% damage taken, 3 rounds).',
+      }],
     },
   ];
   for (const bt of BOSS_TRINKETS) {
@@ -521,6 +730,8 @@ function buildItems(): ItemDef[] {
       unique: true, // earned trophies (#5): unsellable and un-droppable
       stats: bt.stats,
       desc: bt.desc,
+      // #82: declared triggers ride along; undefined stays absent.
+      ...(bt.triggers ? { triggers: bt.triggers } : {}),
     });
   }
   return out;

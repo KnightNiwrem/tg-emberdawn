@@ -347,6 +347,8 @@ export interface FightResult {
   shieldAbsorbed: number;
   shieldWasted: number;
   shieldExpiryLost: number;
+  /** Reactive equipment procs that fired this fight (#82). */
+  equipProcs: number;
   /** Rounds lost to control (the hero was stunned out of acting) (#84). */
   skippedRounds: number;
   /** Policy selections the engine REFUSED — must stay 0 for every sane
@@ -437,6 +439,7 @@ export function runFight(
     shieldAbsorbed: 0,
     shieldWasted: 0,
     shieldExpiryLost: 0,
+    equipProcs: 0,
     skippedRounds: 0,
     invalidActions: 0,
     mpSpent: 0,
@@ -472,6 +475,8 @@ export function runFight(
       if (wasted) result.shieldWasted += Number(wasted[1]);
       const faded = SHIELD_FADE.exec(line);
       if (faded) result.shieldExpiryLost += Number(faded[1]);
+      // ⚡-prefixed lines are reactive equipment procs (#82).
+      if (line.startsWith('⚡ ')) result.equipProcs++;
     }
   };
   if (b.opening?.lines.length) scanLines(b.opening.lines);
@@ -699,6 +704,8 @@ export interface CellStat {
   avgShieldAbsorbed: number;
   avgShieldWasted: number;
   avgShieldExpiryLost: number;
+  /** Reactive equipment procs per fight (#82). */
+  avgEquipProcs: number;
   /** #84 effect-aware aggregates: per-fight averages of control losses,
    * MP spent and utility casts; the TOTAL refused selections (must be 0);
    * and source-attributed live-effect observation maps. */
@@ -755,6 +762,7 @@ export function runCell(spec: CellSpec): CellStat {
     shieldAbsorbed: 0,
     shieldWasted: 0,
     shieldExpiryLost: 0,
+    equipProcs: 0,
     skipped: 0,
     invalid: 0,
     mpSpent: 0,
@@ -809,6 +817,7 @@ export function runCell(spec: CellSpec): CellStat {
     acc.shieldAbsorbed += res.shieldAbsorbed;
     acc.shieldWasted += res.shieldWasted;
     acc.shieldExpiryLost += res.shieldExpiryLost;
+    acc.equipProcs += res.equipProcs;
     acc.skipped += res.skippedRounds;
     acc.invalid += res.invalidActions;
     acc.mpSpent += res.mpSpent;
@@ -851,6 +860,7 @@ export function runCell(spec: CellSpec): CellStat {
     avgShieldAbsorbed: r2(acc.shieldAbsorbed / f),
     avgShieldWasted: r3(acc.shieldWasted / f),
     avgShieldExpiryLost: r3(acc.shieldExpiryLost / f),
+    avgEquipProcs: r3(acc.equipProcs / f),
     avgSkippedRounds: r3(acc.skipped / f),
     invalidActions: acc.invalid,
     avgMpSpent: r2(acc.mpSpent / f),

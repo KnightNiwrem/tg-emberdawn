@@ -196,6 +196,36 @@ export type EffectSpec =
     name?: string;
   });
 
+/** Declarative equipment triggers (#82). Plain data executed by the shared
+ * resolver — no callbacks, no item-id branches in combat. `battleStart`
+ * resolves exactly once inside the #80 opening (one injected-RNG draw per
+ * authored chance, success AND failure recorded in the opening log);
+ * reactive kinds fire during rounds with battle-local proc bookkeeping.
+ * `maxProcs`/`cooldown` measure SUCCESSFUL procs — a missed chance roll
+ * consumes neither budget nor cooldown. Proc-produced effects never
+ * re-scan equipment: the scanner is invoked only from the base
+ * enemy-action and guard paths, so recursion is structurally impossible. */
+export interface EquipTrigger {
+  /** Display name (log lines + UI disclosure). */
+  name: string;
+  /** When it fires. */
+  trigger: 'battleStart' | 'onHpDamage' | 'onGuard';
+  /** Proc chance (0..1); one injected-RNG draw per attempt. Unauthored =
+   * always procs. */
+  chance?: number;
+  /** Ordered typed effects (#78 vocabulary), applied caster-relative —
+   * the wearer is the caster, so `target: 'opponent'` specs hit the foe. */
+  effects: EffectSpec[];
+  /** Successful procs allowed per battle (default: unlimited). */
+  maxProcs?: number;
+  /** Rounds required between procs (default: none). */
+  cooldown?: number;
+  /** Exact player-facing mechanics (item detail/shop/equipment disclosure
+   * — numbers here are derived in the UI from the fields above, never
+   * re-typed). */
+  desc: string;
+}
+
 export type ItemKind = 'weapon' | 'armor' | 'trinket' | 'consumable' | 'material' | 'quest';
 
 export interface ItemStats {
@@ -229,9 +259,9 @@ export interface ItemDef {
     /** Battle-only: guaranteed escape from non-boss fights. */
     flee?: true;
   };
-  /** Typed combat effects (#78 vocabulary) — referenced by equipment
-   * authoring; trigger timing wires in with #82. */
-  effects?: EffectSpec[];
+  /** Typed combat triggers (#82) — declarative plain data, executed by
+   * the shared resolver through the #80 opening and the reactive hooks. */
+  triggers?: EquipTrigger[];
   /** short flavor / description line */
   desc?: string;
   /** Tier for shop/loot organization (1..8). 0 = special. */

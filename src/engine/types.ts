@@ -137,6 +137,12 @@ export interface BattleState {
   /** Monotonic allocator for effect instance ids (persisted for
    * determinism across save/load). */
   effectSeq: number;
+  /** Equipment proc bookkeeping (#82): key `${itemId}:${triggerIndex}` ->
+   * { count, round }. Battle-local and JSON-serializable; lazily created
+   * on the first reactive proc — absent in battles constructed before
+   * #82. `count` = successful procs, `round` = round of the last
+   * success; missed chance rolls update neither. */
+  procs?: Record<string, { count: number; round: number }>;
   /** Resolved battle opening (#80): collected ONCE at construction —
    * never rerolled on save/load/rerender. Absent when no opening content
    * fired. The renderer shows it on the untouched round-1 screen and keeps

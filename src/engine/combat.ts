@@ -179,22 +179,36 @@ export function startBattle(
           def.opening.effects,
         ));
       }
-      // 3. Equipped-item effects (#80): stable slot order — weapon, armor,
-      // trinket. Each item is its own source, so different items coexist;
+      // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
+      // trinket — then authored order within the item. battleStart procs
+      // resolve exactly ONCE here: one injected-RNG draw per authored
+      // chance, with success AND failure recorded in the opening log.
+      // Each item is its own source, so different items coexist;
       // same-source reapplication follows the authored stacking policy.
       for (const slot of ['weapon', 'armor', 'trinket'] as const) {
         const itemId = p.equipment[slot];
         const it = itemId ? itemDefLookup(itemId) : undefined;
-        if (!it?.effects?.length) continue;
-        opening.push(...runOpening(
-          battle,
-          p,
-          opRng,
-          'player',
-          { kind: 'item', id: it.id, name: it.name },
-          it.name,
-          it.effects,
-        ));
+        if (!it?.triggers?.length) continue;
+        for (const tg of it.triggers) {
+          if (tg.trigger !== 'battleStart') continue;
+          if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
+            opening.push(
+              `💤 ${it.name}: ${tg.name} does not wake this time (${
+                Math.round(tg.chance * 100)
+              }% roll missed).`,
+            );
+            continue;
+          }
+          opening.push(...runOpening(
+            battle,
+            p,
+            opRng,
+            'player',
+            { kind: 'item', id: it.id, name: it.name },
+            tg.name,
+            tg.effects,
+          ));
+        }
       }
       // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
       // or cooldown cost — the opening never charges resources.
@@ -236,6 +250,57 @@ function runOpening(
     hpDamaged: false,
   };
   return executeSpecs(ctx, specs);
+}
+
+/** Scans equipped items for reactive triggers (#82): `onHpDamage` fires
+ * when the wearer lost HP to an enemy action, `onGuard` when they guard.
+ * Slot order, then authored order. Gates: maxProcs (successful procs per
+ * battle), cooldown (rounds since the last success), chance (one injected
+ * draw per attempt — a miss consumes neither budget nor cooldown). Lines
+ * carry a ⚡ prefix for source attribution in the log and harness metrics.
+ * The scanner is only invoked from the base enemy-action and guard paths,
+ * so proc-produced effects can never re-trigger equipment (no recursion). */
+function runReactiveTriggers(
+  p: PlayerState,
+  battle: BattleState,
+  rng: Rng,
+  kind: 'onHpDamage' | 'onGuard',
+): string[] {
+  const lines: string[] = [];
+  const procs = battle.procs ??= {};
+  for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+    const itemId = p.equipment[slot];
+    const it = itemId ? itemDefLookup(itemId) : undefined;
+    if (!it?.triggers?.length) continue;
+    it.triggers.forEach((tg, ti) => {
+      if (tg.trigger !== kind) return;
+      const key = `${it.id}:${ti}`;
+      const st = procs[key] ?? { count: 0, round: 0 };
+      if (tg.maxProcs !== undefined && st.count >= tg.maxProcs) return;
+      // Cooldown measures rounds since the LAST success — a fresh battle
+      // never inherits a phantom cooldown (st.round > 0 guards that).
+      if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round < tg.cooldown) {
+        return;
+      }
+      if (tg.chance !== undefined && !chance(rng, tg.chance)) return;
+      const ctx: ExecCtx = {
+        p,
+        battle,
+        rng,
+        actor: 'player',
+        source: { kind: 'item', id: it.id, name: it.name },
+        displayName: tg.name,
+        lastDamage: 0,
+        targetFelled: false,
+        hpDamaged: false,
+      };
+      lines.push(...executeSpecs(ctx, tg.effects).map((l) => `⚡ ${l}`));
+      st.count++;
+      st.round = battle.round;
+      procs[key] = st;
+    });
+  }
+  return lines;
 }
 
 export type PlayerAction =
@@ -982,6 +1047,7 @@ function applyPlayerAction(
       battle.guarding = true;
       p.mp = Math.min(statsOf(p).maxMp, p.mp + Math.ceil(statsOf(p).maxMp * 0.08));
       lines.push('🛡️ You brace behind your guard (+MP).');
+      if (!battle.tutorial) lines.push(...runReactiveTriggers(p, battle, rng, 'onGuard'));
       return { lines, consumedTurn: true };
     }
     case 'flee': {
@@ -1067,7 +1133,14 @@ function enemyAct(
     targetFelled: false,
     hpDamaged: false,
   };
+  const hpBefore = p.hp;
   lines.push(...executeSpecs(ctx, move.effects));
+  // Reactive equipment (#82): fires when the wearer actually lost HP to
+  // this enemy action — shield-only absorbs don't count, and periodic
+  // ticks / the scripted tutorial hit route elsewhere by construction.
+  if (!battle.tutorial && p.hp < hpBefore) {
+    lines.push(...runReactiveTriggers(p, battle, rng, 'onHpDamage'));
+  }
   return lines;
 }
 
