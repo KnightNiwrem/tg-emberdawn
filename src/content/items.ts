@@ -385,6 +385,28 @@ function buildItems(): ItemDef[] {
       desc: tk.desc,
     });
   });
+  // Standalone effect trinket (#80): explicit id — a new TRINKET_TIERS
+  // entry would mint t_12 and collide with the boss trinkets' ids.
+  out.push({
+    id: 't_wardstone',
+    name: 'Wardstone Pendant',
+    kind: 'trinket',
+    level: 20,
+    price: Math.round(price(Math.max(1, 20 / 6))),
+    tier: 5,
+    stats: { def: 8 },
+    effects: [{
+      kind: 'shield',
+      target: 'self',
+      amount: 25,
+      duration: 1,
+      timing: 'immediate',
+      lifetime: 'battle',
+      name: 'Wardstone Ward',
+      line: '🪨 The Wardstone hums awake — a ward settles over you (25 absorb, whole battle).',
+    }],
+    desc: 'Opens every battle with a 25-damage ward that lasts the whole fight.',
+  });
   for (const c of CONSUMABLES) {
     out.push({
       id: c.id,

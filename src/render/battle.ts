@@ -85,6 +85,8 @@ interface EffectGroup {
   maxTurns: number;
   expiresRound: number;
   source: string;
+  /** Any member lasts the whole battle (#80) — never shows a countdown. */
+  battleLifetime: boolean;
 }
 
 /** Groups one combatant's live effect instances by identity (#78),
@@ -102,6 +104,7 @@ function effectGroups(b: BattleState, side: 'player' | 'enemy'): EffectGroup[] {
       g.minTurns = Math.min(g.minTurns, turns);
       g.maxTurns = Math.max(g.maxTurns, turns);
       g.expiresRound = Math.max(g.expiresRound, i.expiresRound);
+      g.battleLifetime = g.battleLifetime || i.battleLifetime === true;
     } else {
       groups.push({
         defId: i.defId,
@@ -112,6 +115,7 @@ function effectGroups(b: BattleState, side: 'player' | 'enemy'): EffectGroup[] {
         maxTurns: turns,
         expiresRound: i.expiresRound,
         source: i.source.name,
+        battleLifetime: i.battleLifetime === true,
       });
     }
   }
@@ -119,6 +123,7 @@ function effectGroups(b: BattleState, side: 'player' | 'enemy'): EffectGroup[] {
 }
 
 function turnsRangeLabel(g: EffectGroup): string {
+  if (g.battleLifetime) return 'whole battle';
   return g.minTurns === g.maxTurns ? turnsLabel(g.minTurns) : `${g.minTurns}–${g.maxTurns} rounds`;
 }
 
@@ -141,9 +146,10 @@ function effectsBlocks(b: BattleState, side: 'player' | 'enemy'): InputRichBlock
     summary,
     blocks: groups.map((g) =>
       para(
-        `${g.emoji} ${g.name} — ${g.magnitudes.join(' · ')}` +
-          ` (${g.source}). ${target} · ${turnsLabel(g.maxTurns)} remaining` +
-          ` · fades end of round ${g.expiresRound}.`,
+        `${g.emoji} ${g.name} — ${g.magnitudes.join(' · ')} (${g.source}). ${target} · ` +
+          (g.battleLifetime
+            ? 'lasts the whole battle.'
+            : `${turnsLabel(g.maxTurns)} remaining · fades end of round ${g.expiresRound}.`),
       )
     ),
   }];
@@ -204,6 +210,19 @@ export function renderBattle(p: PlayerState): InputRichMessage {
     // Notices render as a banner only once rounds exist; on an untouched
     // battle they ARE the opening prompt's content (shown exactly once).
     if (b.history.length > 0) blocks.push(...noticesBlocks(p));
+    // Resolved opening (#80): expanded on the untouched round-1 screen,
+    // collapsed (but always available) once rounds exist. Never faked as a
+    // completed combat round — its own structured panel.
+    if (b.opening?.lines.length) {
+      blocks.push({
+        type: 'details',
+        summary: '⚔️ Battle opening',
+        // is_open is true-only: expanded on the untouched round-1 screen,
+        // omitted (collapsed default) once rounds exist.
+        ...(b.history.length === 0 ? { is_open: true as const } : {}),
+        blocks: b.opening.lines.map((line) => para(line)),
+      });
+    }
     // ENEMY section — labelled, with value and bar on separate lines (#67).
     blocks.push(para(bold('ENEMY')));
     blocks.push(para(
@@ -294,7 +313,9 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
     heading('✨ Skills', 4),
     para(`💧 MP ${p.mp}/${statsOf(p).maxMp}`),
   ];
-  const usable = all.filter((sk) => learned.has(sk.id));
+  // Pre-emptive skills (#80) fire in the opening phase — not castable, so
+  // they never appear in the battle skill menu.
+  const usable = all.filter((sk) => learned.has(sk.id) && !sk.preEmptive);
   for (const sk of usable) {
     const cd = b.cooldowns[sk.id] ?? 0;
     const ready = cd === 0 && p.mp >= sk.mpCost; // invalid taps never cost a turn

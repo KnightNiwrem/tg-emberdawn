@@ -219,7 +219,9 @@ export function runFight(
   origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
 ): FightResult {
   const p = structuredClone(hero) as PlayerState;
-  const b = startBattle(enemyId, origin);
+  // #80: the harness constructs battles through the SAME opening pipeline
+  // as live play — full hero context, seeded rng.
+  const b = startBattle(enemyId, origin, { player: p, rng });
   if (!b) throw new Error(`balance harness: unknown enemy ${enemyId}`);
   p.battle = b;
   let rounds = 0;

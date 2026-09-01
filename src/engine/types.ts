@@ -113,6 +113,8 @@ export interface EffectInstance {
   /** Last round the effect is active in — engine-computed so display turns
    * derived from it always match the mechanical countdown. */
   expiresRound: number;
+  /** Battle-lifetime (#80): never ticks down, never expires. */
+  battleLifetime?: boolean;
 }
 
 /** Where a battle came from — decides what victory bookkeeping applies. */
@@ -135,6 +137,11 @@ export interface BattleState {
   /** Monotonic allocator for effect instance ids (persisted for
    * determinism across save/load). */
   effectSeq: number;
+  /** Resolved battle opening (#80): collected ONCE at construction —
+   * never rerolled on save/load/rerender. Absent when no opening content
+   * fired. The renderer shows it on the untouched round-1 screen and keeps
+   * it available (collapsed) thereafter. */
+  opening?: { lines: string[] };
   /** Current shield pool per side (#79): the absorbable value that
    * post-mitigation damage drains before HP. The maximum is DERIVED from
    * live shield contributions (maxShield), never stored. */

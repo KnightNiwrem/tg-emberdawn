@@ -194,7 +194,7 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
       const battle = startBattle(ev.enemy, {
         kind: ev.kind === 'elite' ? 'elite' : 'explore',
         zoneId: z.id,
-      });
+      }, { player: p, rng });
       if (!battle) return { kind: 'result', lines: ['Nothing stirs.'] };
       return {
         kind: 'battle',
@@ -315,7 +315,7 @@ export function diveDungeon(
       dungeonId: d.id,
       floor: bossFloor,
       boss: true,
-    });
+    }, { player: p, rng });
     if (!battle) {
       return {
         ok: false,
@@ -342,7 +342,7 @@ export function diveDungeon(
     dungeonId: d.id,
     floor,
     boss: false,
-  });
+  }, { player: p, rng });
   if (!battle) {
     return { ok: false, lines: ['The way is blocked by nothing at all, which is somehow worse.'] };
   }

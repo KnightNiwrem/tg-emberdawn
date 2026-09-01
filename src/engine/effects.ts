@@ -41,6 +41,8 @@ export interface InstanceSeed {
   duration: number;
   timing: 'defer' | 'immediate';
   removable: boolean;
+  /** Lasts the whole battle (#80): remaining/expiresRound are inert. */
+  battleLifetime?: boolean;
 }
 
 /** Instances of the same identity (defId + side + kind, and stat for
@@ -57,6 +59,7 @@ function sameIdentity(a: EffectInstance, seed: InstanceSeed): boolean {
  * one for refresh/strongest-loss cases). */
 export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstance {
   const existing = b.effectInstances.find((i) => sameIdentity(i, seed));
+  const battleLife = seed.battleLifetime === true;
   const make = (): EffectInstance => {
     b.effectSeq++;
     return {
@@ -78,10 +81,13 @@ export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstanc
       tags: [...seed.tags],
       stacking: seed.stacking,
       appliedRound: b.round,
-      remaining: seed.duration,
+      remaining: battleLife ? 1 : seed.duration,
       deferFirstTick: seed.timing === 'defer',
       removable: seed.removable,
-      expiresRound: expiresRoundFor(b.round, seed.duration, seed.timing),
+      expiresRound: battleLife
+        ? Number.MAX_SAFE_INTEGER
+        : expiresRoundFor(b.round, seed.duration, seed.timing),
+      ...(battleLife ? { battleLifetime: true as const } : {}),
     };
   };
   if (!existing) {
@@ -96,9 +102,11 @@ export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstanc
       return inst;
     }
     case 'refresh': {
-      existing.remaining = seed.duration;
+      existing.remaining = battleLife ? 1 : seed.duration;
       existing.deferFirstTick = seed.timing === 'defer';
-      existing.expiresRound = expiresRoundFor(b.round, seed.duration, seed.timing);
+      existing.expiresRound = battleLife
+        ? Number.MAX_SAFE_INTEGER
+        : expiresRoundFor(b.round, seed.duration, seed.timing);
       return existing;
     }
     case 'strongest': {
@@ -114,9 +122,11 @@ export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstanc
         return inst;
       }
       // Keep the stronger magnitude; a recast still renews its clock.
-      existing.remaining = Math.max(existing.remaining, seed.duration);
+      existing.remaining = Math.max(existing.remaining, battleLife ? 1 : seed.duration);
       existing.deferFirstTick = seed.timing === 'defer';
-      existing.expiresRound = expiresRoundFor(b.round, seed.duration, seed.timing);
+      existing.expiresRound = battleLife
+        ? Number.MAX_SAFE_INTEGER
+        : expiresRoundFor(b.round, seed.duration, seed.timing);
       return existing;
     }
     case 'replace':
@@ -364,6 +374,7 @@ export function tickEndOfRound(
     if (t) ticks.push(t);
   }
   for (const i of b.effectInstances) {
+    if (i.battleLifetime) continue; // lasts the whole battle (#80)
     if (i.kind === 'control') continue;
     if (i.kind === 'periodic' && i.tickPhase === 'playerTurnStart') continue;
     if (i.deferFirstTick) i.deferFirstTick = false;
@@ -411,6 +422,7 @@ export function seedForSpec(
     tags: defaultTags(spec),
     stacking: spec.stacking ?? 'replace',
     removable: spec.removable ?? true,
+    ...(spec.lifetime === 'battle' ? { battleLifetime: true as const } : {}),
   };
   switch (spec.kind) {
     case 'statmod':

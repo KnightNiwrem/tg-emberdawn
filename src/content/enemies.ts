@@ -76,6 +76,7 @@ interface EnemySpec {
   };
   boss?: boolean;
   openingShield?: EnemyDef['openingShield'];
+  opening?: EnemyDef['opening'];
   special?: EnemyDef['special'];
   moves: EnemyMove[];
   drops?: Record<string, number>;
@@ -103,6 +104,7 @@ function mk(s: EnemySpec): EnemyDef {
     gold: mul('gold', Math.round(4 * Math.pow(L, 1.55))),
     boss: s.boss,
     openingShield: s.openingShield,
+    opening: s.opening,
     special: s.special,
     moves: s.moves,
     drops: s.drops,
@@ -383,6 +385,22 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '⏳',
     level: 19,
     mul: { hp: 0.8 },
+    // Enemy-global opening (#80): fires in EVERY provenance, unlike the
+    // boss-only Sovereign Ward. Slows the hero before round 1 begins.
+    opening: {
+      name: 'Chrono Anchor',
+      effects: [{
+        kind: 'statmod',
+        target: 'opponent',
+        stat: 'spd',
+        pct: -0.2,
+        duration: 2,
+        timing: 'immediate',
+        name: 'Chrono Anchor',
+        line: '⏳ The wisp anchors you outside time — SPD −20% for 2 turns.',
+        tags: ['slow'],
+      }],
+    },
     moves: [hit('Time Scar', 1.25, 'mag', 3), hit('Stutter', 0.8, 'mag', 2, SAP(0.25))],
   }),
   mk({

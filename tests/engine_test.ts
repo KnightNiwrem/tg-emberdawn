@@ -915,15 +915,16 @@ Deno.test('content integrity: enemies reference real drop items', () => {
 });
 
 Deno.test('content integrity: skills are complete per class and learnable in order', () => {
-  // #79: the Cleric gains a ninth skill (Aegis of Dawn); the other kits
-  // keep their authored eight.
-  const expected = { warrior: 8, mage: 8, rogue: 8, cleric: 9 } as const;
+  // #79: the Cleric gained a ninth skill (Aegis of Dawn). #80: the Rogue
+  // likewise gains a ninth (Expose Weakness, pre-emptive); other kits keep
+  // their authored eight.
+  const expected = { warrior: 8, mage: 8, rogue: 9, cleric: 9 } as const;
   for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
     const skills = skillsForClass(cid, MAX_LEVEL);
     assertEquals(skills.length, expected[cid], `${cid} kit size`);
     for (const s of skills) assert(SKILLS.includes(s));
   }
-  assertEquals(SKILLS.length, 33);
+  assertEquals(SKILLS.length, 34);
 });
 
 Deno.test('skills: menu order is ascending by learn level; ties keep authored order (#77)', () => {

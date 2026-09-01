@@ -79,6 +79,11 @@ interface EffectSpecBase {
    * list actually reduced the target's HP (#79) — a fully-shielded hit
    * never triggered the on-flesh rider. Checked BEFORE the chance draw. */
   requireHpDamage?: true;
+  /** Battle-lifetime duration (#80): the instance lasts the whole battle
+   * instead of a fixed round count (`duration` is then ignored). Never
+   * ticks down and never expires; the UI renders it as "lasts the whole
+   * battle". */
+  lifetime?: 'battle';
 }
 
 export type EffectSpec =
@@ -247,6 +252,10 @@ export interface SkillDef {
   /** UI classification (menu icons, balance reporting). Derived at author
    * time from effects; mechanics never read it. */
   type: SkillType;
+  /** Pre-emptive skill (#80): fires automatically in the battle-opening
+   * phase. Never castable as a normal action — the engine rejects the tap
+   * and the battle skill menu hides it. */
+  preEmptive?: true;
 }
 
 export interface EnemyMove {
@@ -279,6 +288,10 @@ export interface EnemyDef {
    * enemy id faced outside the boss floor never opens with it. One-time
    * capacity (no regeneration), not dispellable. */
   openingShield?: { amount: number; duration: number; name?: string };
+  /** Enemy-global opening move (#80): resolved in the battle-opening
+   * phase in EVERY provenance — unlike openingShield, which needs boss
+   * provenance. One-shot, consumes no round, never rerolled. */
+  opening?: { name: string; effects: EffectSpec[] };
   /** Tutorial fixture (#69/#74): flagged encounters must never fell a
    * correctly acting full-health hero — enforced by the balance harness
    * (tests/balance_test.ts). Ordinary content must not set this. */

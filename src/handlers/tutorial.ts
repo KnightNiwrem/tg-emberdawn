@@ -128,12 +128,15 @@ export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationR
         p.scene = { view: 'battle' };
         return { toast: 'Finish this fight first!' };
       }
-      const b = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone });
+      const b = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone }, {
+        player: p,
+        tutorial: true,
+      });
       if (!b) return { toast: 'Nothing stirs.' };
       // #69 rework: the guided fight is phase-gated — the engine advances
       // the lesson beats and refuses victory until every beat is performed.
-      b.tutorial = true;
-      b.tutorialStep = 'basic';
+      // Tutorial provenance is supplied AT construction (#80): openings are
+      // suppressed and the beat gate set before the battle ever exists.
       p.battle = b;
       p.tutorial = 'fight';
       p.scene = { view: 'battle' };

@@ -11,6 +11,7 @@ import type {
   EffectInstance,
   EffectSource,
   PlayerState,
+  TutorialBeat,
 } from './types.ts';
 import type { EffectSpec, EnemyDef, EnemyMove, SkillDef, StatKey } from '../content/types.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
@@ -73,7 +74,30 @@ function dealDamage(
   return { dmg: variance(rng, raw), crit };
 }
 
-export function startBattle(enemyId: string, origin: BattleOrigin): BattleState | undefined {
+/** Authoritative context for battle construction (#80): the opening phase
+ * resolves INSIDE `startBattle`, so the caller supplies the fighting hero
+ * and the seeded RNG. Openings persist in the returned battle state (shield
+ * pool, effect instances, opening log) and are never rerolled on
+ * save/load/rerender — this pipeline is the only place they run. */
+export interface StartBattleOpts {
+  /** The fighting hero. Required for enemy openings, equipment effects and
+   * pre-emptive skills (the resolver needs a stat/target owner); omitted
+   * calls resolve the encounter boss ward only. */
+  player?: PlayerState;
+  /** Seeded RNG for opening chance rolls — one draw per authored chance,
+   * outcome-only persistence afterwards. */
+  rng?: Rng;
+  /** Guided-prologue provenance (#69/#80): suppresses EVERY opening source
+   * and phase-gates the fight at construction. The tutorial must never
+   * depend on post-construction marking that runs too late. */
+  tutorial?: boolean;
+}
+
+export function startBattle(
+  enemyId: string,
+  origin: BattleOrigin,
+  opts: StartBattleOpts = {},
+): BattleState | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
   // Boss semantics are decided by the ENCOUNTER, not the catalog (#28):
@@ -104,26 +128,114 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     history: [],
     phoenixUsed: false,
     origin,
+    // Tutorial provenance lands AT construction (#80): the guided prologue
+    // controls its battle before any opening could ever resolve.
+    ...(opts.tutorial ? { tutorial: true, tutorialStep: 'basic' as TutorialBeat } : {}),
   };
-  // Pre-emptive boss ward (#79): ONLY on boss-provenance encounters — the
-  // same enemy id faced outside the boss floor never opens with it.
-  // One-time capacity, no regeneration, not dispellable.
-  if (isBoss && def.openingShield) {
-    grantShield(battle, 'enemy', {
-      defId: `opening:${def.id}`,
-      name: def.openingShield.name ?? 'Opening Ward',
-      kind: 'shield',
-      side: 'enemy',
-      source: { kind: 'encounter', id: def.id, name: def.name },
-      shieldAmount: def.openingShield.amount,
-      tags: ['beneficial'],
-      stacking: 'replace',
-      duration: def.openingShield.duration,
-      timing: 'immediate',
-      removable: false,
-    });
+  // Battle-opening phase (#80): resolved exactly ONCE, in explicit stable
+  // order — (1) encounter boss ward, (2) enemy-global opening move,
+  // (3) equipped items in slot order, (4) learned pre-emptive skills in
+  // p.skills order. Openings consume no round (round stays 1), no MP, no
+  // item charges, no cooldowns; chance rolls draw the injected RNG exactly
+  // once and only the outcomes persist.
+  const opening: string[] = [];
+  if (!opts.tutorial) {
+    const opRng = opts.rng ?? defaultRng;
+    // 1. Pre-emptive boss ward (#79): ONLY on boss-provenance encounters —
+    // the same enemy id faced outside the boss floor never opens with it.
+    // One-time capacity, no regeneration, not dispellable.
+    if (isBoss && def.openingShield) {
+      const ward = def.openingShield;
+      grantShield(battle, 'enemy', {
+        defId: `opening:${def.id}`,
+        name: ward.name ?? 'Opening Ward',
+        kind: 'shield',
+        side: 'enemy',
+        source: { kind: 'encounter', id: def.id, name: def.name },
+        shieldAmount: ward.amount,
+        tags: ['beneficial'],
+        stacking: 'replace',
+        duration: ward.duration,
+        timing: 'immediate',
+        removable: false,
+      });
+      opening.push(
+        `🛡️ ${ward.name ?? 'Opening Ward'} — ${def.name} absorbs up to ${ward.amount} damage!`,
+      );
+    }
+    const p = opts.player;
+    if (p) {
+      // 2. Enemy-global opening move (#80): fires for this enemy in every
+      // provenance, through the shared resolver.
+      if (def.opening) {
+        opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
+        opening.push(...runOpening(
+          battle,
+          p,
+          opRng,
+          'enemy',
+          { kind: 'enemyMove', id: def.id, name: def.opening.name },
+          def.opening.name,
+          def.opening.effects,
+        ));
+      }
+      // 3. Equipped-item effects (#80): stable slot order — weapon, armor,
+      // trinket. Each item is its own source, so different items coexist;
+      // same-source reapplication follows the authored stacking policy.
+      for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+        const itemId = p.equipment[slot];
+        const it = itemId ? itemDefLookup(itemId) : undefined;
+        if (!it?.effects?.length) continue;
+        opening.push(...runOpening(
+          battle,
+          p,
+          opRng,
+          'player',
+          { kind: 'item', id: it.id, name: it.name },
+          it.name,
+          it.effects,
+        ));
+      }
+      // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
+      // or cooldown cost — the opening never charges resources.
+      for (const id of p.skills) {
+        const sk = skill(id);
+        if (!sk?.preEmptive) continue;
+        opening.push(...applySkill(p, battle, sk, opRng));
+      }
+      // An opening can wound but never end the fight before it begins.
+      battle.enemy.hp = Math.max(1, battle.enemy.hp);
+    }
   }
+  if (opening.length > 0) battle.opening = { lines: opening };
   return battle;
+}
+
+/** Runs one opening spec list through the shared resolver (#80). Openings
+ * are ordinary one-shot applications at round 1 — same vocabulary, same
+ * stacking policies, same default lines — just resolved before the first
+ * player action exists. */
+function runOpening(
+  battle: BattleState,
+  p: PlayerState,
+  rng: Rng,
+  actor: 'player' | 'enemy',
+  source: EffectSource,
+  displayName: string,
+  specs: readonly EffectSpec[],
+): string[] {
+  const ctx: ExecCtx = {
+    p,
+    battle,
+    rng,
+    actor,
+    source,
+    displayName,
+    lastDamage: 0,
+    targetFelled: false,
+    hpDamaged: false,
+  };
+  return executeSpecs(ctx, specs);
 }
 
 export type PlayerAction =
@@ -805,6 +917,12 @@ function applyPlayerAction(
       // The UI hides the rest; forged or stale taps must not cast them.
       if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
         lines.push("You haven't learned that skill.");
+        return { lines, consumedTurn: false };
+      }
+      // Pre-emptive skills (#80) fire in the opening phase; they are never
+      // manual casts (the battle menu hides them too).
+      if (sk.preEmptive) {
+        lines.push('⚡ That skill fires on its own as the battle opens.');
         return { lines, consumedTurn: false };
       }
       if ((battle.cooldowns[sk.id] ?? 0) > 0) {
