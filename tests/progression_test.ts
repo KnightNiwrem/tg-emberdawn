@@ -237,6 +237,7 @@ Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
   const rng = seeded(11);
   const p = createPlayer(79, 'T', 'rogue');
   p.level = 45;
+  p.hp = 99999; // #86: survive Jormunis's response — a fallen hero stops the round's bookkeeping
   p.skills.push('sk_venom_cut');
   p.mp = 100;
   // Tanky boss so the strike does not end the fight before the venom lands.

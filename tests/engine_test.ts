@@ -201,6 +201,7 @@ Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () 
 
   const mage = createPlayer(702, 'T', 'mage');
   mage.level = 45;
+  mage.hp = 99999; // #86: survive Aldric's responses — a defeated actor no longer acts
   const mDraws = strikeDraws(34, statsOf(mage).luck);
   const mb = startBattle('e_aldric', origin)!;
   const mBefore = mb.enemy.hp;
@@ -245,7 +246,9 @@ Deno.test('combat: free action floors at 1 damage and surfaces crits (#70)', () 
   // Level-1 mage vs the Sundered King: ~21 MAG against ~80 RES clamps the
   // raw roll to the 1-damage floor.
   const p = createPlayer(704, 'T', 'mage');
+  p.hp = 99999; // #86: survive Aldric's response — a defeated actor no longer acts
   const floor = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  injectMod(floor, 'enemy', 'spd', -0.95); // #86: guarantee the mage takes slot 1
   const before = floor.enemy.hp;
   const r = performAction(p, floor, { kind: 'attack' }, seeded(9));
   assert(r.consumedTurn, 'the floored attack still consumes the turn');
@@ -265,6 +268,7 @@ Deno.test('combat: free action floors at 1 damage and surfaces crits (#70)', () 
   }
   assert(critSeed > 0, 'expected a crit seed within 1..40');
   const critBattle = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  injectMod(critBattle, 'enemy', 'spd', -0.95); // #86: the mage takes slot 1 — draws align
   const r2 = performAction(p, critBattle, { kind: 'attack' }, seeded(critSeed));
   assert(r2.lines.some((l) => l.includes('critical')), 'crit line must carry the marker');
 });
@@ -388,6 +392,7 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   const rng2 = seeded(56);
   const m = createPlayer(61, 'T', 'mage');
   m.level = 45;
+  m.hp = 99999; // #86: survive the collapse hits — a defeated actor ends the round
   const b2 = startBattle('e_chronolich', { kind: 'explore', zoneId: 'sunspire' })!;
   m.battle = b2;
   b2.enemy.hp = 99999;

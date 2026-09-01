@@ -338,6 +338,34 @@ function tickPhaseOf(i: EffectInstance, maxHp: number): PeriodicTick | undefined
   return { side: i.side, amount, name: i.name, instance: i };
 }
 
+/** Gathers the player-turn-start periodic ticks WITHOUT touching clocks
+ * (#86): combat applies them one at a time with a terminal check between,
+ * so a lethal tick can stop the round before later work runs. */
+export function gatherTurnStartTicks(
+  b: BattleState,
+  maxHpOf: (side: 'player' | 'enemy') => number,
+): PeriodicTick[] {
+  const ticks: PeriodicTick[] = [];
+  for (const i of b.effectInstances) {
+    if (i.kind !== 'periodic' || i.tickPhase !== 'playerTurnStart') continue;
+    const t = tickPhaseOf(i, maxHpOf(i.side));
+    if (t) ticks.push(t);
+  }
+  return ticks;
+}
+
+/** Clock side of the player-turn-start phase (#86): decrements the ticked
+ * instances on their own beat, prunes, and caps shields after the batch
+ * removal. End-of-round bookkeeping never touches this phase. */
+export function settleTurnStart(
+  b: BattleState,
+  ticks: readonly PeriodicTick[],
+): ShieldLoss[] {
+  for (const t of ticks) t.instance.remaining--;
+  const expired = pruneExpired(b);
+  return applyShieldExpiry(b, expired);
+}
+
 /** Ticks `playerTurnStart` periodic effects (called at the start of the
  * player's phase, before the stun check — poison-like pressure does not
  * care whether you can act). Each ticking instance decrements on its own
@@ -346,33 +374,32 @@ export function tickPlayerTurnStart(
   b: BattleState,
   maxHpOf: (side: 'player' | 'enemy') => number,
 ): { ticks: PeriodicTick[]; shieldLosses: ShieldLoss[] } {
-  const ticks: PeriodicTick[] = [];
-  for (const i of b.effectInstances) {
-    if (i.kind !== 'periodic' || i.tickPhase !== 'playerTurnStart') continue;
-    const t = tickPhaseOf(i, maxHpOf(i.side));
-    if (t) ticks.push(t);
-  }
-  for (const t of ticks) t.instance.remaining--;
-  const expired = pruneExpired(b);
-  return { ticks, shieldLosses: applyShieldExpiry(b, expired) };
+  const ticks = gatherTurnStartTicks(b, maxHpOf);
+  const shieldLosses = settleTurnStart(b, ticks);
+  return { ticks, shieldLosses };
 }
 
-/** End-of-round bookkeeping: periodic `roundEnd` ticks FIRST (an effect at
- * its last remaining tick still fires), then duration decrements and the
- * prune. Deferred effects skip exactly their first end-of-round tick
- * (#27/#38/#77). Control instances tick by consumption, not rounds;
- * `playerTurnStart` periodics tick on their own beat and are untouched
- * here. */
-export function tickEndOfRound(
+/** Gathers the end-of-round periodic ticks WITHOUT touching clocks (#86):
+ * combat applies them one at a time and stops at the first terminal
+ * result, so a lethal DoT can never be followed by more work. */
+export function gatherRoundEndTicks(
   b: BattleState,
   maxHpOf: (side: 'player' | 'enemy') => number,
-): { ticks: PeriodicTick[]; expired: EffectInstance[]; shieldLosses: ShieldLoss[] } {
+): PeriodicTick[] {
   const ticks: PeriodicTick[] = [];
   for (const i of [...b.effectInstances]) {
     if (i.kind !== 'periodic' || i.tickPhase !== 'roundEnd') continue;
     const t = tickPhaseOf(i, maxHpOf(i.side!));
     if (t) ticks.push(t);
   }
+  return ticks;
+}
+
+/** End-of-round clock bookkeeping (#86): duration decrements FIRST-phase
+ * instances skip exactly their first tick (#27/#38/#77), control instances
+ * tick by consumption and are untouched here, battle-lifetime instances
+ * never age — then the prune. Returns the expired instances. */
+export function settleEndOfRound(b: BattleState): EffectInstance[] {
   for (const i of b.effectInstances) {
     if (i.battleLifetime) continue; // lasts the whole battle (#80)
     if (i.kind === 'control') continue;
@@ -380,7 +407,23 @@ export function tickEndOfRound(
     if (i.deferFirstTick) i.deferFirstTick = false;
     else i.remaining--;
   }
-  const expired = pruneExpired(b);
+  return pruneExpired(b);
+}
+
+/** End-of-round bookkeeping: periodic `roundEnd` ticks FIRST (an effect at
+ * its last remaining tick still fires), then duration decrements and the
+ * prune. Deferred effects skip exactly their first end-of-round tick
+ * (#27/#38/#77). Control instances tick by consumption, not rounds;
+ * `playerTurnStart` periodics tick on their own beat and are untouched
+ * here. (The combat engine uses the gather/settle split so it can stop at
+ * terminal HP between ticks — #86; this combined form stays for direct
+ * phase-level use and tests.) */
+export function tickEndOfRound(
+  b: BattleState,
+  maxHpOf: (side: 'player' | 'enemy') => number,
+): { ticks: PeriodicTick[]; expired: EffectInstance[]; shieldLosses: ShieldLoss[] } {
+  const ticks = gatherRoundEndTicks(b, maxHpOf);
+  const expired = settleEndOfRound(b);
   return { ticks, expired, shieldLosses: applyShieldExpiry(b, expired) };
 }
 

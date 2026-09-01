@@ -536,12 +536,14 @@ export function runFight(
         result.overheal += Math.max(0, eff.healHp - applied);
       }
     }
-    if (b.enemy.hp <= 0) {
+    // #86: the engine's explicit terminal adjudication — shared with the
+    // live handler and the tutorial (one outcome authority).
+    if (res.outcome === 'victory') {
       resolveVictory(p, b, rng);
       result.outcome = 'win';
       break;
     }
-    if (p.hp <= 0) {
+    if (res.outcome === 'defeat') {
       result.outcome = 'lose';
       break;
     }
@@ -1242,11 +1244,12 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
       // negative.
       if (action.kind === 'item' && res.consumedTurn) itemsUsed++;
       rounds++;
-      if (b.enemy.hp <= 0) {
+      // #86: the engine's explicit terminal adjudication.
+      if (res.outcome === 'victory') {
         resolveVictory(p, b, rng);
         return 'win';
       }
-      if (p.hp <= 0) {
+      if (res.outcome === 'defeat') {
         applyDeath(p);
         deaths++;
         return 'death';

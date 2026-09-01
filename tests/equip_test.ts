@@ -36,6 +36,7 @@ function tankyWolf(p: PlayerState, seed: number): BattleState {
  * proc tests that must observe a LANDED application use it instead of the
  * Void Warden (whose #83 statusResist can eat the proc attempt). */
 function tankyForge(p: PlayerState, seed: number): BattleState {
+  p.hp = 99999; // #86: a fallen wearer procs nothing — survive the Warden's swings
   const b = startBattle('e_forge_warden', ORIGIN, { player: p, rng: seeded(seed) })!;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;

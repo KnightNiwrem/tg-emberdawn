@@ -6,7 +6,6 @@
 
 import type {
   BattleOrigin,
-  BattlePhase,
   BattleState,
   EffectInstance,
   EffectSource,
@@ -24,6 +23,8 @@ import {
   applyInstance,
   applyShieldExpiry,
   consumeStun,
+  gatherRoundEndTicks,
+  gatherTurnStartTicks,
   grantShield,
   incomingAmpPct,
   mitigationPct,
@@ -31,9 +32,9 @@ import {
   removeTagged,
   sapPct,
   seedForSpec,
+  settleEndOfRound,
+  settleTurnStart,
   statPct,
-  tickEndOfRound,
-  tickPlayerTurnStart,
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 
@@ -357,6 +358,13 @@ export type PlayerAction =
   | { kind: 'guard' }
   | { kind: 'flee' };
 
+/** Explicit terminal adjudication (#86): the ENGINE decides the outcome at
+ * the first 0-HP transition — handlers and the balance harness consume this
+ * instead of re-deriving from HP. Mutual KO is structurally impossible:
+ * resolution stops at the first terminal state, so the second actor never
+ * writes HP after the first falls. */
+export type BattleOutcome = 'ongoing' | 'victory' | 'defeat' | 'fled';
+
 export interface ActionResult {
   battle: BattleState;
   lines: string[];
@@ -366,6 +374,8 @@ export interface ActionResult {
    * enemy phase ran and the lines are NOT in the battle log — handlers
    * must surface them via notices (#32). */
   consumedTurn: boolean;
+  /** Terminal result of the round (#86). */
+  outcome: BattleOutcome;
 }
 
 function enemyChooseMove(def: EnemyDef, battle: BattleState, rng: Rng): EnemyMove {
@@ -430,40 +440,79 @@ function pickWeighted(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-/** Applies the player's action, then the enemy's response. Mutates state. */
-interface PlayerPhaseResult {
-  lines: string[];
-  skipped: boolean;
-  /** False when the action was invalid (cooldown/MP/unusable) — no enemy phase. */
-  consumedTurn: boolean;
-}
-
 function maxHpOf(battle: BattleState, p: PlayerState) {
   return (side: 'player' | 'enemy'): number =>
     side === 'player' ? statsOf(p).maxHp : battle.enemy.maxHp;
 }
 
-/** Player half of a round: turn-start periodic ticks (#78), stun check,
- * then the chosen action. */
-function playerPhase(
+/** #69/#86: the guided fight cannot end before every lesson beat has been
+ * performed — the fixture's HP floors at 1 instead of reaching a terminal
+ * transition. Never a post-zero revival: 0 HP is never observed. */
+function tutorialEnemyFloor(b: BattleState): number {
+  return b.tutorial && b.tutorialStep !== 'cleared' ? 1 : 0;
+}
+
+/** Validates the queued command WITHOUT charging resources (#86): an
+ * invalid command consumes no round, ticks nothing, and never reaches the
+ * enemy's slot. Execution re-checks at the player's slot (defense in
+ * depth) — nothing between validation and execution can invalidate these
+ * checks (the enemy drains no MP, adds no cooldowns, removes no items). */
+function validatePlayerAction(
   p: PlayerState,
   battle: BattleState,
   action: PlayerAction,
-  rng: Rng,
-): PlayerPhaseResult {
+): { ok: boolean; lines: string[] } {
   const lines: string[] = [];
-  // Turn-start periodic effects (#78) tick before anything else — poison
-  // does not care whether you can act. Expiring shield contributions cap
-  // the pool on the same beat (#79).
-  const started = tickPlayerTurnStart(battle, maxHpOf(battle, p));
-  for (const t of started.ticks) lines.push(...applyPeriodicTick(p, battle, t));
-  for (const loss of started.shieldLosses) lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
-  if (consumeStun(battle, 'player')) {
-    lines.push('💫 You are stunned and lose your turn!');
-    return { lines, skipped: true, consumedTurn: true };
+  switch (action.kind) {
+    case 'attack':
+    case 'guard':
+    case 'flee':
+      return { ok: true, lines };
+    case 'skill': {
+      const sk = skill(action.skillId);
+      if (!sk) {
+        lines.push('…nothing happens.');
+        return { ok: false, lines };
+      }
+      if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
+        lines.push("You haven't learned that skill.");
+        return { ok: false, lines };
+      }
+      if (sk.preEmptive) {
+        lines.push('⚡ That skill fires on its own as the battle opens.');
+        return { ok: false, lines };
+      }
+      if ((battle.cooldowns[sk.id] ?? 0) > 0) {
+        lines.push('⏳ That skill is still on cooldown.');
+        return { ok: false, lines };
+      }
+      if (p.mp < sk.mpCost) {
+        lines.push('💧 Not enough MP.');
+        return { ok: false, lines };
+      }
+      return { ok: true, lines };
+    }
+    case 'item': {
+      const it = itemDefLookup(action.itemId);
+      const entry = p.inventory.find((e) => e.id === action.itemId);
+      if (!it?.effect || !entry || entry.qty <= 0) {
+        lines.push('You rummage through your bag and find nothing useful.');
+        return { ok: false, lines };
+      }
+      const eff = it.effect;
+      // Auto-trigger-only items (Phoenix Cinder) can never be spent by hand.
+      if (eff.revivePct && !eff.healHp && !eff.healMp && !eff.cureStatus && !eff.flee) {
+        lines.push('🔥 The Cinder smolders — it will spark on its own when you fall.');
+        return { ok: false, lines };
+      }
+      // Smoke Bomb is never wasted on a boss.
+      if (eff.flee && battle.enemy.isBoss) {
+        lines.push('🚫 No smoke clouds this fight — there is no escape.');
+        return { ok: false, lines };
+      }
+      return { ok: true, lines };
+    }
   }
-  const res = applyPlayerAction(p, battle, action, rng);
-  return { lines: res.lines, skipped: false, consumedTurn: res.consumedTurn };
 }
 
 export function performAction(
@@ -474,59 +523,76 @@ export function performAction(
 ): ActionResult {
   const def = enemyDef(battle.enemy.id);
   if (!def || battle.phase !== 'active') {
-    return { battle, lines: [], skipped: false, consumedTurn: false };
+    return { battle, lines: [], skipped: false, consumedTurn: false, outcome: 'ongoing' };
   }
 
-  // The round these lines belong to: the one in which the player acted —
-  // captured before end-of-round bookkeeping advances the counter (#67).
   const actedRound = battle.round;
-  const phase = playerPhase(p, battle, action, rng);
-  const lines = [...phase.lines];
-  const skipped = phase.skipped;
 
-  // #69 rework: the guided fight advances its lesson beats only on the
-  // intended action kinds, in order — the beats cannot be skipped or
-  // reordered, whatever the damage rolls do.
-  if (battle.tutorial && phase.consumedTurn) {
-    const step = battle.tutorialStep;
-    if (step === 'basic' && action.kind === 'attack') battle.tutorialStep = 'skill';
-    else if (step === 'skill' && action.kind === 'skill') battle.tutorialStep = 'guard';
-    else if (step === 'guard' && action.kind === 'guard') battle.tutorialStep = 'item';
-    else if (step === 'item' && action.kind === 'item') battle.tutorialStep = 'cleared';
+  // #86 step 1 — validate WITHOUT charging: an invalid command consumes no
+  // round, ticks nothing, and hands the enemy nothing. Its lines stay
+  // handler feedback only (never in the battle log — #67/#32).
+  const check = validatePlayerAction(p, battle, action);
+  if (!check.ok) {
+    return { battle, lines: check.lines, skipped: false, consumedTurn: false, outcome: 'ongoing' };
   }
 
-  // Player won without retaliation (enemy felled by the action)…
-  if (battle.enemy.hp <= 0) {
-    // #69 rework: the guided fight cannot end before every lesson beat has
-    // been performed — a killing blow merely staggers the fixture.
-    if (battle.tutorial && battle.tutorialStep !== 'cleared') {
-      battle.enemy.hp = 1;
-      lines.push(
-        `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
-      );
-    } else {
-      // The terminal round follows the SAME history model as every other
-      // consumed action (#67): kill rounds are recorded, never dropped.
-      battle.history.push({ round: actedRound, lines });
-      return { battle, lines, skipped, consumedTurn: true };
+  const lines: string[] = [];
+  let skipped = false;
+  const terminalNow = (): boolean => battle.enemy.hp <= 0 || p.hp <= 0;
+
+  // #86 step 2 — initiative snapshot: effective SPD after opening and
+  // start-of-round modifiers. Ties keep the documented player-first rule;
+  // SPD changes DURING the round wait for the next round's snapshot.
+  const playerFirst = effectivePlayerSpd(p, battle) >= effectiveEnemySpd(battle);
+
+  /** The player's slot (#86 steps 3–4): turn-start periodics, stun check,
+   * then the action — with a terminal stop after every HP-changing unit. */
+  const runPlayerSlot = (): 'continue' | 'terminal' | 'fled' => {
+    // Turn-start periodic effects (#78) tick at the player's slot, one at
+    // a time — poison does not care whether you can act, but a lethal tick
+    // ends the round BEFORE the action and before any later tick (#86).
+    const started = gatherTurnStartTicks(battle, maxHpOf(battle, p));
+    for (const t of started) {
+      lines.push(...applyPeriodicTick(p, battle, t));
+      if (terminalNow()) return 'terminal';
     }
-  }
-  // Invalid action (cooldown/MP/unusable item): no turn consumed, no enemy
-  // phase, and NO history round (#67) — the lines stay handler feedback only.
-  if (!phase.consumedTurn) return { battle, lines, skipped, consumedTurn: false };
-  // …or escaped cleanly (no parting shot after a successful flee).
-  if ((battle.phase as BattlePhase) === 'fled') {
-    battle.history.push({ round: actedRound, lines });
-    return { battle, lines, skipped, consumedTurn: true };
-  }
+    for (const loss of settleTurnStart(battle, started)) {
+      lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+    }
+    if (terminalNow()) return 'terminal';
+    if (consumeStun(battle, 'player')) {
+      lines.push('💫 You are stunned and lose your turn!');
+      skipped = true;
+      return 'continue';
+    }
+    const res = applyPlayerAction(p, battle, action, rng);
+    lines.push(...res.lines);
+    // #69 rework: the guided fight advances its lesson beats only on the
+    // intended action kinds, in order — the beats cannot be skipped or
+    // reordered, whatever the damage rolls do.
+    if (battle.tutorial && res.consumedTurn) {
+      const step = battle.tutorialStep;
+      if (step === 'basic' && action.kind === 'attack') battle.tutorialStep = 'skill';
+      else if (step === 'skill' && action.kind === 'skill') battle.tutorialStep = 'guard';
+      else if (step === 'guard' && action.kind === 'guard') battle.tutorialStep = 'item';
+      else if (step === 'item' && action.kind === 'item') battle.tutorialStep = 'cleared';
+    }
+    if (battle.phase === 'fled') return 'fled';
+    return terminalNow() ? 'terminal' : 'continue';
+  };
 
-  // ── Enemy phase ─────────────────────────────────────────────────────
-  battle.enemy.turn++;
-  if (consumeStun(battle, 'enemy')) {
-    // The stun is consumed the moment the enemy loses its action (#78;
-    // was the stunnedEnemy flag).
-    lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
-  } else {
+  /** The enemy's slot (#86): turn counter, stun check, then the move (or
+   * the prologue's scripted teaching hit). The guard brace covers exactly
+   * ONE enemy action — wherever SPD places it in the round. */
+  const runEnemySlot = (): 'continue' | 'terminal' => {
+    battle.enemy.turn++;
+    if (consumeStun(battle, 'enemy')) {
+      // The stun is consumed the moment the enemy loses its action (#78);
+      // was the stunnedEnemy flag. A stunned turn advances the counter —
+      // time passes — but chooses no move (#26).
+      lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
+      return 'continue';
+    }
     const s = statsOf(p);
     if (
       battle.tutorial && battle.tutorialStep === 'item' &&
@@ -547,22 +613,60 @@ export function performAction(
       const move = enemyChooseMove(def, battle, rng);
       lines.push(...enemyAct(p, battle, move, rng));
     }
+    battle.guarding = false;
+    return terminalNow() ? 'terminal' : 'continue';
+  };
+
+  /** One round, recorded exactly once (#67/#86) — terminal rounds included,
+   * with the engine's explicit adjudication. */
+  const finish = (): ActionResult => {
+    battle.history.push({ round: actedRound, lines });
+    const outcome: BattleOutcome = battle.phase === 'fled'
+      ? 'fled'
+      : battle.enemy.hp <= 0
+      ? 'victory'
+      : p.hp <= 0
+      ? 'defeat'
+      : 'ongoing';
+    return { battle, lines, skipped, consumedTurn: true, outcome };
+  };
+
+  // #86 steps 3–5 — resolve up to two slots in initiative order; the first
+  // terminal state ends the round immediately: the defeated actor never
+  // takes its queued action, no riders/procs follow, and end-of-round work
+  // never runs.
+  if (playerFirst) {
+    if (runPlayerSlot() !== 'continue') return finish();
+    if (runEnemySlot() === 'terminal') return finish();
+  } else {
+    if (runEnemySlot() === 'terminal') return finish();
+    if (runPlayerSlot() !== 'continue') return finish();
   }
 
-  // ── End of round bookkeeping ────────────────────────────────────────
-  battle.guarding = false;
+  // #86 step 6 — end-of-round bookkeeping only when BOTH actors survived
+  // BOTH slots. Ticks land one at a time; the first terminal state stops
+  // the remaining queue and all later bookkeeping (expiry, cooldown decay).
   battle.round++;
-  const { ticks, shieldLosses } = tickEndOfRound(battle, maxHpOf(battle, p));
-  for (const t of ticks) lines.push(...applyPeriodicTick(p, battle, t));
-  for (const loss of shieldLosses) lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
-  for (const [k, v] of Object.entries(battle.cooldowns)) {
-    if (v <= 1) delete battle.cooldowns[k];
-    else battle.cooldowns[k] = v - 1;
+  const eor = gatherRoundEndTicks(battle, maxHpOf(battle, p));
+  let ended = false;
+  for (const t of eor) {
+    lines.push(...applyPeriodicTick(p, battle, t));
+    if (terminalNow()) {
+      ended = true;
+      break;
+    }
   }
-  // Complete-round history (#67): every consumed turn records exactly one
-  // round — the whole player action + enemy response, never truncated here.
-  battle.history.push({ round: actedRound, lines });
-  return { battle, lines, skipped, consumedTurn: true };
+  if (!ended) {
+    const expired = settleEndOfRound(battle);
+    for (const loss of applyShieldExpiry(battle, expired)) {
+      lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+    }
+    for (const [k, v] of Object.entries(battle.cooldowns)) {
+      if (v <= 1) delete battle.cooldowns[k];
+      else battle.cooldowns[k] = v - 1;
+    }
+  }
+  return finish();
 }
 
 /** Applies one periodic tick (#78): heal or damage the target side, with
@@ -608,13 +712,22 @@ function applyPeriodicTick(
     if (broke) lines.push('🛡️ Your shield shatters!');
     if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
   } else {
-    battle.enemy.hp = Math.max(0, battle.enemy.hp - hpDmg);
+    // #69/#86: the tutorial floor applies to periodic damage too — the
+    // fixture can never be felled before its lessons clear.
+    const floor = tutorialEnemyFloor(battle);
+    const wouldFell = battle.enemy.hp - hpDmg <= 0;
+    battle.enemy.hp = Math.max(floor, battle.enemy.hp - hpDmg);
     lines.push(
       `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${t.name}).${
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
       }`,
     );
     if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
+    if (wouldFell && floor === 1) {
+      lines.push(
+        `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
+      );
+    }
   }
   return lines;
 }
@@ -688,6 +801,12 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     }
   }
   for (const spec of specs) {
+    // #86: terminal state stops the ordered spec list — no rider, drain or
+    // proc resolves after an unrevived actor reached 0 HP. Phoenix already
+    // ran synchronously inside the damage path (a successful revival means
+    // combat is NOT terminal); the tutorial floor keeps the fixture alive
+    // before its lessons clear, so it never blocks tutorial riders.
+    if (ctx.battle.enemy.hp <= 0 || ctx.p.hp <= 0) break;
     // Riders never land on a corpse — checked BEFORE the chance draw so a
     // felled target never consumes a roll (long-standing rng parity).
     if (spec.requireSurvivor && ctx.targetFelled) continue;
@@ -944,7 +1063,12 @@ function applyDamageEffect(
       hpDmg = a.hpDamage;
       broke = a.broke;
     }
-    battle.enemy.hp = Math.max(0, battle.enemy.hp - hpDmg);
+    // #69/#86: the guided fight cannot end before every lesson beat has
+    // been performed — a killing blow STAGGERS the fixture at 1 HP instead
+    // of reaching a terminal transition (never a post-zero revival).
+    const floor = tutorialEnemyFloor(battle);
+    const wouldFell = battle.enemy.hp - hpDmg <= 0;
+    battle.enemy.hp = Math.max(floor, battle.enemy.hp - hpDmg);
     ctx.lastDamage = dealt.dmg;
     ctx.hpDamaged = hpDmg > 0;
     ctx.targetFelled = battle.enemy.hp <= 0;
@@ -958,6 +1082,11 @@ function applyDamageEffect(
       : `${ctx.displayName} ${verb} ${battle.enemy.name} for ${hpDmg}${critSuffix}!`;
     lines.push(absorbed > 0 ? `${body} (🛡️ ${absorbed} absorbed)` : body);
     if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
+    if (wouldFell && floor === 1) {
+      lines.push(
+        `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
+      );
+    }
     return lines;
   }
   // #85: the enemy's offense folds its own live ATK/MAG instances (sap
@@ -1265,7 +1394,9 @@ function enemyAct(
   // Reactive equipment (#82): fires when the wearer actually lost HP to
   // this enemy action — shield-only absorbs don't count, and periodic
   // ticks / the scripted tutorial hit route elsewhere by construction.
-  if (!battle.tutorial && p.hp < hpBefore) {
+  // #86: a fallen wearer procs nothing (Phoenix revival leaves hp > 0,
+  // which still counts — the hit was real HP damage).
+  if (!battle.tutorial && p.hp > 0 && p.hp < hpBefore) {
     lines.push(...runReactiveTriggers(p, battle, rng, 'onHpDamage'));
   }
   return lines;

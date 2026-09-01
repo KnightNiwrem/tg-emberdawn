@@ -225,6 +225,7 @@ Deno.test('shields: requireHpDamage riders only land on flesh (#79)', () => {
     const rng = seeded(seed);
     const p = createPlayer(960 + seed, 'T', 'warrior');
     p.level = 45;
+    p.hp = 99999; // #86: a fallen wearer procs nothing — survive the scan
     const b = startBattle('e_aldric', BOSS_ORIGIN)!;
     p.battle = b;
     for (let round = 0; round < 20 && b.phase === 'active' && !sawCrown; round++) {
@@ -246,6 +247,7 @@ Deno.test('shields: requireHpDamage riders only land on flesh (#79)', () => {
     const rng = seeded(seed);
     const p = createPlayer(1040 + seed, 'T', 'warrior');
     p.level = 45;
+    p.hp = 99999; // #86: a fallen wearer procs nothing — survive the scan
     const b = startBattle('e_aldric', BOSS_ORIGIN)!;
     p.battle = b;
     for (let round = 0; round < 20 && b.phase === 'active' && !sawSap; round++) {

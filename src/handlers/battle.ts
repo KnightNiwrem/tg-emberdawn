@@ -76,16 +76,19 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   const lines = [...res.lines];
   const phase = b.phase as BattlePhase;
 
-  if (phase === 'fled') {
+  if (res.outcome === 'fled' || phase === 'fled') {
     p.battle = undefined;
     p.scene = { view: 'zone' };
     p.notices = lines;
     return {};
   }
 
-  // Victory resolution — routed through the engine so the battle's origin
+  // Victory resolution — the ENGINE adjudicated (#86): res.outcome decides
+  // the terminal state, never a handler HP re-check (mutual KO is
+  // structurally impossible, so there is no check-order ambiguity).
+  // Victory is routed through resolveVictory so the battle's origin
   // (explore/elite/dungeon) decides rewards, quest hooks and bookkeeping.
-  if (phase === 'active' && b.enemy.hp <= 0) {
+  if (res.outcome === 'victory') {
     // The kill round lives in battle.history as the terminal round (#67) —
     // notices carry only the victory RESOLUTION (defeat line, level-ups,
     // drops, dungeon bookkeeping), never the round itself and never an
@@ -100,7 +103,7 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   }
 
   // Defeat resolution
-  if (b.phase === 'active' && p.hp <= 0) {
+  if (res.outcome === 'defeat') {
     b.phase = 'lost';
     p.scene = { view: 'death' };
     p.notices = lines;

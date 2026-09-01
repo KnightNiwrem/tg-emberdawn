@@ -1,0 +1,356 @@
+/** #86 round state machine — SPD-ordered slots and immediate terminal
+ * resolution: the faster effective SPD acts first (ties keep the historical
+ * player-first rule), the first 0-HP transition ends the round (the
+ * defeated actor never acts, no riders/procs follow, no end-of-round work
+ * runs, nothing revives), and the engine returns ONE explicit outcome that
+ * handlers, the harness and the tutorial all consume. */
+
+import { assert, assertEquals, assertExists, AssertionError } from '@std/assert';
+import { createPlayer, statsOf } from '../src/engine/character.ts';
+import {
+  effectiveEnemySpd,
+  effectivePlayerSpd,
+  performAction,
+  type PlayerAction,
+  startBattle,
+} from '../src/engine/combat.ts';
+import { applyInstance, type InstanceSeed } from '../src/engine/effects.ts';
+import type { BattleState, ClassId, PlayerState } from '../src/engine/types.ts';
+import { CLASS_IDS } from '../src/engine/types.ts';
+import { enemy } from '../src/content/enemies.ts';
+import { injectMod, seeded } from './helpers.ts';
+
+const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
+
+function hero(id: number, classId: ClassId, level: number): PlayerState {
+  const p = createPlayer(id, 'T', classId);
+  p.level = level;
+  return p;
+}
+
+function fight(enemyId: string, p: PlayerState, seed: number): BattleState {
+  const b = startBattle(enemyId, ORIGIN, { player: p, rng: seeded(seed) })!;
+  p.battle = b;
+  return b;
+}
+
+function round(
+  p: PlayerState,
+  b: BattleState,
+  seed: number,
+  action: PlayerAction = { kind: 'attack' },
+) {
+  return performAction(p, b, action, seeded(seed));
+}
+
+function periodicSeed(
+  defId: string,
+  side: 'player' | 'enemy',
+  perRound: number,
+  phase: 'roundEnd' | 'playerTurnStart',
+): InstanceSeed {
+  return {
+    defId,
+    name: 'Test Rot',
+    kind: 'periodic',
+    side,
+    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    perRound,
+    tickPhase: phase,
+    tags: perRound < 0 ? ['harmful'] : ['beneficial'],
+    stacking: 'replace',
+    duration: 9,
+    timing: 'immediate',
+    removable: true,
+  };
+}
+
+/** First index of the player's damage line and the enemy's damage line —
+ * both present means the round shows a comparable action order. */
+function orderOf(lines: string[]): { player: number; enemy: number } | undefined {
+  const player = lines.findIndex((l) => l.includes('hits') || l.includes('sears'));
+  const enemy = lines.findIndex((l) => l.includes('💥'));
+  return player >= 0 && enemy >= 0 ? { player, enemy } : undefined;
+}
+
+Deno.test('#86: effective SPD decides who acts first — both directions', () => {
+  // Fast player: the enemy is slowed to its floor.
+  let fast: { player: number; enemy: number } | undefined;
+  for (let s = 1; s <= 200 && !fast; s++) {
+    const p = hero(2000 + s, 'warrior', 10);
+    const b = fight('e_rat', p, s);
+    b.enemy.hp = 99999; // survive the round so both actions are visible
+    injectMod(b, 'enemy', 'spd', -0.95);
+    fast = orderOf(round(p, b, s).lines);
+  }
+  assertExists(fast, 'a comparable fast-player seed exists');
+  assert(fast.player < fast.enemy, `fast player acts first (${fast.player} vs ${fast.enemy})`);
+
+  // Slow player: the same hero sprinting is all the enemy needs.
+  let slow: { player: number; enemy: number } | undefined;
+  for (let s = 1; s <= 200 && !slow; s++) {
+    const p = hero(2300 + s, 'warrior', 10);
+    const b = fight('e_rat', p, s);
+    b.enemy.hp = 99999; // survive the round so both actions are visible
+    injectMod(b, 'player', 'spd', -0.95);
+    slow = orderOf(round(p, b, s).lines);
+  }
+  assertExists(slow, 'a comparable slow-player seed exists');
+  assert(slow.enemy < slow.player, `slow player acts second (${slow.enemy} vs ${slow.player})`);
+});
+
+Deno.test('#86: equal SPD is a documented tie — the player takes slot 1', () => {
+  let seen: { player: number; enemy: number } | undefined;
+  for (let s = 1; s <= 200 && !seen; s++) {
+    const p = hero(2600 + s, 'warrior', 10);
+    const b = fight('e_rat', p, s);
+    b.enemy.hp = 99999; // survive the round so both actions are visible
+    // Floor BOTH sides to effective SPD 1 → guaranteed tie.
+    injectMod(b, 'player', 'spd', -0.95);
+    injectMod(b, 'enemy', 'spd', -0.95);
+    seen = orderOf(round(p, b, s).lines);
+  }
+  assertExists(seen, 'a comparable tie seed exists');
+  assert(seen.player < seen.enemy, `ties keep the player first (${seen.player} vs ${seen.enemy})`);
+});
+
+Deno.test('#86: a faster player’s lethal hit skips the enemy slot and ALL end-of-round work', () => {
+  for (let s = 1; s <= 100; s++) {
+    const p = hero(2900 + s, 'warrior', 30);
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'enemy', 'spd', -0.95); // player first, guaranteed
+    b.enemy.hp = 5; // one-shot territory
+    // A round-end DoT on the winner must never tick this round.
+    const dot = applyInstance(b, periodicSeed('dot_a', 'player', -3, 'roundEnd'));
+    const hpBefore = p.hp;
+    const res = round(p, b, s);
+    assertEquals(res.outcome, 'victory');
+    assertEquals(p.hp, hpBefore, 'the winner’s DoT never ticked');
+    assertEquals(b.round, 1, 'no end-of-round ran — the round counter never advanced');
+    assertEquals(dot.remaining, 9, 'bookkeeping (expiry) never ran');
+    assertEquals(b.history.length, 1, 'the terminal round is recorded exactly once');
+    assert(!res.lines.some((l) => l.includes('💥')), 'the enemy never acted');
+    return;
+  }
+  throw new AssertionError('no lethal seed found');
+});
+
+Deno.test('#86: a faster enemy’s kill stops the queued action’s resource costs', () => {
+  for (let s = 1; s <= 200; s++) {
+    const p = hero(3200 + s, 'cleric', 5);
+    p.mp = 100;
+    p.inventory.push({ id: 'c_minor_potion', qty: 1 });
+    const potionsBefore = p.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'enemy', 'spd', 0.95); // enemy first, guaranteed
+    injectMod(b, 'enemy', 'atk', 19.5); // one lethal swing
+    const res = round(p, b, s, { kind: 'skill', skillId: 'sk_mend' });
+    if (res.outcome !== 'defeat') continue;
+    assertEquals(p.mp, 100, 'MP never charged — the player never reached their slot');
+    assertEquals(b.cooldowns['sk_mend'] ?? 0, 0, 'cooldown never began');
+    assertEquals(
+      p.inventory.find((e) => e.id === 'c_minor_potion')?.qty,
+      potionsBefore,
+      'queued item never consumed',
+    );
+    assert(res.lines.some((l) => l.includes('💥')), 'the enemy acted in slot 1');
+    assert(!res.lines.some((l) => l.includes('💚')), 'the heal never happened');
+    assert(b.enemy.hp > 0, 'no mutual-KO ambiguity — the enemy stands alone');
+    assertEquals(b.history.length, 1, 'the terminal round is recorded exactly once');
+    return;
+  }
+  throw new AssertionError('no lethal enemy seed found');
+});
+
+Deno.test('#86: a lethal turn-start tick prevents the player action', () => {
+  const p = hero(3500, 'warrior', 10);
+  p.hp = 2;
+  p.skills.push('sk_sunder_armor');
+  p.mp = 100;
+  const b = fight('e_rat', p, 42);
+  injectMod(b, 'enemy', 'spd', -0.95); // player slot first
+  applyInstance(b, periodicSeed('dot_ts', 'player', -5, 'playerTurnStart'));
+  const res = round(p, b, 42, { kind: 'skill', skillId: 'sk_sunder_armor' });
+  assertEquals(res.outcome, 'defeat');
+  assertEquals(p.hp, 0);
+  assertEquals(p.mp, 100, 'the skill never charged');
+  assertEquals(b.enemy.turn, 0, 'the enemy slot never ran');
+  assertEquals(b.history.length, 1, 'the terminal round is recorded exactly once');
+  assert(!res.lines.some((l) => l.includes('Sunder Armor')));
+});
+
+Deno.test('#86: a lethal action stops its later ordered riders', () => {
+  const p = hero(3600, 'warrior', 20);
+  p.skills.push('sk_sunder_armor');
+  p.mp = 100;
+  const b = fight('e_rat', p, 7);
+  b.enemy.hp = 3;
+  injectMod(b, 'enemy', 'spd', -0.95); // player first
+  const res = round(p, b, 7, { kind: 'skill', skillId: 'sk_sunder_armor' });
+  assertEquals(res.outcome, 'victory');
+  assert(
+    res.lines.some((l) => l.includes('Sunder Armor')),
+    'the strike itself resolved',
+  );
+  assertEquals(
+    b.effectInstances.some((i) => i.side === 'enemy' && i.name === 'Sundered'),
+    false,
+    'the Armor Break rider never landed after the killing blow',
+  );
+});
+
+Deno.test('#86: a lethal round-end tick stops later ticks and bookkeeping', () => {
+  for (let s = 1; s <= 100; s++) {
+    const p = hero(3700 + s, 'warrior', 20);
+    const b = fight('e_rat', p, s);
+    b.enemy.hp = 99999; // both slots must complete so the round-end phase runs
+    applyInstance(b, periodicSeed('dot_a', 'player', -500, 'roundEnd'));
+    const dotB = applyInstance(b, periodicSeed('dot_b', 'player', -1, 'roundEnd'));
+    b.cooldowns['sk_sunder_armor'] = 2;
+    const res = round(p, b, s);
+    assertEquals(res.outcome, 'defeat');
+    assertEquals(p.hp, 0);
+    assertEquals(dotB.remaining, 9, 'the later tick never ran — and never decayed');
+    assert(b.effectInstances.includes(dotB), 'the surviving instance was never pruned');
+    assertEquals(b.cooldowns['sk_sunder_armor'] ?? 0, 2, 'cooldown decay never ran');
+    return;
+  }
+  throw new AssertionError('no completed-slot seed found');
+});
+
+Deno.test('#86: end-of-round Regen can never revive a defeated actor', () => {
+  for (let s = 1; s <= 200; s++) {
+    const p = hero(4000 + s, 'cleric', 5);
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'enemy', 'spd', 0.95); // enemy first
+    injectMod(b, 'enemy', 'atk', 19.5); // lethal
+    const hot = applyInstance(b, periodicSeed('renew_test', 'player', 14, 'roundEnd'));
+    const res = round(p, b, s);
+    if (res.outcome !== 'defeat') continue;
+    assertEquals(p.hp, 0, 'the HoT never revived the fallen');
+    assertEquals(hot.remaining, 9, 'the HoT never ticked at all');
+    assert(!res.lines.some((l) => l.includes('💚')));
+    return;
+  }
+  throw new AssertionError('no lethal enemy seed found');
+});
+
+Deno.test('#86: no DoT can kill the winner after the loser reached 0 HP', () => {
+  for (let s = 1; s <= 100; s++) {
+    const p = hero(4300 + s, 'warrior', 30);
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'enemy', 'spd', -0.95); // player first — the loser dies first
+    applyInstance(b, periodicSeed('dot_kill', 'player', -500, 'roundEnd'));
+    b.enemy.hp = 5;
+    const hpBefore = p.hp;
+    const res = round(p, b, s);
+    if (res.outcome === 'victory') {
+      assertEquals(p.hp, hpBefore, 'the winner outlived the terminal transition');
+      return;
+    }
+  }
+  throw new AssertionError('no lethal seed found');
+});
+
+Deno.test('#86: an opening SPD debuff flips round-1 initiative', () => {
+  const wisp = enemy('e_chronowisp');
+  assertExists(wisp);
+  const W = wisp.spd;
+  // A hero naturally FASTER than the wisp whose anchored SPD (−20%) is not.
+  let plan: { classId: ClassId; level: number } | undefined;
+  outer:
+  for (const classId of CLASS_IDS) {
+    for (let level = 1; level <= 45; level++) {
+      const probe = hero(1, classId, level);
+      const s = statsOf(probe).spd;
+      if (s >= W && Math.max(1, Math.round(s * 0.8)) < W) {
+        plan = { classId, level };
+        break outer;
+      }
+    }
+  }
+  assertExists(plan, 'a class/level pair exists around the anchor threshold');
+  const p = hero(4500, plan.classId, plan.level);
+  const b = fight('e_chronowisp', p, 3); // the opening applies Chrono Anchor
+  const anchor = b.effectInstances.find((i) => i.side === 'player' && i.stat === 'spd');
+  assertExists(anchor, 'the opening landed its SPD debuff');
+  assert(
+    statsOf(p).spd >= W,
+    'control: without the opening the hero out-sprints the wisp',
+  );
+  assert(
+    effectivePlayerSpd(p, b) < effectiveEnemySpd(b),
+    'the opening flipped the initiative inputs',
+  );
+  let saw = false;
+  for (let s = 1; s <= 200 && !saw; s++) {
+    const p2 = hero(4600 + s, plan.classId, plan.level);
+    const b2 = fight('e_chronowisp', p2, s);
+    const ord = orderOf(round(p2, b2, s).lines);
+    if (ord) {
+      assert(ord.enemy < ord.player, 'the anchored hero acts after the wisp in round 1');
+      saw = true;
+    }
+  }
+  assert(saw, 'a comparable anchored seed exists');
+});
+
+Deno.test('#86: the guard brace covers the next enemy action wherever SPD places it', () => {
+  // Enemy-first: the brace is raised AFTER the enemy already acted, so it
+  // persists into the next round and is consumed by that action.
+  let persisted = false;
+  for (let s = 1; s <= 100 && !persisted; s++) {
+    const p = hero(4900 + s, 'warrior', 10);
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'player', 'spd', -0.95);
+    const res = round(p, b, s, { kind: 'guard' });
+    if (res.lines.some((l) => l.includes('brace behind'))) {
+      assertEquals(b.guarding, true, 'the brace survives an enemy-first round');
+      const res2 = round(p, b, s + 900);
+      assert(res2.lines.some((l) => l.includes('💥')), 'the enemy acted in round 2');
+      assertEquals(b.guarding, false, 'the brace covered exactly that action');
+      persisted = true;
+    }
+  }
+  assert(persisted, 'an enemy-first guard seed exists');
+  // Player-first: the very next enemy action consumes it inside the round.
+  let consumed = false;
+  for (let s = 1; s <= 100 && !consumed; s++) {
+    const p = hero(5200 + s, 'warrior', 10);
+    const b = fight('e_rat', p, s);
+    injectMod(b, 'enemy', 'spd', -0.95);
+    const res = round(p, b, s, { kind: 'guard' });
+    if (res.lines.some((l) => l.includes('brace behind'))) {
+      assertEquals(b.guarding, false, 'the immediate enemy response was covered');
+      consumed = true;
+    }
+  }
+  assert(consumed, 'a player-first guard seed exists');
+});
+
+Deno.test('#86: flee reports the fled outcome through the shared authority', () => {
+  for (let s = 1; s <= 200; s++) {
+    const p = hero(5500 + s, 'rogue', 10);
+    const b = fight('e_rat', p, s);
+    const res = round(p, b, s, { kind: 'flee' });
+    if (b.phase === 'fled') {
+      assertEquals(res.outcome, 'fled');
+      assertEquals(res.consumedTurn, true);
+      return;
+    }
+  }
+  throw new AssertionError('no successful flee seed found');
+});
+
+Deno.test('#86: an invalid command consumes no round and ticks nothing', () => {
+  const p = hero(5800, 'warrior', 10); // sk_whirlwind is level 13 — not learned
+  const b = fight('e_rat', p, 5);
+  applyInstance(b, periodicSeed('dot_inv', 'player', -3, 'playerTurnStart'));
+  const hpBefore = p.hp;
+  const res = round(p, b, 5, { kind: 'skill', skillId: 'sk_whirlwind' });
+  assertEquals(res.consumedTurn, false);
+  assertEquals(res.outcome, 'ongoing');
+  assertEquals(p.hp, hpBefore, 'turn-start effects never ran for an invalid command');
+  assertEquals(b.history.length, 0, 'no round was recorded');
+  assertEquals(b.round, 1);
+});

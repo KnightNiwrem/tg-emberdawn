@@ -116,6 +116,7 @@ Deno.test('#83: Burn routes through the ward like ordinary damage', () => {
   let s = -1;
   for (let t = 1; t <= 120; t++) {
     const p = hero(500 + t, 'warrior', 33);
+    p.hp = 99999; // #86: a lethal hit stops its riders — survive to watch the burn land
     const b = fight('e_cinderhound', p, t);
     const res = round(p, b, t);
     if (res.lines.some((l) => l.includes('Burning — 8 damage/round'))) {
@@ -125,6 +126,7 @@ Deno.test('#83: Burn routes through the ward like ordinary damage', () => {
   }
   assert(s > 0, 'a burn seed exists');
   const p = hero(2, 'warrior', 33);
+  p.hp = 99999; // #86: same survival for the deterministic replay
   const b = fight('e_cinderhound', p, s);
   round(p, b, s);
   const burn = b.effectInstances.find((i) => i.side === 'player' && i.name === 'Burn');
@@ -164,6 +166,7 @@ Deno.test('#83: Frost Shell is a real expiring ward, not a mitigation stance', (
   let s = -1;
   for (let t = 1; t <= 120; t++) {
     const p = hero(500 + t, 'warrior', 27);
+    p.hp = 99999; // #86: a fallen hero freezes the round — survive the shell scan
     const b = fight('e_iceling', p, t);
     const res = round(p, b, t);
     if (res.lines.some((l) => l.includes('raises a ward absorbing up to 65 damage'))) {
@@ -173,6 +176,7 @@ Deno.test('#83: Frost Shell is a real expiring ward, not a mitigation stance', (
   }
   assert(s > 0, 'a shell seed exists');
   const p = hero(4, 'warrior', 27);
+  p.hp = 99999; // #86: the expiry loop needs the hero alive through every settle
   const b = fight('e_iceling', p, s);
   round(p, b, s);
   assertEquals(b.shield.enemy, 65, 'the shell is pool capacity, like #79 wards');
@@ -325,6 +329,7 @@ Deno.test('#83: Marsh Leech Drain damages and drains — enemy-side lifesteal', 
 
 Deno.test('#83: Final Silence strips an active blessing — dispel, not a new status', () => {
   const p = hero(9, 'warrior', 46);
+  p.hp = 99999; // #86: a lethal Silence stops its dispel — survive the strip
   const b = fight('e_warden', p, 7, ABYSS);
   b.enemy.turn = 2; // the next enemy action is the 3rd — Final Silence due
   applyInstance(b, {
