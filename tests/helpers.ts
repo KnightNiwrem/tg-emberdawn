@@ -43,7 +43,9 @@ export function injectMod(
     kind: 'statmod',
     stat,
     pct,
-    tags: pct < 0 ? ['harmful'] : ['beneficial'],
+    // #87 semantic polarity: incoming-damage mods are inverted — more
+    // damage taken is harmful to the bearer.
+    tags: (stat === 'incoming' ? pct > 0 : pct < 0) ? ['harmful'] : ['beneficial'],
     stacking: 'replace',
     appliedRound: b.round,
     remaining,

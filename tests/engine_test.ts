@@ -52,6 +52,8 @@ import {
   statmodSpec,
   statPct,
 } from './helpers.ts';
+import { semanticTags } from '../src/engine/effects.ts';
+import type { EffectSpec, EffectTag } from '../src/content/types.ts';
 
 Deno.test('character creation gives class kit and full pools', () => {
   const p = createPlayer(1, 'Test', 'warrior');
@@ -1327,4 +1329,48 @@ Deno.test('dodge: zero-power status moves are never slipped (#72)', () => {
   }
   assert(sawDodge, 'bites get slipped at a real SPD edge');
   assert(sawHowl, 'Howl still resolves — status moves ignore dodge');
+});
+
+Deno.test('content integrity: effect specs carry consistent semantic tags (#87)', () => {
+  const specs: { from: string; spec: EffectSpec }[] = [];
+  for (const sk of SKILLS) {
+    sk.effects.forEach((e, i) => specs.push({ from: `${sk.id}#${i}`, spec: e }));
+  }
+  for (const en of ENEMIES) {
+    en.moves.forEach((m, i) =>
+      m.effects.forEach((e, j) => specs.push({ from: `${en.id}:move${i}#${j}`, spec: e }))
+    );
+    if (en.opening) {
+      en.opening.effects.forEach((e, j) => specs.push({ from: `${en.id}:opening#${j}`, spec: e }));
+    }
+    if (en.special) {
+      en.special.move.effects.forEach((e, j) =>
+        specs.push({ from: `${en.id}:special#${j}`, spec: e })
+      );
+    }
+  }
+  for (const it of ITEMS) {
+    it.triggers?.forEach((tg, i) =>
+      tg.effects.forEach((e, j) => specs.push({ from: `${it.id}:trig${i}#${j}`, spec: e }))
+    );
+  }
+  assert(specs.length > 100, 'the walk covers the shipped content');
+  const families: EffectTag[] = ['poison', 'burn', 'bleed'];
+  for (const { from, spec } of specs) {
+    const tags = semanticTags(spec);
+    assert(
+      !(tags.includes('beneficial') && tags.includes('harmful')),
+      `${from}: contradictory polarity (${tags.join(',')})`,
+    );
+    const fam = tags.filter((t) => families.includes(t as EffectTag));
+    assert(fam.length <= 1, `${from}: incompatible DoT families (${fam.join(',')})`);
+    if (spec.kind === 'periodic' && (spec.perRound ?? spec.pctOfMaxPerRound ?? 0) < 0) {
+      assert(
+        fam.length === 1,
+        `${from}: a damaging periodic must author its family (poison|burn|bleed); got ${
+          tags.join(',')
+        }`,
+      );
+    }
+  }
 });

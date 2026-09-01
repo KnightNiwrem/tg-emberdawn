@@ -32,6 +32,7 @@ import {
   removeTagged,
   sapPct,
   seedForSpec,
+  semanticTags,
   settleEndOfRound,
   settleTurnStart,
   statPct,
@@ -814,14 +815,16 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     // triggered the on-flesh effect. Checked BEFORE the chance draw.
     if (spec.requireHpDamage && !ctx.hpDamaged) continue;
     const side = targetSideOf(spec, ctx.actor);
-    // #83 status resistance: harmful statuses applied BY THE PLAYER to a
-    // resistant enemy fail outright with visible "resists" feedback —
-    // authored resistance, never blanket immunity. One injected draw;
-    // deterministic. Benign kinds (damage/heal/shield/cleanse/dispel) and
+    // #83/#87 status resistance: HARMFUL statuses — semantic polarity, not
+    // kind alone — applied BY THE PLAYER to a resistant enemy fail outright
+    // with visible "resists" feedback — authored resistance, never blanket
+    // immunity. One injected draw; deterministic. Benign kinds
+    // (damage/heal/shield/cleanse/dispel), beneficial applications and
     // enemy self-effects are never resisted.
     if (
       ctx.actor === 'player' && side === 'enemy' &&
-      (spec.kind === 'statmod' || spec.kind === 'control' || spec.kind === 'periodic')
+      (spec.kind === 'statmod' || spec.kind === 'control' || spec.kind === 'periodic') &&
+      semanticTags(spec).includes('harmful')
     ) {
       const resist = enemyDef(ctx.battle.enemy.id)?.statusResist ?? 0;
       if (resist > 0 && !chance(ctx.rng, 1 - resist)) {

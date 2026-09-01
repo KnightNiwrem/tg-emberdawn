@@ -179,7 +179,9 @@ function expectedDotTotal(sk: SkillDef, enemyMaxHp: number): number {
 const HEAL_ITEMS = ['c_super_potion', 'c_greater_potion', 'c_potion', 'c_minor_potion'];
 const MP_ITEMS = ['c_greater_ether', 'c_ether', 'c_minor_ether'];
 
-function chooseAction(
+/** The harness's action chooser — exported so tests can pin tactical
+ * decisions directly (#87 polarity coverage). */
+export function chooseAction(
   p: PlayerState,
   b: BattleState,
   policy: Policy,

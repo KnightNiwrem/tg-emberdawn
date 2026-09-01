@@ -15,13 +15,22 @@ import {
   type PlayerAction,
   startBattle,
 } from '../src/engine/combat.ts';
-import { applyInstance, grantShield, statPct } from '../src/engine/effects.ts';
-import type { InstanceSeed } from '../src/engine/effects.ts';
+import {
+  applyInstance,
+  grantShield,
+  type InstanceSeed,
+  removeTagged,
+  seedForSpec,
+  semanticTags,
+  statPct,
+} from '../src/engine/effects.ts';
 import type { BattleOrigin, BattleState, ClassId, PlayerState } from '../src/engine/types.ts';
 import { skill } from '../src/content/skills.ts';
 import { enemy } from '../src/content/enemies.ts';
+import { item } from '../src/content/items.ts';
+import { chooseAction, POLICIES } from '../src/engine/balance.ts';
 import { injectMod, seeded } from './helpers.ts';
-import type { StatKey } from '../src/content/types.ts';
+import type { EffectSpec, EffectTag, StatKey } from '../src/content/types.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 const ABYSS = { kind: 'explore', zoneId: 'abyss' } as const;
@@ -519,4 +528,175 @@ Deno.test('#85: stacked breaks floor safely — mitigation and damage never inve
     { stat: 'incoming', pct: -0.6, defId: 'v2' },
   ]);
   assert(v2 >= 1 && v2 < v1, `deep mitigation guts but never heals (one ${v1}, two ${v2})`);
+});
+
+// ── #87: semantic polarity and authored DoT families ──────────────────
+
+Deno.test('#87: polarity follows stat meaning, not sign — table-driven', () => {
+  const statmod = (stat: StatKey, pct: number): EffectSpec => ({
+    kind: 'statmod',
+    stat,
+    pct,
+    duration: 2,
+    timing: 'immediate',
+  });
+  const cases: [StatKey, number, EffectTag][] = [
+    ['atk', 0.3, 'beneficial'],
+    ['atk', -0.3, 'harmful'],
+    ['mag', 0.3, 'beneficial'],
+    ['mag', -0.3, 'harmful'],
+    ['def', 0.3, 'beneficial'],
+    ['def', -0.3, 'harmful'],
+    ['res', 0.3, 'beneficial'],
+    ['res', -0.3, 'harmful'],
+    ['spd', 0.3, 'beneficial'],
+    ['spd', -0.3, 'harmful'],
+    ['outgoing', 0.3, 'beneficial'],
+    ['outgoing', -0.3, 'harmful'],
+    ['mitigation', 0.3, 'beneficial'],
+    ['mitigation', -0.3, 'harmful'],
+    ['incoming', 0.3, 'harmful'], // the #87 inversion: more damage taken hurts
+    ['incoming', -0.3, 'beneficial'],
+  ];
+  for (const [stat, pct, polarity] of cases) {
+    const tags = semanticTags(statmod(stat, pct));
+    assert(
+      tags.includes(polarity),
+      `${stat} ${pct > 0 ? '+' : ''}${pct} must be ${polarity} (got ${tags.join(',')})`,
+    );
+  }
+});
+
+Deno.test('#87: DoT families are authored data — never inferred from negativity', () => {
+  // Scorch's burn rider: burn, never poison.
+  const burn = skill('sk_scorch')!.effects.find((e) => e.kind === 'periodic')!;
+  const burnTags = semanticTags(burn);
+  assertEquals(burnTags.includes('burn'), true);
+  assertEquals(burnTags.includes('poison'), false);
+  // Thorn Ring's brambles: bleed, never poison.
+  const bleed = item('t_9')!.triggers![0]!.effects[0]!;
+  const bleedTags = semanticTags(bleed);
+  assertEquals(bleedTags.includes('bleed'), true);
+  assertEquals(bleedTags.includes('poison'), false);
+  // Venom stays poison and keeps its shield-bypass policy.
+  const venom = skill('sk_venom_cut')!.effects.find((e) => e.kind === 'periodic')!;
+  const venomTags = semanticTags(venom);
+  assertEquals(venomTags.includes('poison'), true);
+  assertEquals(venomTags.includes('burn'), false);
+  assertEquals(venomTags.includes('bleed'), false);
+  assert(venom.kind === 'periodic' && venom.bypassShield === true, 'poison keeps bypass');
+  // Renew infers only the one unambiguous family: regen.
+  const renew = skill('sk_renew')!.effects.find((e) => e.kind === 'periodic')!;
+  const renewTags = semanticTags(renew);
+  assertEquals(renewTags.includes('regen'), true);
+  assertEquals(renewTags.includes('beneficial'), true);
+  assertEquals(renewTags.includes('harmful'), false);
+});
+
+Deno.test('#87: incoming amplification is harmful — Expose and Death Mark are never benefits', () => {
+  for (const id of ['sk_expose_weakness', 'sk_death_mark'] as const) {
+    const mark = skill(id)!.effects.find((e) => e.kind === 'statmod' && e.stat === 'incoming')!;
+    const tags = semanticTags(mark);
+    assertEquals(tags.includes('harmful'), true, `${id} is harmful to the bearer`);
+    assertEquals(tags.includes('beneficial'), false, `${id} is never beneficial`);
+    assertEquals(tags.includes('vulnerable'), true, `${id} keeps its authored identity`);
+  }
+  // End to end: the live instance carries the same identity.
+  const p = hero(60, 'rogue', 12);
+  const b = fight('e_rat', p, 3);
+  applyInstance(
+    b,
+    seedForSpec(
+      {
+        kind: 'statmod',
+        target: 'opponent',
+        stat: 'incoming',
+        pct: 0.25,
+        duration: 3,
+        timing: 'immediate',
+        name: 'Exposed',
+      },
+      'exposed_test',
+      'Exposed',
+      'enemy',
+      { kind: 'skill', id: 'x', name: 'x' },
+    ),
+  );
+  const inst = b.effectInstances.find((i) => i.side === 'enemy')!;
+  assertEquals(inst.tags.includes('harmful'), true);
+  assertEquals(inst.tags.includes('beneficial'), false);
+});
+
+Deno.test('#87: cleanse strips harm, dispel strips benefit — polarity respected', () => {
+  const p = hero(71, 'rogue', 12);
+  const b = fight('e_rat', p, 5);
+  const exposed: EffectSpec = {
+    kind: 'statmod',
+    target: 'opponent',
+    stat: 'incoming',
+    pct: 0.25,
+    duration: 3,
+    timing: 'immediate',
+    name: 'Exposed',
+  };
+  applyInstance(
+    b,
+    seedForSpec(exposed, 'ex1', 'Exposed', 'enemy', { kind: 'skill', id: 'x', name: 'x' }),
+  );
+  // A dispel hunting enemy BENEFITS must not touch the player's debuff…
+  assertEquals(removeTagged(b, 'enemy', ['beneficial']).length, 0, 'harm is not benefit');
+  // …and an enemy-side cleanse of HARM reaches it.
+  assertEquals(removeTagged(b, 'enemy', ['harmful']).length, 1, 'cleanse reaches the debuff');
+});
+
+Deno.test('#87: the tactical policy never dispels player-applied vulnerability', () => {
+  const mk = (): { p: PlayerState; b: BattleState } => {
+    const p = hero(72, 'mage', 40);
+    p.skills.push('sk_spellbreak'); // the mage dispel (180% MAG)
+    p.skills.push('sk_cataclysm'); // a strictly stronger strike (420% MAG)
+    p.mp = 100;
+    return { p, b: fight('e_rat', p, 12) };
+  };
+  const exposed: EffectSpec = {
+    kind: 'statmod',
+    target: 'opponent',
+    stat: 'incoming',
+    pct: 0.25,
+    duration: 3,
+    timing: 'immediate',
+    name: 'Exposed',
+  };
+  // The ONLY enemy-side instance is a player-applied Exposed — harmful.
+  // The dispel branch precedes the damage branch, so picking Spellbreak
+  // here would mean dispelling the player's own debuff; with the branch
+  // gated on semantics the policy falls through to the bigger strike.
+  const a = mk();
+  applyInstance(
+    a.b,
+    seedForSpec(exposed, 'ex2', 'Exposed', 'enemy', { kind: 'skill', id: 'x', name: 'x' }),
+  );
+  const action = chooseAction(a.p, a.b, POLICIES.tactical, false);
+  assert(
+    !(action.kind === 'skill' && action.skillId === 'sk_spellbreak'),
+    `a vulnerable foe is not a dispel target (${JSON.stringify(action)})`,
+  );
+  // Control: a REAL enemy benefit (a live guard stance) draws the dispel
+  // ahead of the damage rotation.
+  const c = mk();
+  applyInstance(
+    c.b,
+    seedForSpec(
+      { kind: 'statmod', stat: 'mitigation', pct: 1.0, duration: 3, timing: 'immediate' },
+      'ward_test',
+      'Ward',
+      'enemy',
+      { kind: 'skill', id: 'x', name: 'x' },
+    ),
+  );
+  const dispel = chooseAction(c.p, c.b, POLICIES.tactical, false);
+  assertEquals(
+    dispel.kind === 'skill' && dispel.skillId === 'sk_spellbreak',
+    true,
+    `a live enemy benefit is dispelled (${JSON.stringify(dispel)})`,
+  );
 });

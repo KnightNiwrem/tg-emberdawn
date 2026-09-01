@@ -510,13 +510,23 @@ export function seedForSpec(
   }
 }
 
-/** Shape-derived default tags; authored tags merge on top. */
+/** Shape-derived default tags; authored tags merge on top.
+ *
+ * #87 semantic policy: polarity follows what the stat MEANS to the bearer,
+ * never the sign alone. Incoming-damage modifiers are INVERTED — more
+ * damage taken is harmful to the bearer, mitigation is beneficial — so
+ * Expose Weakness and Death Mark can never read as enemy benefits. DoT
+ * families are AUTHORED data, never inferred from negativity: the engine
+ * derives only `periodic` + polarity, plus the one unambiguous family
+ * (`regen`) for positive ticks; poison/burn/bleed must be authored
+ * explicitly (content-integrity tested). */
 function defaultTags(spec: EffectSpec): EffectTag[] {
   const tags: EffectTag[] = [];
   switch (spec.kind) {
     case 'statmod': {
       const negative = (spec.pct ?? 0) < 0;
-      tags.push(negative ? 'harmful' : 'beneficial');
+      const beneficial = spec.stat === 'incoming' ? negative : !negative;
+      tags.push(beneficial ? 'beneficial' : 'harmful');
       if (spec.stat === 'outgoing' && negative) tags.push('weaken');
       break;
     }
@@ -525,7 +535,8 @@ function defaultTags(spec: EffectSpec): EffectTag[] {
       break;
     case 'periodic': {
       const negative = (spec.perRound ?? 0) < 0 || (spec.pctOfMaxPerRound ?? 0) < 0;
-      tags.push('periodic', negative ? 'harmful' : 'beneficial', negative ? 'poison' : 'regen');
+      tags.push('periodic', negative ? 'harmful' : 'beneficial');
+      if (!negative) tags.push('regen');
       break;
     }
     case 'shield':
@@ -536,4 +547,10 @@ function defaultTags(spec: EffectSpec): EffectTag[] {
     for (const t of spec.tags) if (!tags.includes(t)) tags.push(t);
   }
   return tags;
+}
+
+/** The tags an EffectSpec derives at application (#87) — exposed for the
+ * status-resistance policy and content validation. */
+export function semanticTags(spec: EffectSpec): EffectTag[] {
+  return defaultTags(spec);
 }
