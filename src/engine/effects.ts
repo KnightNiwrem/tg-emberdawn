@@ -34,6 +34,7 @@ export interface InstanceSeed {
   perRound?: number;
   pctOfMaxPerRound?: number;
   tickPhase?: 'roundEnd' | 'playerTurnStart';
+  bypassShield?: boolean;
   shieldAmount?: number;
   tags: EffectTag[];
   stacking: StackingPolicy;
@@ -72,6 +73,7 @@ export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstanc
       perRound: seed.perRound,
       pctOfMaxPerRound: seed.pctOfMaxPerRound,
       tickPhase: seed.tickPhase,
+      bypassShield: seed.bypassShield,
       shieldAmount: seed.shieldAmount,
       tags: [...seed.tags],
       stacking: seed.stacking,
@@ -209,6 +211,107 @@ export function removeTagged(
   return removed;
 }
 
+// ── Shields (#79): one shared pool per side, capacity from contributions ──
+
+/** Live maximum shield capacity on a side: the sum of all live
+ * contribution instances. Derived, never stored. */
+export function maxShield(b: BattleState, side: 'player' | 'enemy'): number {
+  let total = 0;
+  for (const i of b.effectInstances) {
+    if (i.side === side && i.kind === 'shield') total += i.shieldAmount ?? 0;
+  }
+  return total;
+}
+
+export interface ShieldGrant {
+  /** Capacity that actually entered the pool (after the max cap). */
+  applied: number;
+  /** Grant capacity trimmed by the cap — never lands in the pool. */
+  wasted: number;
+  /** Current-pool amount discarded because the new maximum sits below
+   * it (replacing a large ward with a smaller one). */
+  lost: number;
+  /** The new live maximum. */
+  max: number;
+}
+
+/** Grants one shield contribution (#79). applyInstance handles the
+ * authored stacking policy: `refresh` renews the clock WITHOUT refilling
+ * a depleted pool; `replace`/`stack` (and a stronger-wins recast) grant
+ * fresh capacity. The pool then rises by the granted amount, capped to
+ * the new maximum. */
+export function grantShield(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  seed: InstanceSeed,
+): ShieldGrant {
+  const existing = b.effectInstances.find((i) => sameIdentity(i, seed));
+  const refill = existing === undefined ||
+    (seed.stacking !== 'refresh' &&
+      !(seed.stacking === 'strongest' &&
+        (seed.shieldAmount ?? 0) <= (existing.shieldAmount ?? 0)));
+  const granted = refill ? seed.shieldAmount ?? 0 : 0;
+  const before = b.shield[side];
+  applyInstance(b, seed);
+  const max = maxShield(b, side);
+  const after = Math.min(before + granted, max);
+  b.shield[side] = after;
+  // Decomposition: `applied` is the pool gain from the grant, `wasted`
+  // the grant capacity the cap trimmed, `lost` existing pool discarded
+  // because the new maximum sits below it (small-ward replacement).
+  const applied = Math.max(0, after - before);
+  return { applied, wasted: granted - applied, lost: Math.max(0, before - after), max };
+}
+
+export interface ShieldAbsorb {
+  absorbed: number;
+  /** Damage that reaches HP after the shield took its share. */
+  hpDamage: number;
+  /** True when this hit drove a live pool to zero. */
+  broke: boolean;
+}
+
+/** THE authoritative shield-absorption step (#79): post-mitigation damage
+ * pools here before HP. Every HP-damage path routes through it unless its
+ * spec opts out with `bypassShield`. */
+export function absorbShield(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  dmg: number,
+): ShieldAbsorb {
+  const pool = b.shield[side];
+  const absorbed = Math.min(pool, dmg);
+  b.shield[side] = pool - absorbed;
+  return { absorbed, hpDamage: dmg - absorbed, broke: absorbed > 0 && b.shield[side] === 0 };
+}
+
+export interface ShieldLoss {
+  side: 'player' | 'enemy';
+  /** Current-pool amount discarded by the cap — material only (> 0). */
+  lost: number;
+}
+
+/** After a batch removal (expiry, cleanse, dispel) the maximum may drop:
+ * remove the unused capacity first, then cap the current pool — the #79
+ * canonical expiration rule, order-independent, computed once per batch.
+ * Returns material losses for logs/metrics. */
+export function applyShieldExpiry(
+  b: BattleState,
+  expired: readonly EffectInstance[],
+): ShieldLoss[] {
+  const sides = new Set(expired.filter((i) => i.kind === 'shield').map((i) => i.side));
+  const losses: ShieldLoss[] = [];
+  for (const side of sides) {
+    const max = maxShield(b, side);
+    const lost = b.shield[side] - max;
+    if (lost > 0) {
+      b.shield[side] = max;
+      losses.push({ side, lost });
+    }
+  }
+  return losses;
+}
+
 // ── Time: periodic ticks and end-of-round bookkeeping ───────────────────
 
 export interface PeriodicTick {
@@ -232,7 +335,7 @@ function tickPhaseOf(i: EffectInstance, maxHp: number): PeriodicTick | undefined
 export function tickPlayerTurnStart(
   b: BattleState,
   maxHpOf: (side: 'player' | 'enemy') => number,
-): PeriodicTick[] {
+): { ticks: PeriodicTick[]; shieldLosses: ShieldLoss[] } {
   const ticks: PeriodicTick[] = [];
   for (const i of b.effectInstances) {
     if (i.kind !== 'periodic' || i.tickPhase !== 'playerTurnStart') continue;
@@ -240,8 +343,8 @@ export function tickPlayerTurnStart(
     if (t) ticks.push(t);
   }
   for (const t of ticks) t.instance.remaining--;
-  pruneExpired(b);
-  return ticks;
+  const expired = pruneExpired(b);
+  return { ticks, shieldLosses: applyShieldExpiry(b, expired) };
 }
 
 /** End-of-round bookkeeping: periodic `roundEnd` ticks FIRST (an effect at
@@ -253,7 +356,7 @@ export function tickPlayerTurnStart(
 export function tickEndOfRound(
   b: BattleState,
   maxHpOf: (side: 'player' | 'enemy') => number,
-): { ticks: PeriodicTick[]; expired: EffectInstance[] } {
+): { ticks: PeriodicTick[]; expired: EffectInstance[]; shieldLosses: ShieldLoss[] } {
   const ticks: PeriodicTick[] = [];
   for (const i of [...b.effectInstances]) {
     if (i.kind !== 'periodic' || i.tickPhase !== 'roundEnd') continue;
@@ -267,7 +370,7 @@ export function tickEndOfRound(
     else i.remaining--;
   }
   const expired = pruneExpired(b);
-  return { ticks, expired };
+  return { ticks, expired, shieldLosses: applyShieldExpiry(b, expired) };
 }
 
 /** Removes instances whose mechanical life is over. Control instances
@@ -298,6 +401,7 @@ export function seedForSpec(
   fallbackName: string,
   side: 'player' | 'enemy',
   source: EffectSource,
+  shieldAmount?: number,
 ): InstanceSeed {
   const base = {
     defId,
@@ -334,6 +438,7 @@ export function seedForSpec(
         perRound: spec.perRound,
         pctOfMaxPerRound: spec.pctOfMaxPerRound,
         tickPhase: spec.tickPhase,
+        ...(spec.bypassShield ? { bypassShield: true } : {}),
         duration: spec.duration,
         timing: 'immediate',
       };
@@ -341,7 +446,7 @@ export function seedForSpec(
       return {
         ...base,
         kind: 'shield',
-        shieldAmount: spec.amount ?? 0,
+        shieldAmount: shieldAmount ?? spec.amount ?? 0,
         duration: spec.duration,
         timing: spec.timing,
       };

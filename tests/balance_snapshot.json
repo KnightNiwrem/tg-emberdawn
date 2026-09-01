@@ -31,7 +31,11 @@
       "critsPerFight": 0.1,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -54,7 +58,11 @@
       "critsPerFight": 0.155,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -77,7 +85,11 @@
       "critsPerFight": 0.15,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -100,7 +112,11 @@
       "critsPerFight": 0.11,
       "dodgesPerFight": 0.005,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -123,7 +139,11 @@
       "critsPerFight": 0.05,
       "dodgesPerFight": 0,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -146,7 +166,11 @@
       "critsPerFight": 0.19,
       "dodgesPerFight": 0.055,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -169,7 +193,11 @@
       "critsPerFight": 0.145,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -192,7 +220,11 @@
       "critsPerFight": 0.155,
       "dodgesPerFight": 0.02,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -215,7 +247,11 @@
       "critsPerFight": 0.085,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -238,7 +274,11 @@
       "critsPerFight": 0.175,
       "dodgesPerFight": 0.05,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -261,7 +301,11 @@
       "critsPerFight": 0.12,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -284,7 +328,11 @@
       "critsPerFight": 0.125,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -307,7 +355,11 @@
       "critsPerFight": 0.17,
       "dodgesPerFight": 0.075,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -330,7 +382,11 @@
       "critsPerFight": 0.18,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -353,7 +409,11 @@
       "critsPerFight": 0.19,
       "dodgesPerFight": 0.05,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -376,7 +436,11 @@
       "critsPerFight": 0.18,
       "dodgesPerFight": 0.07,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -399,7 +463,11 @@
       "critsPerFight": 0.32,
       "dodgesPerFight": 0.07,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -422,7 +490,11 @@
       "critsPerFight": 0.175,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -445,7 +517,11 @@
       "critsPerFight": 0.24,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -468,7 +544,11 @@
       "critsPerFight": 0.265,
       "dodgesPerFight": 0.12,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -491,7 +571,11 @@
       "critsPerFight": 0.3,
       "dodgesPerFight": 0.08,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -514,7 +598,11 @@
       "critsPerFight": 0.155,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -537,7 +625,11 @@
       "critsPerFight": 0.18,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -560,7 +652,11 @@
       "critsPerFight": 0.245,
       "dodgesPerFight": 0.06,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -583,7 +679,11 @@
       "critsPerFight": 0.205,
       "dodgesPerFight": 0.05,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -606,7 +706,11 @@
       "critsPerFight": 0.135,
       "dodgesPerFight": 0.03,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -629,7 +733,11 @@
       "critsPerFight": 0.245,
       "dodgesPerFight": 0.055,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -652,7 +760,11 @@
       "critsPerFight": 0.205,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -675,7 +787,11 @@
       "critsPerFight": 0.205,
       "dodgesPerFight": 0.02,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -698,7 +814,11 @@
       "critsPerFight": 0.15,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -721,7 +841,11 @@
       "critsPerFight": 0.305,
       "dodgesPerFight": 0.1,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -744,7 +868,11 @@
       "critsPerFight": 0.19,
       "dodgesPerFight": 0.055,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -767,7 +895,11 @@
       "critsPerFight": 0.205,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -790,7 +922,11 @@
       "critsPerFight": 0.205,
       "dodgesPerFight": 0.03,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -813,7 +949,11 @@
       "critsPerFight": 0.4,
       "dodgesPerFight": 0.185,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -836,7 +976,11 @@
       "critsPerFight": 0.315,
       "dodgesPerFight": 0.09,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -859,7 +1003,11 @@
       "critsPerFight": 0.145,
       "dodgesPerFight": 0.035,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -882,7 +1030,11 @@
       "critsPerFight": 0.12,
       "dodgesPerFight": 0.02,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -905,7 +1057,11 @@
       "critsPerFight": 0.27,
       "dodgesPerFight": 0.125,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -928,7 +1084,11 @@
       "critsPerFight": 0.255,
       "dodgesPerFight": 0.055,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -951,7 +1111,11 @@
       "critsPerFight": 0.13,
       "dodgesPerFight": 0.035,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -974,7 +1138,11 @@
       "critsPerFight": 0.145,
       "dodgesPerFight": 0.005,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -997,7 +1165,11 @@
       "critsPerFight": 0.255,
       "dodgesPerFight": 0.075,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1020,7 +1192,11 @@
       "critsPerFight": 0.175,
       "dodgesPerFight": 0.005,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -1043,7 +1219,11 @@
       "critsPerFight": 0.09,
       "dodgesPerFight": 0.025,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -1066,7 +1246,11 @@
       "critsPerFight": 0.125,
       "dodgesPerFight": 0.03,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -1089,7 +1273,11 @@
       "critsPerFight": 0.16,
       "dodgesPerFight": 0.07,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1112,7 +1300,11 @@
       "critsPerFight": 0.125,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -1135,7 +1327,11 @@
       "critsPerFight": 0.19,
       "dodgesPerFight": 0.02,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -1158,7 +1354,11 @@
       "critsPerFight": 0.1,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -1181,7 +1381,11 @@
       "critsPerFight": 0.315,
       "dodgesPerFight": 0.14,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1204,7 +1408,11 @@
       "critsPerFight": 0.215,
       "dodgesPerFight": 0.06,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -1227,7 +1435,11 @@
       "critsPerFight": 1.55,
       "dodgesPerFight": 0.48,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -1250,7 +1462,11 @@
       "critsPerFight": 0.925,
       "dodgesPerFight": 0.195,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "warrior",
@@ -1273,7 +1489,11 @@
       "critsPerFight": 0.875,
       "dodgesPerFight": 0.255,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -1296,7 +1516,11 @@
       "critsPerFight": 0.6,
       "dodgesPerFight": 0.18,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -1319,7 +1543,11 @@
       "critsPerFight": 0.835,
       "dodgesPerFight": 0.18,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "mage",
@@ -1342,7 +1570,11 @@
       "critsPerFight": 0.68,
       "dodgesPerFight": 0.165,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -1365,7 +1597,11 @@
       "critsPerFight": 1.205,
       "dodgesPerFight": 0.51,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -1388,7 +1624,11 @@
       "critsPerFight": 1.675,
       "dodgesPerFight": 0.73,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "rogue",
@@ -1411,7 +1651,11 @@
       "critsPerFight": 1.505,
       "dodgesPerFight": 0.545,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1434,7 +1678,11 @@
       "critsPerFight": 4.465,
       "dodgesPerFight": 0.865,
       "healPerFight": 4308.23,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1457,7 +1705,11 @@
       "critsPerFight": 1.535,
       "dodgesPerFight": 0.31,
       "healPerFight": 125.69,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     },
     {
       "classId": "cleric",
@@ -1480,7 +1732,11 @@
       "critsPerFight": 1.38,
       "dodgesPerFight": 0.245,
       "healPerFight": 0,
-      "overhealPerFight": 0
+      "overhealPerFight": 0,
+      "avgShieldGranted": 0,
+      "avgShieldAbsorbed": 0,
+      "avgShieldWasted": 0,
+      "avgShieldExpiryLost": 0
     }
   ]
 }

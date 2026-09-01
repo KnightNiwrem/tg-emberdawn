@@ -75,6 +75,7 @@ interface EnemySpec {
     gold?: number;
   };
   boss?: boolean;
+  openingShield?: EnemyDef['openingShield'];
   special?: EnemyDef['special'];
   moves: EnemyMove[];
   drops?: Record<string, number>;
@@ -101,6 +102,7 @@ function mk(s: EnemySpec): EnemyDef {
     xp: mul('xp', Math.round(16 * Math.pow(L, 1.75))),
     gold: mul('gold', Math.round(4 * Math.pow(L, 1.55))),
     boss: s.boss,
+    openingShield: s.openingShield,
     special: s.special,
     moves: s.moves,
     drops: s.drops,
@@ -345,6 +347,9 @@ export const ENEMIES: readonly EnemyDef[] = [
     moves: [
       hit('Stone Fist', 1.25, 'phys', 3),
       move('Guard Stance', 1, GUARD(0.4, 2)),
+      // #79: an ordinary enemy casts a real ward through the same
+      // mechanic player skills use.
+      move('Runic Bulwark', 1, { kind: 'shield', amount: 45, duration: 2, timing: 'immediate' }),
     ],
   }),
   mk({
@@ -612,9 +617,17 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 45,
     boss: true,
     mul: { hp: 3.4, xp: 4, gold: 4, atk: 1.2, mag: 1.25, def: 1.4, res: 1.35 },
+    // #79: the Sundered King opens boss-provenance fights behind a large
+    // one-time ward (long expiry, no regeneration, not dispellable).
+    openingShield: { amount: 250, duration: 4, name: 'Sovereign Ward' },
     moves: [
       hit('Sundering Blow', 1.55, 'phys', 3),
-      hit('Crown of Night', 1.4, 'mag', 2, SAP(0.3)),
+      // #79: the king's will cuts through wards untouched — shield-
+      // bypassing damage, endgame texture plus a resolver regression path.
+      move('Wardrender', 1, { kind: 'damage', attack: 'phys', power: 1.3, bypassShield: true }),
+      // #79: the sap only lands on flesh — a fully-shielded Crown never
+      // weakens (requireHpDamage rider gating).
+      hit('Crown of Night', 1.4, 'mag', 2, { ...SAP(0.3), requireHpDamage: true }),
     ],
     special: { every: 3, move: hit('Divide the Flame', 2.2, 'mag', 1) },
     drops: { m_void_fragment: 1.0, t_6: 0.7 },

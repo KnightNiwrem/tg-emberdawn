@@ -93,6 +93,9 @@ export interface EffectInstance {
   perRound?: number;
   pctOfMaxPerRound?: number;
   tickPhase?: 'roundEnd' | 'playerTurnStart';
+  /** Periodic damage skips the target's shield and bites HP directly
+   * (#79) — carried from the authored spec so ticks route correctly. */
+  bypassShield?: boolean;
   // ── shield payloads (#79 wires absorption) ──
   shieldAmount?: number;
   tags: EffectTag[];
@@ -132,6 +135,10 @@ export interface BattleState {
   /** Monotonic allocator for effect instance ids (persisted for
    * determinism across save/load). */
   effectSeq: number;
+  /** Current shield pool per side (#79): the absorbable value that
+   * post-mitigation damage drains before HP. The maximum is DERIVED from
+   * live shield contributions (maxShield), never stored. */
+  shield: { player: number; enemy: number };
   /** Completed rounds, oldest first (#67) — each a full player action +
    * enemy response. The renderer expands only the newest round and collapses
    * the rest; truncation (if ever needed) must keep rounds whole. */

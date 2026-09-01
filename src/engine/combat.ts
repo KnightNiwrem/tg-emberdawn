@@ -19,10 +19,14 @@ import { item as itemDefLookup } from '../content/items.ts';
 import { statsOf } from './character.ts';
 import { CLASSES } from './classes.ts';
 import {
+  absorbShield,
   applyInstance,
+  applyShieldExpiry,
   consumeStun,
+  grantShield,
   incomingAmpPct,
   mitigationPct,
+  type PeriodicTick,
   removeTagged,
   sapPct,
   seedForSpec,
@@ -93,6 +97,7 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     guarding: false,
     effectInstances: [],
     effectSeq: 0,
+    shield: { player: 0, enemy: 0 },
     // Structured history starts EMPTY (#67): the encounter introduction is
     // the zone/explore notice, not accumulated battle history — the battle
     // screen shows it once inside the opening "Your move" panel.
@@ -100,6 +105,24 @@ export function startBattle(enemyId: string, origin: BattleOrigin): BattleState 
     phoenixUsed: false,
     origin,
   };
+  // Pre-emptive boss ward (#79): ONLY on boss-provenance encounters — the
+  // same enemy id faced outside the boss floor never opens with it.
+  // One-time capacity, no regeneration, not dispellable.
+  if (isBoss && def.openingShield) {
+    grantShield(battle, 'enemy', {
+      defId: `opening:${def.id}`,
+      name: def.openingShield.name ?? 'Opening Ward',
+      kind: 'shield',
+      side: 'enemy',
+      source: { kind: 'encounter', id: def.id, name: def.name },
+      shieldAmount: def.openingShield.amount,
+      tags: ['beneficial'],
+      stacking: 'replace',
+      duration: def.openingShield.duration,
+      timing: 'immediate',
+      removable: false,
+    });
+  }
   return battle;
 }
 
@@ -166,10 +189,11 @@ function playerPhase(
 ): PlayerPhaseResult {
   const lines: string[] = [];
   // Turn-start periodic effects (#78) tick before anything else — poison
-  // does not care whether you can act.
-  for (const t of tickPlayerTurnStart(battle, maxHpOf(battle, p))) {
-    lines.push(...applyPeriodicTick(p, battle, t));
-  }
+  // does not care whether you can act. Expiring shield contributions cap
+  // the pool on the same beat (#79).
+  const started = tickPlayerTurnStart(battle, maxHpOf(battle, p));
+  for (const t of started.ticks) lines.push(...applyPeriodicTick(p, battle, t));
+  for (const loss of started.shieldLosses) lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
   if (consumeStun(battle, 'player')) {
     lines.push('💫 You are stunned and lose your turn!');
     return { lines, skipped: true, consumedTurn: true };
@@ -264,8 +288,9 @@ export function performAction(
   // ── End of round bookkeeping ────────────────────────────────────────
   battle.guarding = false;
   battle.round++;
-  const { ticks } = tickEndOfRound(battle, maxHpOf(battle, p));
+  const { ticks, shieldLosses } = tickEndOfRound(battle, maxHpOf(battle, p));
   for (const t of ticks) lines.push(...applyPeriodicTick(p, battle, t));
+  for (const loss of shieldLosses) lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
   for (const [k, v] of Object.entries(battle.cooldowns)) {
     if (v <= 1) delete battle.cooldowns[k];
     else battle.cooldowns[k] = v - 1;
@@ -282,7 +307,7 @@ export function performAction(
 function applyPeriodicTick(
   p: PlayerState,
   battle: BattleState,
-  t: { side: 'player' | 'enemy'; amount: number; name: string },
+  t: PeriodicTick,
 ): string[] {
   const lines: string[] = [];
   if (t.amount >= 0) {
@@ -298,14 +323,34 @@ function applyPeriodicTick(
     }
     return lines;
   }
-  const dmg = Math.min(-t.amount, t.side === 'player' ? p.hp : battle.enemy.hp);
+  const dmg = -t.amount;
+  // Periodic damage routes through the target's ward like any other
+  // damage (#79); the spec opts out with bypassShield. The pool takes the
+  // full tick first; only overflow reaches HP.
+  let hpDmg = dmg;
+  let absorbed = 0;
+  let broke = false;
+  if (!t.instance.bypassShield) {
+    const a = absorbShield(battle, t.side, dmg);
+    absorbed = a.absorbed;
+    hpDmg = a.hpDamage;
+    broke = a.broke;
+  }
   if (t.side === 'player') {
-    p.hp = Math.max(0, p.hp - dmg);
-    lines.push(`☠️ You take ${dmg} damage (${t.name}).`);
+    p.hp = Math.max(0, p.hp - hpDmg);
+    lines.push(
+      `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
+    );
+    if (broke) lines.push('🛡️ Your shield shatters!');
     if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
   } else {
-    battle.enemy.hp = Math.max(0, battle.enemy.hp - dmg);
-    lines.push(`☠️ ${battle.enemy.name} takes ${dmg} damage (${t.name}).`);
+    battle.enemy.hp = Math.max(0, battle.enemy.hp - hpDmg);
+    lines.push(
+      `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${t.name}).${
+        absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
+      }`,
+    );
+    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
   }
   return lines;
 }
@@ -328,6 +373,9 @@ interface ExecCtx {
   /** True when the last damage effect felled its target — later riders
    * with requireSurvivor skip. */
   targetFelled: boolean;
+  /** True when the last damage effect actually reduced its target's HP —
+   * fully-shielded hits never trigger `requireHpDamage` riders (#79). */
+  hpDamaged: boolean;
 }
 
 function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
@@ -377,6 +425,9 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     // Riders never land on a corpse — checked BEFORE the chance draw so a
     // felled target never consumes a roll (long-standing rng parity).
     if (spec.requireSurvivor && ctx.targetFelled) continue;
+    // Riders gated on real HP damage (#79): a fully-shielded hit never
+    // triggered the on-flesh effect. Checked BEFORE the chance draw.
+    if (spec.requireHpDamage && !ctx.hpDamaged) continue;
     if (spec.chance !== undefined && !chance(ctx.rng, spec.chance)) continue;
     const side = targetSideOf(spec, ctx.actor);
     switch (spec.kind) {
@@ -399,10 +450,32 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         }
         break;
       }
+      case 'shield': {
+        // Capacity formula (heal parity): MAG-scaled when magPower is set,
+        // flat otherwise. The caster's own sap scales it like any offense
+        // stat (#79).
+        const base = ctx.actor === 'player'
+          ? playerOffense(ctx.p, ctx.battle, 'mag')
+          : (enemyDef(ctx.battle.enemy.id)?.mag ?? 0) * (1 - sapPct(ctx.battle, 'enemy'));
+        const amount = Math.round(base * (spec.magPower ?? 0) * 2 + (spec.amount ?? 0));
+        const seed = seedForSpec(
+          spec,
+          instanceDefId(ctx, spec),
+          ctx.displayName,
+          side,
+          ctx.source,
+          amount,
+        );
+        const grant = grantShield(ctx.battle, side, seed);
+        const line = defaultInstanceLine(ctx, spec, side, amount);
+        if (line) lines.push(line);
+        if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over capacity — wasted.`);
+        if (grant.lost > 0) lines.push(`🛡️ ${grant.lost} shield capacity fades.`);
+        break;
+      }
       case 'statmod':
       case 'control':
-      case 'periodic':
-      case 'shield': {
+      case 'periodic': {
         const defId = instanceDefId(ctx, spec);
         const seed = seedForSpec(
           spec,
@@ -425,6 +498,10 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
             (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
           if (line) lines.push(line);
         }
+        // A removed ward contribution's capacity leaves the pool (#79).
+        for (const loss of applyShieldExpiry(ctx.battle, removed)) {
+          lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+        }
         break;
       }
       case 'dispel': {
@@ -434,6 +511,10 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
             spec.line?.replace('{n}', String(removed.length)) ??
               `✨ ${ctx.battle.enemy.name}'s benefits are stripped.`,
           );
+        }
+        // A stripped ward contribution's capacity leaves the pool (#79).
+        for (const loss of applyShieldExpiry(ctx.battle, removed)) {
+          lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
         }
         break;
       }
@@ -470,10 +551,11 @@ function defaultInstanceLine(
   ctx: ExecCtx,
   spec: EffectSpec,
   side: 'player' | 'enemy',
+  amount?: number,
 ): string | undefined {
   if (spec.quiet) return undefined;
   if (spec.line) {
-    const n = primaryAmount(spec);
+    const n = amount ?? primaryAmount(spec);
     return spec.line.replace('{n}', String(n));
   }
   const enemyName = ctx.battle.enemy.name;
@@ -496,8 +578,12 @@ function defaultInstanceLine(
       return side === 'player'
         ? `⏳ You are afflicted with ${spec.name}.`
         : `⏳ ${enemyName} is afflicted with ${spec.name}.`;
-    case 'shield':
-      return side === 'player' ? '🛡️ A ward settles over you.' : `🛡️ ${enemyName} is warded.`;
+    case 'shield': {
+      const cap = amount ?? spec.amount ?? 0;
+      return side === 'player'
+        ? `🛡️ A ward settles over you — absorbing up to ${cap} damage!`
+        : `🛡️ ${enemyName} raises a ward absorbing up to ${cap} damage!`;
+    }
     default:
       return undefined;
   }
@@ -538,19 +624,32 @@ function applyDamageEffect(
       rng,
       statsOf(p).luck,
     );
-    battle.enemy.hp = Math.max(0, battle.enemy.hp - res.dmg);
+    // Shield routing (#79): normal damage pools into the target's ward
+    // before HP; bypassShield lands on HP directly. lastDamage stays the
+    // FULL resolved damage — lifesteal drains what was dealt.
+    let hpDmg = res.dmg;
+    let absorbed = 0;
+    let broke = false;
+    if (!spec.bypassShield) {
+      const a = absorbShield(battle, 'enemy', res.dmg);
+      absorbed = a.absorbed;
+      hpDmg = a.hpDamage;
+      broke = a.broke;
+    }
+    battle.enemy.hp = Math.max(0, battle.enemy.hp - hpDmg);
     ctx.lastDamage = res.dmg;
+    ctx.hpDamaged = hpDmg > 0;
     ctx.targetFelled = battle.enemy.hp <= 0;
     const verb = spec.attack === 'phys' ? 'hits' : 'sears';
     const critSuffix = res.crit ? (spec.critText ?? ' — critical!') : '';
-    lines.push(
-      spec.line
-        ? spec.line.replace('{n}', String(res.dmg)).replace('{verb}', verb).replace(
-          '{crit}',
-          critSuffix,
-        )
-        : `${ctx.displayName} ${verb} ${battle.enemy.name} for ${res.dmg}${critSuffix}!`,
-    );
+    const body = spec.line
+      ? spec.line
+        .replace('{n}', String(hpDmg))
+        .replace('{verb}', verb)
+        .replace('{crit}', critSuffix)
+      : `${ctx.displayName} ${verb} ${battle.enemy.name} for ${hpDmg}${critSuffix}!`;
+    lines.push(absorbed > 0 ? `${body} (🛡️ ${absorbed} absorbed)` : body);
+    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
     return lines;
   }
   const offense = (spec.attack === 'phys' ? def.atk : def.mag) * (1 - sapPct(battle, 'enemy'));
@@ -561,10 +660,26 @@ function applyDamageEffect(
     (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, 'player')),
   );
   const dmg = variance(rng, raw);
-  p.hp = Math.max(0, p.hp - dmg);
+  // Shield routing (#79): mitigation first, ward second, HP last.
+  let hpDmg = dmg;
+  let absorbed = 0;
+  let broke = false;
+  if (!spec.bypassShield) {
+    const a = absorbShield(battle, 'player', dmg);
+    absorbed = a.absorbed;
+    hpDmg = a.hpDamage;
+    broke = a.broke;
+  }
+  p.hp = Math.max(0, p.hp - hpDmg);
   ctx.lastDamage = dmg;
+  ctx.hpDamaged = hpDmg > 0;
   ctx.targetFelled = p.hp <= 0;
-  lines.push(`💥 ${battle.enemy.name} uses ${ctx.displayName} — ${dmg} damage to you!`);
+  lines.push(
+    `💥 ${battle.enemy.name} uses ${ctx.displayName} — ${hpDmg} damage to you!${
+      absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
+    }`,
+  );
+  if (broke) lines.push('🛡️ Your shield shatters!');
   if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
   return lines;
 }
@@ -635,6 +750,7 @@ function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng)
     displayName: sk.name,
     lastDamage: 0,
     targetFelled: false,
+    hpDamaged: false,
   };
   lines.push(...executeSpecs(ctx, sk.effects));
   return lines;
@@ -668,6 +784,7 @@ function applyPlayerAction(
         displayName: basic.name,
         lastDamage: 0,
         targetFelled: false,
+        hpDamaged: false,
       };
       lines.push(...executeSpecs(ctx, [{
         kind: 'damage',
@@ -820,6 +937,7 @@ function enemyAct(
     displayName: move.name,
     lastDamage: 0,
     targetFelled: false,
+    hpDamaged: false,
   };
   lines.push(...executeSpecs(ctx, move.effects));
   return lines;

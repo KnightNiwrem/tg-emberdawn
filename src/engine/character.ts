@@ -92,7 +92,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 6;
+export const CURRENT_STATE_VERSION = 7;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -340,6 +340,13 @@ export function migratePlayer(p: PlayerState): void {
       delete rec.enemyGuardTurns;
     }
     p.stateVersion = 6;
+  }
+  if (p.stateVersion === 6) {
+    // v6→v7 (#79): battles carry the current-shield pool per side. Nothing
+    // pre-#79 could grant shields, so in-flight battles initialize at zero
+    // capacity on both sides; contributions are never synthesized.
+    if (p.battle) p.battle.shield ??= { player: 0, enemy: 0 };
+    p.stateVersion = 7;
   }
   if (p.stateVersion === CURRENT_STATE_VERSION) return;
   // Pre-launch saves older than the earliest migration step are disposable:

@@ -544,7 +544,7 @@ Deno.test('combat: Blessing empowers MAG/DEF — never Cleric-dead ATK (#77)', (
 });
 
 Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip damage (#25)', () => {
-  const rng = seeded(75);
+  const rng = seeded(3);
   const p = createPlayer(66, 'T', 'warrior');
   p.level = 45;
   // Ruin Sentinel: Guard Stance (weight 1 vs Stone Fist 3).
@@ -915,12 +915,15 @@ Deno.test('content integrity: enemies reference real drop items', () => {
 });
 
 Deno.test('content integrity: skills are complete per class and learnable in order', () => {
+  // #79: the Cleric gains a ninth skill (Aegis of Dawn); the other kits
+  // keep their authored eight.
+  const expected = { warrior: 8, mage: 8, rogue: 8, cleric: 9 } as const;
   for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
     const skills = skillsForClass(cid, MAX_LEVEL);
-    assertEquals(skills.length, 8, `${cid} should have 8 skills`);
+    assertEquals(skills.length, expected[cid], `${cid} kit size`);
     for (const s of skills) assert(SKILLS.includes(s));
   }
-  assertEquals(SKILLS.length, 32);
+  assertEquals(SKILLS.length, 33);
 });
 
 Deno.test('skills: menu order is ascending by learn level; ties keep authored order (#77)', () => {
@@ -1203,8 +1206,25 @@ Deno.test('catalog: skill descriptions state the exact authored mechanics (#71, 
             `${s.id}: control chance must be quoted: ${s.desc}`,
           );
           break;
+        case 'shield':
+          if (e.magPower !== undefined) {
+            assert(
+              s.desc.includes(`${Math.round(e.magPower * 200)}% of MAG`),
+              `${s.id}: ward MAG scaling must be quoted: ${s.desc}`,
+            );
+            assert(
+              s.desc.includes(`+ ${e.amount ?? 0} damage`),
+              `${s.id}: flat ward component must be quoted: ${s.desc}`,
+            );
+          } else {
+            assert(
+              s.desc.includes(`${e.amount ?? 0} damage`),
+              `${s.id}: ward capacity must be quoted: ${s.desc}`,
+            );
+          }
+          break;
         default:
-          // cleanse/dispel/resource/shield copy is covered by behavior tests.
+          // cleanse/dispel/resource copy is covered by behavior tests.
           break;
       }
     }

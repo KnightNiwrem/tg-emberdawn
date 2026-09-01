@@ -392,6 +392,18 @@ export const SKILLS: readonly SkillDef[] = [
     desc: '185% MAG.',
   }),
   S({
+    id: 'sk_aegis',
+    name: 'Aegis of Dawn',
+    classId: 'cleric',
+    learnLevel: 14,
+    mpCost: 14,
+    cooldown: 3,
+    type: 'buff',
+    // #79: a real ward — capacity scales like a heal (MAG * power * 2).
+    effects: [{ kind: 'shield', magPower: 1.2, amount: 20, duration: 3, timing: 'immediate' }],
+    desc: 'A dawn ward absorbs 240% of MAG + 20 damage for 3 rounds.',
+  }),
+  S({
     id: 'sk_holy_ward',
     name: 'Holy Ward',
     classId: 'cleric',

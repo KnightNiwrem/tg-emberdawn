@@ -75,6 +75,10 @@ interface EffectSpecBase {
    * felled its target (riders never land on a corpse). Checked BEFORE the
    * chance draw, so dead targets never consume a roll. */
   requireSurvivor?: true;
+  /** Skips this effect unless the preceding damage effect in the same
+   * list actually reduced the target's HP (#79) — a fully-shielded hit
+   * never triggered the on-flesh rider. Checked BEFORE the chance draw. */
+  requireHpDamage?: true;
 }
 
 export type EffectSpec =
@@ -88,6 +92,8 @@ export type EffectSpec =
     /** Critical suffix when the line template's `{crit}` placeholder is
      * used (default ' — critical!'). */
     critText?: string;
+    /** HP takes the full damage; the target's shield is untouched (#79). */
+    bypassShield?: true;
   })
   | (EffectSpecBase & {
     kind: 'restore';
@@ -141,6 +147,9 @@ export type EffectSpec =
     pctOfMaxPerRound?: number;
     duration: number;
     tickPhase: 'roundEnd' | 'playerTurnStart';
+    /** Periodic damage normally routes through the target's shield first
+     * (#79); set this to bite HP directly. */
+    bypassShield?: true;
     /** Display name (Poison, Regeneration…). */
     name: string;
   })
@@ -166,8 +175,9 @@ export type EffectSpec =
   | (EffectSpecBase & {
     kind: 'shield';
     target?: 'self' | 'opponent';
-    /** Flat capacity, or MAG-scaled when `magPower` is set. The absorbable
-     * pool itself is wired by #79 — #78 grants and displays the instance. */
+    /** Flat capacity, or MAG-scaled when `magPower` is set (heal-formula
+     * parity: MAG * magPower * 2 + amount). The pool itself is ONE shared
+     * per-side value over live contributions (#79). */
     amount?: number;
     magPower?: number;
     duration: number;
@@ -264,6 +274,11 @@ export interface EnemyDef {
   xp: number;
   gold: number;
   boss?: boolean;
+  /** Pre-emptive ward for boss-provenance encounters (#79): granted at
+   * battle start ONLY when the origin marks the boss fight — the same
+   * enemy id faced outside the boss floor never opens with it. One-time
+   * capacity (no regeneration), not dispellable. */
+  openingShield?: { amount: number; duration: number; name?: string };
   /** Tutorial fixture (#69/#74): flagged encounters must never fell a
    * correctly acting full-health hero — enforced by the balance harness
    * (tests/balance_test.ts). Ordinary content must not set this. */

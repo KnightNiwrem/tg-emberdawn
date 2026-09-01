@@ -11,7 +11,7 @@ import { item } from '../content/items.ts';
 import { CLASSES } from '../engine/classes.ts';
 import { statsOf } from '../engine/character.ts';
 import { consumables } from '../engine/inventory.ts';
-import { hasRemovableTagged } from '../engine/effects.ts';
+import { hasRemovableTagged, maxShield } from '../engine/effects.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { bar, buttonsRow, cbBtn, disabledBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
@@ -213,6 +213,13 @@ export function renderBattle(p: PlayerState): InputRichMessage {
     ));
     blocks.push(para(`❤️ ${b.enemy.hp}/${b.enemy.maxHp}`));
     blocks.push(para(bar(b.enemy.hp, b.enemy.maxHp)));
+    const eShieldMax = maxShield(b, 'enemy');
+    if (eShieldMax > 0) {
+      blocks.push(para(
+        `🛡️ Shield ${b.shield.enemy}/${eShieldMax}${b.shield.enemy === 0 ? ' (depleted)' : ''}`,
+      ));
+      blocks.push(para(bar(b.shield.enemy, eShieldMax)));
+    }
     blocks.push(...effectsBlocks(b, 'enemy'));
     blocks.push({ type: 'divider' });
     // YOU section — never visually continuous with the enemy's bars (#67).
@@ -222,6 +229,13 @@ export function renderBattle(p: PlayerState): InputRichMessage {
     blocks.push(para(bar(p.hp, s.maxHp)));
     blocks.push(para(`💧 ${p.mp}/${s.maxMp}`));
     blocks.push(para(bar(p.mp, s.maxMp)));
+    const pShieldMax = maxShield(b, 'player');
+    if (pShieldMax > 0) {
+      blocks.push(para(
+        `🛡️ Shield ${b.shield.player}/${pShieldMax}${b.shield.player === 0 ? ' (depleted)' : ''}`,
+      ));
+      blocks.push(para(bar(b.shield.player, pShieldMax)));
+    }
     if (b.guarding) blocks.push(para('🛡️ Guarding'));
     blocks.push(...effectsBlocks(b, 'player'));
     // Latest completed round expanded; everything older collapsed (#67).

@@ -173,6 +173,10 @@ export interface FightResult {
   dodges: number;
   healDone: number;
   overheal: number;
+  shieldGranted: number;
+  shieldAbsorbed: number;
+  shieldWasted: number;
+  shieldExpiryLost: number;
 }
 
 const STRIKE = /(?:hits|sears) .* for (\d+)/;
@@ -180,6 +184,10 @@ const TAKEN = /— (\d+) damage to you/;
 const CRIT = '— critical';
 const DODGE = 'slip aside';
 const ENEMY_HEAL = /recovers (\d+) HP/;
+const SHIELD_GRANT = /absorbing up to (\d+)/;
+const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
+const SHIELD_WASTE = /(\d+) over capacity/;
+const SHIELD_FADE = /(\d+) shield capacity fades/;
 
 /** Expected heal of a heal-type skill (mirrors combat.ts formulas, #78:
  * read from the ordered restore effect, folded live buffs included). */
@@ -230,6 +238,10 @@ export function runFight(
     dodges: 0,
     healDone: 0,
     overheal: 0,
+    shieldGranted: 0,
+    shieldAbsorbed: 0,
+    shieldWasted: 0,
+    shieldExpiryLost: 0,
   };
   while (b.phase === 'active' && rounds < 200) {
     const action = chooseAction(p, b, policy, lastWasGuard);
@@ -247,6 +259,14 @@ export function runFight(
       if (line.includes(DODGE)) result.dodges++;
       const eh = ENEMY_HEAL.exec(line);
       if (eh) result.dealt -= Number(eh[1]);
+      const granted = SHIELD_GRANT.exec(line);
+      if (granted) result.shieldGranted += Number(granted[1]);
+      const absorbed = SHIELD_ABSORB.exec(line);
+      if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
+      const wasted = SHIELD_WASTE.exec(line);
+      if (wasted) result.shieldWasted += Number(wasted[1]);
+      const faded = SHIELD_FADE.exec(line);
+      if (faded) result.shieldExpiryLost += Number(faded[1]);
     }
     if (action.kind === 'guard') {
       result.guardRounds++;
@@ -434,6 +454,10 @@ export interface CellStat {
   dodgesPerFight: number;
   healPerFight: number;
   overhealPerFight: number;
+  avgShieldGranted: number;
+  avgShieldAbsorbed: number;
+  avgShieldWasted: number;
+  avgShieldExpiryLost: number;
 }
 
 const r4 = (n: number): number => Math.round(n * 10000) / 10000;
@@ -458,6 +482,10 @@ export function runCell(spec: CellSpec): CellStat {
     dodges: 0,
     heals: 0,
     overheal: 0,
+    shieldGranted: 0,
+    shieldAbsorbed: 0,
+    shieldWasted: 0,
+    shieldExpiryLost: 0,
   };
   const rng = (() => {
     let a = spec.seed >>> 0;
@@ -495,6 +523,10 @@ export function runCell(spec: CellSpec): CellStat {
     acc.dodges += res.dodges;
     acc.heals += res.healDone;
     acc.overheal += res.overheal;
+    acc.shieldGranted += res.shieldGranted;
+    acc.shieldAbsorbed += res.shieldAbsorbed;
+    acc.shieldWasted += res.shieldWasted;
+    acc.shieldExpiryLost += res.shieldExpiryLost;
   }
   const f = spec.fights;
   const wins = acc.wins;
@@ -520,6 +552,10 @@ export function runCell(spec: CellSpec): CellStat {
     dodgesPerFight: r3(acc.dodges / f),
     healPerFight: r2(acc.heals / f),
     overhealPerFight: r2(acc.overheal / f),
+    avgShieldGranted: r2(acc.shieldGranted / f),
+    avgShieldAbsorbed: r2(acc.shieldAbsorbed / f),
+    avgShieldWasted: r3(acc.shieldWasted / f),
+    avgShieldExpiryLost: r3(acc.shieldExpiryLost / f),
   };
 }
 
