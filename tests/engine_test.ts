@@ -915,16 +915,54 @@ Deno.test('content integrity: enemies reference real drop items', () => {
 });
 
 Deno.test('content integrity: skills are complete per class and learnable in order', () => {
-  // #79: the Cleric gained a ninth skill (Aegis of Dawn). #80: the Rogue
-  // likewise gains a ninth (Expose Weakness, pre-emptive); other kits keep
-  // their authored eight.
-  const expected = { warrior: 8, mage: 8, rogue: 9, cleric: 9 } as const;
+  // #81: every class expanded to twelve skills across levels 1–45 (#79
+  // gave the Cleric and #80 the Rogue their ninth; this is the full roster).
+  const expected = { warrior: 12, mage: 12, rogue: 12, cleric: 12 } as const;
   for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
     const skills = skillsForClass(cid, MAX_LEVEL);
     assertEquals(skills.length, expected[cid], `${cid} kit size`);
     for (const s of skills) assert(SKILLS.includes(s));
   }
-  assertEquals(SKILLS.length, 34);
+  assertEquals(SKILLS.length, 48);
+});
+
+Deno.test('migration v8: expanded rosters union into existing heroes exactly once (#81)', () => {
+  // A v7 hero at the cap must receive every #81 skill its level has
+  // crossed — exactly once, in ascending learn order.
+  const p = createPlayer(1, 'T', 'warrior');
+  let xp = 0;
+  for (let l = 1; l < 45; l++) xp += xpForNextLevel(l);
+  grantXp(p, xp);
+  assertEquals(p.level, 45);
+  p.skills = [
+    'sk_cleave',
+    'sk_shield_bash',
+    'sk_war_cry',
+    'sk_whirlwind',
+    'sk_iron_wall',
+    'sk_executioner',
+    'sk_adrenaline',
+    'sk_titans_fall',
+  ]; // the v7 warrior kit — the #81 skills did not exist yet
+  p.stateVersion = 7;
+  migratePlayer(p);
+  assertEquals(p.stateVersion, 8);
+  assertEquals(
+    p.skills,
+    skillsForClass('warrior', MAX_LEVEL).map((s) => s.id),
+    'full ascending union, no duplicates',
+  );
+
+  // A mid-band v7 hero only gains what its level has crossed:
+  const mid = createPlayer(2, 'T', 'mage');
+  let xp2 = 0;
+  for (let l = 1; l < 8; l++) xp2 += xpForNextLevel(l);
+  grantXp(mid, xp2);
+  assertEquals(mid.level, 8);
+  mid.skills = ['sk_firebolt', 'sk_frost_lance']; // v7: Scorch did not exist
+  mid.stateVersion = 7;
+  migratePlayer(mid);
+  assertEquals(mid.skills, ['sk_firebolt', 'sk_frost_lance', 'sk_scorch']);
 });
 
 Deno.test('skills: menu order is ascending by learn level; ties keep authored order (#77)', () => {

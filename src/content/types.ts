@@ -99,6 +99,9 @@ export type EffectSpec =
     critText?: string;
     /** HP takes the full damage; the target's shield is untouched (#79). */
     bypassShield?: true;
+    /** Execute window (#81): when the target's HP fraction is already
+     * below `belowPct`, the strike deals `bonusPct` extra damage. */
+    execute?: { belowPct: number; bonusPct: number };
   })
   | (EffectSpecBase & {
     kind: 'restore';
@@ -185,6 +188,9 @@ export type EffectSpec =
      * per-side value over live contributions (#79). */
     amount?: number;
     magPower?: number;
+    /** DEF-scaled capacity (#81): DEF * defPower * 2 + amount — warrior
+     * wards scale off the stat the class actually has. */
+    defPower?: number;
     duration: number;
     timing: 'defer' | 'immediate';
     name?: string;

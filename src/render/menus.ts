@@ -208,7 +208,7 @@ export function renderSkills(p: PlayerState): InputRichMessage {
         type: 'bold',
         text: `${have ? '✅' : `🔒 Lv ${sk.learnLevel}`} ${sk.name} — ${sk.mpCost} MP${
           sk.cooldown ? ` · CD ${sk.cooldown}` : ''
-        }`,
+        }${sk.preEmptive ? ' · ⚡ battle open' : ''}`,
       } as RichText,
       { type: 'italic', text: `\n${sk.desc}` } as RichText,
     ]));

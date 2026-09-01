@@ -327,6 +327,15 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
       ], 'left'),
     );
   }
+  // Pre-emptive skills (#80/#81) never render as cast buttons — labeled
+  // info rows only, so the activation type is explicit.
+  for (const sk of all) {
+    if (!learned.has(sk.id) || !sk.preEmptive) continue;
+    blocks.push(para([{
+      type: 'italic',
+      text: `⚡ ${sk.name} — fires automatically as the battle opens. ${sk.desc}`,
+    } as RichText]));
+  }
   if (usable.length === 0) {
     blocks.push(para('No skills learned yet — level up!'));
   }

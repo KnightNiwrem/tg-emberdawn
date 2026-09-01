@@ -491,14 +491,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.27,
-      "avgHpPctEnd": 0.985,
-      "avgMpPctEnd": 0.9176,
-      "avgDealt": 91.89,
-      "avgTaken": 2.25,
+      "avgRoundsWin": 1.38,
+      "avgHpPctEnd": 0.9801,
+      "avgMpPctEnd": 0.9138,
+      "avgDealt": 96.23,
+      "avgTaken": 2.99,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.12,
+      "critsPerFight": 0.085,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -508,7 +508,7 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.38,
+      "avgMpSpent": 11.9,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -517,15 +517,18 @@
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_frost_lance": 1,
-        "sk_firebolt": 0.275
+        "sk_firebolt": 0.38
       },
       "effectRounds": {
-        "player:sap": 0.055
+        "enemy:sk_frost_lance": 0.32,
+        "player:sap": 0.065
       },
       "effectApplications": {
-        "player:sap": 0.055
+        "enemy:sk_frost_lance": 0.32,
+        "player:sap": 0.065
       },
       "effectSources": {
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Web Snare"
       }
     },
@@ -540,15 +543,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.23,
-      "avgHpPctEnd": 0.9859,
-      "avgMpPctEnd": 0.9328,
-      "avgDealt": 104.11,
-      "avgTaken": 2.54,
+      "avgRoundsWin": 1.18,
+      "avgHpPctEnd": 0.9901,
+      "avgMpPctEnd": 0.9343,
+      "avgDealt": 98.87,
+      "avgTaken": 1.78,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.125,
-      "dodgesPerFight": 0.01,
+      "critsPerFight": 0.105,
+      "dodgesPerFight": 0.005,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -557,7 +560,7 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.15,
+      "avgMpSpent": 10.9,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -566,15 +569,18 @@
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_frost_lance": 1,
-        "sk_firebolt": 0.23
+        "sk_firebolt": 0.18
       },
       "effectRounds": {
-        "player:sap": 0.01
+        "enemy:sk_frost_lance": 0.13,
+        "player:sap": 0.025
       },
       "effectApplications": {
-        "player:sap": 0.01
+        "enemy:sk_frost_lance": 0.13,
+        "player:sap": 0.025
       },
       "effectSources": {
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Web Snare"
       }
     },
@@ -2531,13 +2537,13 @@
       "timeoutRate": 0,
       "avgRoundsWin": 0,
       "avgHpPctEnd": 0,
-      "avgMpPctEnd": 0.4975,
-      "avgDealt": 305.51,
-      "avgTaken": 146.42,
+      "avgMpPctEnd": 0.5223,
+      "avgDealt": 283.51,
+      "avgTaken": 147.75,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.6,
-      "dodgesPerFight": 0.18,
+      "critsPerFight": 0.65,
+      "dodgesPerFight": 0.195,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2546,7 +2552,7 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 56.28,
+      "avgMpSpent": 53.5,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2554,16 +2560,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 3.09,
-        "sk_firebolt": 5.075
+        "sk_frost_lance": 2.97,
+        "sk_firebolt": 4.76
       },
       "effectRounds": {
-        "player:sap": 2.275
+        "enemy:sk_frost_lance": 2.38,
+        "player:sap": 2.285
       },
       "effectApplications": {
-        "player:sap": 1.705
+        "enemy:sk_frost_lance": 2.38,
+        "player:sap": 1.69
       },
       "effectSources": {
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Silk Prison"
       }
     },
@@ -2575,18 +2584,18 @@
       "items": false,
       "pool": "boss:e_aranya@t2",
       "fights": 200,
-      "winRate": 0.97,
-      "lossRate": 0.03,
+      "winRate": 0.935,
+      "lossRate": 0.065,
       "timeoutRate": 0,
-      "avgRoundsWin": 9.59,
-      "avgHpPctEnd": 0.2138,
-      "avgMpPctEnd": 0.5223,
-      "avgDealt": 510.18,
-      "avgTaken": 118.05,
+      "avgRoundsWin": 9.87,
+      "avgHpPctEnd": 0.1477,
+      "avgMpPctEnd": 0.5087,
+      "avgDealt": 506.59,
+      "avgTaken": 128.09,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.835,
-      "dodgesPerFight": 0.18,
+      "critsPerFight": 0.83,
+      "dodgesPerFight": 0.235,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2595,7 +2604,7 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 65.93,
+      "avgMpSpent": 67.8,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2603,16 +2612,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 3.595,
-        "sk_firebolt": 5.995
+        "sk_frost_lance": 3.72,
+        "sk_firebolt": 6.12
       },
       "effectRounds": {
-        "player:sap": 2.44
+        "enemy:sk_frost_lance": 3.21,
+        "player:sap": 2.765
       },
       "effectApplications": {
-        "player:sap": 1.9
+        "enemy:sk_frost_lance": 3.21,
+        "player:sap": 2.125
       },
       "effectSources": {
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Silk Prison"
       }
     },
@@ -2627,15 +2639,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 8.06,
-      "avgHpPctEnd": 0.4929,
-      "avgMpPctEnd": 0.6654,
-      "avgDealt": 515.09,
-      "avgTaken": 91.28,
+      "avgRoundsWin": 8.22,
+      "avgHpPctEnd": 0.4471,
+      "avgMpPctEnd": 0.6598,
+      "avgDealt": 512.27,
+      "avgTaken": 99.52,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.68,
-      "dodgesPerFight": 0.165,
+      "critsPerFight": 0.69,
+      "dodgesPerFight": 0.15,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -2644,7 +2656,7 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 55.55,
+      "avgMpSpent": 56.48,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -2652,16 +2664,19 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 3.055,
-        "sk_firebolt": 5
+        "sk_frost_lance": 3.075,
+        "sk_firebolt": 5.145
       },
       "effectRounds": {
-        "player:sap": 2.19
+        "enemy:sk_frost_lance": 2.855,
+        "player:sap": 2.35
       },
       "effectApplications": {
-        "player:sap": 1.615
+        "enemy:sk_frost_lance": 2.855,
+        "player:sap": 1.745
       },
       "effectSources": {
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Silk Prison"
       }
     },
@@ -2969,41 +2984,45 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.51,
-      "avgHpPctEnd": 0.9974,
-      "avgMpPctEnd": 0.8997,
-      "avgDealt": 94.63,
-      "avgTaken": 0.62,
+      "avgRoundsWin": 2.53,
+      "avgHpPctEnd": 1,
+      "avgMpPctEnd": 0.7647,
+      "avgDealt": 96.62,
+      "avgTaken": 0,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.09,
-      "dodgesPerFight": 0.02,
+      "critsPerFight": 0.11,
+      "dodgesPerFight": 0.075,
       "healPerFight": 0,
       "overhealPerFight": 0,
-      "avgShieldGranted": 0,
-      "avgShieldAbsorbed": 0,
+      "avgShieldGranted": 75,
+      "avgShieldAbsorbed": 1.85,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0,
+      "avgShieldExpiryLost": 4.335,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 6.02,
+      "avgMpSpent": 14.12,
       "avgBuffCasts": 0,
-      "avgShieldCasts": 0,
+      "avgShieldCasts": 1,
       "avgDotCasts": 0,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_cleave": 1.505
+        "sk_bulwark": 1,
+        "sk_cleave": 1.53
       },
       "effectRounds": {
-        "player:sap": 0.075
+        "player:sk_bulwark": 1.465,
+        "player:sap": 0.155
       },
       "effectApplications": {
-        "player:sap": 0.075
+        "player:sk_bulwark": 1,
+        "player:sap": 0.135
       },
       "effectSources": {
-        "player:sap": "enemyMove:Web Snare"
+        "player:sk_bulwark": "skill:Bulwark",
+        "player:sap": "enemyMove:Howl"
       }
     },
     {
@@ -3017,45 +3036,49 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.1,
-      "avgHpPctEnd": 0.9964,
-      "avgMpPctEnd": 0.7946,
-      "avgDealt": 109.2,
-      "avgTaken": 1.03,
+      "avgRoundsWin": 3.11,
+      "avgHpPctEnd": 1,
+      "avgMpPctEnd": 0.6794,
+      "avgDealt": 108.77,
+      "avgTaken": 0,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.065,
-      "dodgesPerFight": 0.03,
+      "critsPerFight": 0.075,
+      "dodgesPerFight": 0.055,
       "healPerFight": 0,
       "overhealPerFight": 0,
-      "avgShieldGranted": 0,
-      "avgShieldAbsorbed": 0,
+      "avgShieldGranted": 84,
+      "avgShieldAbsorbed": 1.92,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0,
+      "avgShieldExpiryLost": 8.92,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 14.38,
+      "avgMpSpent": 22.44,
       "avgBuffCasts": 1,
-      "avgShieldCasts": 0,
+      "avgShieldCasts": 1,
       "avgDotCasts": 0,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
+        "sk_bulwark": 1,
         "sk_war_cry": 1,
-        "sk_cleave": 1.095
+        "sk_cleave": 1.11
       },
       "effectRounds": {
-        "player:sk_war_cry": 1.095,
-        "player:sap": 0.06
+        "player:sk_bulwark": 2,
+        "player:sk_war_cry": 1.11,
+        "player:sap": 0.285
       },
       "effectApplications": {
+        "player:sk_bulwark": 1,
         "player:sk_war_cry": 1,
-        "player:sap": 0.06
+        "player:sap": 0.225
       },
       "effectSources": {
+        "player:sk_bulwark": "skill:Bulwark",
         "player:sk_war_cry": "skill:War Cry",
-        "player:sap": "enemyMove:Howl"
+        "player:sap": "enemyMove:Web Snare"
       }
     },
     {
@@ -3069,53 +3092,61 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 5.68,
-      "avgHpPctEnd": 0.7745,
-      "avgMpPctEnd": 0.6548,
-      "avgDealt": 624.33,
-      "avgTaken": 133.26,
+      "avgRoundsWin": 9.31,
+      "avgHpPctEnd": 0.9238,
+      "avgMpPctEnd": 0.3143,
+      "avgDealt": 615.03,
+      "avgTaken": 45.05,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.53,
-      "dodgesPerFight": 0.18,
+      "critsPerFight": 0.4,
+      "dodgesPerFight": 0.32,
       "healPerFight": 0,
       "overhealPerFight": 0,
-      "avgShieldGranted": 0,
-      "avgShieldAbsorbed": 0,
+      "avgShieldGranted": 534.23,
+      "avgShieldAbsorbed": 187.95,
       "avgShieldWasted": 0,
-      "avgShieldExpiryLost": 0,
+      "avgShieldExpiryLost": 182.67,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 51.78,
-      "avgBuffCasts": 2.01,
-      "avgShieldCasts": 0,
+      "avgMpSpent": 102.86,
+      "avgBuffCasts": 3.27,
+      "avgShieldCasts": 2.635,
       "avgDotCasts": 0,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_war_cry": 1.005,
-        "sk_iron_wall": 1.005,
-        "sk_whirlwind": 1.7,
-        "sk_cleave": 1.97
+        "sk_bulwark": 2.635,
+        "sk_war_cry": 1.635,
+        "sk_iron_wall": 1.635,
+        "sk_whirlwind": 1.98,
+        "sk_sunder_armor": 1.305,
+        "sk_cleave": 0.12
       },
       "effectRounds": {
         "player:e_chronowisp": 2,
-        "player:sk_war_cry": 3.01,
-        "player:sk_iron_wall": 2.005,
-        "player:sap": 1.61
+        "player:sk_bulwark": 4.92,
+        "player:sk_war_cry": 4.905,
+        "player:sap": 2.995,
+        "player:sk_iron_wall": 3.27,
+        "enemy:sk_sunder_armor": 1.735
       },
       "effectApplications": {
         "player:e_chronowisp": 1,
-        "player:sk_war_cry": 1.005,
-        "player:sk_iron_wall": 1.005,
-        "player:sap": 1.18
+        "player:sk_bulwark": 2.635,
+        "player:sk_war_cry": 1.635,
+        "player:sap": 1.985,
+        "player:sk_iron_wall": 1.635,
+        "enemy:sk_sunder_armor": 0.98
       },
       "effectSources": {
         "player:e_chronowisp": "enemyMove:Chrono Anchor",
+        "player:sk_bulwark": "skill:Bulwark",
         "player:sk_war_cry": "skill:War Cry",
+        "player:sap": "enemyMove:Stutter",
         "player:sk_iron_wall": "skill:Iron Wall",
-        "player:sap": "enemyMove:Stutter"
+        "enemy:sk_sunder_armor": "skill:Sunder Armor"
       }
     },
     {
@@ -3129,14 +3160,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 1.35,
-      "avgHpPctEnd": 0.9828,
-      "avgMpPctEnd": 0.9149,
-      "avgDealt": 96.03,
-      "avgTaken": 2.58,
+      "avgRoundsWin": 1.39,
+      "avgHpPctEnd": 0.971,
+      "avgMpPctEnd": 0.91,
+      "avgDealt": 88.17,
+      "avgTaken": 4.35,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.105,
+      "critsPerFight": 0.12,
       "dodgesPerFight": 0.01,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -3146,24 +3177,31 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.75,
+      "avgMpSpent": 12.43,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
-      "avgDotCasts": 0,
+      "avgDotCasts": 1,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_frost_lance": 1,
-        "sk_firebolt": 0.35
+        "sk_scorch": 1,
+        "sk_frost_lance": 0.3,
+        "sk_firebolt": 0.085
       },
       "effectRounds": {
-        "player:sap": 0.07
+        "enemy:sk_scorch": 0.385,
+        "enemy:sk_frost_lance": 0.085,
+        "player:sap": 0.055
       },
       "effectApplications": {
-        "player:sap": 0.07
+        "enemy:sk_scorch": 0.3,
+        "enemy:sk_frost_lance": 0.085,
+        "player:sap": 0.055
       },
       "effectSources": {
+        "enemy:sk_scorch": "skill:Scorch",
+        "enemy:sk_frost_lance": "skill:Frost Lance",
         "player:sap": "enemyMove:Web Snare"
       }
     },
@@ -3178,15 +3216,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.27,
-      "avgHpPctEnd": 0.9868,
-      "avgMpPctEnd": 0.8593,
-      "avgDealt": 105.3,
-      "avgTaken": 2.38,
+      "avgRoundsWin": 2.26,
+      "avgHpPctEnd": 0.9876,
+      "avgMpPctEnd": 0.8589,
+      "avgDealt": 90.89,
+      "avgTaken": 2.24,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.15,
-      "dodgesPerFight": 0.01,
+      "critsPerFight": 0.13,
+      "dodgesPerFight": 0.07,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -3195,29 +3233,36 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 23.35,
+      "avgMpSpent": 23.43,
       "avgBuffCasts": 1,
       "avgShieldCasts": 0,
-      "avgDotCasts": 0,
+      "avgDotCasts": 1,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_barrier": 1,
-        "sk_frost_lance": 1,
-        "sk_firebolt": 0.27
+        "sk_scorch": 1,
+        "sk_frost_lance": 0.23,
+        "sk_firebolt": 0.025
       },
       "effectRounds": {
-        "player:sk_barrier": 2.41,
-        "player:sap": 0.155
+        "player:sk_barrier": 2.46,
+        "player:sap": 0.155,
+        "enemy:sk_scorch": 0.255,
+        "enemy:sk_frost_lance": 0.025
       },
       "effectApplications": {
         "player:sk_barrier": 2,
-        "player:sap": 0.14
+        "player:sap": 0.135,
+        "enemy:sk_scorch": 0.23,
+        "enemy:sk_frost_lance": 0.025
       },
       "effectSources": {
-        "player:sk_barrier": "skill:Barrier",
-        "player:sap": "enemyMove:Web Snare"
+        "player:sk_barrier": "skill:Arcane Ward",
+        "player:sap": "enemyMove:Web Snare",
+        "enemy:sk_scorch": "skill:Scorch",
+        "enemy:sk_frost_lance": "skill:Frost Lance"
       }
     },
     {
@@ -3231,15 +3276,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 4.76,
-      "avgHpPctEnd": 0.9793,
-      "avgMpPctEnd": 0.8111,
-      "avgDealt": 654,
-      "avgTaken": 9.51,
+      "avgRoundsWin": 4.69,
+      "avgHpPctEnd": 0.9771,
+      "avgMpPctEnd": 0.8469,
+      "avgDealt": 568.43,
+      "avgTaken": 9.88,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.45,
-      "dodgesPerFight": 0.13,
+      "critsPerFight": 0.435,
+      "dodgesPerFight": 0.175,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -3248,33 +3293,40 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 68.01,
+      "avgMpSpent": 55.12,
       "avgBuffCasts": 1,
       "avgShieldCasts": 0,
-      "avgDotCasts": 0,
+      "avgDotCasts": 1.47,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
         "sk_barrier": 1,
-        "sk_arcane_surge": 1.75,
-        "sk_frost_lance": 1.01,
-        "sk_drain_life": 0.995
+        "sk_scorch": 1.47,
+        "sk_arcane_surge": 1.035,
+        "sk_frost_lance": 1,
+        "sk_drain_life": 0.185
       },
       "effectRounds": {
         "player:e_chronowisp": 2,
         "player:sk_barrier": 4,
-        "player:sap": 1.4
+        "player:sap": 1.38,
+        "enemy:sk_scorch": 2.035,
+        "enemy:sk_frost_lance": 0.655
       },
       "effectApplications": {
         "player:e_chronowisp": 1,
         "player:sk_barrier": 2,
-        "player:sap": 1.005
+        "player:sap": 0.98,
+        "enemy:sk_scorch": 1.035,
+        "enemy:sk_frost_lance": 0.655
       },
       "effectSources": {
         "player:e_chronowisp": "enemyMove:Chrono Anchor",
-        "player:sk_barrier": "skill:Barrier",
-        "player:sap": "enemyMove:Stutter"
+        "player:sk_barrier": "skill:Arcane Ward",
+        "player:sap": "enemyMove:Stutter",
+        "enemy:sk_scorch": "skill:Scorch",
+        "enemy:sk_frost_lance": "skill:Frost Lance"
       }
     },
     {
@@ -3390,15 +3442,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 5.59,
-      "avgHpPctEnd": 0.7562,
-      "avgMpPctEnd": 0.7062,
-      "avgDealt": 612.84,
-      "avgTaken": 98.02,
+      "avgRoundsWin": 5.84,
+      "avgHpPctEnd": 0.6722,
+      "avgMpPctEnd": 0.7271,
+      "avgDealt": 564.66,
+      "avgTaken": 131.78,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.94,
-      "dodgesPerFight": 0.655,
+      "critsPerFight": 1.025,
+      "dodgesPerFight": 0.605,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -3407,39 +3459,39 @@
       "avgShieldExpiryLost": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 59.94,
-      "avgBuffCasts": 1,
+      "avgMpSpent": 55.68,
+      "avgBuffCasts": 1.01,
       "avgShieldCasts": 0,
-      "avgDotCasts": 0,
+      "avgDotCasts": 1.375,
       "avgDebuffCasts": 0,
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "skillCasts": {
-        "sk_smoke_step": 1,
-        "sk_twin_strike": 1.97,
-        "sk_backstab": 1.58,
-        "sk_venom_cut": 1,
-        "sk_quick_slash": 0.035
+        "sk_smoke_step": 1.01,
+        "sk_venom_cut": 1.375,
+        "sk_twin_strike": 1.475,
+        "sk_backstab": 1,
+        "sk_quick_slash": 0.975
       },
       "effectRounds": {
         "player:e_chronowisp": 2,
-        "player:sk_smoke_step": 2,
-        "player:sap": 1.44,
-        "enemy:sap": 1.55,
-        "enemy:sk_expose_weakness": 1.68
+        "player:sk_smoke_step": 2.02,
+        "enemy:sk_venom_cut": 2.11,
+        "player:sap": 1.615,
+        "enemy:sk_expose_weakness": 1.545
       },
       "effectApplications": {
         "player:e_chronowisp": 1,
-        "player:sk_smoke_step": 1,
-        "player:sap": 1.055,
-        "enemy:sap": 0.97,
-        "enemy:sk_expose_weakness": 0.56
+        "player:sk_smoke_step": 1.01,
+        "enemy:sk_venom_cut": 1.11,
+        "player:sap": 1.205,
+        "enemy:sk_expose_weakness": 0.515
       },
       "effectSources": {
         "player:e_chronowisp": "enemyMove:Chrono Anchor",
         "player:sk_smoke_step": "skill:Smoke Step",
+        "enemy:sk_venom_cut": "skill:Venom Cut",
         "player:sap": "enemyMove:Stutter",
-        "enemy:sap": "skill:Venom Cut",
         "enemy:sk_expose_weakness": "skill:Expose Weakness"
       }
     },

@@ -181,12 +181,15 @@ Deno.test('#80: save/load/rerender never rerolls or reapplies the opening', () =
   assertEquals(JSON.stringify(restored), before);
 });
 
-Deno.test('#80: pre-emptive skills are hidden from the menu and rejected on cast', () => {
+Deno.test('#80/#81: pre-emptive skills render as labeled info rows, never cast buttons', () => {
   const p = roguePlayer(12);
   const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(41) })!;
   p.battle = b;
   const menuText = JSON.stringify(renderSkillMenu(p));
-  assert(!menuText.includes('Expose Weakness'));
+  // #81: the activation type is EXPLICIT — a labeled info row, not a cast
+  // button (the button label would read “Expose Weakness — 6 MP”).
+  assert(menuText.includes('⚡ Expose Weakness'), 'labeled info row present');
+  assert(!menuText.includes('Expose Weakness — 6 MP'), 'no cast button');
   const res = performAction(p, b, { kind: 'skill', skillId: 'sk_expose_weakness' }, seeded(1));
   assertEquals(res.consumedTurn, false);
   assert(res.lines.join(' ').includes('battle opens'));

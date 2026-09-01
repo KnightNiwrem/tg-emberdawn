@@ -92,7 +92,7 @@ export function clampPools(p: PlayerState): void {
 }
 
 /** Current save-schema version. Bump when a destructive migration is added. */
-export const CURRENT_STATE_VERSION = 7;
+export const CURRENT_STATE_VERSION = 8;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -347,6 +347,19 @@ export function migratePlayer(p: PlayerState): void {
     // capacity on both sides; contributions are never synthesized.
     if (p.battle) p.battle.shield ??= { player: 0, enemy: 0 };
     p.stateVersion = 7;
+  }
+  if (p.stateVersion === 7) {
+    // v7→v8 (#81): the class rosters expanded. Existing heroes may have
+    // crossed a new skill's learnLevel before the skill existed. Union
+    // every class skill whose learnLevel the hero has reached (plus
+    // anything already known), in ascending learn order, dropping
+    // duplicates.
+    const roster = skillsForClass(p.classId, MAX_LEVEL);
+    const known = new Set(p.skills);
+    p.skills = roster
+      .filter((sk) => sk.learnLevel <= p.level || known.has(sk.id))
+      .map((sk) => sk.id);
+    p.stateVersion = 8;
   }
   if (p.stateVersion === CURRENT_STATE_VERSION) return;
   // Pre-launch saves older than the earliest migration step are disposable:

@@ -564,12 +564,17 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
       }
       case 'shield': {
         // Capacity formula (heal parity): MAG-scaled when magPower is set,
-        // flat otherwise. The caster's own sap scales it like any offense
-        // stat (#79).
+        // DEF-scaled when defPower is set (#81 — warrior wards scale off
+        // the stat the class actually has), flat otherwise. The caster's
+        // own sap scales it like any offense stat (#79).
         const base = ctx.actor === 'player'
           ? playerOffense(ctx.p, ctx.battle, 'mag')
           : (enemyDef(ctx.battle.enemy.id)?.mag ?? 0) * (1 - sapPct(ctx.battle, 'enemy'));
-        const amount = Math.round(base * (spec.magPower ?? 0) * 2 + (spec.amount ?? 0));
+        const defBase = ctx.actor === 'player' ? playerMitigation(ctx.p, ctx.battle, 'phys') : 0;
+        const amount = Math.round(
+          base * (spec.magPower ?? 0) * 2 + defBase * (spec.defPower ?? 0) * 2 +
+            (spec.amount ?? 0),
+        );
         const seed = seedForSpec(
           spec,
           instanceDefId(ctx, spec),
@@ -729,31 +734,36 @@ function applyDamageEffect(
     // mitigation instance (#78).
     const mitigation = (spec.attack === 'phys' ? def.def : def.res) *
       (1 + mitigationPct(battle, 'enemy'));
-    const res = dealDamage(
+    let dealt = dealDamage(
       spec.power,
       playerOffense(p, battle, spec.attack),
       mitigation,
       rng,
       statsOf(p).luck,
     );
+    // Execute window (#81): a wounded target takes the bonus strike.
+    const exec = spec.execute;
+    if (exec && battle.enemy.hp / battle.enemy.maxHp < exec.belowPct) {
+      dealt = { ...dealt, dmg: Math.round(dealt.dmg * (1 + exec.bonusPct)) };
+    }
     // Shield routing (#79): normal damage pools into the target's ward
     // before HP; bypassShield lands on HP directly. lastDamage stays the
     // FULL resolved damage — lifesteal drains what was dealt.
-    let hpDmg = res.dmg;
+    let hpDmg = dealt.dmg;
     let absorbed = 0;
     let broke = false;
     if (!spec.bypassShield) {
-      const a = absorbShield(battle, 'enemy', res.dmg);
+      const a = absorbShield(battle, 'enemy', dealt.dmg);
       absorbed = a.absorbed;
       hpDmg = a.hpDamage;
       broke = a.broke;
     }
     battle.enemy.hp = Math.max(0, battle.enemy.hp - hpDmg);
-    ctx.lastDamage = res.dmg;
+    ctx.lastDamage = dealt.dmg;
     ctx.hpDamaged = hpDmg > 0;
     ctx.targetFelled = battle.enemy.hp <= 0;
     const verb = spec.attack === 'phys' ? 'hits' : 'sears';
-    const critSuffix = res.crit ? (spec.critText ?? ' — critical!') : '';
+    const critSuffix = dealt.crit ? (spec.critText ?? ' — critical!') : '';
     const body = spec.line
       ? spec.line
         .replace('{n}', String(hpDmg))

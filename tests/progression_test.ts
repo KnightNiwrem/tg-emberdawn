@@ -27,7 +27,7 @@ import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { shopStock } from '../src/content/items.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
-import { modInstance, sapPct, seeded } from './helpers.ts';
+import { seeded } from './helpers.ts';
 
 // ── content maps: where can each enemy be fought? ─────────────────────────
 
@@ -233,14 +233,14 @@ Deno.test('combat: Smoke Bomb flees non-boss, never bosses, never wasted', () =>
   assertEquals(countOf(p, 'c_smoke_bomb'), bombs - 1, 'the bomb is not consumed in vain');
 });
 
-Deno.test('combat: Venom Cut weakens the ENEMY, not the rogue', () => {
+Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
   const rng = seeded(11);
   const p = createPlayer(79, 'T', 'rogue');
   p.level = 45;
   p.skills.push('sk_venom_cut');
   p.mp = 100;
-  // Tanky boss so the strike does not end the fight before the debuff lands.
-  // Jormunis: a boss with NO weaken move of its own — a clean fixture.
+  // Tanky boss so the strike does not end the fight before the venom lands.
+  // Jormunis: a boss with NO poison of its own — a clean fixture.
   const b = startBattle('e_jormunis', {
     kind: 'dungeon',
     zoneId: 'frostpeak',
@@ -248,13 +248,24 @@ Deno.test('combat: Venom Cut weakens the ENEMY, not the rogue', () => {
     floor: 4,
     boss: true,
   })!;
-  b.enemy.hp = 99999; // survive the 130% ATK strike so the debuff lands
+  b.enemy.hp = 99999; // survive the 125% ATK strike so the venom lands
   b.enemy.maxHp = 99999;
   p.battle = b;
   performAction(p, b, { kind: 'skill', skillId: 'sk_venom_cut' }, rng);
-  assertEquals(sapPct(b, 'enemy'), 0.25, 'enemy offense is weakened');
-  assertEquals(modInstance(b, 'enemy', 'outgoing')!.remaining, 2); // set for 3; first tick elapsed
-  assertEquals(sapPct(b, 'player'), 0, 'the player is NOT self-weakened');
+  // #81: the name finally means venom — a real poison instance on the foe.
+  const venom = b.effectInstances.find((i) =>
+    i.side === 'enemy' && i.kind === 'periodic' && i.defId === 'sk_venom_cut'
+  );
+  assert(venom, 'the enemy is envenomed');
+  assertEquals(venom.perRound, -16);
+  assertEquals(venom.remaining, 2); // set for 3; first round-end tick elapsed
+  assertEquals(
+    b.effectInstances.some((i) =>
+      i.side === 'player' && i.kind === 'periodic' && (i.perRound ?? 0) < 0
+    ),
+    false,
+    'the player is NOT poisoned',
+  );
 });
 
 Deno.test('combat: invalid skill use costs no turn and no enemy phase', () => {

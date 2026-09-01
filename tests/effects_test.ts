@@ -94,7 +94,7 @@ Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
       name: 'Sapped',
       kind: 'statmod',
       side: 'player',
-      source: { kind: 'skill', id: 'sk_venom_cut', name: 'Venom Cut' },
+      source: { kind: 'legacy', id: 'test', name: 'test sap fixture' },
       stat: 'outgoing',
       pct: -pct,
       tags: ['harmful'],

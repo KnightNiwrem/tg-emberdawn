@@ -152,6 +152,15 @@ function isDispelSkill(sk: SkillDef): boolean {
   return sk.effects.some((e) => e.kind === 'dispel');
 }
 
+/** Self-targeted healing-over-time (#81): positive periodic on the caster
+ * (Renew). Direct heals own the emergency lanes; regen owns the long grind. */
+function isRegenSkill(sk: SkillDef): boolean {
+  return sk.effects.some((e) =>
+    e.kind === 'periodic' && e.target !== 'opponent' &&
+    ((e.perRound ?? 0) > 0 || (e.pctOfMaxPerRound ?? 0) > 0)
+  );
+}
+
 /** Expected total DoT damage over its full authored duration, against this
  * fight's enemy (mirrors the periodic formulas; folded sap ignored — the
  * policy wants an order-of-magnitude payoff check, not a prediction). */
@@ -272,6 +281,12 @@ function tacticalAction(
   if (p.hp < s.maxHp * 0.5) {
     const heal = firstUsable(heals);
     if (heal) return { kind: 'skill', skillId: heal.id };
+  }
+  // 3b. Regen (#81): sustained healing while not critical — one cast, then
+  // the ticks work for free. Never refreshed while live.
+  const regen = learned.filter(isRegenSkill).find((sk) => usable(sk) && !liveOn('player', sk.id));
+  if (regen && p.hp < s.maxHp * 0.75) {
+    return { kind: 'skill', skillId: regen.id };
   }
   // 4. Shield an empty pool — never re-grant over a live same-source ward
   //    (over-shield waste is a structural failure, #84).
