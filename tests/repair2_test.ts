@@ -926,16 +926,20 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
   const rendered = JSON.stringify(renderBattle(p));
   assert(rendered.includes('Effects: none'), 'the unbuffed combatant shows an empty row');
   assert(rendered.includes('🔆 Blessing'), 'effects keep their identity, not just a delta');
-  // Blessing legs diverge on the cast round: DEF ticked (2 left), ATK
-  // deferred (#27/#38, 3 left) — the summary discloses the range.
+  // Blessing legs diverge on the cast round: DEF ticked (2 left), MAG
+  // deferred (#27/#38, 3 left) — the summary discloses the range. The
+  // buff empowers MAG/DEF (#77): every Cleric damage action is MAG vs RES,
+  // so an ATK leg could never touch a class-owned action.
   assert(rendered.includes('2–3 rounds'), 'divergent leg durations are disclosed');
   assert(rendered.includes('"type":"details"'), 'effects expand via a native details block');
-  assert(rendered.includes('+30% ATK'), 'magnitude is shown');
+  assert(rendered.includes('+30% MAG'), 'magnitude is shown (MAG leg, not unused ATK)');
+  assert(!rendered.includes('+30% ATK'), 'the dead ATK leg is gone (#77)');
   assert(rendered.includes('fades end of round'), 'expiry round is shown');
   // Engine and display agree: one entry per covered stat key.
   assertEquals(b.effects.length, 2, 'one entry per covered stat key');
-  assertEquals(b.buffs.durations.atk, 3, 'off-buff defers its first decay');
+  assertEquals(b.buffs.durations.mag, 3, 'off-buff defers its first decay');
   assertEquals(b.buffs.durations.def, 2, 'def buff ticks on the cast round');
+  assertEquals(b.buffs.atkPct, 0, 'Blessing never buffs the unusable ATK stat (#77)');
 });
 
 Deno.test('battle screen: only the latest round expands; earlier rounds collapse in order (#67)', () => {

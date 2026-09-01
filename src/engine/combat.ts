@@ -45,12 +45,15 @@ type EffectKey =
   | 'enemyStun';
 
 /** Off-buff keys defer their first decay on the cast round (#27/#38) — their
- * expiry sits one round later than defensive keys, which protect the cast
- * round itself. */
+ * expiry sits one round later than defensive keys. Since #72 made SPD drive
+ * enemy-response avoidance, SPD defends the cast round itself and now uses
+ * the DEF/RES treatment (#77): a three-turn SPD buff covers at most three
+ * enemy responses INCLUDING the casting round's. Only ATK and MAG — pure
+ * offense keys that empower nothing on the round they're cast — defer. */
 const SKIPS_FIRST_DECAY: Record<EffectKey, boolean> = {
   atk: true,
   mag: true,
-  spd: true,
+  spd: false,
   guard: true,
   def: false,
   res: false,
@@ -96,7 +99,7 @@ function sapPlayer(battle: BattleState, moveName: string, weakenPct: number): st
     `weaken:${moveName}`,
     'Sapped',
     'player',
-    `−${Math.round(weakenPct * 100)}% ATK`,
+    `−${Math.round(weakenPct * 100)}% Offense`,
     moveName,
     2,
   );
@@ -205,15 +208,14 @@ function pickWeighted(weights: number[], rng: Rng): number {
 }
 
 /** End-of-round decay. `skipOffense` carries the keys applied THIS round
- * whose effect cannot help the cast round itself (#27, #38): offensive keys
- * (atk/mag) empower only future actions, and SPD only feeds the player's
- * future Flee rolls — the cast action can flee nothing. Deferring their
- * first decay delivers exactly the advertised number of useful actions.
- * Defensive DEF/RES keep ticking on the cast round, which is what makes
- * them protect that round's enemy response. */
-function tickBuffTurns(buffs: CombatBuffs, skipOffense?: Set<'atk' | 'mag' | 'spd'>): void {
+ * whose effect cannot help the cast round itself (#27, #38): offensive ATK/
+ * MAG empower only future actions, so deferring their first decay delivers
+ * exactly the advertised number of useful actions. Defensive DEF/RES/SPD
+ * tick on the cast round — SPD (since #72) shields that round's enemy
+ * response through avoidance, so it counts the response it protects (#77). */
+function tickBuffTurns(buffs: CombatBuffs, skipOffense?: Set<'atk' | 'mag'>): void {
   for (const key of ['atk', 'def', 'res', 'mag', 'spd'] as const) {
-    if ((key === 'atk' || key === 'mag' || key === 'spd') && skipOffense?.has(key)) continue;
+    if ((key === 'atk' || key === 'mag') && skipOffense?.has(key)) continue;
     const d = buffs.durations[key];
     if (d === undefined) continue;
     if (d <= 1) {
@@ -247,7 +249,7 @@ function playerPhase(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
-  freshBuffs: Set<'atk' | 'mag' | 'spd'>,
+  freshBuffs: Set<'atk' | 'mag'>,
 ): PlayerPhaseResult {
   const buffs = battle.buffs;
   const lines: string[] = [];
@@ -274,7 +276,7 @@ export function performAction(
   // The round these lines belong to: the one in which the player acted —
   // captured before end-of-round bookkeeping advances the counter (#67).
   const actedRound = battle.round;
-  const freshBuffs = new Set<'atk' | 'mag' | 'spd'>();
+  const freshBuffs = new Set<'atk' | 'mag'>();
   const phase = playerPhase(p, battle, action, rng, freshBuffs);
   const lines = [...phase.lines];
   const skipped = phase.skipped;
@@ -417,7 +419,7 @@ function applyPlayerAction(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
-  freshBuffs: Set<'atk' | 'mag' | 'spd'>,
+  freshBuffs: Set<'atk' | 'mag'>,
 ): { lines: string[]; consumedTurn: boolean } {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
@@ -531,7 +533,7 @@ function applySkill(
   battle: BattleState,
   sk: SkillDef,
   rng: Rng,
-  freshBuffs: Set<'atk' | 'mag' | 'spd'>,
+  freshBuffs: Set<'atk' | 'mag'>,
 ): string[] {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
@@ -560,7 +562,7 @@ function applySkill(
         buffs.weakenTurns = 0;
         // Cleanse removes the matching display entries too (#67).
         battle.effects = battle.effects.filter((e) => !(e.key === 'weaken' && e.side === 'player'));
-        lines.push('✨ Miracle! HP fully restored, debuffs cleansed.');
+        lines.push('✨ Miracle! HP fully restored, sapped strength lifted.');
       } else if (sk.id === 'sk_adrenaline') {
         const heal = Math.floor(s.maxHp * (sk.potency ?? 0.3));
         p.hp = Math.min(s.maxHp, p.hp + heal);
@@ -601,10 +603,11 @@ function applySkill(
         buffs[`${key}Pct`] = pct;
         buffs.durations[key] = dur;
         // Keys whose effect cannot help the cast round skip their first
-        // decay (#27, #38): ATK/MAG empower only future actions, SPD only
-        // feeds future Flee rolls. DEF/RES protect the cast-round enemy
-        // response, so they still tick immediately.
-        if (key === 'atk' || key === 'mag' || key === 'spd') freshBuffs.add(key);
+        // decay (#27, #38): ATK/MAG empower only future actions. SPD no
+        // longer defers (#77): since #72 it shapes the enemy RESPONSE via
+        // avoidance, so — like DEF/RES — it defends the cast round itself
+        // and ticks immediately.
+        if (key === 'atk' || key === 'mag') freshBuffs.add(key);
         // Structured identity for the battle screen (#67): the effect is
         // named for the skill that cast it, not just its stat delta.
         applyEffect(
@@ -628,7 +631,11 @@ function applySkill(
         apply('spd', potency);
       } else if (sk.id === 'sk_smoke_step') apply('spd', potency);
       else if (sk.id === 'sk_blessing') {
-        apply('atk', potency);
+        // #77: Blessing empowers the Cleric's ACTUAL offense. Every Cleric
+        // damage action is MAG vs RES (Radiant Strike, Smite, …) and Cleric
+        // weapons raise MAG — an ATK leg could never affect any class-owned
+        // action, so the buff targets MAG/DEF instead.
+        apply('mag', potency);
         apply('def', potency);
       } else if (sk.id === 'sk_holy_ward') apply('res', potency);
       lines.push(`🔆 ${sk.name}! ${sk.desc}`);
@@ -648,7 +655,7 @@ function applySkill(
           sk.id,
           sk.name,
           'enemy',
-          `−${Math.round(sk.potency * 100)}% ATK`,
+          `−${Math.round(sk.potency * 100)}% Offense`,
           sk.name,
           sk.duration ?? 3,
         );
@@ -690,7 +697,7 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
         !(e.key === 'weaken' && e.side === 'player')
       );
     }
-    lines.push(`🧴 ${itemDef.name} clears your debuffs.`);
+    lines.push(`🧴 ${itemDef.name} lifts sapped strength.`);
   }
   entry.qty--;
   if (entry.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== itemId);

@@ -387,7 +387,7 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   assertEquals(collapseRounds, [4, 8, 12], 'every:4 → actions 4/8/12');
 });
 
-Deno.test('buff durations: cast-round decay deferred for keys the cast cannot use (#27, #38)', () => {
+Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => {
   // Fixture sanity: the content contract advertises these durations.
   assertEquals(SKILLS.find((s) => s.id === 'sk_war_cry')!.duration, 3);
   assertEquals(SKILLS.find((s) => s.id === 'sk_time_warp')!.duration, 3);
@@ -417,19 +417,22 @@ Deno.test('buff durations: cast-round decay deferred for keys the cast cannot us
   assertEquals(w.b.buffs.durations.atk, 0, 'exactly the advertised 3 empowered actions');
   assertEquals(w.b.buffs.atkPct, 0);
 
-  // Time Warp (mage: mag + spd): both defer — mag empowers future actions,
-  // spd only feeds future Flee rolls; neither helps the cast round (#38),
-  // so both deliver exactly their advertised 3 useful actions.
+  // Time Warp (mage: mag + spd): the legs have DIFFERENT phase semantics
+  // since #77. MAG empowers only future actions — the cast round cannot
+  // use it — so its first decay stays deferred. SPD (since #72) drives
+  // enemy-response avoidance, so it defends the cast round itself and
+  // ticks like DEF/RES: cast-round response + two more = exactly three
+  // enemy responses from a three-turn buff.
   const m = mkBattle('mage', 63, 'sk_time_warp');
   performAction(m.p, m.b, { kind: 'skill', skillId: 'sk_time_warp' }, seeded(66));
   assertEquals(m.b.buffs.durations.mag, 3, 'mag deferred on the cast round');
-  assertEquals(m.b.buffs.durations.spd, 3, 'spd deferred on the cast round (#38)');
+  assertEquals(m.b.buffs.durations.spd, 2, 'spd ticks on the cast round it defends (#77)');
   performAction(m.p, m.b, { kind: 'attack' }, seeded(67));
   assertEquals(m.b.buffs.durations.mag, 2);
-  assertEquals(m.b.buffs.durations.spd, 2);
+  assertEquals(m.b.buffs.durations.spd, 1);
   performAction(m.p, m.b, { kind: 'attack' }, seeded(68));
   assertEquals(m.b.buffs.durations.mag, 1);
-  assertEquals(m.b.buffs.durations.spd, 1);
+  assertEquals(m.b.buffs.durations.spd, 0, 'spd covered the cast round + two responses');
 
   // Adrenaline Surge (heal + atk 2): defers like other offensive keys.
   const a = mkBattle('warrior', 64, 'sk_adrenaline');
@@ -441,18 +444,17 @@ Deno.test('buff durations: cast-round decay deferred for keys the cast cannot us
   performAction(a.p, a.b, { kind: 'attack' }, seeded(71));
   assertEquals(a.b.buffs.durations.atk, 0, 'exactly the advertised 2 empowered actions');
 
-  // Smoke Step (rogue: SPD only, 3 turns): the cast can't flee, so SPD
-  // must not lose a turn before it could ever matter (#38) — exactly
-  // three SPD-enabled future actions.
+  // Smoke Step (rogue: SPD only, 3 turns): since #72 SPD shapes the enemy
+  // RESPONSE through avoidance, so it defends the cast round itself and
+  // ticks like DEF/RES (#77) — the cast-round response plus two more is
+  // AT MOST three enemy responses from a three-turn buff.
   const sk = mkBattle('rogue', 78, 'sk_smoke_step');
   performAction(sk.p, sk.b, { kind: 'skill', skillId: 'sk_smoke_step' }, seeded(79));
-  assertEquals(sk.b.buffs.durations.spd, 3, 'cast round does not consume SPD (#38)');
+  assertEquals(sk.b.buffs.durations.spd, 2, 'cast round counts — SPD defended that response (#77)');
   performAction(sk.p, sk.b, { kind: 'attack' }, seeded(80));
-  assertEquals(sk.b.buffs.durations.spd, 2);
-  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(81));
   assertEquals(sk.b.buffs.durations.spd, 1);
-  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(82));
-  assertEquals(sk.b.buffs.durations.spd, 0, 'exactly three SPD-enabled actions');
+  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(81));
+  assertEquals(sk.b.buffs.durations.spd, 0, 'at most three responses, incl. the cast round');
   assertEquals(sk.b.buffs.spdPct, 0);
 
   // Iron Wall (def): RETAINS the cast-round tick — it protects against the
@@ -462,6 +464,45 @@ Deno.test('buff durations: cast-round decay deferred for keys the cast cannot us
   performAction(d.p, d.b, { kind: 'skill', skillId: 'sk_iron_wall' }, seeded(72));
   assertEquals(d.b.buffs.durations.def, wallDur - 1, 'defensive buffs tick on the cast round');
   assertEquals(d.b.buffs.defPct > 0, true, 'protection active during the cast-round response');
+});
+
+Deno.test('combat: Blessing empowers MAG/DEF — never Cleric-dead ATK (#77)', () => {
+  const mkCleric = (userId: number) => {
+    const p = createPlayer(userId, 'T', 'cleric');
+    p.level = 20;
+    p.skills.push('sk_blessing');
+    p.mp = 999;
+    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+    b.enemy.hp = 99999;
+    b.enemy.maxHp = 99999;
+    p.battle = b;
+    return { p, b };
+  };
+  // The cast lands exactly the MAG/DEF legs; ATK is untouched because no
+  // Cleric-owned action can use it (Radiant Strike/Smite are MAG vs RES,
+  // Cleric weapons raise MAG).
+  const c = mkCleric(90);
+  performAction(c.p, c.b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(91));
+  assertEquals(c.b.buffs.atkPct, 0, 'no ATK leg — no Cleric action could use it (#77)');
+  assertEquals(c.b.buffs.magPct, 0.3, 'MAG is the Cleric offense leg');
+  assertEquals(c.b.buffs.defPct, 0.3, 'DEF leg unchanged');
+  assertEquals(
+    c.b.effects.map((e) => e.key).sort().join(','),
+    'def,mag',
+    'effect entries mirror the actual legs',
+  );
+  // The MAG leg feeds Cleric strikes: same seed, buffed MAG hits harder.
+  const plain = mkCleric(92);
+  const before = performAction(plain.p, plain.b, { kind: 'attack' }, seeded(93));
+  const buffed = mkCleric(94);
+  performAction(buffed.p, buffed.b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(95));
+  const after = performAction(buffed.p, buffed.b, { kind: 'attack' }, seeded(93));
+  const dmgOf = (res: { lines: string[] }): number =>
+    Number(/for (\d+)/.exec(res.lines.join(' '))?.[1]);
+  assert(
+    dmgOf(after) > dmgOf(before),
+    `Radiant Strike must scale with the Blessing MAG leg (${dmgOf(before)} → ${dmgOf(after)})`,
+  );
 });
 
 Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip damage (#25)', () => {
@@ -836,6 +877,31 @@ Deno.test('content integrity: skills are complete per class and learnable in ord
     for (const s of skills) assert(SKILLS.includes(s));
   }
   assertEquals(SKILLS.length, 32);
+});
+
+Deno.test('skills: menu order is ascending by learn level; ties keep authored order (#77)', () => {
+  for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    const skills = skillsForClass(cid, MAX_LEVEL);
+    for (let i = 1; i < skills.length; i++) {
+      const prev = skills[i - 1]!;
+      const cur = skills[i]!;
+      assert(
+        prev.learnLevel < cur.learnLevel ||
+          (prev.learnLevel === cur.learnLevel && SKILLS.indexOf(prev) < SKILLS.indexOf(cur)),
+        `${cid}: ${prev.name} (Lv ${prev.learnLevel}) must precede ${cur.name} (Lv ${cur.learnLevel}) by level — or by authored order for equal levels`,
+      );
+    }
+  }
+  // Regression pins for the two historical offenders: catalog insertion
+  // order used to leak Whirlwind after Iron Wall and Radiant Burst after
+  // Holy Ward into both skill menus.
+  const warrior = skillsForClass('warrior', MAX_LEVEL).map((s) => s.name);
+  assert(warrior.indexOf('Whirlwind') < warrior.indexOf('Iron Wall'));
+  const cleric = skillsForClass('cleric', MAX_LEVEL).map((s) => s.name);
+  assert(cleric.indexOf('Radiant Burst') < cleric.indexOf('Holy Ward'));
+  // Equal-level ties stay deterministic: Smite before Mend Wounds at Lv 1.
+  const clericLv1 = skillsForClass('cleric', 1).map((s) => s.name);
+  assertEquals(clericLv1, ['Smite', 'Mend Wounds']);
 });
 
 Deno.test('codec: roundtrip for every callback shape', () => {

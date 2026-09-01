@@ -190,7 +190,11 @@ export const ENEMIES: readonly EnemyDef[] = [
       mv('Skittering Bite', 1.1, 'phys', 3),
       mv('Silk Prison', 0.8, 'phys', 2, { weakenPct: 0.3 }),
     ],
-    special: { every: 4, move: mv('Brood Surge', 1.6, 'phys', 1, { selfHealPct: 0.08 }) },
+    // #77: Brood Surge is a PURE heal — the old power 1.6 was silently
+    // ignored (enemyAct returns from the self-heal branch before damage).
+    // Zero power makes the authored intent explicit and keeps zero-power
+    // status moves free of implicit chip damage (#25).
+    special: { every: 4, move: mv('Brood Surge', 0, 'phys', 1, { selfHealPct: 0.08 }) },
     drops: { m_iron_chunk: 1.0, t_1: 0.5 },
     desc: 'She wove the Hollow. Now the Hollow weaves for her.',
   }),
@@ -209,7 +213,10 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Marsh Leech',
     emoji: '🪱',
     level: 11,
-    moves: [BITE('Leech'), mv('Drain', 0.9, 'mag', 2, { selfHealPct: 0.05 })],
+    // #77: Drain is a pure heal (power 0) — its old 0.9 power was silently
+    // ignored by the self-heal branch. Damage-and-drain lifesteal awaits
+    // the ordered-effect model (#78); until then the copy must not imply it.
+    moves: [BITE('Leech'), mv('Drain', 0, 'mag', 2, { selfHealPct: 0.05 })],
     drops: { m_mystic_dust: 0.5, q_toxin_sample: 0.55 },
   }),
   mk({

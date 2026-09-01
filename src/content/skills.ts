@@ -1,4 +1,7 @@
-/** Skill catalog — 8 skills per class, learned at fixed levels. */
+/** Skill catalog — 8 skills per class, learned at fixed levels. Authored in
+ * ascending learn-level order per class (ties keep authored order); the
+ * helper enforces this too (#77), so menus can never leak insertion order.
+ */
 
 import type { SkillDef } from './types.ts';
 import type { ClassId } from '../engine/types.ts';
@@ -44,6 +47,17 @@ export const SKILLS: readonly SkillDef[] = [
     desc: '+35% ATK for 3 turns.',
   }),
   S({
+    id: 'sk_whirlwind',
+    name: 'Whirlwind',
+    classId: 'warrior',
+    learnLevel: 13,
+    mpCost: 14,
+    cooldown: 2,
+    power: 1.75,
+    type: 'phys',
+    desc: 'Spinning strike. 175% ATK.',
+  }),
+  S({
     id: 'sk_iron_wall',
     name: 'Iron Wall',
     classId: 'warrior',
@@ -55,17 +69,6 @@ export const SKILLS: readonly SkillDef[] = [
     potency: 0.6,
     duration: 3,
     desc: '+60% DEF for 3 turns.',
-  }),
-  S({
-    id: 'sk_whirlwind',
-    name: 'Whirlwind',
-    classId: 'warrior',
-    learnLevel: 13,
-    mpCost: 14,
-    cooldown: 2,
-    power: 1.75,
-    type: 'phys',
-    desc: 'Spinning strike. 175% ATK.',
   }),
   S({
     id: 'sk_executioner',
@@ -313,7 +316,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     power: 1.1,
     type: 'heal',
-    desc: 'Heal 220% of MAG.',
+    desc: 'Heal 220% of MAG + 20 HP.',
   }),
   S({
     id: 'sk_blessing',
@@ -326,7 +329,18 @@ export const SKILLS: readonly SkillDef[] = [
     type: 'buff',
     potency: 0.3,
     duration: 3,
-    desc: '+30% ATK/DEF for 3 turns.',
+    desc: '+30% MAG/DEF for 3 turns.',
+  }),
+  S({
+    id: 'sk_radiant_burst',
+    name: 'Radiant Burst',
+    classId: 'cleric',
+    learnLevel: 11,
+    mpCost: 16,
+    cooldown: 2,
+    power: 1.85,
+    type: 'mag',
+    desc: '185% MAG.',
   }),
   S({
     id: 'sk_holy_ward',
@@ -342,17 +356,6 @@ export const SKILLS: readonly SkillDef[] = [
     desc: '+55% RES for 3 turns.',
   }),
   S({
-    id: 'sk_radiant_burst',
-    name: 'Radiant Burst',
-    classId: 'cleric',
-    learnLevel: 11,
-    mpCost: 16,
-    cooldown: 2,
-    power: 1.85,
-    type: 'mag',
-    desc: '185% MAG.',
-  }),
-  S({
     id: 'sk_divine_mending',
     name: 'Divine Mending',
     classId: 'cleric',
@@ -361,7 +364,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     power: 1.9,
     type: 'heal',
-    desc: 'Heal 380% of MAG.',
+    desc: 'Heal 380% of MAG + 20 HP.',
   }),
   S({
     id: 'sk_judgment',
@@ -385,7 +388,7 @@ export const SKILLS: readonly SkillDef[] = [
     power: 2.5,
     type: 'heal',
     potency: 1,
-    desc: 'Fully restore HP and cure all debuffs.',
+    desc: 'Fully restore HP and lift sapped strength.',
   }),
 ];
 
@@ -396,7 +399,12 @@ export function skill(id: string): SkillDef | undefined {
 }
 
 export function skillsForClass(classId: ClassId, upToLevel: number): SkillDef[] {
-  return SKILLS.filter((s) => s.classId === classId && s.learnLevel <= upToLevel);
+  // Stable ascending learnLevel (#77): menus must reflect PROGRESSION, not
+  // catalog insertion order. Sort is stable (ES2019+), so equal-level skills
+  // keep their authored order — Smite before Mend Wounds at level 1.
+  return SKILLS
+    .filter((s) => s.classId === classId && s.learnLevel <= upToLevel)
+    .sort((a, b) => a.learnLevel - b.learnLevel);
 }
 
 /** Skills that become newly available exactly at `level`. */

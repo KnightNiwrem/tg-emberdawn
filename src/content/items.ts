@@ -268,7 +268,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 5,
     price: 60,
     effect: { cureStatus: true },
-    desc: 'Removes debuffs.',
+    desc: 'Lifts sapped strength.',
   },
   {
     id: 'c_smoke_bomb',
