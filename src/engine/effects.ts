@@ -123,7 +123,8 @@ export function hasLiveFromSource(
  * one for refresh/strongest-loss cases) PLUS the explicit outcome (#93).
  * Emits a structured `effectApplied` event (#88) describing the RETAINED
  * payload — an ignored weaker recast can never be counted as an active
- * application.
+ * application. Provenance is dual (#108): `source` names the retained
+ * active effect, `attemptedSource` names the application that resolved.
  *
  * #90 transition semantics — every policy is a COMPLETE step:
  * - `stack`: an independent instance joins the list (`created`).
@@ -159,7 +160,14 @@ export function applyInstance(
     name: raw.instance.name,
     duration: raw.instance.battleLifetime === true ? 0 : raw.instance.remaining,
     tags: [...raw.instance.tags],
-    source: `${seed.source.kind}:${seed.source.name}`,
+    // #108: provenance is EXPLICIT and dual. `source` follows the retained-
+    // payload rule (same as name/duration/tags): it names the effect that
+    // actually remains active — for created/replaced/refreshed that IS the
+    // winning new application, for extended/ignored the retained one.
+    // `attemptedSource` always names the application that just resolved,
+    // so consumers never infer one from the other.
+    source: `${raw.instance.source.kind}:${raw.instance.source.name}`,
+    attemptedSource: `${seed.source.kind}:${seed.source.name}`,
     outcome: raw.outcome,
   });
   return raw;

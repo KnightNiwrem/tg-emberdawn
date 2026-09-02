@@ -719,3 +719,119 @@ Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
   assertEquals(extended.name, 'Big');
   assertEquals(extended.duration, 6, 'the extended lifetime is what is now live');
 });
+
+Deno.test('#108: cross-source provenance — retained vs attempted source per outcome', () => {
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const events: CombatTraceEntry[] = [];
+  // Shared-identity saps (#90): every application lands on defId 'sap',
+  // strongest wins — sources intentionally differ per application.
+  const sap = (over: Partial<InstanceSeed>): InstanceSeed => ({
+    defId: 'sap',
+    name: 'Sapped',
+    kind: 'statmod',
+    side: 'player',
+    source: { kind: 'enemyMove', id: 'strong', name: 'Strong Sap' },
+    stat: 'outgoing',
+    pct: -0.4,
+    tags: ['harmful'],
+    stacking: 'strongest',
+    duration: 2,
+    timing: 'immediate',
+    removable: true,
+    ...over,
+  });
+  applyInstance(b, sap({}), events); // strong from A
+  applyInstance(
+    b,
+    sap({ pct: -0.1, source: { kind: 'enemyMove', id: 'weak', name: 'Weak Sap' } }),
+    events,
+  ); // weaker from B — ignored
+  applyInstance(
+    b,
+    sap({ source: { kind: 'skill', id: 'eq', name: 'Equal Sap' } }),
+    events,
+  ); // equal from C — ignored
+  applyInstance(
+    b,
+    sap({ pct: -0.1, duration: 9, source: { kind: 'item', id: 'long', name: 'Long Sap' } }),
+    events,
+  ); // weaker-but-longer from D — extends
+  applyInstance(
+    b,
+    sap({ pct: -0.5, source: { kind: 'skill', id: 'uber', name: 'Uber Sap' } }),
+    events,
+  ); // stronger from E — replaces
+
+  const [created, ignored, equal, extended, replaced] = events as Extract<
+    CombatTraceEntry,
+    { kind: 'effectApplied' }
+  >[];
+  assertEquals(created.outcome, 'created');
+  assertEquals(created.source, 'enemyMove:Strong Sap');
+  assertEquals(created.attemptedSource, 'enemyMove:Strong Sap');
+
+  assertEquals(ignored.outcome, 'ignored');
+  assertEquals(
+    ignored.source,
+    'enemyMove:Strong Sap',
+    'an ignored weaker application reports the source that REMAINS active',
+  );
+  assertEquals(ignored.attemptedSource, 'enemyMove:Weak Sap', '…and names the rejected attempt');
+
+  assertEquals(equal.outcome, 'ignored', 'equal strength is not stronger');
+  assertEquals(equal.source, 'enemyMove:Strong Sap', 'the retained source is unchanged');
+  assertEquals(equal.attemptedSource, 'skill:Equal Sap');
+
+  assertEquals(extended.outcome, 'extended');
+  assertEquals(
+    extended.source,
+    'enemyMove:Strong Sap',
+    'an extension leaves the retained source in place (documented rule)',
+  );
+  assertEquals(extended.attemptedSource, 'item:Long Sap', '…while the extender is explicit');
+
+  assertEquals(replaced.outcome, 'replaced');
+  assertEquals(
+    replaced.source,
+    'skill:Uber Sap',
+    'a stronger replacement reports the WINNING source',
+  );
+  assertEquals(replaced.attemptedSource, 'skill:Uber Sap');
+  // The live instance itself carries the winner's provenance.
+  assertEquals(b.effectInstances[0]!.source, { kind: 'skill', id: 'uber', name: 'Uber Sap' });
+});
+
+Deno.test('#108: source provenance survives a JSON round-trip of active effects', () => {
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  applyInstance(b, {
+    defId: 'sap',
+    name: 'Sapped',
+    kind: 'statmod',
+    side: 'player',
+    source: { kind: 'enemyMove', id: 'strong', name: 'Strong Sap' },
+    stat: 'outgoing',
+    pct: -0.4,
+    tags: ['harmful'],
+    stacking: 'strongest',
+    duration: 2,
+    timing: 'immediate',
+    removable: true,
+  });
+  // Persistence shape check: active effects are plain JSON — the retained
+  // source provenance must survive stringify/parse verbatim. (JSON drops
+  // explicit-undefined fields, so equality is asserted over what a save
+  // actually stores: the source, identity and live payload.)
+  const restored = JSON.parse(JSON.stringify({ effectInstances: b.effectInstances })) as {
+    effectInstances: EffectInstance[];
+  };
+  assertEquals(restored.effectInstances.length, 1);
+  assertEquals(restored.effectInstances[0]!.source, {
+    kind: 'enemyMove',
+    id: 'strong',
+    name: 'Strong Sap',
+  });
+  assertEquals(restored.effectInstances[0]!.defId, 'sap');
+  assertEquals(restored.effectInstances[0]!.pct, -0.4);
+  assertEquals(restored.effectInstances[0]!.remaining, 2);
+  assertEquals(restored.effectInstances[0]!.appliedRound, b.round);
+});

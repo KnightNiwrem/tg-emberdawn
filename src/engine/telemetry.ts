@@ -67,7 +67,15 @@ export type CombatTraceEntry =
      * (#93): extended/ignored recasts activate no new payload. */
     duration: number;
     tags: string[];
+    /** #108: the source of the effect that ACTUALLY REMAINS ACTIVE — the
+     * same rule as name/duration/tags. For created/replaced/refreshed this
+     * is the winning new application; for extended/ignored it is still the
+     * retained instance's original source. */
     source: string;
+    /** #108: the source of the application that just RESOLVED, whatever
+     * the outcome — consumers distinguish attempted versus retained
+     * provenance without inferring it from the outcome. */
+    attemptedSource: string;
     outcome: EffectApplyOutcome;
   }
   | {
