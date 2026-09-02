@@ -14,6 +14,8 @@
  * parsed from presentation text, and ignoring them changes nothing: no
  * state, line, outcome or RNG draw depends on recording. */
 
+import type { EffectSource } from './types.ts';
+
 export type CombatSide = 'player' | 'enemy';
 
 /** #93: what an effect application actually did. Telemetry reports the
@@ -67,6 +69,15 @@ export type CombatTraceEntry =
     defId: string;
     name: string;
     cause: 'expired' | 'cleansed' | 'dispelled' | 'consumed';
+    /** What INITIATED the removal (#105) — the consumable, skill, enemy
+     * move or equipment/pre-emptive source whose resolution removed the
+     * effect. Deliberately NOT named `source`: the removed effect has its
+     * own application source (EffectInstance.source) and the two usually
+     * differ. Authored removals ('cleansed'/'dispelled') always carry it;
+     * non-authored timing removals ('expired' — the clock ran out,
+     * 'consumed' — a control spent its actions) have no initiator, so the
+     * field is ABSENT there rather than faked with a synthetic system id. */
+    removedBy?: EffectSource;
   }
   | {
     kind: 'periodicTick';

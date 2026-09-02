@@ -1277,7 +1277,17 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'cleanse': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'cleansed', ctx.trace);
+        const removed = removeTagged(
+          ctx.battle,
+          side,
+          spec.tags,
+          spec.max,
+          'cleansed',
+          ctx.trace,
+          // #105: the removal names its initiator — the skill, enemy move,
+          // or equipment trigger whose spec list is resolving.
+          ctx.source,
+        );
         if (removed.length > 0 && !spec.quiet) {
           const line = spec.line?.replace('{n}', String(removed.length)) ??
             (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
@@ -1290,7 +1300,15 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'dispel': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'dispelled', ctx.trace);
+        const removed = removeTagged(
+          ctx.battle,
+          side,
+          spec.tags,
+          spec.max,
+          'dispelled',
+          ctx.trace,
+          ctx.source, // #105: the dispel names the stripping skill/move/trigger
+        );
         if (removed.length > 0 && !spec.quiet) {
           lines.push(
             spec.line?.replace('{n}', String(removed.length)) ??
@@ -1809,8 +1827,13 @@ function consumeItem(
     // Real tagged cleanse (#78): removes every removable harmful instance —
     // today that is the sapped-strength family; tomorrow it is whatever the
     // shared vocabulary ships. #105: each removal records its typed
-    // effectRemoved entry with the real round and cause.
-    const removed = removeTagged(battle, 'player', ['harmful'], undefined, 'cleansed', trace);
+    // effectRemoved entry with the real round, the cause AND the consumable
+    // that performed the cleanse.
+    const removed = removeTagged(battle, 'player', ['harmful'], undefined, 'cleansed', trace, {
+      kind: 'item',
+      id: itemDef.id,
+      name: itemDef.name,
+    });
     if (removed.length > 0) lines.push(`🧴 ${itemDef.name} cleanses your harmful effects.`);
   }
   entry.qty--;

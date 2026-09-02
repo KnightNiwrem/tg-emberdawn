@@ -371,7 +371,11 @@ export function hasRemovableTagged(
 /** Removes up to `max` removable tagged instances from a side; returns the
  * removed instances (for logs/metrics). Cleanse/dispel can never touch
  * unremovable encounter conditions. `cause` labels the structured removal
- * events (#88) — the caller knows whether it was cleansing or dispelling. */
+ * events (#88) — the caller knows whether it was cleansing or dispelling —
+ * and `removedBy` attributes each event to the source that initiated it
+ * (#105): the item/skill/enemy-move/equipment source behind the removal.
+ * Non-authored removals (expiry via pruneExpired, control consumption via
+ * consumeStun) pass no source — they have no initiator beyond the clock. */
 export function removeTagged(
   b: EffectArena,
   side: 'player' | 'enemy',
@@ -379,6 +383,7 @@ export function removeTagged(
   max?: number,
   cause: 'cleansed' | 'dispelled' = 'cleansed',
   trace?: CombatTraceEntry[],
+  removedBy?: EffectSource,
 ): EffectInstance[] {
   const removed: EffectInstance[] = [];
   const keep: EffectInstance[] = [];
@@ -396,6 +401,7 @@ export function removeTagged(
       defId: i.defId,
       name: i.name,
       cause,
+      ...(removedBy ? { removedBy: { ...removedBy } } : {}),
     });
   }
   return removed;

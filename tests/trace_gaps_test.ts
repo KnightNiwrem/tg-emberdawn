@@ -104,6 +104,16 @@ Deno.test('#105: a cleansing consumable emits one effectRemoved per effect, with
     true,
     'the removal entries carry the real action round',
   );
+  // #105: every removal names its initiator by stable content id — the
+  // Cleansing Tonic, not the effect's own application source.
+  assertEquals(
+    removed.every((e) =>
+      e.removedBy?.kind === 'item' && e.removedBy.id === 'c_antidote' &&
+      e.removedBy.name === 'Cleansing Tonic'
+    ),
+    true,
+    'every removal attributes the cleanse to the Cleansing Tonic',
+  );
   assertEquals(
     b.effectInstances.some((i) => i.defId === 'sap-a' || i.defId === 'sap-b'),
     false,
@@ -111,6 +121,79 @@ Deno.test('#105: a cleansing consumable emits one effectRemoved per effect, with
   );
   // The consumable path appends to the caller-owned returned trace.
   assertExists(res.trace, 'the outer operation returns the resolution trace');
+});
+
+Deno.test('#105: skill and item cleanses share the cause but stay distinguishable by source', () => {
+  // A cleric learns Purify (heal + cleanse); the Tonic and the skill both
+  // remove harmful effects with cause 'cleansed' — only removedBy tells
+  // them apart.
+  const p = createPlayer(4, 'T', 'cleric');
+  p.level = 30;
+  p.hp = 99999;
+  p.mp = 999;
+  p.skills.push('sk_purify');
+  const b = paddedRat(p, 31);
+  addItem(p, 'c_antidote', 1);
+  injectMod(b, 'player', 'outgoing', -0.2, { defId: 'sap-item', name: 'Sap Item' });
+  const r1 = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(31));
+  injectMod(b, 'player', 'atk', -0.1, { defId: 'sap-skill', name: 'Sap Skill' });
+  const r2 = performAction(p, b, { kind: 'skill', skillId: 'sk_purify' }, seeded(32));
+  const itemRemovals = findTrace(r1.trace, 'effectRemoved').filter((e) => e.cause === 'cleansed');
+  const skillRemovals = findTrace(r2.trace, 'effectRemoved').filter((e) => e.cause === 'cleansed');
+  assertEquals(itemRemovals.length, 1);
+  assertEquals(skillRemovals.length, 1);
+  assertEquals(itemRemovals[0]!.removedBy, {
+    kind: 'item',
+    id: 'c_antidote',
+    name: 'Cleansing Tonic',
+  });
+  assertEquals(skillRemovals[0]!.removedBy, { kind: 'skill', id: 'sk_purify', name: 'Purify' });
+  assertEquals(itemRemovals[0]!.cause === skillRemovals[0]!.cause, true, 'same cause…');
+  assertEquals(
+    itemRemovals[0]!.removedBy?.kind !== skillRemovals[0]!.removedBy?.kind,
+    true,
+    '…but the removal sources differ, so the two cleanses are distinguishable',
+  );
+});
+
+Deno.test('#105: a same-round item cleanse and enemy dispel each name their removal source', () => {
+  // The Warden of the Void's special (every 3rd enemy action) is Final
+  // Silence — damage plus a one-benefit dispel. Seeding enemy.turn = 2
+  // makes the first enemy action the third, so the special fires in the
+  // same round the player cleanses with the Tonic.
+  const p = hero(5);
+  p.hp = 999999;
+  const b = startBattle('e_warden', ORIGIN, { player: p, rng: seeded(41) })!.battle;
+  b.enemy.hp = 999999;
+  b.enemy.maxHp = 999999;
+  p.battle = b;
+  b.enemy.turn = 2;
+  addItem(p, 'c_antidote', 1);
+  injectMod(b, 'player', 'atk', -0.1, { defId: 'test:curse', name: 'Test Curse' });
+  injectMod(b, 'player', 'def', 0.2, { defId: 'test:bless', name: 'Test Bless' });
+  const res = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(42));
+  const removed = findTrace(res.trace, 'effectRemoved');
+  const cleansed = removed.filter((e) => e.cause === 'cleansed');
+  const dispelled = removed.filter((e) => e.cause === 'dispelled');
+  assertEquals(cleansed.length, 1, 'the Tonic cleansed the harmful curse');
+  assertEquals(cleansed[0]!.defId, 'test:curse');
+  assertEquals(cleansed[0]!.removedBy, {
+    kind: 'item',
+    id: 'c_antidote',
+    name: 'Cleansing Tonic',
+  });
+  assertEquals(dispelled.length, 1, 'Final Silence stripped the beneficial blessing');
+  assertEquals(dispelled[0]!.defId, 'test:bless');
+  assertEquals(dispelled[0]!.removedBy, {
+    kind: 'enemyMove',
+    id: 'Final Silence',
+    name: 'Final Silence',
+  });
+  assertEquals(
+    removed.every((e) => e.round === 1),
+    true,
+    'both removals happened in round 1 — removedBy is the only thing telling them apart',
+  );
 });
 
 Deno.test('#105: the trace is caller-owned plain data — never persisted on the battle', () => {
@@ -125,4 +208,17 @@ Deno.test('#105: the trace is caller-owned plain data — never persisted on the
     false,
     'no trace entry survives battle persistence',
   );
+  // Removal provenance is trace-only too: a cleanse names its source in the
+  // returned trace, and that provenance never lands in the saved shape.
+  addItem(p, 'c_antidote', 1);
+  injectMod(b, 'player', 'atk', -0.1, { defId: 'test:sap', name: 'Test Sap' });
+  const res2 = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(25));
+  assertEquals(
+    findTrace(res2.trace, 'effectRemoved')[0]?.removedBy?.id,
+    'c_antidote',
+    'the removal entry carries its source',
+  );
+  const saved = JSON.stringify(b);
+  assertEquals(saved.includes('"effectRemoved"'), false, 'no removal entry survives persistence');
+  assertEquals(saved.includes('"removedBy"'), false, 'removal provenance never persists');
 });
