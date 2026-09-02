@@ -141,7 +141,8 @@ export interface BattleState {
    * { count, round }. Battle-local and JSON-serializable; lazily created
    * on the first reactive proc — absent in battles constructed before
    * #82. `count` = successful procs, `round` = round of the last
-   * success; missed chance rolls update neither. */
+   * success (a cooldown-N trigger re-arms on that round + N + 1, #89);
+   * missed chance rolls update neither. */
   procs?: Record<string, { count: number; round: number }>;
   /** Resolved battle opening (#80): collected ONCE at construction —
    * never rerolled on save/load/rerender. Absent when no opening content

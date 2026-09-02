@@ -196,7 +196,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
   // warrior/rogue — a retaliation burn makes it useful for every class.
   t_3: [{
     name: 'Ember Backlash',
-    trigger: 'onHpDamage',
+    trigger: 'onEnemyActionHpDamage',
     chance: 0.35,
     maxProcs: 3,
     effects: [{
@@ -234,7 +234,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
   // Thorn Ring: bounded retaliation (the issue's named example).
   t_9: [{
     name: 'Bramble Prick',
-    trigger: 'onHpDamage',
+    trigger: 'onEnemyActionHpDamage',
     chance: 0.3,
     maxProcs: 3,
     effects: [{
@@ -639,7 +639,7 @@ function buildItems(): ItemDef[] {
       desc: "Plaited from the caldera's own temper.",
       triggers: [{
         name: 'Caldera Wrath',
-        trigger: 'onHpDamage',
+        trigger: 'onEnemyActionHpDamage',
         chance: 0.5,
         maxProcs: 3,
         cooldown: 2,
@@ -654,6 +654,36 @@ function buildItems(): ItemDef[] {
           line: '🌋 The caldera answers — the attacker is burning (12 damage ×3 rounds)!',
         }],
         desc: 'the attacker burns for 12×3 rounds.',
+      }],
+    },
+    {
+      // #89: the broad HP-damage contract — ANY loss to the wearer
+      // (periodic ticks, opening strikes, future reflect/environment
+      // causes) answers, not just enemy actions. Low stats keep it out of
+      // every 'best'-gear pick: this trinket exists to make the contract
+      // real and testable.
+      id: 't_19',
+      name: 'Grudge Charm',
+      lvl: 6,
+      stats: { atk: 2, res: 2 },
+      price: 450,
+      desc: 'Every wound answers — even poison and opening strikes.',
+      triggers: [{
+        name: 'Grudge Prick',
+        trigger: 'onHpDamage',
+        maxProcs: 6,
+        cooldown: 1,
+        effects: [{
+          kind: 'periodic',
+          target: 'opponent',
+          perRound: -3,
+          duration: 2,
+          tickPhase: 'roundEnd',
+          name: 'Grudge Bleed',
+          tags: ['bleed', 'harmful'],
+          line: '🩹 The grudge answers — the striker is bleeding (3 damage ×2 rounds)!',
+        }],
+        desc: 'any HP loss answers with a small bleed (every other round).',
       }],
     },
     {

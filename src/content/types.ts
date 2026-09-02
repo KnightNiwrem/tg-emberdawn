@@ -208,8 +208,12 @@ export type EffectSpec =
 export interface EquipTrigger {
   /** Display name (log lines + UI disclosure). */
   name: string;
-  /** When it fires. */
-  trigger: 'battleStart' | 'onHpDamage' | 'onGuard';
+  /** When it fires (#89). `onEnemyActionHpDamage` — only direct
+   * enemy-action HP damage. `onHpDamage` — any HP loss to the wearer
+   * (enemy actions, periodic ticks, opening strikes, future
+   * reflect/environment causes) EXCEPT proc-produced damage: procs never
+   * re-trigger equipment, so recursion is structurally bounded. */
+  trigger: 'battleStart' | 'onEnemyActionHpDamage' | 'onHpDamage' | 'onGuard';
   /** Proc chance (0..1); one injected-RNG draw per attempt. Unauthored =
    * always procs. */
   chance?: number;
@@ -218,7 +222,9 @@ export interface EquipTrigger {
   effects: EffectSpec[];
   /** Successful procs allowed per battle (default: unlimited). */
   maxProcs?: number;
-  /** Rounds required between procs (default: none). */
+  /** Cooldown N (#89): N complete intervening rounds are unavailable — a
+   * success on round R is eligible again on round R + N + 1 (0 = every
+   * round). Default: none. */
   cooldown?: number;
   /** Exact player-facing mechanics (item detail/shop/equipment disclosure
    * — numbers here are derived in the UI from the fields above, never

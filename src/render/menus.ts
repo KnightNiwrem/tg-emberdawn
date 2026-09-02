@@ -67,11 +67,17 @@ export function triggerDisclosure(def: ItemDef | undefined): string[] {
     const bits: string[] = [];
     if (tg.chance !== undefined) bits.push(`${Math.round(tg.chance * 100)}% chance`);
     if (tg.maxProcs !== undefined) bits.push(`up to ${tg.maxProcs}×/battle`);
-    if (tg.cooldown !== undefined) bits.push(`${tg.cooldown}-round cooldown`);
+    // #89: cooldown N makes N complete intervening rounds unavailable —
+    // stated as the frequency it guarantees (a proc on R re-arms on R+N+1).
+    if (tg.cooldown !== undefined) {
+      bits.push(`at most once every ${tg.cooldown + 1} rounds`);
+    }
     const when = tg.trigger === 'battleStart'
       ? 'Battle start'
+      : tg.trigger === 'onEnemyActionHpDamage'
+      ? 'When an enemy action damages you'
       : tg.trigger === 'onHpDamage'
-      ? 'On taking HP damage'
+      ? 'On taking any HP loss'
       : 'On guard';
     return `⚡ ${when}: ${tg.desc}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
   });

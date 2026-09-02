@@ -38,7 +38,7 @@ import {
   statPct,
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
-import { emitCombatEvent } from './telemetry.ts';
+import { type DamageCause, emitCombatEvent } from './telemetry.ts';
 
 /** Applies a stat-modifier percentage to a base stat. The result floors
  * at 1 (#85): stacked breaks can shrink a stat to almost nothing but never
@@ -219,6 +219,7 @@ export function startBattle(
       // provenance, through the shared resolver.
       if (def.opening) {
         opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
+        const hpBeforeOpening = p.hp;
         opening.push(...runOpening(
           battle,
           p,
@@ -227,7 +228,15 @@ export function startBattle(
           { kind: 'enemyMove', id: def.id, name: def.opening.name },
           def.opening.name,
           def.opening.effects,
+          'opening',
+          false,
         ));
+        // #89: opening strikes answer BROAD onHpDamage triggers — an
+        // opening is not a direct enemy action, so the narrow trigger
+        // stays quiet; a fallen wearer procs nothing (#86 parity).
+        if (p.hp > 0 && p.hp < hpBeforeOpening) {
+          opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }));
+        }
       }
       // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
       // trinket — then authored order within the item. battleStart procs
@@ -271,6 +280,10 @@ export function startBattle(
             { kind: 'item', id: it.id, name: it.name },
             tg.name,
             tg.effects,
+            // #89: a battleStart trigger IS a reactive proc — its damage
+            // is proc-produced and never re-triggers equipment.
+            'proc',
+            true,
           ));
         }
       }
@@ -279,7 +292,7 @@ export function startBattle(
       for (const id of p.skills) {
         const sk = skill(id);
         if (!sk?.preEmptive) continue;
-        opening.push(...applySkill(p, battle, sk, opRng));
+        opening.push(...applySkill(p, battle, sk, opRng, 'opening', false));
       }
       // An opening can wound but never end the fight before it begins.
       battle.enemy.hp = Math.max(1, battle.enemy.hp);
@@ -292,7 +305,8 @@ export function startBattle(
 /** Runs one opening spec list through the shared resolver (#80). Openings
  * are ordinary one-shot applications at round 1 — same vocabulary, same
  * stacking policies, same default lines — just resolved before the first
- * player action exists. */
+ * player action exists. Provenance is explicit (#89): the enemy's opening
+ * move is cause `opening`; battleStart item triggers are reactive procs. */
 function runOpening(
   battle: BattleState,
   p: PlayerState,
@@ -301,6 +315,8 @@ function runOpening(
   source: EffectSource,
   displayName: string,
   specs: readonly EffectSpec[],
+  cause: DamageCause,
+  procProduced: boolean,
 ): string[] {
   const ctx: ExecCtx = {
     p,
@@ -312,23 +328,29 @@ function runOpening(
     lastDamage: 0,
     targetFelled: false,
     hpDamaged: false,
+    cause,
+    procProduced,
   };
   return executeSpecs(ctx, specs);
 }
 
-/** Scans equipped items for reactive triggers (#82): `onHpDamage` fires
- * when the wearer lost HP to an enemy action, `onGuard` when they guard.
- * Slot order, then authored order. Gates: maxProcs (successful procs per
- * battle), cooldown (rounds since the last success), chance (one injected
- * draw per attempt — a miss consumes neither budget nor cooldown). Lines
- * carry a ⚡ prefix for source attribution in the log and harness metrics.
- * The scanner is only invoked from the base enemy-action and guard paths,
- * so proc-produced effects can never re-trigger equipment (no recursion). */
+/** Scans equipped items for reactive triggers (#82, #89). Slot order, then
+ * authored order. Damage scans carry the HP-loss cause and match
+ * declaratively: `onEnemyActionHpDamage` answers ONLY direct enemy-action
+ * damage; `onHpDamage` answers EVERY HP loss (enemy actions, periodic
+ * ticks, opening strikes, future reflect/environment causes); proc-
+ * produced damage never reaches a scan at all, so equipment recursion is
+ * structurally bounded. `onGuard` answers only the guard scan. Gates:
+ * maxProcs (successful procs per battle), cooldown N (N complete
+ * intervening rounds unavailable — a success on round R re-arms on
+ * R + N + 1), chance (one injected draw per attempt — a miss consumes
+ * neither budget nor cooldown, and gated attempts draw nothing at all).
+ * Lines carry a ⚡ prefix for source attribution in the log and metrics. */
 function runReactiveTriggers(
   p: PlayerState,
   battle: BattleState,
   rng: Rng,
-  kind: 'onHpDamage' | 'onGuard',
+  scan: 'onGuard' | { cause: DamageCause },
 ): string[] {
   const lines: string[] = [];
   const procs = battle.procs ??= {};
@@ -337,13 +359,20 @@ function runReactiveTriggers(
     const it = itemId ? itemDefLookup(itemId) : undefined;
     if (!it?.triggers?.length) continue;
     it.triggers.forEach((tg, ti) => {
-      if (tg.trigger !== kind) return;
+      if (scan === 'onGuard') {
+        if (tg.trigger !== 'onGuard') return;
+      } else {
+        if (tg.trigger !== 'onHpDamage' && tg.trigger !== 'onEnemyActionHpDamage') return;
+        if (tg.trigger === 'onEnemyActionHpDamage' && scan.cause !== 'enemyAction') return;
+      }
       const key = `${it.id}:${ti}`;
       const st = procs[key] ?? { count: 0, round: 0 };
       if (tg.maxProcs !== undefined && st.count >= tg.maxProcs) return;
-      // Cooldown measures rounds since the LAST success — a fresh battle
-      // never inherits a phantom cooldown (st.round > 0 guards that).
-      if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round < tg.cooldown) {
+      // Cooldown N (#89): N complete intervening rounds are unavailable —
+      // a success on round R blocks R+1 … R+N and re-arms on R+N+1.
+      // st.round > 0 guards that a fresh battle never inherits a phantom
+      // cooldown.
+      if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round <= tg.cooldown) {
         return;
       }
       if (tg.chance !== undefined && !chance(rng, tg.chance)) {
@@ -366,6 +395,8 @@ function runReactiveTriggers(
         lastDamage: 0,
         targetFelled: false,
         hpDamaged: false,
+        cause: 'proc',
+        procProduced: true,
       };
       emitCombatEvent({
         kind: 'procAttempt',
@@ -585,7 +616,13 @@ export function performAction(
     // ends the round BEFORE the action and before any later tick (#86).
     const started = gatherTurnStartTicks(battle, maxHpOf(battle, p));
     for (const t of started) {
+      const hpBeforeTick = p.hp;
       lines.push(...applyPeriodicTick(p, battle, t));
+      // #89: periodic HP loss answers BROAD onHpDamage triggers (never the
+      // narrow enemy-action ones); a fallen wearer procs nothing.
+      if (!battle.tutorial && p.hp > 0 && p.hp < hpBeforeTick) {
+        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
+      }
       if (terminalNow()) return 'terminal';
     }
     for (const loss of settleTurnStart(battle, started)) {
@@ -638,6 +675,15 @@ export function performAction(
       const dmg = Math.max(1, p.hp - target);
       p.hp = Math.max(1, p.hp - dmg);
       lines.push(`💥 ${battle.enemy.name} flares with old hearth-fire — ${dmg} damage to you!`);
+      emitCombatEvent({
+        kind: 'hpDamaged',
+        round: battle.round,
+        cause: 'enemyAction',
+        attacker: 'enemy',
+        target: 'player',
+        amount: dmg,
+        procProduced: false,
+      });
       if (battle.guarding) {
         lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
       }
@@ -685,7 +731,11 @@ export function performAction(
   const eor = gatherRoundEndTicks(battle, maxHpOf(battle, p));
   let ended = false;
   for (const t of eor) {
+    const hpBeforeTick = p.hp;
     lines.push(...applyPeriodicTick(p, battle, t));
+    if (!battle.tutorial && p.hp > 0 && p.hp < hpBeforeTick) {
+      lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
+    }
     if (terminalNow()) {
       ended = true;
       break;
@@ -766,6 +816,19 @@ function applyPeriodicTick(
       amount: t.amount,
       applied: p.hp - hpBefore,
     });
+    // #89: periodic HP loss is its own cause — broad onHpDamage triggers
+    // answer it; there is no attacker for the narrow one to blame.
+    if (p.hp < hpBefore) {
+      emitCombatEvent({
+        kind: 'hpDamaged',
+        round: battle.round,
+        cause: 'periodic',
+        attacker: null,
+        target: 'player',
+        amount: hpBefore - p.hp,
+        procProduced: false,
+      });
+    }
     lines.push(
       `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
     );
@@ -786,6 +849,17 @@ function applyPeriodicTick(
       amount: t.amount,
       applied: battle.enemy.hp - hpBefore,
     });
+    if (battle.enemy.hp < hpBefore) {
+      emitCombatEvent({
+        kind: 'hpDamaged',
+        round: battle.round,
+        cause: 'periodic',
+        attacker: null,
+        target: 'enemy',
+        amount: hpBefore - battle.enemy.hp,
+        procProduced: false,
+      });
+    }
     lines.push(
       `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${t.name}).${
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
@@ -822,6 +896,12 @@ interface ExecCtx {
   /** True when the last damage effect actually reduced its target's HP —
    * fully-shielded hits never trigger `requireHpDamage` riders (#79). */
   hpDamaged: boolean;
+  /** #89 damage-event provenance: what this spec list belongs to — powers
+   * hpDamaged telemetry without parsing presentation text. */
+  cause: DamageCause;
+  /** #89: true inside a reactive-proc resolution — HP damage this list
+   * produces is proc-produced and never re-triggers equipment. */
+  procProduced: boolean;
 }
 
 function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
@@ -1143,6 +1223,19 @@ function applyDamageEffect(
     ctx.lastDamage = dealt.dmg;
     ctx.hpDamaged = hpDmg > 0;
     ctx.targetFelled = battle.enemy.hp <= 0;
+    // #89: structured HP-damage provenance — shield-only absorbs emit
+    // nothing.
+    if (hpDmg > 0) {
+      emitCombatEvent({
+        kind: 'hpDamaged',
+        round: battle.round,
+        cause: ctx.cause,
+        attacker: 'player',
+        target: 'enemy',
+        amount: hpDmg,
+        procProduced: ctx.procProduced,
+      });
+    }
     const verb = spec.attack === 'phys' ? 'hits' : 'sears';
     const critSuffix = dealt.crit ? (spec.critText ?? ' — critical!') : '';
     const body = spec.line
@@ -1185,6 +1278,17 @@ function applyDamageEffect(
   ctx.lastDamage = dmg;
   ctx.hpDamaged = hpDmg > 0;
   ctx.targetFelled = p.hp <= 0;
+  if (hpDmg > 0) {
+    emitCombatEvent({
+      kind: 'hpDamaged',
+      round: battle.round,
+      cause: ctx.cause,
+      attacker: 'enemy',
+      target: 'player',
+      amount: hpDmg,
+      procProduced: ctx.procProduced,
+    });
+  }
   lines.push(
     `💥 ${battle.enemy.name} uses ${ctx.displayName} — ${hpDmg} damage to you!${
       absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
@@ -1244,7 +1348,14 @@ function applyRestoreEffect(
   return lines;
 }
 
-function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng): string[] {
+function applySkill(
+  p: PlayerState,
+  battle: BattleState,
+  sk: SkillDef,
+  rng: Rng,
+  cause: DamageCause,
+  procProduced: boolean,
+): string[] {
   const lines: string[] = [];
   // Buff-style skills announce ONCE with their full rules text (#67 copy,
   // #78 mechanics): the statmods themselves stay quiet.
@@ -1262,6 +1373,8 @@ function applySkill(p: PlayerState, battle: BattleState, sk: SkillDef, rng: Rng)
     lastDamage: 0,
     targetFelled: false,
     hpDamaged: false,
+    cause,
+    procProduced,
   };
   lines.push(...executeSpecs(ctx, sk.effects));
   return lines;
@@ -1296,6 +1409,8 @@ function applyPlayerAction(
         lastDamage: 0,
         targetFelled: false,
         hpDamaged: false,
+        cause: 'playerAction',
+        procProduced: false,
       };
       lines.push(...executeSpecs(ctx, [{
         kind: 'damage',
@@ -1334,7 +1449,7 @@ function applyPlayerAction(
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng));
+      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false));
       return { lines, consumedTurn: true };
     }
     case 'item': {
@@ -1459,16 +1574,19 @@ function enemyAct(
     lastDamage: 0,
     targetFelled: false,
     hpDamaged: false,
+    cause: 'enemyAction',
+    procProduced: false,
   };
   const hpBefore = p.hp;
   lines.push(...executeSpecs(ctx, move.effects));
-  // Reactive equipment (#82): fires when the wearer actually lost HP to
-  // this enemy action — shield-only absorbs don't count, and periodic
-  // ticks / the scripted tutorial hit route elsewhere by construction.
-  // #86: a fallen wearer procs nothing (Phoenix revival leaves hp > 0,
-  // which still counts — the hit was real HP damage).
+  // Reactive equipment (#82/#89): fires when the wearer actually lost HP
+  // to this enemy action — the direct enemy-action cause. Shield-only
+  // absorbs don't count; periodic ticks scan separately with their own
+  // cause; the scripted tutorial hit never procs (tutorial battles scan
+  // nothing). #86: a fallen wearer procs nothing (Phoenix revival leaves
+  // hp > 0, which still counts — the hit was real HP damage).
   if (!battle.tutorial && p.hp > 0 && p.hp < hpBefore) {
-    lines.push(...runReactiveTriggers(p, battle, rng, 'onHpDamage'));
+    lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'enemyAction' }));
   }
   return lines;
 }

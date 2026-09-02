@@ -1,14 +1,16 @@
-/** Triggered equipment effects (#82): battleStart openings resolve once
- * inside the #80 pipeline (success AND failure both recorded), reactive
- * onHpDamage/onGuard procs respect maxProcs/cooldown/chance with
- * battle-local JSON-serializable bookkeeping, periodic ticks and
- * shield-only absorbs never proc, forge temper never scales proc data,
- * and the UI derives exact mechanics from the trigger fields. */
+/** Triggered equipment effects (#82, #89): battleStart openings resolve
+ * once inside the #80 pipeline (success AND failure both recorded),
+ * reactive procs are cause-matched (onEnemyActionHpDamage = direct enemy
+ * actions only; onHpDamage = every HP loss, ticks included) and respect
+ * maxProcs/cooldown/chance with battle-local JSON-serializable
+ * bookkeeping, shield-only absorbs never proc, forge temper never scales
+ * proc data, and the UI derives exact mechanics from the trigger fields. */
 
 import { assert, assertEquals, assertExists } from '@std/assert';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance, grantShield, incomingAmpPct } from '../src/engine/effects.ts';
+import { type CombatEvent, type DamageCause, setCombatTelemetry } from '../src/engine/telemetry.ts';
 import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/engine/types.ts';
 import { item } from '../src/content/items.ts';
 import { renderEquipment, renderItemDetail, triggerDisclosure } from '../src/render/menus.ts';
@@ -170,11 +172,22 @@ Deno.test('#82: shield-only absorbs never proc onHpDamage', () => {
     timing: 'immediate',
     removable: false,
   });
-  const hpBefore = p.hp;
-  const res = round(p, b, s);
-  assertEquals(p.hp, hpBefore, 'the strike never reached HP');
-  assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false);
+  const events: CombatEvent[] = [];
+  setCombatTelemetry((e) => events.push(e));
+  try {
+    const hpBefore = p.hp;
+    const res = round(p, b, s);
+    assertEquals(p.hp, hpBefore, 'the strike never reached HP');
+    assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false);
+  } finally {
+    setCombatTelemetry(null);
+  }
   assertEquals(b.procs?.['t_9:0']?.count ?? 0, 0);
+  assertEquals(
+    events.filter((e) => e.kind === 'hpDamaged' && e.target === 'player').length,
+    0,
+    'shield-only absorption emits no hpDamaged event (#89)',
+  );
 });
 
 Deno.test('#82: maxProcs caps reactive procs per battle', () => {
@@ -190,7 +203,7 @@ Deno.test('#82: maxProcs caps reactive procs per battle', () => {
   assertEquals(procLines, 3);
 });
 
-Deno.test('#82: cooldown spaces reactive procs apart', () => {
+Deno.test('#89: cooldown 2 blocks the two rounds after a proc', () => {
   const run = (seed: number): { rounds: number[]; count: number } => {
     const p = hero(10, 'warrior', 36, 't_16');
     const b = tankyForge(p, seed);
@@ -211,8 +224,10 @@ Deno.test('#82: cooldown spaces reactive procs apart', () => {
   assert(procRounds.length >= 2, 'at least two procs landed within seven rounds');
   for (let i = 1; i < procRounds.length; i++) {
     assert(
-      procRounds[i]! - procRounds[i - 1]! >= 2,
-      `procs at rounds ${procRounds[i - 1]} and ${procRounds[i]} respect the 2-round cooldown`,
+      procRounds[i]! - procRounds[i - 1]! >= 3,
+      `procs at rounds ${procRounds[i - 1]} and ${
+        procRounds[i]
+      } respect the cooldown-2 gate (blocked R+1..R+2, eligible R+3, #89)`,
     );
   }
   assertEquals(count, procRounds.length, 'bookkeeping matches the observed procs');
@@ -330,8 +345,14 @@ Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => 
   ]);
   const caldera = triggerDisclosure(item('t_16'))[0]!;
   assert(caldera.includes('50% chance'));
-  assert(caldera.includes('2-round cooldown'));
+  assert(caldera.includes('at most once every 3 rounds'));
   assert(caldera.includes('up to 3×/battle'));
+  assert(
+    triggerDisclosure(item('t_9'))[0]!.startsWith('⚡ When an enemy action damages you:'),
+  );
+  assertEquals(triggerDisclosure(item('t_19')), [
+    '⚡ On taking any HP loss: any HP loss answers with a small bleed (every other round). (up to 6×/battle · at most once every 2 rounds)',
+  ]);
   assertEquals(
     triggerDisclosure(item('t_13')),
     ['⚡ On guard: restore 8% of max MP. (up to 3×/battle)'],
@@ -343,5 +364,188 @@ Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => 
   assert(JSON.stringify(renderItemDetail(bag, 't_7')).includes('⚡ Battle start'));
   assert(
     JSON.stringify(renderEquipment(hero(15, 'warrior', 28, 't_15'))).includes('⚡ Battle start'),
+  );
+});
+
+// ── #89: cause-matched triggers, exact cooldown arithmetic, provenance ──
+
+Deno.test('#89: broad onHpDamage answers periodic ticks', () => {
+  const p = hero(21, 'warrior', 5, 't_19');
+  const b = tankyWolf(p, 1);
+  applyInstance(b, {
+    defId: 'test_poison',
+    name: 'Test Rot',
+    kind: 'periodic',
+    side: 'player',
+    source: { kind: 'skill', id: 'test', name: 'Test' },
+    perRound: -5,
+    tickPhase: 'roundEnd',
+    tags: ['poison', 'harmful'],
+    stacking: 'replace',
+    duration: 3,
+    timing: 'immediate',
+    removable: true,
+  });
+  applyInstance(b, {
+    defId: 'test_stun',
+    name: 'Stun',
+    kind: 'control',
+    side: 'enemy',
+    source: { kind: 'skill', id: 'test', name: 'Test' },
+    control: 'stun',
+    actions: 1,
+    tags: ['control', 'harmful'],
+    stacking: 'replace',
+    duration: 1,
+    timing: 'immediate',
+    removable: false,
+  });
+  const hpBefore = p.hp;
+  const res = round(p, b, 1);
+  assert(p.hp < hpBefore, 'the end-of-round tick bit HP');
+  assertEquals(
+    res.lines.some((l) => l.includes('damage to you!')),
+    false,
+    'the stunned wolf never struck — the tick is the only HP loss',
+  );
+  assert(res.lines.some((l) => l.startsWith('⚡ ')), 'the broad trigger answers the tick');
+  const bleed = b.effectInstances.find((i) => i.defId === 't_19');
+  assertExists(bleed, 'the striker is bleeding');
+  assertEquals(bleed.side, 'enemy');
+  assertEquals(bleed.perRound, -3);
+  assertEquals(b.procs?.['t_19:0']?.count, 1);
+});
+
+Deno.test('#89: cooldown 1 pins exact eligible rounds (R+1 blocked, R+2 re-arms)', () => {
+  const run = (seed: number) => {
+    const p = hero(22, 'warrior', 36, 't_19');
+    const b = tankyForge(p, seed);
+    const events: CombatEvent[] = [];
+    setCombatTelemetry((e) => events.push(e));
+    const procs: number[] = [];
+    const hits: boolean[] = [];
+    try {
+      for (let r = 0; r < 3; r++) {
+        p.hp = statsOf(p).maxHp; // survival is not the variable under test
+        const res = round(p, b, seed);
+        hits.push(p.hp < statsOf(p).maxHp); // the warden's strike reached HP
+        if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
+      }
+    } finally {
+      setCombatTelemetry(null);
+    }
+    return { b, events, procs, hits };
+  };
+  let found: ReturnType<typeof run> | undefined;
+  for (let seed = 1; seed <= 300; seed++) {
+    const r = run(seed);
+    if (r.hits.every(Boolean) && r.procs.length === 2 && r.procs[0] === 1 && r.procs[1] === 3) {
+      found = r;
+      break;
+    }
+  }
+  assertExists(found, 'no seed reproduces the exact cooldown-1 cadence');
+  assertEquals(found.procs, [1, 3]);
+  assertEquals(found.b.procs?.['t_19:0'], { count: 2, round: 3 });
+  assertEquals(
+    found.events.filter((e) => e.kind === 'procAttempt').length,
+    2,
+    'exactly the two successes emitted attempts — the blocked round emitted nothing',
+  );
+});
+
+Deno.test('#89: unauthored cooldown answers every round (cooldown-0 contract)', () => {
+  const run = (seed: number): number[] => {
+    const p = hero(23, 'warrior', 5, 't_9');
+    const b = tankyWolf(p, seed);
+    const procs: number[] = [];
+    for (let r = 0; r < 2; r++) {
+      p.hp = statsOf(p).maxHp;
+      const res = round(p, b, seed);
+      if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
+    }
+    return procs;
+  };
+  let found = false;
+  for (let seed = 1; seed <= 300; seed++) {
+    if (run(seed).join(',') === '1,2') {
+      found = true;
+      break;
+    }
+  }
+  assert(found, 't_9 (no cooldown field) may proc on consecutive rounds');
+});
+
+Deno.test('#89: missed chance rolls write nothing (no budget, no cooldown)', () => {
+  const run = (seed: number) => {
+    const p = hero(24, 'warrior', 5, 't_9');
+    const b = tankyWolf(p, seed);
+    const events: CombatEvent[] = [];
+    setCombatTelemetry((e) => events.push(e));
+    try {
+      p.hp = statsOf(p).maxHp;
+      const res = round(p, b, seed);
+      return { b, res, events, hit: p.hp < statsOf(p).maxHp };
+    } finally {
+      setCombatTelemetry(null);
+    }
+  };
+  let miss: ReturnType<typeof run> | undefined;
+  for (let seed = 1; seed <= 300; seed++) {
+    const r = run(seed);
+    if (
+      r.hit && !r.res.lines.some((l) => l.startsWith('⚡ ')) &&
+      r.b.procs?.['t_9:0'] === undefined
+    ) {
+      miss = r;
+      break;
+    }
+  }
+  assertExists(miss, 'no seed reproduces a landed strike with a missed chance roll');
+  assertEquals(miss.b.procs?.['t_9:0'], undefined, 'the miss wrote no bookkeeping at all');
+  const attempts = miss.events.filter((e): e is Extract<CombatEvent, { kind: 'procAttempt' }> =>
+    e.kind === 'procAttempt'
+  );
+  assertEquals(attempts.length, 1, 'the miss is recorded as exactly one attempt');
+  assertEquals(attempts[0]!.success, false, 'a missed roll is a failure that consumed nothing');
+});
+
+Deno.test('#89: non-damaging openings scan nothing', () => {
+  // Chrono Wisp's Chrono Anchor (#80) slows but never wounds — no HP-loss
+  // scan runs, so neither reactive trigger kind may proc from an opening.
+  for (const trinket of ['t_9', 't_19'] as const) {
+    const p = hero(25, 'warrior', 25, trinket);
+    const b = startBattle('e_chronowisp', ORIGIN, { player: p, rng: seeded(1) })!;
+    assertEquals(b.procs, undefined, `${trinket} procs nothing on a non-damaging opening`);
+    assertEquals(
+      b.effectInstances.some((i) => i.defId === trinket),
+      false,
+      `${trinket} applied nothing at the opening`,
+    );
+  }
+});
+
+Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduced', () => {
+  const s = reactiveSeed('t_19', 5, true);
+  const p = hero(26, 'warrior', 5, 't_19');
+  const b = tankyWolf(p, s);
+  const events: CombatEvent[] = [];
+  setCombatTelemetry((e) => events.push(e));
+  try {
+    round(p, b, s);
+  } finally {
+    setCombatTelemetry(null);
+  }
+  const hpEvents = events.filter((e): e is Extract<CombatEvent, { kind: 'hpDamaged' }> =>
+    e.kind === 'hpDamaged'
+  );
+  const by = (cause: DamageCause, target: 'player' | 'enemy') =>
+    hpEvents.filter((e) => e.cause === cause && e.target === target);
+  assert(by('enemyAction', 'player').length >= 1, 'the wolf strike is provenance-tagged');
+  assert(by('playerAction', 'enemy').length >= 1, 'the hero strike is provenance-tagged');
+  assert(by('periodic', 'enemy').length >= 1, "the proc's bleed tick is provenance-tagged");
+  assert(
+    hpEvents.every((e) => e.amount > 0 && e.procProduced === false),
+    'amounts are real post-shield HP loss; no content produces proc-produced damage today',
   );
 });

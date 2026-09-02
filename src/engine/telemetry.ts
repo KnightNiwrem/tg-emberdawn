@@ -12,6 +12,19 @@
 
 export type CombatSide = 'player' | 'enemy';
 
+/** #89: what produced a burst of HP damage. `enemyAction` — a direct enemy
+ * move; `playerAction` — the player's own strike/skill; `periodic` —
+ * DOT/HOT ticks; `opening` — the battle-opening phase; `proc` — reactive-
+ * proc resolutions; `reflect` — reserved for future retaliation mechanics
+ * (nothing authored today). */
+export type DamageCause =
+  | 'enemyAction'
+  | 'playerAction'
+  | 'periodic'
+  | 'opening'
+  | 'proc'
+  | 'reflect';
+
 export type CombatEvent =
   | {
     kind: 'effectApplied';
@@ -54,6 +67,19 @@ export type CombatEvent =
     /** True when the attempt executed its effects; false on a missed chance
      * roll. Gated attempts (maxProcs/cooldown) are not attempts at all. */
     success: boolean;
+  }
+  | {
+    kind: 'hpDamaged';
+    round: number;
+    cause: DamageCause;
+    /** Who dealt it (null for environment or self-inflicted causes). */
+    attacker: 'player' | 'enemy' | null;
+    target: 'player' | 'enemy';
+    /** HP damage after shield absorption. */
+    amount: number;
+    /** Produced inside a reactive-proc resolution — never re-triggers
+     * equipment (#89). */
+    procProduced: boolean;
   }
   | { kind: 'terminal'; round: number; outcome: 'victory' | 'defeat' };
 
