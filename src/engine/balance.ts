@@ -1349,21 +1349,27 @@ export function buildSnapshot(): BalanceSnapshot {
       }],
     });
   }
-  // 6. Every dungeon boss at its intended level (#88): a representative
-  //    rotation cell per boss, plus an under-geared (starting-kit) variant
-  //    — the reviewed before/after cells for every gear-gated fight.
+  // 6. Every dungeon boss at its intended level (#88, #100): a reviewed
+  //    intended-gear lane for EVERY class — late bosses are no longer
+  //    covered through one warrior lane — plus an under-geared
+  //    (starting-kit) mage variant. The gear lanes stay conceptually
+  //    separate: the intended cells answer "can a correctly-progressed
+  //    hero of this class win?", the undergeared cell answers "how brutal
+  //    is the gear cliff?".
   for (const z of ZONES) {
     const boss = dungeonBossSource(z.id);
     if (!boss) continue;
     const intended = z.levels[1];
-    push({
-      classId: 'warrior',
-      level: intended,
-      gear: 'best',
-      policy: POLICIES.rotation,
-      pool: `boss:${boss.enemyId}:intended`,
-      sources: [boss],
-    });
+    for (const cid of CLASS_IDS) {
+      push({
+        classId: cid,
+        level: intended,
+        gear: 'best',
+        policy: cid === 'mage' ? POLICIES.tactical : POLICIES.rotation,
+        pool: `boss:${boss.enemyId}:intended`,
+        sources: [boss],
+      });
+    }
     push({
       classId: 'mage',
       level: Math.max(1, intended - 1),
