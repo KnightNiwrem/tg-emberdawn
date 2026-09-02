@@ -9,7 +9,7 @@ import {
   migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
-import { performAction, previewBattle, startBattle } from '../src/engine/combat.ts';
+import { performAction, startBattle } from '../src/engine/combat.ts';
 import {
   absorbShield,
   grantShield,
@@ -55,7 +55,9 @@ function ward(
 
 function battleFor(id: number, enemyId = 'e_rat'): { p: PlayerState; b: BattleState } {
   const p = createPlayer(id, 'T', 'warrior');
-  const b = previewBattle(enemyId, ORIGIN)!;
+  // #99: playable fights construct through startBattle — the real opening
+  // pipeline with the fighting hero and an explicit RNG.
+  const b = startBattle(enemyId, ORIGIN, { player: p, rng: seeded(id) })!.battle;
   p.battle = b;
   return { p, b };
 }
@@ -248,7 +250,7 @@ Deno.test('shields: bypassShield lands on HP and leaves the ward untouched (#79)
     const rng = seeded(seed);
     const p = createPlayer(820 + seed, 'T', 'warrior');
     p.level = 45;
-    const b = previewBattle('e_aldric', BOSS_ORIGIN)!;
+    const b = startBattle('e_aldric', BOSS_ORIGIN, { player: p, rng })!.battle;
     p.battle = b;
     for (let round = 0; round < 30 && b.phase === 'active' && !observed; round++) {
       grantShield(b, 'player', ward('w', 100));
@@ -274,7 +276,7 @@ Deno.test('shields: requireHpDamage riders only land on flesh (#79)', () => {
     const p = createPlayer(960 + seed, 'T', 'warrior');
     p.level = 45;
     p.hp = 99999; // #86: a fallen wearer procs nothing — survive the scan
-    const b = previewBattle('e_aldric', BOSS_ORIGIN)!;
+    const b = startBattle('e_aldric', BOSS_ORIGIN, { player: p, rng })!.battle;
     p.battle = b;
     for (let round = 0; round < 20 && b.phase === 'active' && !sawCrown; round++) {
       grantShield(b, 'player', ward('w', 999));
@@ -296,7 +298,7 @@ Deno.test('shields: requireHpDamage riders only land on flesh (#79)', () => {
     const p = createPlayer(1040 + seed, 'T', 'warrior');
     p.level = 45;
     p.hp = 99999; // #86: a fallen wearer procs nothing — survive the scan
-    const b = previewBattle('e_aldric', BOSS_ORIGIN)!;
+    const b = startBattle('e_aldric', BOSS_ORIGIN, { player: p, rng })!.battle;
     p.battle = b;
     for (let round = 0; round < 20 && b.phase === 'active' && !sawSap; round++) {
       const res = performAction(p, b, { kind: 'guard' }, rng);
@@ -316,7 +318,7 @@ Deno.test('shields: enemy wards absorb, expire and announce (#79)', () => {
   const rng = seeded(31);
   const p = createPlayer(830, 'T', 'warrior');
   p.level = 17;
-  const b = previewBattle('e_sentinel', ORIGIN)!;
+  const b = startBattle('e_sentinel', ORIGIN, { player: p, rng: seeded(30) })!.battle;
   p.battle = b;
   let seen = false;
   for (let i = 0; i < 60 && !seen; i++) {
@@ -365,7 +367,7 @@ Deno.test('shields: Aegis of Dawn grants a real ward through the resolver (#79)'
   p.level = 14;
   p.skills.push('sk_aegis');
   p.mp = 999;
-  const b = previewBattle('e_rat', ORIGIN)!;
+  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(40) })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -383,7 +385,7 @@ Deno.test('shields: healing HP never refills the ward (#79)', () => {
   p.skills.push('sk_mend');
   p.mp = 999;
   p.hp = 10;
-  const b = previewBattle('e_rat', ORIGIN)!;
+  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(41) })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -436,7 +438,7 @@ Deno.test('shields: the battle screen renders, depletes and removes ward bars (#
 Deno.test('migratePlayer: v6 in-flight battles gain the shield pool (#79)', () => {
   const p = createPlayer(880, 'T', 'warrior');
   p.stateVersion = 6;
-  const b = previewBattle('e_rat', ORIGIN)!;
+  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(42) })!.battle;
   p.battle = b;
   const rec = b as unknown as Record<string, unknown>;
   delete rec.shield; // simulate a pre-#79 in-flight battle

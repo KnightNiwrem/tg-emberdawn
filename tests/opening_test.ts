@@ -360,3 +360,24 @@ Deno.test('#96: performAction refuses to run a round on a pre-existing terminal 
   assertEquals(res.outcome, 'defeat');
   assertEquals(b.enemy.turn, 0, 'the enemy never acted on a corpse');
 });
+
+// ── #99: previews are structurally unplayable — playable fights construct
+// through startBattle ─────────────────────────────────────────────────────
+
+Deno.test('#99: a preview resolves no opening and cannot be played', () => {
+  // Aldric behind boss provenance: the Sovereign Ward is an OPENING source,
+  // so a real construction resolves it — a preview must not.
+  const pv = previewBattle('e_aldric', BOSS_ORIGIN)!;
+  assertEquals(pv.phase, 'preview', "the container's phase is not a BattlePhase");
+  assertEquals(pv.shield.enemy, 0, 'no opening ward — previews resolve no openings');
+  assertEquals(pv.effectInstances.length, 0, 'no opening effects');
+  assertEquals(pv.history.length, 0, 'no rounds could ever run');
+  // The playable path — the same enemy, the same provenance — DOES.
+  const live = startBattle('e_aldric', BOSS_ORIGIN, {
+    player: createPlayer(6500, 'T', 'warrior'),
+    rng: seeded(91),
+  })!;
+  assertEquals(live.battle.phase, 'active');
+  assertEquals(live.battle.shield.enemy, 250, 'the ward resolves on playable construction');
+  assertEquals(live.outcome, 'ongoing');
+});

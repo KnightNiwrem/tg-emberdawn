@@ -20,7 +20,7 @@ import {
   migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
-import { performAction, previewBattle } from '../src/engine/combat.ts';
+import { performAction, startBattle } from '../src/engine/combat.ts';
 import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { grantTutorialReward } from '../src/handlers/tutorial.ts';
 import { enemy } from '../src/content/enemies.ts';
@@ -176,10 +176,15 @@ Deno.test('prologue: no damage roll can skip or end the lesson beats (#69)', () 
     for (let seed = 1; seed <= 25; seed++) {
       const rng = seeded(seed);
       const p = createPlayer(2000 + seed, 'T', cid);
-      const b = previewBattle('e_cinder_mite', { kind: 'explore', zoneId: 'outskirts' })!;
-      b.tutorial = true;
-      b.tutorialStep = 'basic';
+      // #99: the guided fight constructs through the REAL pipeline — the
+      // tutorial provenance suppresses openings at startBattle itself.
+      const b = startBattle('e_cinder_mite', { kind: 'explore', zoneId: 'outskirts' }, {
+        player: p,
+        rng,
+        tutorial: true,
+      })!.battle;
       p.battle = b;
+      assertEquals(b.tutorialStep, 'basic', `${cid}/${seed}: construction phase-gates`);
       performAction(p, b, { kind: 'attack' }, rng);
       assertEquals(b.tutorialStep, 'skill', `${cid}/${seed}: basic advances`);
       assert(b.enemy.hp >= 1, `${cid}/${seed}: the mite survives the opener`);

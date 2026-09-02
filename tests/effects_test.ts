@@ -14,7 +14,7 @@ import {
   migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
-import { performAction, previewBattle } from '../src/engine/combat.ts';
+import { performAction, previewBattle, startBattle } from '../src/engine/combat.ts';
 import {
   applyInstance,
   effectDefId,
@@ -36,7 +36,10 @@ Deno.test('effects: different sources on one stat coexist and fold additively (#
   p.level = 30;
   p.skills.push('sk_war_cry');
   p.mp = 999;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(50),
+  })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -61,7 +64,10 @@ Deno.test('effects: same-source policies are explicit — replace vs stack (#78)
   p.level = 40;
   p.skills.push('sk_war_cry', 'sk_adrenaline');
   p.mp = 999;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(51),
+  })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -98,9 +104,8 @@ Deno.test('effects: same-source policies are explicit — replace vs stack (#78)
 });
 
 Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
-  const p = createPlayer(503, 'T', 'warrior');
+  // Bare effect-state fixture (#99): an unplayable preview container.
   const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  p.battle = b;
   const sap = (pct: number): void => {
     applyInstance(b, {
       defId: 'sap',
@@ -141,7 +146,10 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
   p.skills.push('sk_miracle');
   p.mp = 999;
   p.hp = 10;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(56),
+  })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -178,7 +186,10 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
 Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
   const p = createPlayer(505, 'T', 'warrior');
   p.level = 20;
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(57),
+  })!.battle;
   p.battle = b;
   // Synthetic Poison (no content ships DoTs yet — vocabulary proof): 5/round.
   b.effectSeq++;
@@ -211,7 +222,10 @@ Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
 
 Deno.test('effects: control instances consume the target\u2019s actions (#78)', () => {
   const p = createPlayer(506, 'T', 'warrior');
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(60),
+  })!.battle;
   p.battle = b;
   b.effectInstances.push({
     iid: 't2',
@@ -246,7 +260,10 @@ Deno.test('effects: control instances consume the target\u2019s actions (#78)', 
 Deno.test('migratePlayer: v5 in-flight battles map CombatBuffs to effect instances (#78)', () => {
   const p = createPlayer(507, 'T', 'cleric');
   p.stateVersion = 5;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(63),
+  })!.battle;
   // Simulate a v5 battle mid-fight: Blessing legs, a sap, a live enemy stun.
   const rec = b as unknown as Record<string, unknown>;
   rec.buffs = {

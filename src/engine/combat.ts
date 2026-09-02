@@ -324,15 +324,22 @@ export function startBattle(
   return { battle, outcome };
 }
 
-/** A deliberately context-free battle container (#91): raw enemy
+/** A deliberately context-free battle CONTAINER (#99): raw enemy
  * construction ONLY — it resolves NO opening at all (not even the boss
- * ward) and is never a playable battle. For content inspection and tests
- * that need a bare BattleState. Playable fights MUST go through
- * startBattle, which requires the fighting hero and an explicit RNG. */
+ * ward) and is STRUCTURALLY UNPLAYABLE: its `phase: 'preview'` is not a
+ * BattlePhase, so a preview is not assignable to the `BattleState` that
+ * performAction, the renderer, persistence (PlayerState.battle) and
+ * victory resolution all accept. For content inspection and bare
+ * effect-state fixtures (effects.ts operates on the structural EffectArena
+ * slice, which a preview satisfies). Playable fights MUST go through
+ * startBattle, which requires the fighting hero and an explicit RNG — the
+ * compiler now enforces it. */
+export type BattlePreview = Omit<BattleState, 'phase'> & { phase: 'preview' };
+
 export function previewBattle(
   enemyId: string,
   origin: BattleOrigin,
-): BattleState | undefined {
+): BattlePreview | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
   const isBoss = origin.kind === 'dungeon' && origin.boss === true;
@@ -345,7 +352,9 @@ export function previewBattle(
       isBoss,
       turn: 0,
     },
-    phase: 'active',
+    // #99: 'preview' is not a BattlePhase — the container cannot be played,
+    // rendered, persisted or resolved as a live battle.
+    phase: 'preview',
     round: 1,
     cooldowns: {},
     guarding: false,

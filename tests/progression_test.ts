@@ -20,7 +20,7 @@ import {
   resolveVictory,
   travel,
 } from '../src/engine/world.ts';
-import { onLethalHit, performAction, previewBattle } from '../src/engine/combat.ts';
+import { onLethalHit, performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance } from '../src/engine/effects.ts';
 import { renderItemMenu } from '../src/render/battle.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
@@ -213,7 +213,10 @@ Deno.test('#98: Smoke Bomb is a pure escape — harmful effects survive the smok
   const rng = seeded(9);
   const p = createPlayer(79, 'T', 'rogue');
   addItem(p, 'c_smoke_bomb', 1);
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p,
+    rng,
+  })!.battle;
   p.battle = b;
   // A live removable sap (the shared `sap` slot, as an enemy Howl leaves).
   applyInstance(b, {
@@ -245,20 +248,23 @@ Deno.test('combat: Smoke Bomb flees non-boss, never bosses, never wasted', () =>
   const p = createPlayer(78, 'T', 'rogue');
   addItem(p, 'c_smoke_bomb', 2);
 
-  const wild = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  const wild = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p,
+    rng,
+  })!.battle;
   p.battle = wild;
   const bombs = countOf(p, 'c_smoke_bomb');
   performAction(p, wild, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
   assertEquals(wild.phase, 'fled', 'smoke bomb escapes normal fights');
   assertEquals(countOf(p, 'c_smoke_bomb'), bombs - 1);
 
-  const boss = previewBattle('e_vosk', {
+  const boss = startBattle('e_vosk', {
     kind: 'dungeon',
     zoneId: 'hollowmere',
     dungeonId: 'd_sunken',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: p, rng })!.battle;
   p.battle = boss;
   performAction(p, boss, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
   assertEquals(boss.phase, 'active', 'no escape from bosses');
@@ -274,13 +280,13 @@ Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
   p.mp = 100;
   // Tanky boss so the strike does not end the fight before the venom lands.
   // Jormunis: a boss with NO poison of its own — a clean fixture.
-  const b = previewBattle('e_jormunis', {
+  const b = startBattle('e_jormunis', {
     kind: 'dungeon',
     zoneId: 'frostpeak',
     dungeonId: 'd_glacier',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: p, rng })!.battle;
   b.enemy.hp = 99999; // survive the 125% ATK strike so the venom lands
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -305,7 +311,10 @@ Deno.test('combat: invalid skill use costs no turn and no enemy phase', () => {
   const rng = seeded(13);
   const p = createPlayer(80, 'T', 'warrior'); // knows sk_cleave (4 MP)
   p.mp = 0;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p,
+    rng,
+  })!.battle;
   p.battle = b;
   const hpBefore = b.enemy.hp;
   const res = performAction(p, b, { kind: 'skill', skillId: 'sk_cleave' }, rng);
@@ -324,13 +333,13 @@ Deno.test('combat: invalid skill use costs no turn and no enemy phase', () => {
 Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand', () => {
   const p = createPlayer(81, 'T', 'warrior');
   addItem(p, 'c_phoenix_feather', 3);
-  const b = previewBattle('e_aldric', {
+  const b = startBattle('e_aldric', {
     kind: 'dungeon',
     zoneId: 'umbra',
     dungeonId: 'd_throne',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: p, rng: seeded(80) })!.battle;
   p.battle = b;
 
   p.hp = 0;

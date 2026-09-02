@@ -21,7 +21,7 @@ import {
   xpToGoldAtCap,
 } from '../src/engine/character.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../src/engine/classes.ts';
-import { performAction, previewBattle } from '../src/engine/combat.ts';
+import { performAction, startBattle } from '../src/engine/combat.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import {
@@ -74,7 +74,10 @@ Deno.test('/start re-centers without touching gameplay state', async () => {
   p0.unlockedZones.push('whisperwood');
   p0.currentZone = 'whisperwood';
   p0.gold = 777;
-  p0.battle = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  p0.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p0,
+    rng: seeded(70),
+  })!.battle;
   await store.set(5150, p0);
 
   await user.sendCommand('/start');
@@ -183,7 +186,10 @@ Deno.test('the class picker stays revisionless (#43)', async () => {
 
 Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)', () => {
   const p = createPlayer(901, 'T', 'warrior');
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p,
+    rng: seeded(90),
+  })!.battle;
   p.battle = b;
   // An unversioned save is NOT interpreted as any numbered version: it stays
   // unversioned and throws (#44) — no sniffing, no stamping.
@@ -197,7 +203,10 @@ Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)
   // Current battles carry the full required shape from startBattle: combat
   // stays finite with no runtime backfill.
   const p2 = createPlayer(904, 'T', 'warrior');
-  const b2 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  const b2 = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p2,
+    rng: seeded(91),
+  })!.battle;
   assertEquals(b2.phoenixUsed, false);
   assertEquals(mitigationPct(b2, 'enemy'), 0);
   assertEquals(b2.effectInstances, []);
@@ -232,7 +241,10 @@ Deno.test('equip verifies ownership; stale double-tap fails cleanly', () => {
 Deno.test('combat refuses unlearned and wrong-class skills', () => {
   const rng = seeded(11);
   const p = createPlayer(904, 'T', 'warrior');
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng,
+  })!.battle;
   const hp0 = b.enemy.hp;
   const r1 = performAction(p, b, { kind: 'skill', skillId: 'sk_cataclysm' }, rng);
   assert(r1.lines.some((l) => l.includes("haven't learned")), 'wrong class refused');
@@ -546,7 +558,10 @@ Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () 
   const store = new MemoryStore();
   const p = createPlayer(924, 'T', 'warrior');
   p.gold = 1000;
-  p.battle = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: p,
+    rng: seeded(92),
+  })!.battle;
   p.battle.phase = 'lost';
   p.scene = { view: 'death' };
   p.messageId = 520;
@@ -841,7 +856,9 @@ Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () =>
 Deno.test('battle round lines render once — the log is authoritative (#32)', () => {
   const p = createPlayer(963, 'T', 'warrior');
   p.level = 20;
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   p.battle = b;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
@@ -867,7 +884,10 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
 Deno.test('battle button labels the class free action from engine metadata (#70)', () => {
   for (const cid of CLASS_IDS) {
     const p = createPlayer(964, 'T', cid);
-    p.battle = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    p.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+      player: p,
+      rng: seeded(93),
+    })!.battle;
     const msg = renderBattle(p);
     const labels = (msg.blocks ?? []).flatMap((b) =>
       b.type === 'buttons' ? b.buttons.map((btn) => btn.text) : []
@@ -884,7 +904,9 @@ Deno.test('battle button labels the class free action from engine metadata (#70)
 
 Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', () => {
   const p = createPlayer(981, 'T', 'warrior');
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   p.battle = b;
   p.notices = ['🐀 A wild Giant Rat appears!'];
   const rendered = JSON.stringify(renderBattle(p));
@@ -900,7 +922,9 @@ Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', 
 
 Deno.test('battle screen: labelled sections with separated resource lines (#67)', () => {
   const p = createPlayer(982, 'T', 'warrior');
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   p.battle = b;
   const msg = renderBattle(p);
   const rendered = JSON.stringify(msg);
@@ -928,7 +952,9 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
   p.level = 10;
   p.skills.push('sk_blessing');
   p.mp = statsOf(p).maxMp;
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   p.battle = b;
   performAction(p, b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(41));
   const rendered = JSON.stringify(renderBattle(p));
@@ -953,7 +979,9 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
 Deno.test('battle screen: only the latest round expands; earlier rounds collapse in order (#67)', () => {
   const p = createPlayer(984, 'T', 'warrior');
   p.level = 30;
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   b.enemy.maxHp = 99999;
   b.enemy.hp = 99999;
   p.battle = b;
@@ -978,7 +1006,9 @@ Deno.test('battle screen: only the latest round expands; earlier rounds collapse
 
 Deno.test('battle history truncation keeps complete rounds and discloses omission (#67)', () => {
   const p = createPlayer(985, 'T', 'warrior');
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   b.enemy.maxHp = 99999;
   b.enemy.hp = 99999;
   p.battle = b;
@@ -1001,7 +1031,9 @@ Deno.test('battle history truncation keeps complete rounds and discloses omissio
 Deno.test('victory screen orders recap, outcome, spoils, and history — no duplicates (#67)', () => {
   const p = createPlayer(986, 'T', 'warrior');
   p.level = 20;
-  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+      .battle;
   b.enemy.maxHp = 99999;
   b.enemy.hp = 99999;
   p.battle = b;
@@ -1107,7 +1139,10 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
 Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', () => {
   const p44 = createPlayer(968, 'T', 'warrior');
   p44.level = 44;
-  const b44 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b44 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p44,
+    rng: seeded(94),
+  })!.battle;
   b44.enemy.hp = 0;
   const r44 = resolveVictory(p44, b44, seeded(91));
   // Battle rewards no longer repeat inside the resolution lines (#67): the
@@ -1118,7 +1153,10 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
 
   const p45 = createPlayer(969, 'T', 'warrior');
   p45.level = 45;
-  const b45 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p45,
+    rng: seeded(95),
+  })!.battle;
   b45.enemy.hp = 0;
   resolveVictory(p45, b45, seeded(92));
   assertEquals(
@@ -1150,7 +1188,10 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   const p = createPlayer(973, 'T', 'warrior');
   p.level = 44;
   p.xp = xpForNextLevel(44) - 1;
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(96),
+  })!.battle;
   b.enemy.hp = 0;
   const goldBefore = p.gold;
   const lines = resolveVictory(p, b, seeded(93));
@@ -1166,7 +1207,10 @@ Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', ()
   // A victory begun at the cap shows exactly the gold actually granted.
   const p45 = createPlayer(974, 'T', 'warrior');
   p45.level = 45;
-  const b45 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b45 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p45,
+    rng: seeded(97),
+  })!.battle;
   b45.enemy.hp = 0;
   const g45 = p45.gold;
   resolveVictory(p45, b45, seeded(94));
@@ -1200,13 +1244,13 @@ Deno.test('every level-cap reward surface shows the conversion (#42)', () => {
   // Dungeon first-clear headline: same shared economy (#42).
   const pd = createPlayer(979, 'T', 'warrior');
   pd.level = 45;
-  const b = previewBattle('e_aranya', {
+  const b = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: pd, rng: seeded(98) })!.battle;
   b.enemy.hp = 0;
   const lines = resolveVictory(pd, b, seeded(95));
   assert(
@@ -1221,13 +1265,13 @@ Deno.test('44→45 dungeon first clear remains nominal (#42)', () => {
   // The kill rewards alone must NOT reach the summit; the first-clear grant
   // (400 XP) is what crosses 44→45 — so its headline must stay nominal.
   p.xp = xpForNextLevel(44) - 2151 - 100;
-  const b = previewBattle('e_aranya', {
+  const b = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: p, rng: seeded(99) })!.battle;
   b.enemy.hp = 0;
   const goldBefore = p.gold;
   const lines = resolveVictory(p, b, seeded(96));
@@ -1273,19 +1317,22 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   // with nothing to cleanse; both usable in a normal debuffed fight.
   // (Wire form: the codec shortens battle-use to 'b:us:<id>'. Boss origin:
   // per #28, only dungeon-boss origins set isBoss — explore spawns flee.)
-  const boss = previewBattle('e_vosk', {
+  const boss = startBattle('e_vosk', {
     kind: 'dungeon',
     zoneId: 'umbra',
     dungeonId: 'd_throne',
     floor: 4,
     boss: true,
-  })!;
+  }, { player: p, rng: seeded(100) })!.battle;
   p.battle = boss;
   const bossMenu = JSON.stringify(renderItemMenu(p));
   assert(!bossMenu.includes('b:us:c_smoke_bomb'), 'no Smoke Bomb button vs a boss');
   assert(bossMenu.includes('no use here'), 'inapplicable items render disabled');
 
-  const wolf = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player: p,
+    rng: seeded(101),
+  })!.battle;
   injectMod(wolf, 'player', 'outgoing', -0.2, { defId: 'sap', name: 'Sapped' });
   p.battle = wolf;
   const wolfMenu = JSON.stringify(renderItemMenu(p));

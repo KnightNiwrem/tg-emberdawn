@@ -1,7 +1,11 @@
 import type { Context } from 'grammy';
-import type { BattleState, EffectInstance } from '../src/engine/types.ts';
+import type { EffectInstance } from '../src/engine/types.ts';
 import type { SkillDef, StatKey } from '../src/content/types.ts';
-import { statPct } from '../src/engine/effects.ts';
+import { type EffectArena, statPct } from '../src/engine/effects.ts';
+
+/** Structural slice for effect fixtures (#99): a live battle or the
+ * unplayable BattlePreview container both satisfy it. */
+type FixtureArena = Pick<EffectArena, 'round' | 'effectInstances' | 'effectSeq'>;
 
 /** Deterministic RNG (mulberry32) — shared by the engine test suites. */
 export function seeded(seed: number): () => number {
@@ -20,7 +24,7 @@ export function seeded(seed: number): () => number {
 /** Injects a live statmod instance — the test-fixture replacement for the
  * old direct CombatBuffs slot pokes. */
 export function injectMod(
-  b: BattleState,
+  b: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
   pct: number,
@@ -59,7 +63,7 @@ export function injectMod(
 
 /** Max remaining rounds among live statmods of one stat on one side. */
 export function modRemaining(
-  b: BattleState,
+  b: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
 ): number {
@@ -74,7 +78,7 @@ export function modRemaining(
 
 /** First live statmod instance of one stat on one side (undefined if none). */
 export function modInstance(
-  b: BattleState,
+  b: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
 ): EffectInstance | undefined {
