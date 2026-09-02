@@ -21,14 +21,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.07,
+      "avgRoundsWin": 2.08,
       "avgHpPctEnd": 0.9852,
-      "avgMpPctEnd": 0.7247,
-      "avgDealt": 38.07,
+      "avgMpPctEnd": 0.7227,
+      "avgDealt": 38.02,
       "avgTaken": 0.98,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.105,
+      "critsPerFight": 0.1,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -39,7 +39,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.26,
+      "avgMpSpent": 8.32,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -59,7 +59,7 @@
       "avgProcHits": 0,
       "avgDuration1Applied": 0,
       "roundsP50": 2,
-      "roundsP90": 2,
+      "roundsP90": 3,
       "hpPctP50": 0.985,
       "hpPctP90": 0.985,
       "mpPctP50": 0.733,
@@ -69,16 +69,16 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_cleave": 2.065
+        "sk_cleave": 2.08
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.105
+        "enemy:Fibrous Hide:e0": 0.105
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.07
+        "enemy:Fibrous Hide:e0": 0.085
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -143,13 +143,13 @@
         "sk_cleave": 1.925
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.065
+        "enemy:Fibrous Hide:e0": 0.065
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.065
+        "enemy:Fibrous Hide:e0": 0.065
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -214,18 +214,18 @@
         "sk_cleave": 2.16
       },
       "effectRounds": {
-        "player:Venom Bite": 0.35,
-        "player:Web Snare": 0.105,
+        "player:Venom Bite:e1": 0.35,
+        "player:Web Snare:e1": 0.105,
         "player:sap": 0.035
       },
       "effectApplications": {
-        "player:Venom Bite": 0.305,
-        "player:Web Snare": 0.105,
+        "player:Venom Bite:e1": 0.305,
+        "player:Web Snare:e1": 0.105,
         "player:sap": 0.035
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -291,22 +291,22 @@
         "sk_cleave": 1.415
       },
       "effectRounds": {
-        "player:Venom Bite": 0.135,
-        "enemy:t_9": 0.105,
+        "player:Venom Bite:e1": 0.135,
+        "enemy:t_9:t0:e0": 0.105,
         "player:sap": 0.015,
-        "player:Web Snare": 0.035
+        "player:Web Snare:e1": 0.035
       },
       "effectApplications": {
-        "player:Venom Bite": 0.135,
-        "enemy:t_9": 0.105,
+        "player:Venom Bite:e1": 0.135,
+        "enemy:t_9:t0:e0": 0.105,
         "player:sap": 0.015,
-        "player:Web Snare": 0.035
+        "player:Web Snare:e1": 0.035
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
         "player:sap": "enemyMove:Howl",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -371,19 +371,19 @@
         "sk_cleave": 1.26
       },
       "effectRounds": {
-        "player:Venom Bite": 0.145,
-        "enemy:t_9": 0.11,
-        "player:Web Snare": 0.03
+        "player:Venom Bite:e1": 0.145,
+        "enemy:t_9:t0:e0": 0.11,
+        "player:Web Snare:e1": 0.03
       },
       "effectApplications": {
-        "player:Venom Bite": 0.145,
-        "enemy:t_9": 0.11,
-        "player:Web Snare": 0.03
+        "player:Venom Bite:e1": 0.145,
+        "enemy:t_9:t0:e0": 0.11,
+        "player:Web Snare:e1": 0.03
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -460,15 +460,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.55,
-      "avgHpPctEnd": 0.9792,
+      "avgRoundsWin": 2.54,
+      "avgHpPctEnd": 0.9793,
       "avgMpPctEnd": 1,
-      "avgDealt": 37.7,
-      "avgTaken": 1.38,
+      "avgDealt": 37.59,
+      "avgTaken": 1.37,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.145,
-      "dodgesPerFight": 0.025,
+      "dodgesPerFight": 0.015,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -489,7 +489,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.005,
+      "avgExpiredRemovals": 0,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -509,13 +509,13 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.24
+        "enemy:Fibrous Hide:e0": 0.23
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.145
+        "enemy:Fibrous Hide:e0": 0.16
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -580,13 +580,13 @@
         "sk_firebolt": 1.97
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.09
+        "enemy:Fibrous Hide:e0": 0.09
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.08
+        "enemy:Fibrous Hide:e0": 0.08
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -651,13 +651,13 @@
         "sk_firebolt": 1.825
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.075
+        "enemy:Fibrous Hide:e0": 0.075
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.075
+        "enemy:Fibrous Hide:e0": 0.075
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -723,18 +723,18 @@
       },
       "effectRounds": {
         "player:sap": 0.05,
-        "player:Venom Bite": 0.405,
-        "player:Web Snare": 0.125
+        "player:Venom Bite:e1": 0.405,
+        "player:Web Snare:e1": 0.125
       },
       "effectApplications": {
         "player:sap": 0.05,
-        "player:Venom Bite": 0.36,
-        "player:Web Snare": 0.125
+        "player:Venom Bite:e1": 0.36,
+        "player:Web Snare:e1": 0.125
       },
       "effectSources": {
         "player:sap": "enemyMove:Howl",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -800,22 +800,22 @@
         "sk_firebolt": 0.265
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 0.22,
-        "player:Web Snare": 0.055,
-        "enemy:t_9": 0.075,
-        "player:Venom Bite": 0.105
+        "enemy:sk_frost_lance:e1": 0.22,
+        "player:Web Snare:e1": 0.055,
+        "enemy:t_9:t0:e0": 0.075,
+        "player:Venom Bite:e1": 0.105
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 0.22,
-        "player:Web Snare": 0.055,
-        "enemy:t_9": 0.075,
-        "player:Venom Bite": 0.105
+        "enemy:sk_frost_lance:e1": 0.22,
+        "player:Web Snare:e1": 0.055,
+        "enemy:t_9:t0:e0": 0.075,
+        "player:Venom Bite:e1": 0.105
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Venom Bite": "enemyMove:Venom Bite"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite"
       }
     },
     {
@@ -881,22 +881,22 @@
         "sk_firebolt": 0.23
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 0.155,
-        "enemy:t_9": 0.06,
-        "player:Web Snare": 0.025,
-        "player:Venom Bite": 0.035
+        "enemy:sk_frost_lance:e1": 0.155,
+        "enemy:t_9:t0:e0": 0.06,
+        "player:Web Snare:e1": 0.025,
+        "player:Venom Bite:e1": 0.035
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 0.155,
-        "enemy:t_9": 0.06,
-        "player:Web Snare": 0.025,
-        "player:Venom Bite": 0.035
+        "enemy:sk_frost_lance:e1": 0.155,
+        "enemy:t_9:t0:e0": 0.06,
+        "player:Web Snare:e1": 0.025,
+        "player:Venom Bite:e1": 0.035
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "player:Venom Bite": "enemyMove:Venom Bite"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite"
       }
     },
     {
@@ -974,14 +974,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.54,
-      "avgHpPctEnd": 0.896,
+      "avgHpPctEnd": 0.8967,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.8,
-      "avgTaken": 6.24,
+      "avgDealt": 38.76,
+      "avgTaken": 6.2,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.19,
-      "dodgesPerFight": 0.035,
+      "critsPerFight": 0.18,
+      "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1012,7 +1012,7 @@
       "avgDuration1Applied": 0,
       "roundsP50": 3,
       "roundsP90": 3,
-      "hpPctP50": 0.917,
+      "hpPctP50": 0.933,
       "hpPctP90": 0.95,
       "mpPctP50": 1,
       "mpPctP90": 1,
@@ -1022,13 +1022,13 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.125
+        "enemy:Fibrous Hide:e0": 0.12
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.085
+        "enemy:Fibrous Hide:e0": 0.095
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1042,15 +1042,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.59,
-      "avgHpPctEnd": 0.9576,
-      "avgMpPctEnd": 0.741,
-      "avgDealt": 38.76,
-      "avgTaken": 2.55,
+      "avgRoundsWin": 2.58,
+      "avgHpPctEnd": 0.954,
+      "avgMpPctEnd": 0.742,
+      "avgDealt": 38.59,
+      "avgTaken": 2.76,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.225,
-      "dodgesPerFight": 0.035,
+      "critsPerFight": 0.19,
+      "dodgesPerFight": 0.05,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1060,7 +1060,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.77,
+      "avgMpSpent": 7.74,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1071,7 +1071,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.005,
+      "avgExpiredRemovals": 0,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -1090,16 +1090,16 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.59
+        "sk_quick_slash": 2.58
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.26
+        "enemy:Fibrous Hide:e0": 0.17
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.165
+        "enemy:Fibrous Hide:e0": 0.145
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1113,15 +1113,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.38,
-      "avgHpPctEnd": 0.9601,
-      "avgMpPctEnd": 0.8117,
-      "avgDealt": 39.53,
-      "avgTaken": 3.15,
+      "avgRoundsWin": 2.46,
+      "avgHpPctEnd": 0.967,
+      "avgMpPctEnd": 0.8058,
+      "avgDealt": 39.4,
+      "avgTaken": 2.61,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.245,
-      "dodgesPerFight": 0.065,
+      "critsPerFight": 0.18,
+      "dodgesPerFight": 0.07,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1131,7 +1131,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.16,
+      "avgMpSpent": 7.38,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1161,16 +1161,16 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.385
+        "sk_quick_slash": 2.46
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.15
+        "enemy:Fibrous Hide:e0": 0.21
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.1
+        "enemy:Fibrous Hide:e0": 0.155
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1236,18 +1236,18 @@
       },
       "effectRounds": {
         "player:sap": 0.11,
-        "player:Web Snare": 0.17,
-        "player:Venom Bite": 0.625
+        "player:Web Snare:e1": 0.17,
+        "player:Venom Bite:e1": 0.625
       },
       "effectApplications": {
         "player:sap": 0.1,
-        "player:Web Snare": 0.17,
-        "player:Venom Bite": 0.53
+        "player:Web Snare:e1": 0.17,
+        "player:Venom Bite:e1": 0.53
       },
       "effectSources": {
         "player:sap": "enemyMove:Howl",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "player:Venom Bite": "enemyMove:Venom Bite"
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite"
       }
     },
     {
@@ -1313,19 +1313,19 @@
         "sk_quick_slash": 0.47
       },
       "effectRounds": {
-        "player:Venom Bite": 0.155,
-        "enemy:t_9": 0.165,
-        "player:Web Snare": 0.025
+        "player:Venom Bite:e1": 0.155,
+        "enemy:t_9:t0:e0": 0.165,
+        "player:Web Snare:e1": 0.025
       },
       "effectApplications": {
-        "player:Venom Bite": 0.155,
-        "enemy:t_9": 0.165,
-        "player:Web Snare": 0.025
+        "player:Venom Bite:e1": 0.155,
+        "enemy:t_9:t0:e0": 0.165,
+        "player:Web Snare:e1": 0.025
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -1391,19 +1391,19 @@
         "sk_quick_slash": 0.3
       },
       "effectRounds": {
-        "player:Venom Bite": 0.095,
-        "enemy:t_9": 0.07,
-        "player:Web Snare": 0.04
+        "player:Venom Bite:e1": 0.095,
+        "enemy:t_9:t0:e0": 0.07,
+        "player:Web Snare:e1": 0.04
       },
       "effectApplications": {
-        "player:Venom Bite": 0.095,
-        "enemy:t_9": 0.07,
-        "player:Web Snare": 0.04
+        "player:Venom Bite:e1": 0.095,
+        "enemy:t_9:t0:e0": 0.07,
+        "player:Web Snare:e1": 0.04
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -1481,14 +1481,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 3.39,
-      "avgHpPctEnd": 0.9377,
+      "avgHpPctEnd": 0.9401,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.91,
-      "avgTaken": 3.74,
+      "avgDealt": 38.81,
+      "avgTaken": 3.6,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.325,
-      "dodgesPerFight": 0.075,
+      "critsPerFight": 0.3,
+      "dodgesPerFight": 0.08,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1509,7 +1509,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.06,
+      "avgExpiredRemovals": 0.05,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -1520,7 +1520,7 @@
       "roundsP50": 3,
       "roundsP90": 4,
       "hpPctP50": 0.967,
-      "hpPctP90": 0.967,
+      "hpPctP90": 0.983,
       "mpPctP50": 1,
       "mpPctP90": 1,
       "dodgesP50": 0,
@@ -1529,13 +1529,13 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.245
+        "enemy:Fibrous Hide:e0": 0.31
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.15
+        "enemy:Fibrous Hide:e0": 0.215
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1549,15 +1549,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.4,
-      "avgHpPctEnd": 0.9752,
-      "avgMpPctEnd": 0.5992,
-      "avgDealt": 38.12,
-      "avgTaken": 1.64,
+      "avgRoundsWin": 2.42,
+      "avgHpPctEnd": 0.9748,
+      "avgMpPctEnd": 0.5975,
+      "avgDealt": 38.09,
+      "avgTaken": 1.67,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.16,
-      "dodgesPerFight": 0.04,
+      "critsPerFight": 0.155,
+      "dodgesPerFight": 0.025,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1567,7 +1567,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 12.03,
+      "avgMpSpent": 12.08,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1597,16 +1597,16 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_smite": 2.405
+        "sk_smite": 2.415
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.23
+        "enemy:Fibrous Hide:e0": 0.21
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.145
+        "enemy:Fibrous Hide:e0": 0.15
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1620,15 +1620,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.31,
-      "avgHpPctEnd": 0.9799,
-      "avgMpPctEnd": 0.725,
-      "avgDealt": 39.48,
-      "avgTaken": 1.75,
+      "avgRoundsWin": 2.3,
+      "avgHpPctEnd": 0.9803,
+      "avgMpPctEnd": 0.7262,
+      "avgDealt": 39.49,
+      "avgTaken": 1.72,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.18,
-      "dodgesPerFight": 0.035,
+      "dodgesPerFight": 0.025,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1638,7 +1638,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.55,
+      "avgMpSpent": 11.5,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1668,16 +1668,16 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_smite": 2.31
+        "sk_smite": 2.3
       },
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.16
+        "enemy:Fibrous Hide:e0": 0.165
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.105
+        "enemy:Fibrous Hide:e0": 0.125
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -1742,19 +1742,19 @@
         "sk_smite": 2.785
       },
       "effectRounds": {
-        "player:Venom Bite": 0.585,
+        "player:Venom Bite:e1": 0.585,
         "player:sap": 0.135,
-        "player:Web Snare": 0.175
+        "player:Web Snare:e1": 0.175
       },
       "effectApplications": {
-        "player:Venom Bite": 0.485,
+        "player:Venom Bite:e1": 0.485,
         "player:sap": 0.11,
-        "player:Web Snare": 0.175
+        "player:Web Snare:e1": 0.175
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -1819,21 +1819,21 @@
         "sk_smite": 1.78
       },
       "effectRounds": {
-        "player:Venom Bite": 0.19,
-        "enemy:t_9": 0.235,
-        "player:Web Snare": 0.04,
+        "player:Venom Bite:e1": 0.19,
+        "enemy:t_9:t0:e0": 0.235,
+        "player:Web Snare:e1": 0.04,
         "player:sap": 0.045
       },
       "effectApplications": {
-        "player:Venom Bite": 0.19,
-        "enemy:t_9": 0.235,
-        "player:Web Snare": 0.04,
+        "player:Venom Bite:e1": 0.19,
+        "enemy:t_9:t0:e0": 0.235,
+        "player:Web Snare:e1": 0.04,
         "player:sap": 0.045
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -1899,21 +1899,21 @@
         "sk_smite": 1.905
       },
       "effectRounds": {
-        "enemy:t_9": 0.27,
-        "player:Venom Bite": 0.175,
-        "player:Web Snare": 0.05,
+        "enemy:t_9:t0:e0": 0.27,
+        "player:Venom Bite:e1": 0.175,
+        "player:Web Snare:e1": 0.05,
         "player:sap": 0.045
       },
       "effectApplications": {
-        "enemy:t_9": 0.27,
-        "player:Venom Bite": 0.175,
-        "player:Web Snare": 0.05,
+        "enemy:t_9:t0:e0": 0.27,
+        "player:Venom Bite:e1": 0.175,
+        "player:Web Snare:e1": 0.05,
         "player:sap": 0.045
       },
       "effectSources": {
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -1991,14 +1991,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.23,
-      "avgHpPctEnd": 0.9608,
+      "avgRoundsWin": 3.25,
+      "avgHpPctEnd": 0.9614,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.74,
-      "avgTaken": 2.59,
+      "avgDealt": 38.9,
+      "avgTaken": 2.55,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.215,
+      "critsPerFight": 0.205,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -2020,7 +2020,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.04,
+      "avgExpiredRemovals": 0.035,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -2031,7 +2031,7 @@
       "roundsP50": 3,
       "roundsP90": 4,
       "hpPctP50": 0.97,
-      "hpPctP90": 0.97,
+      "hpPctP90": 0.985,
       "mpPctP50": 1,
       "mpPctP90": 1,
       "dodgesP50": 0,
@@ -2040,13 +2040,13 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide": 0.335
+        "enemy:Fibrous Hide:e0": 0.36
       },
       "effectApplications": {
-        "enemy:Fibrous Hide": 0.22
+        "enemy:Fibrous Hide:e0": 0.26
       },
       "effectSources": {
-        "enemy:Fibrous Hide": "enemyMove:Fibrous Hide"
+        "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
       }
     },
     {
@@ -2395,16 +2395,16 @@
         "sk_cleave": 3.05
       },
       "effectRounds": {
-        "player:Venom Bite": 1.72,
-        "player:Web Snare": 0.52
+        "player:Venom Bite:e1": 1.72,
+        "player:Web Snare:e1": 0.52
       },
       "effectApplications": {
-        "player:Venom Bite": 1.48,
-        "player:Web Snare": 0.52
+        "player:Venom Bite:e1": 1.48,
+        "player:Web Snare:e1": 0.52
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -2469,16 +2469,16 @@
         "sk_firebolt": 2.915
       },
       "effectRounds": {
-        "player:Venom Bite": 1.545,
-        "player:Web Snare": 0.51
+        "player:Venom Bite:e1": 1.545,
+        "player:Web Snare:e1": 0.51
       },
       "effectApplications": {
-        "player:Venom Bite": 1.38,
-        "player:Web Snare": 0.51
+        "player:Venom Bite:e1": 1.38,
+        "player:Web Snare:e1": 0.51
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -2543,16 +2543,16 @@
         "sk_quick_slash": 4.555
       },
       "effectRounds": {
-        "player:Venom Bite": 3.1,
-        "player:Web Snare": 0.845
+        "player:Venom Bite:e1": 3.1,
+        "player:Web Snare:e1": 0.845
       },
       "effectApplications": {
-        "player:Venom Bite": 2.555,
-        "player:Web Snare": 0.845
+        "player:Venom Bite:e1": 2.555,
+        "player:Web Snare:e1": 0.845
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -2617,16 +2617,16 @@
         "sk_smite": 3.85
       },
       "effectRounds": {
-        "player:Venom Bite": 2.48,
-        "player:Web Snare": 0.605
+        "player:Venom Bite:e1": 2.48,
+        "player:Web Snare:e1": 0.605
       },
       "effectApplications": {
-        "player:Venom Bite": 2.225,
-        "player:Web Snare": 0.605
+        "player:Venom Bite:e1": 2.225,
+        "player:Web Snare:e1": 0.605
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -3731,13 +3731,13 @@
         "sk_cleave": 17.59
       },
       "effectRounds": {
-        "player:Silk Prison": 6.675
+        "player:Silk Prison:e1": 6.675
       },
       "effectApplications": {
-        "player:Silk Prison": 6.675
+        "player:Silk Prison:e1": 6.675
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -3802,16 +3802,16 @@
         "sk_cleave": 10.32
       },
       "effectRounds": {
-        "player:Silk Prison": 2.945,
-        "enemy:t_9": 1.6
+        "player:Silk Prison:e1": 2.945,
+        "enemy:t_9:t0:e0": 1.6
       },
       "effectApplications": {
-        "player:Silk Prison": 2.945,
-        "enemy:t_9": 1.6
+        "player:Silk Prison:e1": 2.945,
+        "enemy:t_9:t0:e0": 1.6
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -3876,16 +3876,16 @@
         "sk_cleave": 8.47
       },
       "effectRounds": {
-        "player:Silk Prison": 2.415,
-        "enemy:t_9": 1.38
+        "player:Silk Prison:e1": 2.415,
+        "enemy:t_9:t0:e0": 1.38
       },
       "effectApplications": {
-        "player:Silk Prison": 2.415,
-        "enemy:t_9": 1.38
+        "player:Silk Prison:e1": 2.415,
+        "enemy:t_9:t0:e0": 1.38
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -3951,16 +3951,16 @@
         "sk_firebolt": 4.825
       },
       "effectRounds": {
-        "player:Silk Prison": 2.33,
-        "enemy:sk_frost_lance": 1.925
+        "player:Silk Prison:e1": 2.33,
+        "enemy:sk_frost_lance:e1": 1.925
       },
       "effectApplications": {
-        "player:Silk Prison": 2.33,
-        "enemy:sk_frost_lance": 1.925
+        "player:Silk Prison:e1": 2.33,
+        "enemy:sk_frost_lance:e1": 1.925
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:sk_frost_lance": "skill:Frost Lance"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance"
       }
     },
     {
@@ -4026,19 +4026,19 @@
         "sk_firebolt": 5.41
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 2.315,
-        "enemy:t_9": 1.41,
-        "player:Silk Prison": 2.43
+        "enemy:sk_frost_lance:e1": 2.315,
+        "enemy:t_9:t0:e0": 1.41,
+        "player:Silk Prison:e1": 2.43
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 2.315,
-        "enemy:t_9": 1.41,
-        "player:Silk Prison": 2.43
+        "enemy:sk_frost_lance:e1": 2.315,
+        "enemy:t_9:t0:e0": 1.41,
+        "player:Silk Prison:e1": 2.43
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -4104,19 +4104,19 @@
         "sk_firebolt": 4.27
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 1.77,
-        "enemy:t_9": 1.145,
-        "player:Silk Prison": 2.03
+        "enemy:sk_frost_lance:e1": 1.77,
+        "enemy:t_9:t0:e0": 1.145,
+        "player:Silk Prison:e1": 2.03
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 1.77,
-        "enemy:t_9": 1.145,
-        "player:Silk Prison": 2.03
+        "enemy:sk_frost_lance:e1": 1.77,
+        "enemy:t_9:t0:e0": 1.145,
+        "player:Silk Prison:e1": 2.03
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -4182,13 +4182,13 @@
         "sk_quick_slash": 6.89
       },
       "effectRounds": {
-        "player:Silk Prison": 3.35
+        "player:Silk Prison:e1": 3.35
       },
       "effectApplications": {
-        "player:Silk Prison": 3.35
+        "player:Silk Prison:e1": 3.35
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -4254,16 +4254,16 @@
         "sk_quick_slash": 7.555
       },
       "effectRounds": {
-        "player:Silk Prison": 3.275,
-        "enemy:t_9": 1.74
+        "player:Silk Prison:e1": 3.275,
+        "enemy:t_9:t0:e0": 1.74
       },
       "effectApplications": {
-        "player:Silk Prison": 3.275,
-        "enemy:t_9": 1.74
+        "player:Silk Prison:e1": 3.275,
+        "enemy:t_9:t0:e0": 1.74
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -4329,16 +4329,16 @@
         "sk_quick_slash": 6.155
       },
       "effectRounds": {
-        "player:Silk Prison": 2.54,
-        "enemy:t_9": 1.505
+        "player:Silk Prison:e1": 2.54,
+        "enemy:t_9:t0:e0": 1.505
       },
       "effectApplications": {
-        "player:Silk Prison": 2.54,
-        "enemy:t_9": 1.505
+        "player:Silk Prison:e1": 2.54,
+        "enemy:t_9:t0:e0": 1.505
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -4404,13 +4404,13 @@
         "sk_mend": 4.43
       },
       "effectRounds": {
-        "player:Silk Prison": 11.26
+        "player:Silk Prison:e1": 11.26
       },
       "effectApplications": {
-        "player:Silk Prison": 11.26
+        "player:Silk Prison:e1": 11.26
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -4476,16 +4476,16 @@
         "sk_mend": 0.24
       },
       "effectRounds": {
-        "player:Silk Prison": 4.05,
-        "enemy:t_9": 1.92
+        "player:Silk Prison:e1": 4.05,
+        "enemy:t_9:t0:e0": 1.92
       },
       "effectApplications": {
-        "player:Silk Prison": 4.05,
-        "enemy:t_9": 1.92
+        "player:Silk Prison:e1": 4.05,
+        "enemy:t_9:t0:e0": 1.92
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -4550,16 +4550,16 @@
         "sk_smite": 11.775
       },
       "effectRounds": {
-        "player:Silk Prison": 3.3,
-        "enemy:t_9": 1.775
+        "player:Silk Prison:e1": 3.3,
+        "enemy:t_9:t0:e0": 1.775
       },
       "effectApplications": {
-        "player:Silk Prison": 3.3,
-        "enemy:t_9": 1.775
+        "player:Silk Prison:e1": 3.3,
+        "enemy:t_9:t0:e0": 1.775
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -4625,22 +4625,22 @@
         "sk_cleave": 1.53
       },
       "effectRounds": {
-        "player:sk_bulwark": 1.465,
-        "player:Web Snare": 0.07,
+        "player:sk_bulwark:e0": 1.465,
+        "player:Web Snare:e1": 0.07,
         "player:sap": 0.085,
-        "player:Venom Bite": 0.27
+        "player:Venom Bite:e1": 0.27
       },
       "effectApplications": {
-        "player:sk_bulwark": 1,
-        "player:Web Snare": 0.07,
+        "player:sk_bulwark:e0": 1,
+        "player:Web Snare:e1": 0.07,
         "player:sap": 0.08,
-        "player:Venom Bite": 0.25
+        "player:Venom Bite:e1": 0.25
       },
       "effectSources": {
-        "player:sk_bulwark": "skill:Bulwark",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sk_bulwark:e0": "skill:Bulwark",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl",
-        "player:Venom Bite": "enemyMove:Venom Bite"
+        "player:Venom Bite:e1": "enemyMove:Venom Bite"
       }
     },
     {
@@ -4707,24 +4707,24 @@
         "sk_cleave": 1.09
       },
       "effectRounds": {
-        "player:sk_bulwark": 2,
-        "player:sk_war_cry": 1.09,
-        "player:Venom Bite": 0.325,
-        "player:Web Snare": 0.125,
+        "player:sk_bulwark:e0": 2,
+        "player:sk_war_cry:e0": 1.09,
+        "player:Venom Bite:e1": 0.325,
+        "player:Web Snare:e1": 0.125,
         "player:sap": 0.145
       },
       "effectApplications": {
-        "player:sk_bulwark": 1,
-        "player:sk_war_cry": 1,
-        "player:Venom Bite": 0.265,
-        "player:Web Snare": 0.125,
+        "player:sk_bulwark:e0": 1,
+        "player:sk_war_cry:e0": 1,
+        "player:Venom Bite:e1": 0.265,
+        "player:Web Snare:e1": 0.125,
         "player:sap": 0.125
       },
       "effectSources": {
-        "player:sk_bulwark": "skill:Bulwark",
-        "player:sk_war_cry": "skill:War Cry",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sk_bulwark:e0": "skill:Bulwark",
+        "player:sk_war_cry:e0": "skill:War Cry",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -4795,28 +4795,28 @@
         "sk_cleave": 0.37
       },
       "effectRounds": {
-        "player:e_chronowisp": 2,
-        "player:sk_bulwark": 4.905,
-        "player:sk_war_cry": 4.89,
+        "player:e_chronowisp:e0": 2,
+        "player:sk_bulwark:e0": 4.905,
+        "player:sk_war_cry:e0": 4.89,
         "player:sap": 3.065,
-        "player:sk_iron_wall": 3.26,
-        "enemy:sk_sunder_armor": 2.035
+        "player:sk_iron_wall:e0": 3.26,
+        "enemy:sk_sunder_armor:e1": 2.035
       },
       "effectApplications": {
-        "player:e_chronowisp": 1,
-        "player:sk_bulwark": 2.63,
-        "player:sk_war_cry": 1.63,
+        "player:e_chronowisp:e0": 1,
+        "player:sk_bulwark:e0": 2.63,
+        "player:sk_war_cry:e0": 1.63,
         "player:sap": 2.01,
-        "player:sk_iron_wall": 1.63,
-        "enemy:sk_sunder_armor": 1.035
+        "player:sk_iron_wall:e0": 1.63,
+        "enemy:sk_sunder_armor:e1": 1.035
       },
       "effectSources": {
-        "player:e_chronowisp": "enemyMove:Chrono Anchor",
-        "player:sk_bulwark": "skill:Bulwark",
-        "player:sk_war_cry": "skill:War Cry",
+        "player:e_chronowisp:e0": "enemyMove:Chrono Anchor",
+        "player:sk_bulwark:e0": "skill:Bulwark",
+        "player:sk_war_cry:e0": "skill:War Cry",
         "player:sap": "enemyMove:Stutter",
-        "player:sk_iron_wall": "skill:Iron Wall",
-        "enemy:sk_sunder_armor": "skill:Sunder Armor"
+        "player:sk_iron_wall:e0": "skill:Iron Wall",
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor"
       }
     },
     {
@@ -4883,25 +4883,25 @@
         "sk_firebolt": 0.04
       },
       "effectRounds": {
-        "enemy:sk_scorch": 0.26,
-        "enemy:sk_frost_lance": 0.04,
-        "player:Venom Bite": 0.12,
-        "player:Web Snare": 0.045,
-        "enemy:t_9": 0.06
+        "enemy:sk_scorch:e1": 0.26,
+        "enemy:sk_frost_lance:e1": 0.04,
+        "player:Venom Bite:e1": 0.12,
+        "player:Web Snare:e1": 0.045,
+        "enemy:t_9:t0:e0": 0.06
       },
       "effectApplications": {
-        "enemy:sk_scorch": 0.22,
-        "enemy:sk_frost_lance": 0.04,
-        "player:Venom Bite": 0.12,
-        "player:Web Snare": 0.045,
-        "enemy:t_9": 0.06
+        "enemy:sk_scorch:e1": 0.22,
+        "enemy:sk_frost_lance:e1": 0.04,
+        "player:Venom Bite:e1": 0.12,
+        "player:Web Snare:e1": 0.045,
+        "enemy:t_9:t0:e0": 0.06
       },
       "effectSources": {
-        "enemy:sk_scorch": "skill:Scorch",
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "enemy:t_9": "item:Thorn Ring"
+        "enemy:sk_scorch:e1": "skill:Scorch",
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -4916,10 +4916,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.11,
-      "avgHpPctEnd": 0.9859,
+      "avgHpPctEnd": 0.9851,
       "avgMpPctEnd": 0.8668,
       "avgDealt": 63.84,
-      "avgTaken": 2.54,
+      "avgTaken": 2.68,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.125,
@@ -4941,7 +4941,7 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "avgDotDealt": 4.13,
-      "avgDotTaken": 0.86,
+      "avgDotTaken": 1,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
       "avgExpiredRemovals": 0.04,
@@ -4968,28 +4968,31 @@
         "sk_frost_lance": 0.125
       },
       "effectRounds": {
-        "player:sk_barrier": 2.22,
-        "player:Web Snare": 0.07,
-        "enemy:t_9": 0.32,
-        "player:Venom Bite": 0.18,
+        "player:sk_barrier:e0": 1.11,
+        "player:sk_barrier:e1": 1.11,
+        "player:Web Snare:e1": 0.07,
+        "enemy:t_9:t0:e0": 0.32,
+        "player:Venom Bite:e1": 0.18,
         "player:sap": 0.05,
-        "enemy:sk_scorch": 0.11
+        "enemy:sk_scorch:e1": 0.11
       },
       "effectApplications": {
-        "player:sk_barrier": 2,
-        "player:Web Snare": 0.07,
-        "enemy:t_9": 0.32,
-        "player:Venom Bite": 0.17,
+        "player:sk_barrier:e0": 1,
+        "player:sk_barrier:e1": 1,
+        "player:Web Snare:e1": 0.07,
+        "enemy:t_9:t0:e0": 0.32,
+        "player:Venom Bite:e1": 0.17,
         "player:sap": 0.05,
-        "enemy:sk_scorch": 0.11
+        "enemy:sk_scorch:e1": 0.11
       },
       "effectSources": {
-        "player:sk_barrier": "skill:Arcane Ward",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:sk_barrier:e0": "skill:Arcane Ward",
+        "player:sk_barrier:e1": "skill:Arcane Ward",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
-        "enemy:sk_scorch": "skill:Scorch"
+        "enemy:sk_scorch:e1": "skill:Scorch"
       }
     },
     {
@@ -5058,25 +5061,28 @@
         "sk_drain_life": 0.19
       },
       "effectRounds": {
-        "player:e_chronowisp": 2,
-        "player:sk_barrier": 4,
+        "player:e_chronowisp:e0": 2,
+        "player:sk_barrier:e0": 2,
+        "player:sk_barrier:e1": 2,
         "player:sap": 1.365,
-        "enemy:sk_scorch": 2.03,
-        "enemy:sk_frost_lance": 0.63
+        "enemy:sk_scorch:e1": 2.03,
+        "enemy:sk_frost_lance:e1": 0.63
       },
       "effectApplications": {
-        "player:e_chronowisp": 1,
-        "player:sk_barrier": 2,
+        "player:e_chronowisp:e0": 1,
+        "player:sk_barrier:e0": 1,
+        "player:sk_barrier:e1": 1,
         "player:sap": 0.98,
-        "enemy:sk_scorch": 1.03,
-        "enemy:sk_frost_lance": 0.63
+        "enemy:sk_scorch:e1": 1.03,
+        "enemy:sk_frost_lance:e1": 0.63
       },
       "effectSources": {
-        "player:e_chronowisp": "enemyMove:Chrono Anchor",
-        "player:sk_barrier": "skill:Arcane Ward",
+        "player:e_chronowisp:e0": "enemyMove:Chrono Anchor",
+        "player:sk_barrier:e0": "skill:Arcane Ward",
+        "player:sk_barrier:e1": "skill:Arcane Ward",
         "player:sap": "enemyMove:Stutter",
-        "enemy:sk_scorch": "skill:Scorch",
-        "enemy:sk_frost_lance": "skill:Frost Lance"
+        "enemy:sk_scorch:e1": "skill:Scorch",
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance"
       }
     },
     {
@@ -5142,19 +5148,19 @@
         "sk_quick_slash": 0.345
       },
       "effectRounds": {
-        "enemy:t_9": 0.125,
-        "player:Venom Bite": 0.1,
-        "player:Web Snare": 0.07
+        "enemy:t_9:t0:e0": 0.125,
+        "player:Venom Bite:e1": 0.1,
+        "player:Web Snare:e1": 0.07
       },
       "effectApplications": {
-        "enemy:t_9": 0.125,
-        "player:Venom Bite": 0.1,
-        "player:Web Snare": 0.07
+        "enemy:t_9:t0:e0": 0.125,
+        "player:Venom Bite:e1": 0.1,
+        "player:Web Snare:e1": 0.07
       },
       "effectSources": {
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -5221,25 +5227,25 @@
         "sk_quick_slash": 0.315
       },
       "effectRounds": {
-        "player:sk_smoke_step": 1.24,
-        "player:Web Snare": 0.085,
-        "player:Venom Bite": 0.31,
+        "player:sk_smoke_step:e0": 1.24,
+        "player:Web Snare:e1": 0.085,
+        "player:Venom Bite:e1": 0.31,
         "player:sap": 0.04,
-        "enemy:t_9": 0.335
+        "enemy:t_9:t0:e0": 0.335
       },
       "effectApplications": {
-        "player:sk_smoke_step": 1,
-        "player:Web Snare": 0.085,
-        "player:Venom Bite": 0.28,
+        "player:sk_smoke_step:e0": 1,
+        "player:Web Snare:e1": 0.085,
+        "player:Venom Bite:e1": 0.28,
         "player:sap": 0.04,
-        "enemy:t_9": 0.335
+        "enemy:t_9:t0:e0": 0.335
       },
       "effectSources": {
-        "player:sk_smoke_step": "skill:Smoke Step",
-        "player:Web Snare": "enemyMove:Web Snare",
-        "player:Venom Bite": "enemyMove:Venom Bite",
+        "player:sk_smoke_step:e0": "skill:Smoke Step",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
-        "enemy:t_9": "item:Thorn Ring"
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -5308,25 +5314,25 @@
         "sk_quick_slash": 0.855
       },
       "effectRounds": {
-        "player:e_chronowisp": 2,
-        "player:sk_smoke_step": 2,
-        "enemy:sk_venom_cut": 2.085,
+        "player:e_chronowisp:e0": 2,
+        "player:sk_smoke_step:e0": 2,
+        "enemy:sk_venom_cut:e1": 2.085,
         "player:sap": 1.54,
-        "enemy:sk_expose_weakness": 1.8
+        "enemy:sk_expose_weakness:e0": 1.8
       },
       "effectApplications": {
-        "player:e_chronowisp": 1,
-        "player:sk_smoke_step": 1,
-        "enemy:sk_venom_cut": 1.085,
+        "player:e_chronowisp:e0": 1,
+        "player:sk_smoke_step:e0": 1,
+        "enemy:sk_venom_cut:e1": 1.085,
         "player:sap": 1.11,
-        "enemy:sk_expose_weakness": 0.6
+        "enemy:sk_expose_weakness:e0": 0.6
       },
       "effectSources": {
-        "player:e_chronowisp": "enemyMove:Chrono Anchor",
-        "player:sk_smoke_step": "skill:Smoke Step",
-        "enemy:sk_venom_cut": "skill:Venom Cut",
+        "player:e_chronowisp:e0": "enemyMove:Chrono Anchor",
+        "player:sk_smoke_step:e0": "skill:Smoke Step",
+        "enemy:sk_venom_cut:e1": "skill:Venom Cut",
         "player:sap": "enemyMove:Stutter",
-        "enemy:sk_expose_weakness": "skill:Expose Weakness"
+        "enemy:sk_expose_weakness:e0": "skill:Expose Weakness"
       }
     },
     {
@@ -5391,22 +5397,22 @@
         "sk_smite": 1.865
       },
       "effectRounds": {
-        "player:Venom Bite": 0.185,
-        "enemy:t_9": 0.26,
+        "player:Venom Bite:e1": 0.185,
+        "enemy:t_9:t0:e0": 0.26,
         "player:sap": 0.05,
-        "player:Web Snare": 0.05
+        "player:Web Snare:e1": 0.05
       },
       "effectApplications": {
-        "player:Venom Bite": 0.185,
-        "enemy:t_9": 0.26,
+        "player:Venom Bite:e1": 0.185,
+        "enemy:t_9:t0:e0": 0.26,
         "player:sap": 0.05,
-        "player:Web Snare": 0.05
+        "player:Web Snare:e1": 0.05
       },
       "effectSources": {
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "enemy:t_9": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
         "player:sap": "enemyMove:Howl",
-        "player:Web Snare": "enemyMove:Web Snare"
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -5472,24 +5478,27 @@
         "sk_smite": 1.41
       },
       "effectRounds": {
-        "player:sk_blessing": 2.755,
-        "enemy:t_9": 0.36,
-        "player:Venom Bite": 0.385,
-        "player:Web Snare": 0.06,
+        "player:sk_blessing:e0": 1.41,
+        "player:sk_blessing:e1": 1.345,
+        "enemy:t_9:t0:e0": 0.36,
+        "player:Venom Bite:e1": 0.385,
+        "player:Web Snare:e1": 0.06,
         "player:sap": 0.075
       },
       "effectApplications": {
-        "player:sk_blessing": 2,
-        "enemy:t_9": 0.36,
-        "player:Venom Bite": 0.345,
-        "player:Web Snare": 0.06,
+        "player:sk_blessing:e0": 1,
+        "player:sk_blessing:e1": 1,
+        "enemy:t_9:t0:e0": 0.36,
+        "player:Venom Bite:e1": 0.345,
+        "player:Web Snare:e1": 0.06,
         "player:sap": 0.06
       },
       "effectSources": {
-        "player:sk_blessing": "skill:Blessing",
-        "enemy:t_9": "item:Thorn Ring",
-        "player:Venom Bite": "enemyMove:Venom Bite",
-        "player:Web Snare": "enemyMove:Web Snare",
+        "player:sk_blessing:e0": "skill:Blessing",
+        "player:sk_blessing:e1": "skill:Blessing",
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:sap": "enemyMove:Howl"
       }
     },
@@ -5559,25 +5568,28 @@
         "sk_smite": 2.415
       },
       "effectRounds": {
-        "player:e_chronowisp": 2,
-        "player:sk_aegis": 5.9,
-        "player:sk_blessing": 9.75,
+        "player:e_chronowisp:e0": 2,
+        "player:sk_aegis:e0": 5.9,
+        "player:sk_blessing:e0": 5.85,
+        "player:sk_blessing:e1": 3.9,
         "player:sap": 4.065,
-        "player:sk_holy_ward": 3.9
+        "player:sk_holy_ward:e0": 3.9
       },
       "effectApplications": {
-        "player:e_chronowisp": 1,
-        "player:sk_aegis": 3.025,
-        "player:sk_blessing": 3.9,
+        "player:e_chronowisp:e0": 1,
+        "player:sk_aegis:e0": 3.025,
+        "player:sk_blessing:e0": 1.95,
+        "player:sk_blessing:e1": 1.95,
         "player:sap": 2.575,
-        "player:sk_holy_ward": 1.95
+        "player:sk_holy_ward:e0": 1.95
       },
       "effectSources": {
-        "player:e_chronowisp": "enemyMove:Chrono Anchor",
-        "player:sk_aegis": "skill:Aegis of Dawn",
-        "player:sk_blessing": "skill:Blessing",
+        "player:e_chronowisp:e0": "enemyMove:Chrono Anchor",
+        "player:sk_aegis:e0": "skill:Aegis of Dawn",
+        "player:sk_blessing:e0": "skill:Blessing",
+        "player:sk_blessing:e1": "skill:Blessing",
         "player:sap": "enemyMove:Stutter",
-        "player:sk_holy_ward": "skill:Holy Ward"
+        "player:sk_holy_ward:e0": "skill:Holy Ward"
       }
     },
     {
@@ -5642,16 +5654,16 @@
         "sk_cleave": 8.48
       },
       "effectRounds": {
-        "player:Silk Prison": 2.34,
-        "enemy:t_9": 1.4
+        "player:Silk Prison:e1": 2.34,
+        "enemy:t_9:t0:e0": 1.4
       },
       "effectApplications": {
-        "player:Silk Prison": 2.34,
-        "enemy:t_9": 1.4
+        "player:Silk Prison:e1": 2.34,
+        "enemy:t_9:t0:e0": 1.4
       },
       "effectSources": {
-        "player:Silk Prison": "enemyMove:Silk Prison",
-        "enemy:t_9": "item:Thorn Ring"
+        "player:Silk Prison:e1": "enemyMove:Silk Prison",
+        "enemy:t_9:t0:e0": "item:Thorn Ring"
       }
     },
     {
@@ -5717,16 +5729,16 @@
         "sk_firebolt": 6.075
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 2.43,
-        "player:Silk Prison": 2.64
+        "enemy:sk_frost_lance:e1": 2.43,
+        "player:Silk Prison:e1": 2.64
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 2.43,
-        "player:Silk Prison": 2.64
+        "enemy:sk_frost_lance:e1": 2.43,
+        "player:Silk Prison:e1": 2.64
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:Silk Prison": "enemyMove:Silk Prison"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -5865,15 +5877,15 @@
         "sk_firebolt": 1.44
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 1.085,
+        "enemy:sk_frost_lance:e1": 1.085,
         "player:sap": 1.395
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 1.085,
+        "enemy:sk_frost_lance:e1": 1.085,
         "player:sap": 1.135
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
         "player:sap": "enemyMove:Miasma"
       }
     },
@@ -5942,16 +5954,16 @@
         "sk_cleave": 2.59
       },
       "effectRounds": {
-        "player:Ageing Touch": 2.6,
-        "enemy:sk_sunder_armor": 2.775
+        "player:Ageing Touch:e1": 2.6,
+        "enemy:sk_sunder_armor:e1": 2.775
       },
       "effectApplications": {
-        "player:Ageing Touch": 2.6,
-        "enemy:sk_sunder_armor": 1.405
+        "player:Ageing Touch:e1": 2.6,
+        "enemy:sk_sunder_armor:e1": 1.405
       },
       "effectSources": {
-        "player:Ageing Touch": "enemyMove:Ageing Touch",
-        "enemy:sk_sunder_armor": "skill:Sunder Armor"
+        "player:Ageing Touch:e1": "enemyMove:Ageing Touch",
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor"
       }
     },
     {
@@ -6019,16 +6031,16 @@
         "sk_firebolt": 1
       },
       "effectRounds": {
-        "player:Ageing Touch": 1.865,
-        "enemy:sk_frost_lance": 1.43
+        "player:Ageing Touch:e1": 1.865,
+        "enemy:sk_frost_lance:e1": 1.43
       },
       "effectApplications": {
-        "player:Ageing Touch": 1.865,
-        "enemy:sk_frost_lance": 1.43
+        "player:Ageing Touch:e1": 1.865,
+        "enemy:sk_frost_lance:e1": 1.43
       },
       "effectSources": {
-        "player:Ageing Touch": "enemyMove:Ageing Touch",
-        "enemy:sk_frost_lance": "skill:Frost Lance"
+        "player:Ageing Touch:e1": "enemyMove:Ageing Touch",
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance"
       }
     },
     {
@@ -6097,19 +6109,19 @@
         "sk_adrenaline": 1.975
       },
       "effectRounds": {
-        "enemy:sk_sunder_armor": 4.405,
-        "player:Absolute Zero": 4.37,
-        "player:sk_adrenaline": 3.82
+        "enemy:sk_sunder_armor:e1": 4.405,
+        "player:Absolute Zero:e1": 4.37,
+        "player:sk_adrenaline:e1": 3.82
       },
       "effectApplications": {
-        "enemy:sk_sunder_armor": 2.285,
-        "player:Absolute Zero": 4.37,
-        "player:sk_adrenaline": 1.975
+        "enemy:sk_sunder_armor:e1": 2.285,
+        "player:Absolute Zero:e1": 4.37,
+        "player:sk_adrenaline:e1": 1.975
       },
       "effectSources": {
-        "enemy:sk_sunder_armor": "skill:Sunder Armor",
-        "player:Absolute Zero": "enemyMove:Absolute Zero",
-        "player:sk_adrenaline": "skill:Adrenaline Surge"
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor",
+        "player:Absolute Zero:e1": "enemyMove:Absolute Zero",
+        "player:sk_adrenaline:e1": "skill:Adrenaline Surge"
       }
     },
     {
@@ -6177,16 +6189,16 @@
         "sk_frost_lance": 1
       },
       "effectRounds": {
-        "enemy:sk_frost_lance": 0.575,
-        "player:Absolute Zero": 0.94
+        "enemy:sk_frost_lance:e1": 0.575,
+        "player:Absolute Zero:e1": 0.94
       },
       "effectApplications": {
-        "enemy:sk_frost_lance": 0.575,
-        "player:Absolute Zero": 0.94
+        "enemy:sk_frost_lance:e1": 0.575,
+        "player:Absolute Zero:e1": 0.94
       },
       "effectSources": {
-        "enemy:sk_frost_lance": "skill:Frost Lance",
-        "player:Absolute Zero": "enemyMove:Absolute Zero"
+        "enemy:sk_frost_lance:e1": "skill:Frost Lance",
+        "player:Absolute Zero:e1": "enemyMove:Absolute Zero"
       }
     },
     {
@@ -6256,19 +6268,19 @@
         "sk_adrenaline": 2.205
       },
       "effectRounds": {
-        "enemy:sk_titans_fall": 2.045,
-        "enemy:sk_sunder_armor": 3.505,
-        "player:sk_adrenaline": 4.23
+        "enemy:sk_titans_fall:e1": 2.045,
+        "enemy:sk_sunder_armor:e1": 3.505,
+        "player:sk_adrenaline:e1": 4.23
       },
       "effectApplications": {
-        "enemy:sk_titans_fall": 2.045,
-        "enemy:sk_sunder_armor": 1.81,
-        "player:sk_adrenaline": 2.205
+        "enemy:sk_titans_fall:e1": 2.045,
+        "enemy:sk_sunder_armor:e1": 1.81,
+        "player:sk_adrenaline:e1": 2.205
       },
       "effectSources": {
-        "enemy:sk_titans_fall": "skill:Titan's Fall",
-        "enemy:sk_sunder_armor": "skill:Sunder Armor",
-        "player:sk_adrenaline": "skill:Adrenaline Surge"
+        "enemy:sk_titans_fall:e1": "skill:Titan's Fall",
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor",
+        "player:sk_adrenaline:e1": "skill:Adrenaline Surge"
       }
     },
     {
@@ -6407,27 +6419,27 @@
       },
       "effectRounds": {
         "enemy:opening:e_aldric": 4,
-        "player:sk_unbroken": 20.63,
-        "enemy:sk_titans_fall": 2.065,
-        "enemy:sk_sunder_armor": 2.915,
+        "player:sk_unbroken:e0": 20.63,
+        "enemy:sk_titans_fall:e1": 2.065,
+        "enemy:sk_sunder_armor:e1": 2.915,
         "player:sap": 3.3,
-        "player:sk_adrenaline": 3.6
+        "player:sk_adrenaline:e1": 3.6
       },
       "effectApplications": {
         "enemy:opening:e_aldric": 1,
-        "player:sk_unbroken": 1,
-        "enemy:sk_titans_fall": 2.065,
-        "enemy:sk_sunder_armor": 1.47,
+        "player:sk_unbroken:e0": 1,
+        "enemy:sk_titans_fall:e1": 2.065,
+        "enemy:sk_sunder_armor:e1": 1.47,
         "player:sap": 2.79,
-        "player:sk_adrenaline": 1.89
+        "player:sk_adrenaline:e1": 1.89
       },
       "effectSources": {
         "enemy:opening:e_aldric": "encounter:King Aldric the Sundered",
-        "player:sk_unbroken": "skill:Unbroken",
-        "enemy:sk_titans_fall": "skill:Titan's Fall",
-        "enemy:sk_sunder_armor": "skill:Sunder Armor",
+        "player:sk_unbroken:e0": "skill:Unbroken",
+        "enemy:sk_titans_fall:e1": "skill:Titan's Fall",
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor",
         "player:sap": "enemyMove:Crown of Night",
-        "player:sk_adrenaline": "skill:Adrenaline Surge"
+        "player:sk_adrenaline:e1": "skill:Adrenaline Surge"
       }
     },
     {
@@ -6575,25 +6587,25 @@
         "sk_adrenaline": 1.46
       },
       "effectRounds": {
-        "player:sk_unbroken": 3.15,
-        "enemy:sk_titans_fall": 2.14,
-        "enemy:sk_sunder_armor": 2.915,
+        "player:sk_unbroken:e0": 3.15,
+        "enemy:sk_titans_fall:e1": 2.14,
+        "enemy:sk_sunder_armor:e1": 2.915,
         "player:sap": 3.85,
-        "player:sk_adrenaline": 1.79
+        "player:sk_adrenaline:e1": 1.79
       },
       "effectApplications": {
-        "player:sk_unbroken": 1,
-        "enemy:sk_titans_fall": 2.14,
-        "enemy:sk_sunder_armor": 1.465,
+        "player:sk_unbroken:e0": 1,
+        "enemy:sk_titans_fall:e1": 2.14,
+        "enemy:sk_sunder_armor:e1": 1.465,
         "player:sap": 3.245,
-        "player:sk_adrenaline": 1.095
+        "player:sk_adrenaline:e1": 1.095
       },
       "effectSources": {
-        "player:sk_unbroken": "skill:Unbroken",
-        "enemy:sk_titans_fall": "skill:Titan's Fall",
-        "enemy:sk_sunder_armor": "skill:Sunder Armor",
+        "player:sk_unbroken:e0": "skill:Unbroken",
+        "enemy:sk_titans_fall:e1": "skill:Titan's Fall",
+        "enemy:sk_sunder_armor:e1": "skill:Sunder Armor",
         "player:sap": "enemyMove:Entropy Field",
-        "player:sk_adrenaline": "skill:Adrenaline Surge"
+        "player:sk_adrenaline:e1": "skill:Adrenaline Surge"
       }
     },
     {

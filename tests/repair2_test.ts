@@ -935,10 +935,10 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
   assert(rendered.includes('Effects: none'), 'the unbuffed combatant shows an empty row');
   assert(rendered.includes('🔆 Blessing'), 'effects keep their identity, not just a delta');
   // Blessing legs diverge on the cast round: DEF ticked (2 left), MAG
-  // deferred (#27/#38, 3 left) — the summary discloses the range. The
-  // buff empowers MAG/DEF (#77): every Cleric damage action is MAG vs RES,
-  // so an ATK leg could never touch a class-owned action.
-  assert(rendered.includes('2–3 rounds'), 'divergent leg durations are disclosed');
+  // deferred (3 left). With #90 per-effect identity each leg is its own row
+  // and discloses its exact duration — no merged range to misread.
+  assert(rendered.includes('3 rounds remaining'), 'the deferred MAG leg discloses 3');
+  assert(rendered.includes('2 rounds remaining'), 'the ticked DEF leg discloses 2');
   assert(rendered.includes('"type":"details"'), 'effects expand via a native details block');
   assert(rendered.includes('+30% MAG'), 'magnitude is shown (MAG leg, not unused ATK)');
   assert(!rendered.includes('+30% ATK'), 'the dead ATK leg is gone (#77)');

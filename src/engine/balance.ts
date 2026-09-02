@@ -41,7 +41,7 @@ import {
   skillHealPower,
   skillMaxDamagePower,
 } from '../content/skills.ts';
-import { sapPct, statPct } from './effects.ts';
+import { hasLiveFromSource, sapPct, statPct } from './effects.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
 import { type CombatEvent, setCombatTelemetry } from './telemetry.ts';
@@ -259,8 +259,10 @@ function tacticalAction(
   heals: SkillDef[],
 ): PlayerAction {
   const s = statsOf(p);
-  const liveOn = (side: 'player' | 'enemy', defId: string): boolean =>
-    b.effectInstances.some((i) => i.side === side && i.defId === defId);
+  // #90: liveness is source-scoped — any live instance whose stacking
+  // identity derives from the skill's id (any of its effects/triggers).
+  const liveOn = (side: 'player' | 'enemy', sourceId: string): boolean =>
+    hasLiveFromSource(b, side, sourceId);
   const firstUsable = (skills: SkillDef[]): SkillDef | undefined => skills.find(usable);
 
   // 1. Cleanse MEANINGFUL harm: a live control effect, or several harmful

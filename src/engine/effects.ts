@@ -55,11 +55,56 @@ function sameIdentity(a: EffectInstance, seed: InstanceSeed): boolean {
   return true;
 }
 
+/** #90 stacking identity: one stable, human-readable key per authored
+ * effect within its source — the source id, the equipment trigger index
+ * (when the source is an item trigger), and the effect's position in its
+ * spec list. Two same-kind effects from one skill/item/move therefore
+ * coexist whenever they are authored as distinct entries, and item
+ * provenance stays readable in saves and telemetry. The shared `sap` slot
+ * is the ONE intentional cross-source identity (#77): every outgoing-damage
+ * sap is the same named condition regardless of who cast it. Content
+ * integrity asserts derived keys never collide within one source+trigger. */
+export function effectDefId(
+  sourceId: string,
+  triggerIndex: number | undefined,
+  effectIndex: number,
+  spec: EffectSpec,
+): string {
+  if (spec.kind === 'statmod' && spec.stat === 'outgoing' && (spec.pct ?? 0) < 0) return 'sap';
+  const trigger = triggerIndex === undefined ? '' : `:t${triggerIndex}`;
+  return `${sourceId}${trigger}:e${effectIndex}`;
+}
+
+/** #90 harness-facing liveness: does any live instance on `side` carry a
+ * stacking identity derived from `sourceId` (any of its effects/triggers)? */
+export function hasLiveFromSource(
+  b: BattleState,
+  side: 'player' | 'enemy',
+  sourceId: string,
+): boolean {
+  const prefix = `${sourceId}:`;
+  return b.effectInstances.some((i) =>
+    i.side === side && (i.defId === sourceId || i.defId.startsWith(prefix))
+  );
+}
+
 /** Applies an effect instance with its authored stacking policy. Returns
  * the instance now backing the effect (the new one, or the retained prior
  * one for refresh/strongest-loss cases). Emits a structured
  * `effectApplied` event (#88) — the harness counts applications and
- * duration-1 casts without mid-round state sampling. */
+ * duration-1 casts without mid-round state sampling.
+ *
+ * #90 transition semantics — every policy is a COMPLETE step:
+ * - `stack`: an independent instance joins the list.
+ * - `replace`: the old instance is wholly retired; a fresh one applies.
+ * - `refresh`: atomic rebuild — the recast is the latest intent, so the
+ *   WHOLE payload (tags, removability, tick/bypass data, shield capacity,
+ *   source/name) and the clock renew together from the fresh application;
+ *   nothing stale survives. Same iid, same list slot.
+ * - `strongest`: the stronger magnitude applies whole; a weaker recast
+ *   keeps the winning payload AND its timing untouched (no timing leak)
+ *   and may only extend the lifetime, with remaining and expiresRound
+ *   moving by the same delta so they can never disagree. */
 export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstance {
   const inst = applyInstanceRaw(b, seed);
   emitCombatEvent({
@@ -75,57 +120,69 @@ export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstanc
   return inst;
 }
 
-function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
-  const existing = b.effectInstances.find((i) => sameIdentity(i, seed));
+/** The single authority for instance construction and lifetime
+ * normalization (#90): `remaining`, `expiresRound`, `deferFirstTick` and
+ * `battleLifetime` are derived together from (anchor round, duration,
+ * timing, lifetime) and can never disagree. Passing `iid` reuses an
+ * existing identity (refresh keeps its slot and UI row). */
+function buildInstance(b: BattleState, seed: InstanceSeed, iid?: string): EffectInstance {
   const battleLife = seed.battleLifetime === true;
-  const make = (): EffectInstance => {
+  let id: string;
+  if (iid === undefined) {
     b.effectSeq++;
-    return {
-      iid: `ef${b.effectSeq}`,
-      defId: seed.defId,
-      name: seed.name,
-      side: seed.side,
-      source: seed.source,
-      kind: seed.kind,
-      stat: seed.stat,
-      pct: seed.pct,
-      control: seed.control,
-      actions: seed.actions,
-      perRound: seed.perRound,
-      pctOfMaxPerRound: seed.pctOfMaxPerRound,
-      tickPhase: seed.tickPhase,
-      bypassShield: seed.bypassShield,
-      shieldAmount: seed.shieldAmount,
-      tags: [...seed.tags],
-      stacking: seed.stacking,
-      appliedRound: b.round,
-      remaining: battleLife ? 1 : seed.duration,
-      deferFirstTick: seed.timing === 'defer',
-      removable: seed.removable,
-      expiresRound: battleLife
-        ? Number.MAX_SAFE_INTEGER
-        : expiresRoundFor(b.round, seed.duration, seed.timing),
-      ...(battleLife ? { battleLifetime: true as const } : {}),
-    };
+    id = `ef${b.effectSeq}`;
+  } else {
+    id = iid;
+  }
+  return {
+    iid: id,
+    defId: seed.defId,
+    name: seed.name,
+    side: seed.side,
+    source: seed.source,
+    kind: seed.kind,
+    stat: seed.stat,
+    pct: seed.pct,
+    control: seed.control,
+    actions: seed.actions,
+    perRound: seed.perRound,
+    pctOfMaxPerRound: seed.pctOfMaxPerRound,
+    tickPhase: seed.tickPhase,
+    bypassShield: seed.bypassShield,
+    shieldAmount: seed.shieldAmount,
+    tags: [...seed.tags],
+    stacking: seed.stacking,
+    appliedRound: b.round,
+    remaining: battleLife ? 1 : seed.duration,
+    deferFirstTick: seed.timing === 'defer',
+    removable: seed.removable,
+    expiresRound: battleLife
+      ? Number.MAX_SAFE_INTEGER
+      : expiresRoundFor(b.round, seed.duration, seed.timing),
+    ...(battleLife ? { battleLifetime: true as const } : {}),
   };
-  if (!existing) {
-    const inst = make();
+}
+
+function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
+  const idx = b.effectInstances.findIndex((i) => sameIdentity(i, seed));
+  if (idx === -1) {
+    const inst = buildInstance(b, seed);
     b.effectInstances.push(inst);
     return inst;
   }
+  const existing = b.effectInstances[idx]!;
   switch (seed.stacking) {
     case 'stack': {
-      const inst = make();
+      const inst = buildInstance(b, seed);
       b.effectInstances.push(inst);
       return inst;
     }
     case 'refresh': {
-      existing.remaining = battleLife ? 1 : seed.duration;
-      existing.deferFirstTick = seed.timing === 'defer';
-      existing.expiresRound = battleLife
-        ? Number.MAX_SAFE_INTEGER
-        : expiresRoundFor(b.round, seed.duration, seed.timing);
-      return existing;
+      // #90 atomic rebuild: the recast is the latest intent — the whole
+      // payload and the clock renew together from the fresh application;
+      // nothing stale survives. Same iid, same list slot.
+      b.effectInstances[idx] = buildInstance(b, seed, existing.iid);
+      return b.effectInstances[idx]!;
     }
     case 'strongest': {
       const incoming = seed.pct ?? 0;
@@ -133,26 +190,34 @@ function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
       // Magnitudes, not signed pcts: saps are stored negative, so the
       // STRONGER sap has the MORE negative pct and must still win (#78).
       if (Math.abs(incoming) > Math.abs(current)) {
-        // Retire the weaker instance and apply the fresh one.
-        b.effectInstances = b.effectInstances.filter((i) => i !== existing);
-        const inst = make();
-        b.effectInstances.push(inst);
-        return inst;
+        // Retire the weaker instance and apply the fresh one whole.
+        b.effectInstances[idx] = buildInstance(b, seed);
+        return b.effectInstances[idx]!;
       }
-      // Keep the stronger magnitude; a recast still renews its clock.
-      existing.remaining = Math.max(existing.remaining, battleLife ? 1 : seed.duration);
-      existing.deferFirstTick = seed.timing === 'defer';
-      existing.expiresRound = battleLife
+      // Keep the winning payload AND its timing — a weaker recast may not
+      // leak its own timing metadata (#90); it may only extend the
+      // lifetime, coherently: remaining and expiresRound move by the same
+      // delta (battle-lifetime counts as infinitely long and upgrades the
+      // winner), so the two clocks can never disagree.
+      const freshLife = seed.battleLifetime === true
         ? Number.MAX_SAFE_INTEGER
         : expiresRoundFor(b.round, seed.duration, seed.timing);
+      if (freshLife > existing.expiresRound) {
+        if (seed.battleLifetime === true) {
+          existing.battleLifetime = true;
+          existing.expiresRound = Number.MAX_SAFE_INTEGER;
+          existing.remaining = 1;
+        } else {
+          existing.remaining += freshLife - existing.expiresRound;
+          existing.expiresRound = freshLife;
+        }
+      }
       return existing;
     }
     case 'replace':
     default: {
-      b.effectInstances = b.effectInstances.filter((i) => i !== existing);
-      const inst = make();
-      b.effectInstances.push(inst);
-      return inst;
+      b.effectInstances[idx] = buildInstance(b, seed);
+      return b.effectInstances[idx]!;
     }
   }
 }

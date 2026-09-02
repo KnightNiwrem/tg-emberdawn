@@ -99,7 +99,7 @@ Deno.test('#83: Venom Bite is a real shield-bypassing poison', () => {
   round(p, b, s);
   const poison = b.effectInstances.find((i) => i.side === 'player' && i.name === 'Poison');
   assertExists(poison);
-  assertEquals(poison.defId, 'Venom Bite');
+  assertEquals(poison.defId, 'Venom Bite:e1');
   assertEquals(poison.bypassShield, true, 'Poison is the ONLY bypassing DoT');
   assertEquals(poison.perRound, -4);
   assertEquals(poison.tags?.includes('poison'), true);

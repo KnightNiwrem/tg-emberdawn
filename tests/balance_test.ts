@@ -456,9 +456,10 @@ Deno.test('balance: the tactical policy is effect-aware and always legal (#84)',
   );
 
   // Pre-emptive skills arrive through the OPENING pipeline, not casts:
-  // Expose Weakness appears as an enemy-side effect application (#80/#84).
+  // Expose Weakness appears as an enemy-side effect application (#80/#84),
+  // under its per-effect stacking identity (#90).
   assert(
-    (rogueWolf.effectApplications['enemy:sk_expose_weakness'] ?? 0) > 0,
+    (rogueWolf.effectApplications['enemy:sk_expose_weakness:e0'] ?? 0) > 0,
     'Expose Weakness never fired in the opening',
   );
 
@@ -483,7 +484,7 @@ Deno.test('balance: unique equipment effects have a deterministic trigger scenar
   );
   assert(res.shieldGranted >= 25, `wardstone ward granted (${res.shieldGranted})`);
   assert(
-    (res.effectApplications['player:t_wardstone'] ?? 0) > 0,
+    (res.effectApplications['player:t_wardstone:t0:e0'] ?? 0) > 0,
     'the wardstone opening was never observed',
   );
   assertEquals(res.invalidActions, 0);

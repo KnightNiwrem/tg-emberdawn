@@ -36,7 +36,7 @@ function roguePlayer(id: number): PlayerState {
 function exposeSuccessSeed(): number {
   for (let s = 1; s <= 200; s++) {
     const b = startBattle('e_rat', ORIGIN, { player: roguePlayer(900 + s), rng: seeded(s) })!;
-    if (b.effectInstances.some((i) => i.defId === 'sk_expose_weakness')) return s;
+    if (b.effectInstances.some((i) => i.defId === 'sk_expose_weakness:e0')) return s;
   }
   throw new Error('no expose-success seed found in 1..200');
 }
@@ -45,7 +45,7 @@ function exposeSuccessSeed(): number {
 function exposeFailureSeed(): number {
   for (let s = 1; s <= 200; s++) {
     const b = startBattle('e_rat', ORIGIN, { player: roguePlayer(900 + s), rng: seeded(s) })!;
-    if (!b.effectInstances.some((i) => i.defId === 'sk_expose_weakness')) return s;
+    if (!b.effectInstances.some((i) => i.defId === 'sk_expose_weakness:e0')) return s;
   }
   throw new Error('no expose-failure seed found in 1..200');
 }
@@ -62,7 +62,7 @@ Deno.test('#80: opening chance rolls honor the seed — outcome-only persistence
   const win = exposeSuccessSeed();
   assert(win !== exposeFailureSeed());
   const b = startBattle('e_rat', ORIGIN, { player: roguePlayer(3), rng: seeded(win) })!;
-  const exposed = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness');
+  const exposed = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness:e0');
   assertExists(exposed);
   assertEquals(exposed.side, 'enemy');
   // Provenance survives in the instance (UI/history criterion).
@@ -107,7 +107,7 @@ Deno.test('#80: enemy-global openings fire in every provenance; boss ward is pro
   } as const satisfies BattleOrigin;
   const wild = startBattle('e_chronowisp', ORIGIN, { player: roguePlayer(6), rng: seeded(3) })!;
   assert(wild.opening!.lines.some((l) => l.includes('Chrono Anchor')));
-  const anchored = wild.effectInstances.find((i) => i.defId === 'e_chronowisp');
+  const anchored = wild.effectInstances.find((i) => i.defId === 'e_chronowisp:e0');
   assertExists(anchored);
   assertEquals(anchored.stat, 'spd');
   assertEquals(anchored.pct, -0.2);

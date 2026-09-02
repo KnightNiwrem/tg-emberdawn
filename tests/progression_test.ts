@@ -255,7 +255,7 @@ Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
   performAction(p, b, { kind: 'skill', skillId: 'sk_venom_cut' }, rng);
   // #81: the name finally means venom — a real poison instance on the foe.
   const venom = b.effectInstances.find((i) =>
-    i.side === 'enemy' && i.kind === 'periodic' && i.defId === 'sk_venom_cut'
+    i.side === 'enemy' && i.kind === 'periodic' && i.defId === 'sk_venom_cut:e1'
   );
   assert(venom, 'the enemy is envenomed');
   assertEquals(venom.perRound, -16);

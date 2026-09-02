@@ -18,6 +18,9 @@ import { seeded } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 
+/** #90: the stacking identity of an equipment trigger's first effect. */
+const trigId = (trinket: string): string => `${trinket}:t0:e0`;
+
 function hero(id: number, classId: ClassId, level: number, trinket?: string): PlayerState {
   const p = createPlayer(id, 'T', classId);
   p.level = level;
@@ -65,7 +68,7 @@ function reactiveSeed(
     round(p, b, s);
     // Hunt on a LANDED application — a resisted attempt (⚡-prefixed resist
     // line) must not read as a proc (#83 statusResist).
-    if (b.effectInstances.some((i) => i.defId === trinket) === wantProc) return s;
+    if (b.effectInstances.some((i) => i.defId === trigId(trinket)) === wantProc) return s;
   }
   throw new Error(`no ${wantProc ? 'proc' : 'miss'} seed found for ${trinket}`);
 }
@@ -75,7 +78,7 @@ function openingSeed(trinket: string, level: number, wantApplied: boolean): numb
   for (let s = 1; s <= 200; s++) {
     const p = hero(900 + s, 'warrior', level, trinket);
     const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
-    if (b.effectInstances.some((i) => i.defId === trinket) === wantApplied) return s;
+    if (b.effectInstances.some((i) => i.defId === trigId(trinket)) === wantApplied) return s;
   }
   throw new Error(`no ${wantApplied ? 'success' : 'failure'} opening seed for ${trinket}`);
 }
@@ -83,7 +86,7 @@ function openingSeed(trinket: string, level: number, wantApplied: boolean): numb
 Deno.test('#82: battleStart trigger wards the wearer through the opening', () => {
   const p = hero(1, 'warrior', 28, 't_15');
   const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(1) })!;
-  const ward = b.effectInstances.find((i) => i.defId === 't_15');
+  const ward = b.effectInstances.find((i) => i.defId === 't_15:t0:e0');
   assertExists(ward, 'the Rime Ward instance exists');
   assertEquals(ward.side, 'player');
   assertEquals(ward.shieldAmount, 35);
@@ -97,7 +100,7 @@ Deno.test('#82: battleStart chance failure is recorded exactly once', () => {
   const s = openingSeed('t_7', 32, false);
   const p = hero(2, 'warrior', 32, 't_7');
   const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
-  assertEquals(b.effectInstances.some((i) => i.defId === 't_7'), false);
+  assertEquals(b.effectInstances.some((i) => i.defId === 't_7:t0:e0'), false);
   const fizzles = b.opening?.lines.filter((l) => l.includes('roll missed')) ?? [];
   assertEquals(fizzles.length, 1, 'the miss is logged once — outcome persistence');
   assert(fizzles[0]!.includes('Keen Fracture'));
@@ -108,7 +111,7 @@ Deno.test('#82: battleStart success applies the typed effect once', () => {
   const s = openingSeed('t_7', 32, true);
   const p = hero(3, 'warrior', 32, 't_7');
   const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
-  const exposed = b.effectInstances.find((i) => i.defId === 't_7');
+  const exposed = b.effectInstances.find((i) => i.defId === 't_7:t0:e0');
   assertExists(exposed);
   assertEquals(exposed.side, 'enemy');
   assertEquals(exposed.stat, 'incoming');
@@ -145,7 +148,7 @@ Deno.test('#82: onHpDamage retaliation procs with source attribution', () => {
   const p = hero(7, 'warrior', 5, 't_9');
   const b = tankyWolf(p, s);
   const res = round(p, b, s);
-  const bleed = b.effectInstances.find((i) => i.defId === 't_9');
+  const bleed = b.effectInstances.find((i) => i.defId === 't_9:t0:e0');
   assertExists(bleed, 'the attacker is bleeding');
   assertEquals(bleed.side, 'enemy');
   assertEquals(bleed.kind, 'periodic');
@@ -295,7 +298,7 @@ function procInstance(
   if (temper) p.flags['forge_i_w_warrior_1'] = 5;
   const b = enemy(p, s);
   round(p, b, s);
-  return b.effectInstances.find((i) => i.defId === trinket)!;
+  return b.effectInstances.find((i) => i.defId === trigId(trinket))!;
 }
 
 Deno.test('#82: forge temper never scales proc data', () => {
@@ -315,8 +318,8 @@ Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () =
       p.skills.push('sk_expose_weakness');
       const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
       if (
-        b.effectInstances.some((i) => i.defId === 't_7') &&
-        b.effectInstances.some((i) => i.defId === 'sk_expose_weakness')
+        b.effectInstances.some((i) => i.defId === 't_7:t0:e0') &&
+        b.effectInstances.some((i) => i.defId === 'sk_expose_weakness:e0')
       ) {
         return s;
       }
@@ -327,8 +330,8 @@ Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () =
   const p = hero(13, 'rogue', 45, 't_7');
   p.skills.push('sk_expose_weakness');
   const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
-  const lens = b.effectInstances.find((i) => i.defId === 't_7')!;
-  const sk = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness')!;
+  const lens = b.effectInstances.find((i) => i.defId === 't_7:t0:e0')!;
+  const sk = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness:e0')!;
   assertEquals(lens.stat, 'incoming');
   assertEquals(sk.stat, 'incoming');
   assertEquals(incomingAmpPct(b, 'enemy'), 0.5, 'different sources fold additively');
@@ -409,7 +412,7 @@ Deno.test('#89: broad onHpDamage answers periodic ticks', () => {
     'the stunned wolf never struck — the tick is the only HP loss',
   );
   assert(res.lines.some((l) => l.startsWith('⚡ ')), 'the broad trigger answers the tick');
-  const bleed = b.effectInstances.find((i) => i.defId === 't_19');
+  const bleed = b.effectInstances.find((i) => i.defId === 't_19:t0:e0');
   assertExists(bleed, 'the striker is bleeding');
   assertEquals(bleed.side, 'enemy');
   assertEquals(bleed.perRound, -3);
@@ -518,7 +521,7 @@ Deno.test('#89: non-damaging openings scan nothing', () => {
     const b = startBattle('e_chronowisp', ORIGIN, { player: p, rng: seeded(1) })!;
     assertEquals(b.procs, undefined, `${trinket} procs nothing on a non-damaging opening`);
     assertEquals(
-      b.effectInstances.some((i) => i.defId === trinket),
+      b.effectInstances.some((i) => i.defId === trigId(trinket)),
       false,
       `${trinket} applied nothing at the opening`,
     );

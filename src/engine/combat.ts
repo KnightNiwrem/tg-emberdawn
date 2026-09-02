@@ -23,6 +23,7 @@ import {
   applyInstance,
   applyShieldExpiry,
   consumeStun,
+  effectDefId,
   gatherRoundEndTicks,
   gatherTurnStartTicks,
   grantShield,
@@ -248,7 +249,7 @@ export function startBattle(
         const itemId = p.equipment[slot];
         const it = itemId ? itemDefLookup(itemId) : undefined;
         if (!it?.triggers?.length) continue;
-        for (const tg of it.triggers) {
+        for (const [ti, tg] of it.triggers.entries()) {
           if (tg.trigger !== 'battleStart') continue;
           if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
             emitCombatEvent({
@@ -284,6 +285,7 @@ export function startBattle(
             // is proc-produced and never re-triggers equipment.
             'proc',
             true,
+            ti,
           ));
         }
       }
@@ -317,6 +319,7 @@ function runOpening(
   specs: readonly EffectSpec[],
   cause: DamageCause,
   procProduced: boolean,
+  triggerIndex?: number,
 ): string[] {
   const ctx: ExecCtx = {
     p,
@@ -330,6 +333,7 @@ function runOpening(
     hpDamaged: false,
     cause,
     procProduced,
+    triggerIndex,
   };
   return executeSpecs(ctx, specs);
 }
@@ -397,6 +401,7 @@ function runReactiveTriggers(
         hpDamaged: false,
         cause: 'proc',
         procProduced: true,
+        triggerIndex: ti,
       };
       emitCombatEvent({
         kind: 'procAttempt',
@@ -902,6 +907,9 @@ interface ExecCtx {
   /** #89: true inside a reactive-proc resolution — HP damage this list
    * produces is proc-produced and never re-triggers equipment. */
   procProduced: boolean;
+  /** #90 authored trigger index for equipment-trigger specs — part of the
+   * stacking identity, so distinct triggers on one item never collide. */
+  triggerIndex?: number;
 }
 
 function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
@@ -949,7 +957,8 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
       return lines;
     }
   }
-  for (const spec of specs) {
+  for (let ei = 0; ei < specs.length; ei++) {
+    const spec = specs[ei]!;
     // #86: terminal state stops the ordered spec list — no rider, drain or
     // proc resolves after an unrevived actor reached 0 HP. Phoenix already
     // ran synchronously inside the damage path (a successful revival means
@@ -1024,7 +1033,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         );
         const seed = seedForSpec(
           spec,
-          instanceDefId(ctx, spec),
+          instanceDefId(ctx, spec, ei),
           ctx.displayName,
           side,
           ctx.source,
@@ -1040,7 +1049,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
       case 'statmod':
       case 'control':
       case 'periodic': {
-        const defId = instanceDefId(ctx, spec);
+        const defId = instanceDefId(ctx, spec, ei);
         const seed = seedForSpec(
           spec,
           defId,
@@ -1104,11 +1113,11 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
   return lines;
 }
 
-/** Stacking identity: all saps share the generic `sap` slot (strongest
- * wins), everything else keys on the applying content id. */
-function instanceDefId(ctx: ExecCtx, spec: EffectSpec): string {
-  if (spec.kind === 'statmod' && spec.stat === 'outgoing' && (spec.pct ?? 0) < 0) return 'sap';
-  return ctx.source.id;
+/** Stacking identity (#90): delegated to effectDefId — source id + the
+ * equipment trigger index + the effect's position; all saps share the
+ * generic `sap` slot (strongest wins). */
+function instanceDefId(ctx: ExecCtx, spec: EffectSpec, effectIndex: number): string {
+  return effectDefId(ctx.source.id, ctx.triggerIndex, effectIndex, spec);
 }
 
 /** Default success lines, reproducing the long-standing copy per effect
