@@ -238,6 +238,33 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   come from the ENCOUNTER — only a dungeon boss floor (`origin.boss`) is boss-classified. The Abyss
   overworld Warden is a farmable ELITE: fleeable, smokeable, not counted.
 
+## The synchronous gameplay architecture boundary (#102)
+
+Telegram/network/database code may be asynchronous — gameplay may not. This boundary is the
+project's core shape: **async I/O sandwich around a synchronous, deterministic game core**. It is
+regression-pinned by `tests/architecture_test.ts` (sync API contracts, no-pending-work-at-return,
+engine import bans, banned runtime primitives). Do not reinterpret "event", "reactive", "hook",
+"trace" or "emit" as a request for event-driven mechanics.
+
+- **Allowed asynchronous boundary.** Async code is expected ONLY for: receiving Telegram updates and
+  grammY middleware; serializing concurrent updates for the same user; Postgres/network I/O;
+  sending/editing Telegram messages; webhook lifecycle and scripts. The async boundary must LOAD
+  state, invoke synchronous engine operations, RENDER/PERSIST the completed result, and return. It
+  never interleaves with resolution.
+- **Synchronous gameplay boundary.** Functions that mutate or resolve gameplay — combat, openings,
+  effects, equipment reactions, quests, exploration, progression, rewards, death/revival — must:
+  complete before returning; use direct calls, ordered loops and explicit return values; perform
+  terminal checks inline; consume RNG synchronously and deterministically; leave no pending gameplay
+  work; require no queue draining, event-loop tick, timer advancement or listener flush; and never
+  rely on listener registration order.
+- **Terminology (all direct and synchronous — none of these authorize a bus):**
+  - "reactive trigger" (equipment) = an immediate nested synchronous call (`runReactiveTriggers`);
+  - "quest hook" (`onKill`/`onTalk`/`onZoneEnter`) = an ordinary directly invoked function;
+  - "exploration event" = a data VARIANT selected from content and resolved by a switch;
+  - "combat trace" (#101) = plain record entries appended by and returned from the active
+    synchronous resolution (`recordCombatEvent` — state changes first, then a plain-data push); no
+    listener registration, no dispatch, no async delivery exists anywhere in the engine.
+
 ## Adding content (checklist)
 
 1. Define ids first (`e_*`, `w_/a_/t_/c_/m_/q_*`, `sq_*`), then reference.
