@@ -4,13 +4,45 @@
 
 import type { BattlePhase, PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { performAction, type PlayerAction } from '../engine/combat.ts';
+import { type BattleOutcome, performAction, type PlayerAction } from '../engine/combat.ts';
 import { clampPools, statsOf } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
 import { coachTutorial, grantTutorialReward, tutorialRelease } from './tutorial.ts';
 import type { MutationResult } from './session.ts';
+
+/** Resolves an opening-terminal battle at construction (#96): the same
+ * explicit adjudication battleAction applies after a round, applied to the
+ * opening's outcome before any round runs. Terminal outcomes route exactly
+ * like round outcomes — victory through resolveVictory (rewards, quest
+ * hooks, dungeon bookkeeping), defeat to the death view; 'ongoing' simply
+ * enters the fight. */
+export function enterBattle(
+  p: PlayerState,
+  b: NonNullable<PlayerState['battle']>,
+  outcome: BattleOutcome,
+  intro: string[],
+): MutationResult {
+  p.battle = b;
+  if (outcome === 'victory') {
+    // The opening log IS the terminal round's record (#67): notices carry
+    // only the victory RESOLUTION, never a faked round.
+    p.notices = [...intro, ...resolveVictory(p, b)];
+    b.phase = 'won';
+    p.scene = { view: 'battle' };
+    return {};
+  }
+  if (outcome === 'defeat') {
+    b.phase = 'lost';
+    p.scene = { view: 'death' };
+    p.notices = intro;
+    return {};
+  }
+  p.scene = { view: 'battle' };
+  p.notices = intro;
+  return {};
+}
 
 /** Runs one player action and resolves the round. */
 export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): MutationResult {

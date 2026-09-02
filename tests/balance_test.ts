@@ -518,7 +518,7 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
   try {
     const p = makeHero(dot.classId, dot.learnLevel, 'best');
     p.hp = 99999; // outlive the foe — this test drives EVENTS, not balance
-    const b = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!;
+    const b = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!.battle;
     p.battle = b;
     // A one-shot foe dies before the DoT spec's turn in the spec list —
     // pad the pool so the fight lasts and the application lands (#88).
@@ -548,7 +548,7 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
   const frozen = events.length;
   const p2 = makeHero(dot.classId, dot.learnLevel, 'best');
   p2.hp = 99999;
-  const b2 = startBattle(foe.enemyId, foe.origin, { player: p2, rng: seededRng(12) })!;
+  const b2 = startBattle(foe.enemyId, foe.origin, { player: p2, rng: seededRng(12) })!.battle;
   p2.battle = b2;
   performAction(p2, b2, { kind: 'attack' }, seededRng(13));
   assertEquals(events.length, frozen, 'a detached sink must not collect');
@@ -626,7 +626,7 @@ Deno.test('balance: tactical policy pierces wards, finishes wounds, breaks the m
     const b = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
       player: p,
       rng: seededRng(seed),
-    })!;
+    })!.battle;
     p.battle = b;
     return { p, b };
   };

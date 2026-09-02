@@ -129,12 +129,16 @@ export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationR
         p.scene = { view: 'battle' };
         return { toast: 'Finish this fight first!' };
       }
-      const b = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone }, {
+      const started = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone }, {
         player: p,
         rng: defaultRng,
         tutorial: true,
       });
-      if (!b) return { toast: 'Nothing stirs.' };
+      if (!started) return { toast: 'Nothing stirs.' };
+      const b = started.battle;
+      // Tutorial provenance suppresses every opening source (#80), so the
+      // construction outcome is always 'ongoing' — the guided fight can
+      // only end through its lesson beats (#96).
       // #69 rework: the guided fight is phase-gated — the engine advances
       // the lesson beats and refuses victory until every beat is performed.
       // Tutorial provenance is supplied AT construction (#80): openings are

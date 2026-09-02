@@ -47,7 +47,7 @@ function fight(
   seed: number,
   origin: BattleOrigin = ORIGIN,
 ): BattleState {
-  const b = startBattle(enemyId, origin, { player: p, rng: seeded(seed) })!;
+  const b = startBattle(enemyId, origin, { player: p, rng: seeded(seed) })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;

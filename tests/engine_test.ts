@@ -282,6 +282,10 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
   p.skills.push('sk_arcane_surge', 'sk_firebolt');
   p.mp = statsOf(p).maxMp;
   const battle = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  // Keep the fight alive across both taps (#96: a terminal battle resolves
+  // before validation feedback — this test pins cooldown/MP behavior).
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
   const mpBefore = p.mp;
   const r1 = performAction(p, battle, { kind: 'skill', skillId: 'sk_arcane_surge' }, rng);
   assert(p.mp < mpBefore, 'mp should be spent');

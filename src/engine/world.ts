@@ -9,7 +9,7 @@ import { zone } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { quest } from '../content/quests.ts';
 import { countOf, grantDropRewards, removeItem } from './inventory.ts';
-import { rollRewards, startBattle } from './combat.ts';
+import { type BattleOutcome, rollRewards, startBattle } from './combat.ts';
 import { grantXp, statsOf, xpRewardLabel, xpToGoldAtCap } from './character.ts';
 import { MAX_LEVEL } from './classes.ts';
 import {
@@ -46,7 +46,15 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
 }
 
 export type ExploreOutcome =
-  | { kind: 'battle'; battle: BattleState; buffsNeeded: true; line: string }
+  | {
+    kind: 'battle';
+    battle: BattleState;
+    /** #96: the opening's explicit adjudication — a terminal opening ends
+     * the fight before any round runs, and the caller resolves it. */
+    outcome: BattleOutcome;
+    buffsNeeded: true;
+    line: string;
+  }
   | { kind: 'result'; lines: string[] };
 
 /**
@@ -191,14 +199,15 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
   switch (ev.kind) {
     case 'battle':
     case 'elite': {
-      const battle = startBattle(ev.enemy, {
+      const started = startBattle(ev.enemy, {
         kind: ev.kind === 'elite' ? 'elite' : 'explore',
         zoneId: z.id,
       }, { player: p, rng });
-      if (!battle) return { kind: 'result', lines: ['Nothing stirs.'] };
+      if (!started) return { kind: 'result', lines: ['Nothing stirs.'] };
       return {
         kind: 'battle',
-        battle,
+        battle: started.battle,
+        outcome: started.outcome,
         buffsNeeded: true,
         line: ev.kind === 'elite'
           ? ev.text
@@ -302,21 +311,21 @@ export function diveDungeon(
   p: PlayerState,
   d: DungeonDef,
   rng: Rng = defaultRng,
-): { ok: boolean; battle?: BattleState; lines: string[] } {
+): { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } {
   const bossFloor = d.floors.length + 1;
   const floor = nextFloor(p, d);
 
   if (floor >= bossFloor || dungeonCleared(p, d)) {
     const block = bossGateBlock(p, d);
     if (block) return { ok: false, lines: [block] };
-    const battle = startBattle(d.boss, {
+    const started = startBattle(d.boss, {
       kind: 'dungeon',
       zoneId: p.currentZone,
       dungeonId: d.id,
       floor: bossFloor,
       boss: true,
     }, { player: p, rng });
-    if (!battle) {
+    if (!started) {
       return {
         ok: false,
         lines: ['The way is blocked by nothing at all, which is somehow worse.'],
@@ -325,7 +334,8 @@ export function diveDungeon(
     const again = dungeonCleared(p, d) ? ' again' : '';
     return {
       ok: true,
-      battle,
+      battle: started.battle,
+      outcome: started.outcome,
       lines: [
         `${d.emoji} You descend to the deepest chamber. ${enemyDef(d.boss)?.name ?? d.boss} (Lv ${
           enemyDef(d.boss)?.level ?? '?'
@@ -336,19 +346,20 @@ export function diveDungeon(
 
   const pool = d.floors[floor - 1]?.enemies ?? [d.boss];
   const enemyId = pool[Math.floor(rng() * pool.length)] ?? d.boss;
-  const battle = startBattle(enemyId, {
+  const started = startBattle(enemyId, {
     kind: 'dungeon',
     zoneId: p.currentZone,
     dungeonId: d.id,
     floor,
     boss: false,
   }, { player: p, rng });
-  if (!battle) {
+  if (!started) {
     return { ok: false, lines: ['The way is blocked by nothing at all, which is somehow worse.'] };
   }
   return {
     ok: true,
-    battle,
+    battle: started.battle,
+    outcome: started.outcome,
     lines: [
       `${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} (Lv ${
         enemyDef(enemyId)?.level ?? '?'

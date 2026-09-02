@@ -312,7 +312,9 @@ Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand
   assertEquals(onLethalHit(p, b), [], 'second lethal hit is simply defeat');
   assertEquals(countOf(p, 'c_phoenix_feather'), 2);
 
-  // Manual use is refused: no consumption, no turn.
+  // Manual use is refused: no consumption, no turn. (HP restored first —
+  // #96 resolves a pre-existing terminal state before validation.)
+  p.hp = 10;
   const rng = seeded(17);
   const before = countOf(p, 'c_phoenix_feather');
   const res = performAction(p, b, { kind: 'item', itemId: 'c_phoenix_feather' }, rng);

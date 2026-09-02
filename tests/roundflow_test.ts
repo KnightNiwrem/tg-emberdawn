@@ -29,7 +29,7 @@ function hero(id: number, classId: ClassId, level: number): PlayerState {
 }
 
 function fight(enemyId: string, p: PlayerState, seed: number): BattleState {
-  const b = startBattle(enemyId, ORIGIN, { player: p, rng: seeded(seed) })!;
+  const b = startBattle(enemyId, ORIGIN, { player: p, rng: seeded(seed) })!.battle;
   p.battle = b;
   return b;
 }

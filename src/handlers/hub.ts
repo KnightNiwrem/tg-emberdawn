@@ -28,6 +28,7 @@ import { quest, QUESTS } from '../content/quests.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
+import { enterBattle } from './battle.ts';
 import type { MutationResult } from './session.ts';
 
 /** Zone hub actions (explore/dive/talk) + navigation. */
@@ -45,10 +46,9 @@ function exploreAction(p: PlayerState): MutationResult {
   }
   const outcome = explore(p);
   if (outcome.kind === 'battle') {
-    p.battle = outcome.battle;
-    p.scene = { view: 'battle' };
-    p.notices = [outcome.line];
-    return {};
+    // #96: enterBattle resolves the opening's explicit adjudication — a
+    // terminal opening routes straight to victory/defeat resolution.
+    return enterBattle(p, outcome.battle, outcome.outcome, [outcome.line]);
   }
   p.notices = outcome.lines;
   p.scene = { view: 'zone' };
@@ -86,10 +86,8 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
     p.notices = res.lines;
     return { toast: res.lines[0] ?? bossGateBlock(p, d) };
   }
-  p.battle = res.battle;
-  p.scene = { view: 'battle' };
-  p.notices = res.lines;
-  return {};
+  // #96: enterBattle resolves the opening's explicit adjudication.
+  return enterBattle(p, res.battle, res.outcome ?? 'ongoing', res.lines);
 }
 
 /** Talk to a zone NPC; opens their quest when one is ready. Lifecycle roles

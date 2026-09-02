@@ -494,8 +494,9 @@ export function runFight(
   setCombatTelemetry((e) => events.push(e));
   // #80: the harness constructs battles through the SAME opening pipeline
   // as live play — full hero context, seeded rng.
-  const b = startBattle(enemyId, origin, { player: p, rng });
-  if (!b) throw new Error(`balance harness: unknown enemy ${enemyId}`);
+  const started = startBattle(enemyId, origin, { player: p, rng });
+  if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
+  const b = started.battle;
   p.battle = b;
   let rounds = 0;
   let lastWasGuard = false;
@@ -592,7 +593,15 @@ export function runFight(
     }
   };
   if (b.opening?.lines.length) scanLines(b.opening.lines);
-  while (b.phase === 'active' && rounds < 200) {
+  // #96: the opening's explicit adjudication — a terminal opening ends the
+  // fight before round 1; victory still routes through resolveVictory.
+  if (started.outcome === 'victory') {
+    resolveVictory(p, b, rng);
+    result.outcome = 'win';
+  } else if (started.outcome === 'defeat') {
+    result.outcome = 'lose';
+  }
+  while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
     // #84: sample live instances BEFORE acting — opening effects surface on
     // round 1, uptime counts observed rounds, applications count new iids.
     for (const i of b.effectInstances) {

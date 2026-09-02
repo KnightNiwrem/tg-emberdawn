@@ -150,7 +150,7 @@ export function startBattle(
   enemyId: string,
   origin: BattleOrigin,
   opts: StartBattleOpts,
-): BattleState | undefined {
+): StartBattleResult | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
   // Boss semantics are decided by the ENCOUNTER, not the catalog (#28):
@@ -192,8 +192,20 @@ export function startBattle(
   // item charges, no cooldowns; chance rolls draw the injected RNG exactly
   // once and only the outcomes persist.
   const opening: string[] = [];
+  // #96: the opening is an ORDERED RESOLUTION PHASE under the same
+  // terminal invariant as a round (#86) — after every HP-changing effect
+  // the state is checked, and the first 0-HP transition stops all later
+  // sources, chance rolls, riders and procs. The adjudicated outcome is
+  // returned explicitly on StartBattleResult; no global clamp fakes a
+  // minimum HP (the tutorial's teaching floor is the ONLY floor, and it
+  // lives in the damage resolver).
+  let outcome: BattleOutcome = 'ongoing';
   if (!opts.tutorial) {
     const opRng = opts.rng;
+    const p = opts.player;
+    const terminalNow = (): boolean => battle.enemy.hp <= 0 || p.hp <= 0;
+    const adjudicate = (): BattleOutcome =>
+      battle.enemy.hp <= 0 ? 'victory' : p.hp <= 0 ? 'defeat' : 'ongoing';
     // 1. Pre-emptive boss ward (#79): ONLY on boss-provenance encounters —
     // the same enemy id faced outside the boss floor never opens with it.
     // One-time capacity, no regeneration, not dispellable.
@@ -216,7 +228,6 @@ export function startBattle(
         `🛡️ ${ward.name ?? 'Opening Ward'} — ${def.name} absorbs up to ${ward.amount} damage!`,
       );
     }
-    const p = opts.player;
     // 2. Enemy-global opening move (#80): fires for this enemy in every
     // provenance, through the shared resolver.
     if (def.opening) {
@@ -246,11 +257,15 @@ export function startBattle(
     // chance, with success AND failure recorded in the opening log.
     // Each item is its own source, so different items coexist;
     // same-source reapplication follows the authored stacking policy.
+    // #96: a terminal transition stops the loop before the next chance
+    // draw — nothing after the first 0-HP resolves.
     for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+      if (terminalNow()) break;
       const itemId = p.equipment[slot];
       const it = itemId ? itemDefLookup(itemId) : undefined;
       if (!it?.triggers?.length) continue;
       for (const [ti, tg] of it.triggers.entries()) {
+        if (terminalNow()) break;
         if (tg.trigger !== 'battleStart') continue;
         if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
           emitCombatEvent({
@@ -293,15 +308,20 @@ export function startBattle(
     // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
     // or cooldown cost — the opening never charges resources.
     for (const id of p.skills) {
+      if (terminalNow()) break;
       const sk = skill(id);
       if (!sk?.preEmptive) continue;
       opening.push(...applySkill(p, battle, sk, opRng, 'opening', false, false));
     }
-    // An opening can wound but never end the fight before it begins.
-    battle.enemy.hp = Math.max(1, battle.enemy.hp);
+    // #96: explicit opening adjudication — a lethal strike in either
+    // direction ends the fight before round 1 exists.
+    outcome = adjudicate();
+    if (outcome === 'victory' || outcome === 'defeat') {
+      emitCombatEvent({ kind: 'terminal', round: battle.round, outcome });
+    }
   }
   if (opening.length > 0) battle.opening = { lines: opening };
-  return battle;
+  return { battle, outcome };
 }
 
 /** A deliberately context-free battle container (#91): raw enemy
@@ -469,6 +489,18 @@ export type PlayerAction =
  * resolution stops at the first terminal state, so the second actor never
  * writes HP after the first falls. */
 export type BattleOutcome = 'ongoing' | 'victory' | 'defeat' | 'fled';
+
+/** The result of playable battle construction (#96): the battle plus the
+ * explicit adjudication of its OPENING phase. The opening is an ordered
+ * resolution phase governed by the same terminal invariant as a round —
+ * the first 0-HP transition (a lethal pre-emptive strike, a lethal enemy
+ * opening) ends the battle before any round runs, and `outcome` carries
+ * that adjudication so callers can resolve victory/defeat immediately
+ * without faking a round-one action. */
+export interface StartBattleResult {
+  battle: BattleState;
+  outcome: BattleOutcome;
+}
 
 export interface ActionResult {
   battle: BattleState;
@@ -647,6 +679,14 @@ export function performAction(
   const def = enemyDef(battle.enemy.id);
   if (!def || battle.phase !== 'active') {
     return { battle, lines: [], skipped: false, consumedTurn: false, outcome: 'ongoing' };
+  }
+  // #96 defensive entry check: a pre-existing terminal state (an opening
+  // that already ended the fight, or a battle resumed past 0 HP) resolves
+  // immediately — no round runs, no enemy phase, no bookkeeping.
+  if (battle.enemy.hp <= 0 || p.hp <= 0) {
+    const outcome: BattleOutcome = battle.enemy.hp <= 0 ? 'victory' : 'defeat';
+    emitCombatEvent({ kind: 'terminal', round: battle.round, outcome });
+    return { battle, lines: [], skipped: false, consumedTurn: false, outcome };
   }
 
   const actedRound = battle.round;

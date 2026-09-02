@@ -30,7 +30,7 @@ function hero(id: number, classId: ClassId, level: number, trinket?: string): Pl
 
 /** Tanky wolf so multi-round fights survive the hero's strikes. */
 function tankyWolf(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(seed) })!;
+  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -42,7 +42,7 @@ function tankyWolf(p: PlayerState, seed: number): BattleState {
  * Void Warden (whose #83 statusResist can eat the proc attempt). */
 function tankyForge(p: PlayerState, seed: number): BattleState {
   p.hp = 99999; // #86: a fallen wearer procs nothing — survive the Warden's swings
-  const b = startBattle('e_forge_warden', ORIGIN, { player: p, rng: seeded(seed) })!;
+  const b = startBattle('e_forge_warden', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -77,7 +77,7 @@ function reactiveSeed(
 function openingSeed(trinket: string, level: number, wantApplied: boolean): number {
   for (let s = 1; s <= 200; s++) {
     const p = hero(900 + s, 'warrior', level, trinket);
-    const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
+    const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
     if (b.effectInstances.some((i) => i.defId === trigId(trinket)) === wantApplied) return s;
   }
   throw new Error(`no ${wantApplied ? 'success' : 'failure'} opening seed for ${trinket}`);
@@ -85,7 +85,7 @@ function openingSeed(trinket: string, level: number, wantApplied: boolean): numb
 
 Deno.test('#82: battleStart trigger wards the wearer through the opening', () => {
   const p = hero(1, 'warrior', 28, 't_15');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(1) })!;
+  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(1) })!.battle;
   const ward = b.effectInstances.find((i) => i.defId === 't_15:t0:e0');
   assertExists(ward, 'the Rime Ward instance exists');
   assertEquals(ward.side, 'player');
@@ -99,7 +99,7 @@ Deno.test('#82: battleStart trigger wards the wearer through the opening', () =>
 Deno.test('#82: battleStart chance failure is recorded exactly once', () => {
   const s = openingSeed('t_7', 32, false);
   const p = hero(2, 'warrior', 32, 't_7');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
+  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
   assertEquals(b.effectInstances.some((i) => i.defId === 't_7:t0:e0'), false);
   const fizzles = b.opening?.lines.filter((l) => l.includes('roll missed')) ?? [];
   assertEquals(fizzles.length, 1, 'the miss is logged once — outcome persistence');
@@ -110,7 +110,7 @@ Deno.test('#82: battleStart chance failure is recorded exactly once', () => {
 Deno.test('#82: battleStart success applies the typed effect once', () => {
   const s = openingSeed('t_7', 32, true);
   const p = hero(3, 'warrior', 32, 't_7');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
+  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
   const exposed = b.effectInstances.find((i) => i.defId === 't_7:t0:e0');
   assertExists(exposed);
   assertEquals(exposed.side, 'enemy');
@@ -124,11 +124,11 @@ Deno.test('#82: openings are deterministic; procs persist verbatim via JSON', ()
   const a = startBattle('e_wolf', ORIGIN, {
     player: hero(4, 'warrior', 28, 't_15'),
     rng: seeded(11),
-  })!;
+  })!.battle;
   const b = startBattle('e_wolf', ORIGIN, {
     player: hero(5, 'warrior', 28, 't_15'),
     rng: seeded(11),
-  })!;
+  })!.battle;
   assertEquals(a.opening, b.opening);
   assertEquals(a.effectInstances, b.effectInstances);
 
@@ -316,7 +316,7 @@ Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () =
     for (let s = 1; s <= 200; s++) {
       const p = hero(900 + s, 'rogue', 45, 't_7');
       p.skills.push('sk_expose_weakness');
-      const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
+      const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
       if (
         b.effectInstances.some((i) => i.defId === 't_7:t0:e0') &&
         b.effectInstances.some((i) => i.defId === 'sk_expose_weakness:e0')
@@ -329,7 +329,7 @@ Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () =
   const s = both();
   const p = hero(13, 'rogue', 45, 't_7');
   p.skills.push('sk_expose_weakness');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!;
+  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
   const lens = b.effectInstances.find((i) => i.defId === 't_7:t0:e0')!;
   const sk = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness:e0')!;
   assertEquals(lens.stat, 'incoming');
@@ -518,7 +518,7 @@ Deno.test('#89: non-damaging openings scan nothing', () => {
   // scan runs, so neither reactive trigger kind may proc from an opening.
   for (const trinket of ['t_9', 't_19'] as const) {
     const p = hero(25, 'warrior', 25, trinket);
-    const b = startBattle('e_chronowisp', ORIGIN, { player: p, rng: seeded(1) })!;
+    const b = startBattle('e_chronowisp', ORIGIN, { player: p, rng: seeded(1) })!.battle;
     assertEquals(b.procs, undefined, `${trinket} procs nothing on a non-damaging opening`);
     assertEquals(
       b.effectInstances.some((i) => i.defId === trigId(trinket)),

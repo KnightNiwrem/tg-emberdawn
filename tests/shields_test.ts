@@ -344,7 +344,7 @@ Deno.test('shields: boss-provenance encounters open behind the ward (#79)', () =
   const boss = startBattle('e_aldric', BOSS_ORIGIN, {
     player: createPlayer(830, 'T', 'warrior'),
     rng: seeded(91),
-  })!;
+  })!.battle;
   assertEquals(boss.shield.enemy, 250);
   assertEquals(maxShield(boss, 'enemy'), 250);
   const inst = boss.effectInstances.find((i) => i.kind === 'shield')!;
@@ -355,7 +355,7 @@ Deno.test('shields: boss-provenance encounters open behind the ward (#79)', () =
   const plain = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' }, {
     player: createPlayer(831, 'T', 'warrior'),
     rng: seeded(92),
-  })!;
+  })!.battle;
   assertEquals(plain.shield.enemy, 0, 'same enemy id, non-boss provenance');
   assertEquals(plain.effectInstances.filter((i) => i.kind === 'shield').length, 0);
 });
