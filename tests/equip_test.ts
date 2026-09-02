@@ -715,8 +715,11 @@ Deno.test('#97: opening strikes answer broad triggers per event, never narrow on
 });
 
 Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () => {
-  // The proc's own effect damages the WEARER — that HP loss is
-  // proc-produced and must not trigger equipment again.
+  // The proc's own effect damages the WEARER — #109 makes `target: 'self'`
+  // real, so the HP loss genuinely lands on the player: that loss is
+  // proc-produced and must not trigger equipment again. Without the
+  // structural bound this fixture recurses forever (each self-wound would
+  // re-proc the next).
   const charm = item('t_19')!;
   const original = charm.triggers;
   charm.triggers = [{
@@ -729,8 +732,20 @@ Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () 
     const p = hero(707, 'warrior', 20, 't_19');
     p.hp = 99999; // survive the self-wound loop would-be
     const b = tankyRat(p, 608);
-    round(p, b, 608);
+    const hpBefore = p.hp;
+    const res = round(p, b, 608);
     assertEquals(procCount(b), 1, 'the proc-produced self-damage never re-triggered');
+    assert(p.hp < hpBefore, 'the self-damage REALLY wounded the wearer (#109), not the foe');
+    const selfWounds = res.trace.filter((
+      e,
+    ): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
+      e.kind === 'hpDamaged' && e.attacker === 'player' && e.target === 'player'
+    );
+    assert(selfWounds.length >= 1, 'the trace names the wearer as BOTH attacker and target');
+    assert(
+      selfWounds.every((e) => e.procProduced),
+      'the self-wound is marked proc-produced',
+    );
   } finally {
     charm.triggers = original;
   }
@@ -878,6 +893,147 @@ Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
     );
     assertEquals(found.b.procs?.['t_19:0']?.count, 1);
     assertEquals(found.b.procs?.['t_19:1']?.count, 1);
+  } finally {
+    charm.triggers = original;
+  }
+});
+
+// ── #109: explicit damage targets are honored verbatim ───────────────────
+
+/** Extracts hpDamaged entries from a trace. */
+function hpEvents(trace: CombatTraceEntry[]): Extract<CombatTraceEntry, { kind: 'hpDamaged' }>[] {
+  return trace.filter((
+    e,
+  ): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> => e.kind === 'hpDamaged');
+}
+
+Deno.test('#109: player-authored self-damage wounds the wearer, never the foe', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Blood Toll',
+    trigger: 'battleStart',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
+    desc: 'test fixture: the bearer pays blood as the battle opens',
+  }];
+  try {
+    const p = hero(800, 'warrior', 20, 't_19');
+    p.hp = statsOf(p).maxHp;
+    const full = p.hp;
+    const res = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(801) })!;
+    assert(p.hp < full, 'the recoil reduced the wearer’s HP');
+    assertEquals(res.battle.enemy.hp, res.battle.enemy.maxHp, 'the foe is untouched');
+    const wounds = hpEvents(res.trace);
+    assertEquals(wounds.length, 1, 'exactly one HP-loss event');
+    assertEquals(wounds[0]!.attacker, 'player', 'the trace names the actual attacker');
+    assertEquals(wounds[0]!.target, 'player', 'the trace names the actual target');
+  } finally {
+    charm.triggers = original;
+  }
+});
+
+Deno.test('#109: player self-damage routes through the wearer’s own ward', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Blood Toll',
+    trigger: 'onGuard',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
+    desc: 'test fixture: bracing costs blood',
+  }];
+  try {
+    const p = hero(802, 'warrior', 20, 't_19');
+    p.hp = statsOf(p).maxHp;
+    const full = p.hp;
+    const b = tankyRat(p, 803);
+    grantShield(b, 'player', {
+      defId: 'test:ward',
+      name: 'Test Ward',
+      kind: 'shield',
+      side: 'player',
+      source: { kind: 'skill', id: 'test', name: 'Test' },
+      shieldAmount: 9999,
+      tags: ['beneficial'],
+      stacking: 'replace',
+      duration: 9,
+      timing: 'immediate',
+      removable: true,
+    });
+    const wardBefore = b.shield.player;
+    const res = performAction(p, b, { kind: 'guard' }, seeded(803));
+    assertEquals(p.hp, full, 'the ward absorbed the recoil — no HP reached flesh');
+    assert(b.shield.player < wardBefore, 'the recoil pooled into the wearer’s OWN ward');
+    assertEquals(hpEvents(res.trace).length, 0, 'shield-only absorbs emit nothing');
+  } finally {
+    charm.triggers = original;
+  }
+});
+
+Deno.test('#109: enemy-authored self-damage wounds the foe, never the wearer', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'opening', {
+    name: 'Self Lash',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
+  }, () => {
+    const p = hero(804, 'warrior', 5);
+    p.hp = statsOf(p).maxHp;
+    const full = p.hp;
+    const res = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(805) })!;
+    assert(res.battle.enemy.hp < res.battle.enemy.maxHp, 'the foe wounded ITSELF');
+    assertEquals(p.hp, full, 'the wearer is untouched');
+    const wounds = hpEvents(res.trace);
+    assertEquals(wounds.length, 1);
+    assertEquals(wounds[0]!.attacker, 'enemy', 'the trace names the actual attacker');
+    assertEquals(wounds[0]!.target, 'enemy', 'the trace names the actual target');
+  });
+});
+
+Deno.test('#109: lethal enemy self-damage ends the fight as a victory', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'opening', {
+    name: 'Death Spiral',
+    effects: [{ kind: 'damage', attack: 'phys', power: 9999, target: 'self' }],
+  }, () => {
+    const p = hero(806, 'warrior', 5);
+    p.hp = statsOf(p).maxHp;
+    const full = p.hp;
+    const res = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(807) })!;
+    assertEquals(res.outcome, 'victory', 'a self-felled foe is a won fight');
+    assertEquals(res.battle.enemy.hp, 0);
+    assertEquals(p.hp, full, 'the wearer never lost HP');
+    const terminal = res.trace.find((e) => e.kind === 'terminal');
+    assertExists(terminal, 'the opening adjudication recorded the terminal state');
+  });
+});
+
+Deno.test('#109: lethal player self-damage obeys the immediate-revival contract', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Final Toll',
+    trigger: 'onHpDamage',
+    maxProcs: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 9999, target: 'self' }],
+    desc: 'test fixture: the first HP loss pays everything',
+  }];
+  try {
+    // With the Cinder: the self-inflicted lethal blow intercepts — the same
+    // immediate revival any enemy hit enjoys (#104), once.
+    const revived = hero(808, 'warrior', 5, 't_19');
+    revived.hp = statsOf(revived).maxHp;
+    addItem(revived, 'c_phoenix_feather', 1);
+    const br = tankyRat(revived, 809);
+    const hpBefore = revived.hp;
+    round(revived, br, 809);
+    assert(revived.hp > 0, 'the Cinder revived the wearer from the self-inflicted blow');
+    assert(revived.hp < hpBefore, 'the revival restored half, not everything');
+    // Without the Cinder: the same recoil is terminal — and nothing later
+    // in the resolution escapes the stop (#103).
+    const mortal = hero(810, 'warrior', 5, 't_19');
+    const bm = tankyRat(mortal, 811);
+    const res = round(mortal, bm, 811);
+    assertEquals(mortal.hp, 0, 'unrevived self-damage is lethal');
+    assertEquals(res.outcome, 'defeat');
   } finally {
     charm.triggers = original;
   }

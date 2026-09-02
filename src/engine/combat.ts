@@ -1170,12 +1170,20 @@ function targetSideOf(spec: EffectSpec, actor: 'player' | 'enemy'): 'player' | '
  * branches: every behavior comes from the spec data. */
 function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
   const lines: string[] = [];
-  // SPD avoidance (#72): an enemy move with real damage behind it draws ONE
-  // dodge roll before any spec — a slip skips the strike AND the move's
-  // remaining riders (#25-era parity). Guard casts and zero-power status
-  // moves never draw. The roll lives here rather than inside the damage
-  // executor so the rng stream matches the pre-#78 resolver draw-for-draw.
-  if (ctx.actor === 'enemy' && specs.some((sp) => sp.kind === 'damage' && sp.power > 0)) {
+  // SPD avoidance (#72): an enemy move with real damage aimed AT THE PLAYER
+  // draws ONE dodge roll before any spec (#109 — a self-inflicted enemy
+  // move is not dodgeable BY the player; every authored move today aims at
+  // the opponent, so existing draw streams are unchanged) — a slip skips
+  // the strike AND the move's remaining riders (#25-era parity). Guard
+  // casts and zero-power status moves never draw. The roll lives here
+  // rather than inside the damage executor so the rng stream matches the
+  // pre-#78 resolver draw-for-draw.
+  if (
+    ctx.actor === 'enemy' &&
+    specs.some((sp) =>
+      sp.kind === 'damage' && sp.power > 0 && targetSideOf(sp, 'enemy') === 'player'
+    )
+  ) {
     // Both sides read EFFECTIVE SPD (#85): a slowed enemy is slipped more
     // often; a hasted one is harder to slip.
     if (
@@ -1225,7 +1233,10 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     if (spec.chance !== undefined && !chance(ctx.rng, spec.chance)) continue;
     switch (spec.kind) {
       case 'damage': {
-        lines.push(...applyDamageEffect(ctx, spec));
+        // #109: the caster-relative target side is resolved ONCE here and
+        // honored verbatim by the damage resolver — `target: 'self'` hits
+        // the caster, the default hits the opponent.
+        lines.push(...applyDamageEffect(ctx, spec, side));
         break;
       }
       case 'restore': {
@@ -1466,51 +1477,84 @@ function primaryAmount(spec: EffectSpec): number {
 }
 
 /** One damage effect: attacker rolls, target mitigates, HP resolves — the
- * single authoritative damage path for skills and enemy moves (#78). */
+ * single authoritative damage path for skills and enemy moves (#78). #109:
+ * the TARGET is resolved once by executeSpecs (caster-relative, honoring
+ * explicit `spec.target`) and honored verbatim — `{ target: 'self' }`
+ * damage hits the caster, the default hits the opponent. The attacker's
+ * roll formula (player crit vs enemy variance) and the target's defenses
+ * (mitigation, ward, incoming amp, HP pool) are independent axes; shield
+ * routing, HP, trace attacker/target, revival, reactions and terminal
+ * checks all derive from the RESOLVED target. */
 function applyDamageEffect(
   ctx: ExecCtx,
   spec: Extract<EffectSpec, { kind: 'damage' }>,
+  target: 'player' | 'enemy',
 ): string[] {
   const { p, battle, rng } = ctx;
   const def = enemyDef(battle.enemy.id);
   if (!def) return [];
   const lines: string[] = [];
-  if (ctx.actor === 'player') {
+  const attacker = ctx.actor;
+  const hpOf = (side: 'player' | 'enemy'): number => side === 'player' ? p.hp : battle.enemy.hp;
+  const maxHpOf = (side: 'player' | 'enemy'): number =>
+    side === 'player' ? statsOf(p).maxHp : battle.enemy.maxHp;
+  let dealt: { dmg: number; crit: boolean };
+  if (attacker === 'player') {
     // Player strike: crit (luck) + variance; the target's mitigation is the
-    // EFFECTIVE enemy DEF/RES (#85) — Sunder/Crushed Guard/Condemned and
-    // enemy DEF/RES self-buffs all land — then stance modifiers.
-    let dealt = dealDamage(
+    // EFFECTIVE DEF/RES (#85) — Sunder/Crushed Guard/Condemned and DEF/RES
+    // self-buffs all land — then stance modifiers.
+    const targetMitigation = target === 'enemy'
+      ? enemyMitigation(battle, spec.attack)
+      : playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player');
+    dealt = dealDamage(
       spec.power,
       playerOffense(p, battle, spec.attack),
-      enemyMitigation(battle, spec.attack),
+      targetMitigation,
       rng,
       statsOf(p).luck,
     );
-    // Execute window (#81): a wounded target takes the bonus strike.
-    const exec = spec.execute;
-    if (exec && battle.enemy.hp / battle.enemy.maxHp < exec.belowPct) {
-      dealt = { ...dealt, dmg: Math.round(dealt.dmg * (1 + exec.bonusPct)) };
-    }
-    // Vulnerable et al. (#85): the target side's incoming modifier applies
-    // EXACTLY ONCE — after crit/variance/execute, before shield routing.
-    // The multiplier floors at 0.05 (deep mitigation can gut a hit but a
-    // hit never heals), so stacked negatives cannot invert damage.
-    dealt = {
-      ...dealt,
-      dmg: Math.max(1, Math.round(dealt.dmg * (1 + incomingAmpPct(battle, 'enemy')))),
-    };
-    // Shield routing (#79): normal damage pools into the target's ward
-    // before HP; bypassShield lands on HP directly. lastDamage stays the
-    // FULL resolved damage — lifesteal drains what was dealt.
-    let hpDmg = dealt.dmg;
-    let absorbed = 0;
-    let broke = false;
-    if (!spec.bypassShield) {
-      const a = absorbShield(battle, 'enemy', dealt.dmg, ctx.trace);
-      absorbed = a.absorbed;
-      hpDmg = a.hpDamage;
-      broke = a.broke;
-    }
+  } else {
+    // #85: the enemy's offense folds its own live ATK/MAG instances (sap
+    // first, then stat buffs); the target's mitigation folds its own
+    // DEF/RES instances and mitigation stances, floored sign-safe. The
+    // player's guard brace covers exactly the player as TARGET.
+    const offense = enemyOffense(battle, spec.attack);
+    const guard = target === 'player' && battle.guarding ? 0.5 : 1;
+    const mitig = (target === 'player'
+      ? playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player')
+      : enemyMitigation(battle, spec.attack)) * 0.85;
+    const raw = Math.max(
+      1,
+      (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, target)),
+    );
+    dealt = { dmg: variance(rng, raw), crit: false };
+  }
+  // Execute window (#81): a wounded TARGET takes the bonus strike.
+  const exec = spec.execute;
+  if (exec && hpOf(target) / maxHpOf(target) < exec.belowPct) {
+    dealt = { ...dealt, dmg: Math.round(dealt.dmg * (1 + exec.bonusPct)) };
+  }
+  // Vulnerable et al. (#85): the target side's incoming modifier applies
+  // EXACTLY ONCE — after crit/variance/execute, before shield routing.
+  // The multiplier floors at 0.05 (deep mitigation can gut a hit but a
+  // hit never heals), so stacked negatives cannot invert damage.
+  dealt = {
+    ...dealt,
+    dmg: Math.max(1, Math.round(dealt.dmg * (1 + incomingAmpPct(battle, target)))),
+  };
+  // Shield routing (#79): normal damage pools into the TARGET's ward
+  // before HP; bypassShield lands on HP directly. lastDamage stays the
+  // FULL resolved damage — lifesteal drains what was dealt.
+  let hpDmg = dealt.dmg;
+  let absorbed = 0;
+  let broke = false;
+  if (!spec.bypassShield) {
+    const a = absorbShield(battle, target, dealt.dmg, ctx.trace);
+    absorbed = a.absorbed;
+    hpDmg = a.hpDamage;
+    broke = a.broke;
+  }
+  if (target === 'enemy') {
     // #69/#86: the guided fight cannot end before every lesson beat has
     // been performed — a killing blow STAGGERS the fixture at 1 HP instead
     // of reaching a terminal transition (never a post-zero revival).
@@ -1526,13 +1570,15 @@ function applyDamageEffect(
     ctx.targetFelled = battle.enemy.hp <= 0;
     // #89: structured HP-damage provenance — shield-only absorbs emit
     // nothing. #106: the entry carries BOTH the resolved blow and the
-    // applied HP loss; the two diverge exactly on overkill.
+    // applied HP loss; the two diverge exactly on overkill. #109: the
+    // trace names the ACTUAL attacker and target (enemy self-damage
+    // reports attacker AND target 'enemy').
     if (hpLost > 0) {
       recordCombatEvent(ctx.trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: ctx.cause,
-        attacker: 'player',
+        attacker,
         target: 'enemy',
         resolved: hpDmg,
         hpLost,
@@ -1546,7 +1592,9 @@ function applyDamageEffect(
         .replace('{n}', String(hpDmg))
         .replace('{verb}', verb)
         .replace('{crit}', critSuffix)
-      : `${ctx.displayName} ${verb} ${battle.enemy.name} for ${hpDmg}${critSuffix}!`;
+      : attacker === 'player'
+      ? `${ctx.displayName} ${verb} ${battle.enemy.name} for ${hpDmg}${critSuffix}!`
+      : `💥 ${battle.enemy.name} turns ${ctx.displayName} on itself — ${hpDmg} damage!`;
     lines.push(absorbed > 0 ? `${body} (🛡️ ${absorbed} absorbed)` : body);
     if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
     if (wouldFell && floor === 1) {
@@ -1556,36 +1604,23 @@ function applyDamageEffect(
     }
     return lines;
   }
-  // #85: the enemy's offense folds its own live ATK/MAG instances (sap
-  // first, then stat buffs); the player's mitigation folds DEF/RES
-  // instances and mitigation stances, floored sign-safe.
-  const offense = enemyOffense(battle, spec.attack);
-  const guard = battle.guarding ? 0.5 : 1;
-  const mitig = playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player') * 0.85;
-  const raw = Math.max(
-    1,
-    (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, 'player')),
-  );
-  const dmg = variance(rng, raw);
-  // Shield routing (#79): mitigation first, ward second, HP last.
-  let hpDmg = dmg;
-  let absorbed = 0;
-  let broke = false;
-  if (!spec.bypassShield) {
-    const a = absorbShield(battle, 'player', dmg, ctx.trace);
-    absorbed = a.absorbed;
-    hpDmg = a.hpDamage;
-    broke = a.broke;
-  }
+  // Player as TARGET: the default enemy move, or explicit player self/recoil
+  // damage (#109) — both run the ONE shared player-targeted HP-loss
+  // transition, so self-damage obeys the same immediate-revival and
+  // terminal-stop contract as any other hit (#104).
   const hpBefore = p.hp;
   p.hp = Math.max(0, p.hp - hpDmg);
-  ctx.lastDamage = dmg;
+  ctx.lastDamage = dealt.dmg;
   ctx.hpDamaged = hpDmg > 0;
   ctx.targetFelled = p.hp <= 0;
   lines.push(
-    `💥 ${battle.enemy.name} uses ${ctx.displayName} — ${hpDmg} damage to you!${
-      absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
-    }`,
+    attacker === 'player'
+      ? `💢 ${ctx.displayName} recoils — ${hpDmg} damage to you!${
+        absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
+      }`
+      : `💥 ${battle.enemy.name} uses ${ctx.displayName} — ${hpDmg} damage to you!${
+        absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
+      }`,
   );
   if (broke) lines.push('🛡️ Your shield shatters!');
   // #104: the direct family runs the ONE shared player-targeted HP-loss
@@ -1602,7 +1637,9 @@ function applyDamageEffect(
     // records hpLost = the HP the player actually had.
     resolved: hpDmg,
     hpLost: hpBefore - p.hp,
-    attacker: 'enemy',
+    // #109: the trace names the ACTUAL attacker — player recoil is
+    // self-inflicted (attacker 'player', target 'player').
+    attacker,
     cause: ctx.cause,
     procProduced: ctx.procProduced,
     // #107: the reaction's timing provenance IS the damage's — an opening
