@@ -355,7 +355,9 @@ const CONSUMABLES: ConsumableDef[] = [
     name: 'Smoke Bomb',
     lvl: 3,
     price: 150,
-    effect: { cureStatus: true, flee: true },
+    // #98: a PURE escape item — the Cleansing Tonic owns the cleanse role,
+    // and an undisclosed status wipe would be a hidden power boost.
+    effect: { flee: true },
     desc: 'Guaranteed escape from normal fights.',
   },
   {

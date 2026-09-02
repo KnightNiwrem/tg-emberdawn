@@ -926,6 +926,32 @@ Deno.test('content integrity: enemies reference real drop items', () => {
   }
 });
 
+Deno.test('content integrity: every consumable effect flag is disclosed in its desc (#98)', () => {
+  // Every mechanical flag on a consumable must be advertised in its
+  // player-facing copy (#92/#98): no hidden cleanses, escapes, heals,
+  // resources or revives.
+  for (const it of ITEMS) {
+    if (!it.effect) continue;
+    const eff = it.effect;
+    const desc = it.desc ?? '';
+    if (eff.healHp !== undefined) {
+      assert(/hp/i.test(desc), `${it.id}: healHp is not disclosed ("${desc}")`);
+    }
+    if (eff.healMp !== undefined) {
+      assert(/mp/i.test(desc), `${it.id}: healMp is not disclosed ("${desc}")`);
+    }
+    if (eff.cureStatus) {
+      assert(/cleanse|cures/i.test(desc), `${it.id}: cureStatus is not disclosed ("${desc}")`);
+    }
+    if (eff.flee) {
+      assert(/escape|flee/i.test(desc), `${it.id}: flee is not disclosed ("${desc}")`);
+    }
+    if (eff.revivePct !== undefined) {
+      assert(/revive/i.test(desc), `${it.id}: revivePct is not disclosed ("${desc}")`);
+    }
+  }
+});
+
 Deno.test('content integrity: skills are complete per class and learnable in order', () => {
   // #81: every class expanded to twelve skills across levels 1–45 (#79
   // gave the Cleric and #80 the Rogue their ninth; this is the full roster).

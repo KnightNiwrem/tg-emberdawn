@@ -21,6 +21,7 @@ import {
   travel,
 } from '../src/engine/world.ts';
 import { onLethalHit, performAction, previewBattle } from '../src/engine/combat.ts';
+import { applyInstance } from '../src/engine/effects.ts';
 import { renderItemMenu } from '../src/render/battle.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
@@ -207,6 +208,37 @@ Deno.test('campaign: every kill objective is obtainable (encounter capacity)', (
 });
 
 // ── combat semantics regressions ──────────────────────────────────────────
+
+Deno.test('#98: Smoke Bomb is a pure escape — harmful effects survive the smoke', () => {
+  const rng = seeded(9);
+  const p = createPlayer(79, 'T', 'rogue');
+  addItem(p, 'c_smoke_bomb', 1);
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+  p.battle = b;
+  // A live removable sap (the shared `sap` slot, as an enemy Howl leaves).
+  applyInstance(b, {
+    defId: 'sap',
+    name: 'Sapped',
+    kind: 'statmod',
+    side: 'player',
+    source: { kind: 'enemyMove', id: 'Howl', name: 'Howl' },
+    stat: 'outgoing',
+    pct: -0.2,
+    tags: ['harmful', 'weaken'],
+    stacking: 'strongest',
+    duration: 3,
+    timing: 'immediate',
+    removable: true,
+  });
+  const res = performAction(p, b, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
+  assertEquals(b.phase, 'fled', 'the bomb still escapes');
+  assertEquals(
+    b.effectInstances.some((i) => i.defId === 'sap'),
+    true,
+    'a pure-escape Smoke Bomb leaves harmful effects unchanged (#98)',
+  );
+  assert(!res.lines.some((l) => l.includes('cleanses')), 'no cleanse is reported either');
+});
 
 Deno.test('combat: Smoke Bomb flees non-boss, never bosses, never wasted', () => {
   const rng = seeded(7);
