@@ -433,7 +433,9 @@ function runReactiveTriggers(
   battle: BattleState,
   rng: Rng,
   scan: 'onGuard' | { cause: DamageCause },
-  afterSnapshot = true,
+  // #107: REQUIRED — every caller states its snapshot phase explicitly;
+  // a default would silently retarget opening reactions.
+  afterSnapshot: boolean,
   trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
@@ -676,6 +678,11 @@ function resolvePlayerHpLoss(
     attacker: 'player' | 'enemy' | null;
     cause: DamageCause;
     procProduced: boolean;
+    /** #107: the calling resolution's snapshot phase — reactions fired by
+     * this HP loss apply their SPD effects with the SAME timing provenance
+     * as the damage that caused them (an opening strike's reaction is
+     * pre-snapshot; a mid-round slot's is deferred). */
+    afterSnapshot: boolean;
     trace?: CombatTraceEntry[];
   },
   lines: string[],
@@ -696,7 +703,17 @@ function resolvePlayerHpLoss(
   if (p.hp <= 0) return 'terminal';
   if (loss.hpLost > 0 && !battle.tutorial && !loss.procProduced && rng) {
     lines.push(
-      ...runReactiveTriggers(p, battle, rng, { cause: loss.cause }, true, loss.trace),
+      // #107: the reaction inherits the caller's snapshot phase — never a
+      // literal. An opening strike's reaction is pre-snapshot; a mid-round
+      // slot's reaction is deferred.
+      ...runReactiveTriggers(
+        p,
+        battle,
+        rng,
+        { cause: loss.cause },
+        loss.afterSnapshot,
+        loss.trace,
+      ),
     );
   }
   return 'ongoing';
@@ -887,6 +904,8 @@ export function performAction(
         attacker: 'enemy',
         cause: 'enemyAction',
         procProduced: false,
+        // #107: mid-round — the round's snapshot precedes both slots.
+        afterSnapshot: true,
         trace,
       }, lines);
     } else {
@@ -1035,6 +1054,9 @@ function applyPeriodicTick(
       attacker: null,
       cause: 'periodic',
       procProduced: false,
+      // #107: ticks run inside the round's slots/round-end work — always
+      // after the snapshot that started this round.
+      afterSnapshot: true,
       trace,
     }, lines);
   } else {
@@ -1583,6 +1605,9 @@ function applyDamageEffect(
     attacker: 'enemy',
     cause: ctx.cause,
     procProduced: ctx.procProduced,
+    // #107: the reaction's timing provenance IS the damage's — an opening
+    // strike's reaction is pre-snapshot; a mid-round move's is deferred.
+    afterSnapshot: ctx.afterSnapshot,
     trace: ctx.trace,
   }, lines);
   return lines;
@@ -1811,6 +1836,9 @@ function applyPlayerAction(
       p.mp = Math.min(statsOf(p).maxMp, p.mp + Math.ceil(statsOf(p).maxMp * 0.08));
       lines.push('🛡️ You brace behind your guard (+MP).');
       if (!battle.tutorial) {
+        // #107 audit: this literal is CORRECT — the guard action runs in the
+        // player's slot, which always executes after the round's snapshot
+        // (initiative is snapshotted before either slot acts).
         lines.push(...runReactiveTriggers(p, battle, rng, 'onGuard', true, trace));
       }
       return { lines, consumedTurn: true };

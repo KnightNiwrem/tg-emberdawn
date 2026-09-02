@@ -15,16 +15,18 @@ import {
   startBattle,
 } from '../src/engine/combat.ts';
 import { applyInstance, type InstanceSeed } from '../src/engine/effects.ts';
-import type { BattleState, ClassId, PlayerState } from '../src/engine/types.ts';
+import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy } from '../src/content/enemies.ts';
+import { item } from '../src/content/items.ts';
 import { injectMod, seeded } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
 
-function hero(id: number, classId: ClassId, level: number): PlayerState {
+function hero(id: number, classId: ClassId, level: number, trinket?: string): PlayerState {
   const p = createPlayer(id, 'T', classId);
   p.level = level;
+  if (trinket) p.equipment.trinket = trinket;
   return p;
 }
 
@@ -458,4 +460,160 @@ Deno.test('#94: refreshing a mid-round SPD buff re-banks its full snapshot count
     return;
   }
   throw new AssertionError('no usable seed');
+});
+
+// ── #107: timing provenance survives nested reactions ─────────────────────
+
+/** Temporarily overrides a content object's field, restoring afterwards. */
+function withOverridden<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K],
+  run: () => void,
+): void {
+  const original = target[key];
+  target[key] = value;
+  try {
+    run();
+  } finally {
+    target[key] = original;
+  }
+}
+
+/** The Grudge Charm as a self-SPD trigger: every HP loss to the wearer
+ * applies a two-turn haste. The point of the fixture is WHERE the haste
+ * lands in the round — its timing must match the HP loss that caused it. */
+function hasteGrudge(run: () => void): void {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Second Wind',
+    trigger: 'onHpDamage',
+    // maxProcs 1: the fixture must observe ONE application's lifetime — a
+    // second proc would re-bank a fresh instance and hide the decay story.
+    maxProcs: 1,
+    effects: [{
+      kind: 'statmod',
+      target: 'self',
+      stat: 'spd',
+      pct: 1.0,
+      duration: 2,
+      timing: 'immediate',
+      name: 'Second Wind',
+      tags: ['beneficial'],
+    }],
+    desc: 'test fixture: every HP loss hastens the wearer (2 turns)',
+  }];
+  try {
+    run();
+  } finally {
+    charm.triggers = original;
+  }
+}
+
+/** The instanced haste, when present. */
+function secondWind(b: BattleState): EffectInstance | undefined {
+  return b.effectInstances.find((i) => i.name === 'Second Wind');
+}
+
+Deno.test('#107: an opening strike’s reactive haste covers rounds 1–2 — never deferred', () => {
+  const rat = enemy('e_rat')!;
+  withOverridden(rat, 'opening', {
+    name: 'Probe Strike',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1 }],
+  }, () => {
+    hasteGrudge(() => {
+      for (let s = 1; s <= 100; s++) {
+        const p = hero(7100, 'warrior', 1, 't_19');
+        const b = fight('e_rat', p, s);
+        if (!secondWind(b)) continue; // the strike slipped (2% dodge) — next seed
+        b.enemy.hp = 99999;
+        b.enemy.maxHp = 99999;
+        // Base ordering: the sprinted rat is faster — the haste must FLIP it.
+        injectMod(b, 'enemy', 'spd', 0.5);
+        assert(
+          effectivePlayerSpd(p, b) > effectiveEnemySpd(b),
+          'the opening reaction’s haste is live for round 1’s snapshot',
+        );
+        const inst = secondWind(b)!;
+        assertEquals(inst.deferFirstTick, false, 'opening reactions are pre-snapshot (#94)');
+        assertEquals(inst.remaining, 2);
+        assertEquals(inst.expiresRound, 2, 'exactly rounds 1..2 for its 2 turns');
+        // Round 1 consumes the first unit; round 2 stays hastened.
+        round(p, b, s);
+        assertEquals(secondWind(b)?.remaining, 1, 'round 1 spent one snapshot unit');
+        assert(
+          effectivePlayerSpd(p, b) > effectiveEnemySpd(b),
+          'round 2’s ordering is still flipped',
+        );
+        // Round 2 consumes the last unit; round 3 is back to base ordering.
+        round(p, b, s + 1);
+        assertEquals(secondWind(b), undefined, 'expired exactly after round 2');
+        assert(
+          effectivePlayerSpd(p, b) < effectiveEnemySpd(b),
+          'round 3’s ordering is back to the base — no phantom third snapshot',
+        );
+        return;
+      }
+      throw new AssertionError('no seed with a landed opening strike');
+    });
+  });
+});
+
+Deno.test('#107: a mid-round reactive haste defers — covers rounds 2–3, never round 1', () => {
+  hasteGrudge(() => {
+    for (let s = 1; s <= 100; s++) {
+      const p = hero(7100, 'warrior', 1, 't_19');
+      const b = fight('e_rat', p, s);
+      b.enemy.hp = 99999;
+      b.enemy.maxHp = 99999;
+      // Base ordering: the sprinted rat acts first in round 1 — the haste
+      // this round CANNOT retroactively change that decided snapshot.
+      injectMod(b, 'enemy', 'spd', 0.5);
+      round(p, b, s);
+      const inst = secondWind(b);
+      if (!inst) continue; // the bite slipped — next seed
+      // e_rat has no opening and no guard was used: the haste could only
+      // have been applied by the enemy-action HP-loss reaction, mid-round.
+      assertEquals(b.opening, undefined, 'no opening source exists — the proc is mid-round');
+      // The DEFER marker itself is consumed by the proc round's own
+      // end-of-round bookkeeping; the observable contract is the clock:
+      // the proc round spent no unit (remaining 2) and the two advertised
+      // turns cover the NEXT two snapshots — expiresRound 3, not 2 (#94).
+      assertEquals(inst.remaining, 2, 'the proc round spent no initiative unit (#94)');
+      assertEquals(inst.expiresRound, 3, 'covers exactly the NEXT two snapshots: rounds 2..3');
+      // Round 2: the deferred haste covers its first snapshot.
+      round(p, b, s + 1);
+      assertEquals(secondWind(b)?.remaining, 1, 'round 2 spent one snapshot unit');
+      assert(effectivePlayerSpd(p, b) > effectiveEnemySpd(b), 'round 2’s ordering flipped');
+      // Round 3: the last snapshot; round 4 is back to base.
+      round(p, b, s + 2);
+      assertEquals(secondWind(b), undefined, 'expired exactly after round 3');
+      assert(
+        effectivePlayerSpd(p, b) < effectiveEnemySpd(b),
+        'round 4’s ordering is back to base — no phantom snapshot',
+      );
+      return;
+    }
+    throw new AssertionError('no seed with a landed round-1 bite');
+  });
+});
+
+Deno.test('#107: a nested battle-start trigger keeps authored timing — pre-snapshot', () => {
+  // Hourglass Charm (t_14): 50% chance, at battleStart, to Slow the foe —
+  // a trigger proc nested INSIDE the opening phase, not a plain opening
+  // move. Its application precedes round 1's snapshot, so it must cover
+  // rounds 1..2 with no deferred tick.
+  for (let s = 1; s <= 200; s++) {
+    const p = hero(7100, 'warrior', 25, 't_14');
+    const b = fight('e_rat', p, s);
+    const inst = b.effectInstances.find((i) => i.defId === 't_14:t0:e0');
+    if (!inst) continue; // the 50% roll missed — next seed
+    assertEquals(inst.deferFirstTick, false, 'nested opening applications are pre-snapshot');
+    assertEquals(inst.remaining, 2);
+    assertEquals(inst.expiresRound, 2, 'rounds 1..2 for its 2 advertised turns');
+    assertEquals(inst.side, 'enemy');
+    return;
+  }
+  throw new AssertionError('no success seed for the battleStart proc');
 });
