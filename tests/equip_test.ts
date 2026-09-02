@@ -735,3 +735,150 @@ Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () 
     charm.triggers = original;
   }
 });
+
+// ── #103: terminal HP stops the reactive scan immediately ────────────────
+
+Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  const lethalFirst: typeof charm.triggers = [
+    {
+      name: 'Killing Blow',
+      trigger: 'onHpDamage',
+      effects: [{ kind: 'damage', attack: 'phys', power: 9999 }],
+      desc: 'test fixture: the first trigger fells the foe',
+    },
+    {
+      name: 'Never Inspected',
+      trigger: 'onHpDamage',
+      chance: 0.99,
+      effects: [{
+        kind: 'statmod',
+        target: 'opponent',
+        stat: 'spd',
+        pct: -0.5,
+        duration: 2,
+        timing: 'immediate',
+        name: 'Never Slow',
+      }],
+      desc: 'test fixture: must never be evaluated after a terminal transition',
+    },
+  ];
+  /** Full round under a counting RNG (same underlying seed per run, so the
+   * draw streams of both configurations stay aligned up to the scan). */
+  const run = (seed: number, triggers: typeof charm.triggers) => {
+    charm.triggers = triggers;
+    const p = hero(708, 'warrior', 20, 't_19');
+    p.hp = 99999; // the rat's reply is not the variable — only the scan is
+    let draws = 0;
+    const base = seeded(seed);
+    const counting = () => {
+      draws++;
+      return base();
+    };
+    const b = startBattle('e_rat', ORIGIN, { player: p, rng: counting })!.battle;
+    const before = draws;
+    b.enemy.hp = 99999;
+    b.enemy.maxHp = 99999;
+    p.battle = b;
+    const res = performAction(p, b, { kind: 'attack' }, counting);
+    return { draws: draws - before, res, b };
+  };
+  try {
+    // A seed where the rat's reply drew blood (the scan ran and the first
+    // trigger felled the padded foe — the player strike never could).
+    let seed = 0;
+    let probe: ReturnType<typeof run> | undefined;
+    while (seed++ < 300 && !probe) {
+      const r = run(seed, lethalFirst);
+      if (r.res.outcome === 'victory') probe = r;
+    }
+    assert(probe, 'no seed reproduced a trigger kill');
+    // The control wears ONLY the lethal trigger: identical state, seed and
+    // draws up to the scan, nothing left to draw afterwards.
+    const control = run(seed, [lethalFirst[0]!]);
+    assertEquals(
+      probe.draws,
+      control.draws,
+      'the skipped trigger consumed no RNG draw of any kind',
+    );
+    const attempts = probe.res.trace.filter((
+      e,
+    ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
+    assertEquals(attempts.length, 1, 'only the first trigger recorded an attempt');
+    assertEquals(attempts[0]!.trigger, 'Killing Blow');
+    assertEquals(
+      probe.b.effectInstances.some((i) => i.name === 'Never Slow'),
+      false,
+      'the skipped trigger applied no effect',
+    );
+    assertEquals(probe.b.procs?.['t_19:0']?.count, 1, 'the first trigger procs once');
+    assertEquals(probe.b.procs?.['t_19:1'], undefined, 'the second trigger wrote no bookkeeping');
+  } finally {
+    charm.triggers = original;
+  }
+});
+
+Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [
+    {
+      name: 'First Sap',
+      trigger: 'onHpDamage',
+      effects: [{
+        kind: 'statmod',
+        target: 'opponent',
+        stat: 'atk',
+        pct: -0.1,
+        duration: 2,
+        timing: 'immediate',
+        name: 'First Mark',
+      }],
+      desc: 'test fixture: fires first in authored order',
+    },
+    {
+      name: 'Second Bleed',
+      trigger: 'onHpDamage',
+      effects: [{
+        kind: 'periodic',
+        target: 'opponent',
+        perRound: -2,
+        duration: 2,
+        tickPhase: 'roundEnd',
+        name: 'Second Bleed',
+        tags: ['bleed', 'harmful'],
+      }],
+      desc: 'test fixture: fires second in authored order',
+    },
+  ];
+  try {
+    // A seed where the rat's reply drew blood and BOTH triggers fired.
+    let found: { res: ReturnType<typeof round>; b: BattleState } | undefined;
+    for (let s = 1; s <= 300 && !found; s++) {
+      const p = hero(709, 'warrior', 20, 't_19');
+      p.hp = 99999;
+      const b = tankyRat(p, s);
+      const res = round(p, b, s);
+      if (
+        b.effectInstances.some((i) => i.name === 'First Mark') &&
+        b.effectInstances.some((i) => i.name === 'Second Bleed')
+      ) {
+        found = { res, b };
+      }
+    }
+    assert(found, 'no seed fired both non-terminal triggers');
+    const attempts = found.res.trace.filter((
+      e,
+    ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
+    assertEquals(
+      attempts.map((a) => a.trigger),
+      ['First Sap', 'Second Bleed'],
+      'authored order is preserved when combat continues',
+    );
+    assertEquals(found.b.procs?.['t_19:0']?.count, 1);
+    assertEquals(found.b.procs?.['t_19:1']?.count, 1);
+  } finally {
+    charm.triggers = original;
+  }
+});

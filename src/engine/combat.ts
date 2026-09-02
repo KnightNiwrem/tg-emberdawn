@@ -207,7 +207,7 @@ export function startBattle(
   if (!opts.tutorial) {
     const opRng = opts.rng;
     const p = opts.player;
-    const terminalNow = (): boolean => battle.enemy.hp <= 0 || p.hp <= 0;
+    const terminalNow = (): boolean => terminalHp(p, battle);
     const adjudicate = (): BattleOutcome =>
       battle.enemy.hp <= 0 ? 'victory' : p.hp <= 0 ? 'defeat' : 'ongoing';
     // 1. Pre-emptive boss ward (#79): ONLY on boss-provenance encounters —
@@ -404,6 +404,14 @@ function runOpening(
   return executeSpecs(ctx, specs);
 }
 
+/** #103: the terminal invariant, centralized — either combatant at 0 HP
+ * ends resolution synchronously. The winner is already decided, so no
+ * later trigger may be inspected: skipped triggers consume no RNG draw
+ * and write no trace, text, effects or proc bookkeeping. */
+function terminalHp(p: PlayerState, battle: BattleState): boolean {
+  return p.hp <= 0 || battle.enemy.hp <= 0;
+}
+
 /** Scans equipped items for reactive triggers (#82, #89). Slot order, then
  * authored order. Damage scans carry the HP-loss cause and match
  * declaratively: `onEnemyActionHpDamage` answers ONLY direct enemy-action
@@ -415,7 +423,11 @@ function runOpening(
  * intervening rounds unavailable — a success on round R re-arms on
  * R + N + 1), chance (one injected draw per attempt — a miss consumes
  * neither budget nor cooldown, and gated attempts draw nothing at all).
- * Lines carry a ⚡ prefix for source attribution in the log and metrics. */
+ * Lines carry a ⚡ prefix for source attribution in the log and metrics.
+ * #103: the scan is a breakable resolver loop under the terminal
+ * invariant — the first trigger that leaves either side at 0 HP (after
+ * any permitted immediate-revival window) stops the scan BEFORE the next
+ * trigger's eligibility/chance evaluation. */
 function runReactiveTriggers(
   p: PlayerState,
   battle: BattleState,
@@ -427,25 +439,29 @@ function runReactiveTriggers(
   const lines: string[] = [];
   const procs = battle.procs ??= {};
   for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+    if (terminalHp(p, battle)) break;
     const itemId = p.equipment[slot];
     const it = itemId ? itemDefLookup(itemId) : undefined;
     if (!it?.triggers?.length) continue;
-    it.triggers.forEach((tg, ti) => {
+    for (const [ti, tg] of it.triggers.entries()) {
+      // #103: checked BEFORE eligibility/chance — a terminal state means
+      // this trigger is never inspected at all (no roll, no attempt entry).
+      if (terminalHp(p, battle)) break;
       if (scan === 'onGuard') {
-        if (tg.trigger !== 'onGuard') return;
+        if (tg.trigger !== 'onGuard') continue;
       } else {
-        if (tg.trigger !== 'onHpDamage' && tg.trigger !== 'onEnemyActionHpDamage') return;
-        if (tg.trigger === 'onEnemyActionHpDamage' && scan.cause !== 'enemyAction') return;
+        if (tg.trigger !== 'onHpDamage' && tg.trigger !== 'onEnemyActionHpDamage') continue;
+        if (tg.trigger === 'onEnemyActionHpDamage' && scan.cause !== 'enemyAction') continue;
       }
       const key = `${it.id}:${ti}`;
       const st = procs[key] ?? { count: 0, round: 0 };
-      if (tg.maxProcs !== undefined && st.count >= tg.maxProcs) return;
+      if (tg.maxProcs !== undefined && st.count >= tg.maxProcs) continue;
       // Cooldown N (#89): N complete intervening rounds are unavailable —
       // a success on round R blocks R+1 … R+N and re-arms on R+N+1.
       // st.round > 0 guards that a fresh battle never inherits a phantom
       // cooldown.
       if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round <= tg.cooldown) {
-        return;
+        continue;
       }
       if (tg.chance !== undefined && !chance(rng, tg.chance)) {
         recordCombatEvent(trace, {
@@ -455,7 +471,7 @@ function runReactiveTriggers(
           trigger: tg.name,
           success: false,
         });
-        return;
+        continue;
       }
       const ctx: ExecCtx = {
         p,
@@ -484,7 +500,10 @@ function runReactiveTriggers(
       st.count++;
       st.round = battle.round;
       procs[key] = st;
-    });
+      // #103: a nested lethal effect ends the scan immediately — the next
+      // trigger is never considered once the winner is decided.
+      if (terminalHp(p, battle)) break;
+    }
   }
   return lines;
 }
@@ -733,7 +752,7 @@ export function performAction(
 
   const lines: string[] = [];
   let skipped = false;
-  const terminalNow = (): boolean => battle.enemy.hp <= 0 || p.hp <= 0;
+  const terminalNow = (): boolean => terminalHp(p, battle);
 
   // #86 step 2 — initiative snapshot: effective SPD after opening and
   // start-of-round modifiers. Ties keep the documented player-first rule;
