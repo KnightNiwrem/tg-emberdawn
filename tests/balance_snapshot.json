@@ -21,14 +21,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.08,
+      "avgRoundsWin": 2.07,
       "avgHpPctEnd": 0.9852,
-      "avgMpPctEnd": 0.7227,
-      "avgDealt": 38.02,
+      "avgMpPctEnd": 0.7247,
+      "avgDealt": 38.07,
       "avgTaken": 0.98,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.1,
+      "critsPerFight": 0.105,
       "dodgesPerFight": 0.015,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -39,7 +39,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 8.32,
+      "avgMpSpent": 8.26,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -59,7 +59,7 @@
       "avgProcHits": 0,
       "avgDuration1Applied": 0,
       "roundsP50": 2,
-      "roundsP90": 3,
+      "roundsP90": 2,
       "hpPctP50": 0.985,
       "hpPctP90": 0.985,
       "mpPctP50": 0.733,
@@ -69,13 +69,13 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_cleave": 2.08
+        "sk_cleave": 2.065
       },
       "effectRounds": {
         "enemy:Fibrous Hide:e0": 0.105
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.085
+        "enemy:Fibrous Hide:e0": 0.07
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -460,15 +460,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.54,
-      "avgHpPctEnd": 0.9793,
+      "avgRoundsWin": 2.55,
+      "avgHpPctEnd": 0.9792,
       "avgMpPctEnd": 1,
-      "avgDealt": 37.59,
-      "avgTaken": 1.37,
+      "avgDealt": 37.7,
+      "avgTaken": 1.38,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.145,
-      "dodgesPerFight": 0.015,
+      "dodgesPerFight": 0.025,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -489,7 +489,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0,
+      "avgExpiredRemovals": 0.005,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -509,10 +509,10 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.23
+        "enemy:Fibrous Hide:e0": 0.24
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.16
+        "enemy:Fibrous Hide:e0": 0.145
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -974,14 +974,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.54,
-      "avgHpPctEnd": 0.8967,
+      "avgHpPctEnd": 0.896,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.76,
-      "avgTaken": 6.2,
+      "avgDealt": 38.8,
+      "avgTaken": 6.24,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.18,
-      "dodgesPerFight": 0.04,
+      "critsPerFight": 0.19,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1012,7 +1012,7 @@
       "avgDuration1Applied": 0,
       "roundsP50": 3,
       "roundsP90": 3,
-      "hpPctP50": 0.933,
+      "hpPctP50": 0.917,
       "hpPctP90": 0.95,
       "mpPctP50": 1,
       "mpPctP90": 1,
@@ -1022,10 +1022,10 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.12
+        "enemy:Fibrous Hide:e0": 0.125
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.095
+        "enemy:Fibrous Hide:e0": 0.085
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1042,15 +1042,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.58,
-      "avgHpPctEnd": 0.954,
-      "avgMpPctEnd": 0.742,
-      "avgDealt": 38.59,
-      "avgTaken": 2.76,
+      "avgRoundsWin": 2.59,
+      "avgHpPctEnd": 0.9576,
+      "avgMpPctEnd": 0.741,
+      "avgDealt": 38.76,
+      "avgTaken": 2.55,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.19,
-      "dodgesPerFight": 0.05,
+      "critsPerFight": 0.225,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1060,7 +1060,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.74,
+      "avgMpSpent": 7.77,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1071,7 +1071,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0,
+      "avgExpiredRemovals": 0.005,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -1090,13 +1090,13 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.58
+        "sk_quick_slash": 2.59
       },
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.17
+        "enemy:Fibrous Hide:e0": 0.26
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.145
+        "enemy:Fibrous Hide:e0": 0.165
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1113,15 +1113,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.46,
-      "avgHpPctEnd": 0.967,
-      "avgMpPctEnd": 0.8058,
-      "avgDealt": 39.4,
-      "avgTaken": 2.61,
+      "avgRoundsWin": 2.38,
+      "avgHpPctEnd": 0.9601,
+      "avgMpPctEnd": 0.8117,
+      "avgDealt": 39.53,
+      "avgTaken": 3.15,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.18,
-      "dodgesPerFight": 0.07,
+      "critsPerFight": 0.245,
+      "dodgesPerFight": 0.065,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1131,7 +1131,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 7.38,
+      "avgMpSpent": 7.16,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1161,13 +1161,13 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_quick_slash": 2.46
+        "sk_quick_slash": 2.385
       },
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.21
+        "enemy:Fibrous Hide:e0": 0.15
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.155
+        "enemy:Fibrous Hide:e0": 0.1
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1481,14 +1481,14 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 3.39,
-      "avgHpPctEnd": 0.9401,
+      "avgHpPctEnd": 0.9377,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.81,
-      "avgTaken": 3.6,
+      "avgDealt": 38.91,
+      "avgTaken": 3.74,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.3,
-      "dodgesPerFight": 0.08,
+      "critsPerFight": 0.325,
+      "dodgesPerFight": 0.075,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1509,7 +1509,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.05,
+      "avgExpiredRemovals": 0.06,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -1520,7 +1520,7 @@
       "roundsP50": 3,
       "roundsP90": 4,
       "hpPctP50": 0.967,
-      "hpPctP90": 0.983,
+      "hpPctP90": 0.967,
       "mpPctP50": 1,
       "mpPctP90": 1,
       "dodgesP50": 0,
@@ -1529,10 +1529,10 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.31
+        "enemy:Fibrous Hide:e0": 0.245
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.215
+        "enemy:Fibrous Hide:e0": 0.15
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1549,15 +1549,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.42,
-      "avgHpPctEnd": 0.9748,
-      "avgMpPctEnd": 0.5975,
-      "avgDealt": 38.09,
-      "avgTaken": 1.67,
+      "avgRoundsWin": 2.4,
+      "avgHpPctEnd": 0.9752,
+      "avgMpPctEnd": 0.5992,
+      "avgDealt": 38.12,
+      "avgTaken": 1.64,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.155,
-      "dodgesPerFight": 0.025,
+      "critsPerFight": 0.16,
+      "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1567,7 +1567,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 12.08,
+      "avgMpSpent": 12.03,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1597,13 +1597,13 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_smite": 2.415
+        "sk_smite": 2.405
       },
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.21
+        "enemy:Fibrous Hide:e0": 0.23
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.15
+        "enemy:Fibrous Hide:e0": 0.145
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1620,15 +1620,15 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 2.3,
-      "avgHpPctEnd": 0.9803,
-      "avgMpPctEnd": 0.7262,
-      "avgDealt": 39.49,
-      "avgTaken": 1.72,
+      "avgRoundsWin": 2.31,
+      "avgHpPctEnd": 0.9799,
+      "avgMpPctEnd": 0.725,
+      "avgDealt": 39.48,
+      "avgTaken": 1.75,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.18,
-      "dodgesPerFight": 0.025,
+      "dodgesPerFight": 0.035,
       "healPerFight": 0,
       "overhealPerFight": 0,
       "avgShieldGranted": 0,
@@ -1638,7 +1638,7 @@
       "avgEquipProcs": 0,
       "avgSkippedRounds": 0,
       "invalidActions": 0,
-      "avgMpSpent": 11.5,
+      "avgMpSpent": 11.55,
       "avgBuffCasts": 0,
       "avgShieldCasts": 0,
       "avgDotCasts": 0,
@@ -1668,13 +1668,13 @@
       "equipProcsP50": 0,
       "equipProcsP90": 0,
       "skillCasts": {
-        "sk_smite": 2.3
+        "sk_smite": 2.31
       },
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.165
+        "enemy:Fibrous Hide:e0": 0.16
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.125
+        "enemy:Fibrous Hide:e0": 0.105
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"
@@ -1991,14 +1991,14 @@
       "winRate": 1,
       "lossRate": 0,
       "timeoutRate": 0,
-      "avgRoundsWin": 3.25,
-      "avgHpPctEnd": 0.9614,
+      "avgRoundsWin": 3.23,
+      "avgHpPctEnd": 0.9608,
       "avgMpPctEnd": 1,
-      "avgDealt": 38.9,
-      "avgTaken": 2.55,
+      "avgDealt": 38.74,
+      "avgTaken": 2.59,
       "avgItems": 0,
       "guardFreq": 0,
-      "critsPerFight": 0.205,
+      "critsPerFight": 0.215,
       "dodgesPerFight": 0.04,
       "healPerFight": 0,
       "overhealPerFight": 0,
@@ -2020,7 +2020,7 @@
       "avgDotTaken": 0,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
-      "avgExpiredRemovals": 0.035,
+      "avgExpiredRemovals": 0.04,
       "avgCleanseRemovals": 0,
       "avgDispelRemovals": 0,
       "avgConsumedRemovals": 0,
@@ -2031,7 +2031,7 @@
       "roundsP50": 3,
       "roundsP90": 4,
       "hpPctP50": 0.97,
-      "hpPctP90": 0.985,
+      "hpPctP90": 0.97,
       "mpPctP50": 1,
       "mpPctP90": 1,
       "dodgesP50": 0,
@@ -2040,10 +2040,10 @@
       "equipProcsP90": 0,
       "skillCasts": {},
       "effectRounds": {
-        "enemy:Fibrous Hide:e0": 0.36
+        "enemy:Fibrous Hide:e0": 0.335
       },
       "effectApplications": {
-        "enemy:Fibrous Hide:e0": 0.26
+        "enemy:Fibrous Hide:e0": 0.22
       },
       "effectSources": {
         "enemy:Fibrous Hide:e0": "enemyMove:Fibrous Hide"

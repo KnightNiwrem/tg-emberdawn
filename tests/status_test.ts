@@ -702,3 +702,99 @@ Deno.test('#87: the tactical policy never dispels player-applied vulnerability',
     `a live enemy benefit is dispelled (${JSON.stringify(dispel)})`,
   );
 });
+
+Deno.test('#92: Petrify Gaze lands the documented Petrified slow', () => {
+  let s = -1;
+  for (let t = 1; t <= 120; t++) {
+    const p = hero(600 + t, 'warrior', 39);
+    p.hp = 99999; // #86: survive the gaze — a felled hero stops the rider list
+    const b = fight('e_watcher', p, t);
+    const res = round(p, b, t);
+    if (res.lines.some((l) => l.includes('The gaze sets in'))) {
+      s = t;
+      break;
+    }
+  }
+  assert(s > 0, 'a petrify seed exists');
+  const p = hero(8, 'warrior', 39);
+  p.hp = 99999; // #86: survive the gaze so the rider resolves
+  const b = fight('e_watcher', p, s);
+  round(p, b, s);
+  const petrified = b.effectInstances.find((i) => i.side === 'player' && i.name === 'Petrified')!;
+  assertEquals(petrified.stat, 'spd');
+  assertEquals(petrified.pct, -0.25);
+  assertEquals(petrified.tags.includes('slow'), true);
+  assertEquals(petrified.tags.includes('harmful'), true);
+  assert(statPct(b, 'player', 'spd') < 0);
+});
+
+Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts after expiry', () => {
+  let s = -1;
+  for (let t = 1; t <= 120; t++) {
+    const p = hero(700 + t, 'warrior', 18);
+    p.hp = 99999; // #86: survive the scan window
+    const b = fight('e_sentinel', p, t);
+    const res = round(p, b, t);
+    if (res.lines.some((l) => l.includes('raises a ward'))) {
+      s = t;
+      break;
+    }
+  }
+  assert(s > 0, 'a bulwark seed exists');
+
+  // Broken ward: pool fully absorbed while the instance is still live —
+  // the recast must be eligible again (#92).
+  const p1 = hero(9, 'warrior', 18);
+  p1.hp = 99999; // #86: the refill scan needs the hero alive through every round
+  const b1 = fight('e_sentinel', p1, s);
+  round(p1, b1, s);
+  const ward = b1.effectInstances.find((i) => i.side === 'enemy' && i.kind === 'shield')!;
+  assertExists(ward);
+  b1.shield.enemy = 0;
+  ward.remaining = 20; // keep it live far beyond the scan window
+  let refilled = false;
+  for (let r = 0; r < 16 && !refilled; r++) {
+    const res = round(p1, b1, s + 10 + r, { kind: 'guard' });
+    refilled = res.lines.some((l) => l.includes('raises a ward'));
+  }
+  assert(refilled, 'a broken ward is refill-eligible: the AI recasts it');
+  assertEquals(b1.shield.enemy, 45, 'the recast grants fresh capacity');
+
+  // Near-full ward: pool above half the grant — still skipped.
+  const p2 = hero(10, 'warrior', 18);
+  p2.hp = 99999; // #86: the skip scan needs the hero alive through every round
+  const b2 = fight('e_sentinel', p2, s);
+  round(p2, b2, s);
+  const ward2 = b2.effectInstances.find((i) => i.side === 'enemy' && i.kind === 'shield')!;
+  assertExists(ward2);
+  b2.shield.enemy = 30;
+  ward2.remaining = 20;
+  for (let r = 0; r < 12; r++) {
+    const res = round(p2, b2, s + 40 + r, { kind: 'guard' });
+    assertEquals(
+      res.lines.some((l) => l.includes('raises a ward')),
+      false,
+      'a near-full ward is never recast',
+    );
+  }
+
+  // Expired ward: after the refilled ward runs out, the AI casts again.
+  let sawExpired = false;
+  let recastAfterExpiry = false;
+  for (let r = 0; r < 40 && !recastAfterExpiry; r++) {
+    const res = round(p1, b1, s + 40 + r, { kind: 'guard' });
+    if (b1.effectInstances.every((i) => !(i.side === 'enemy' && i.kind === 'shield'))) {
+      sawExpired = true;
+    }
+    if (sawExpired && res.lines.some((l) => l.includes('raises a ward'))) {
+      recastAfterExpiry = true;
+    }
+  }
+  assert(sawExpired, 'the refilled ward eventually expires');
+  assert(recastAfterExpiry, 'an expired ward is recast-eligible');
+});
+
+Deno.test('#92: Cleansing Tonic copy matches its real cleanse', () => {
+  const d = item('c_antidote')!.desc!;
+  assert(d.includes('harmful'), 'the copy covers every removable harmful effect, not just sap');
+});

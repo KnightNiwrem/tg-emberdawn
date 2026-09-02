@@ -507,24 +507,42 @@ function wastedMove(m: EnemyMove, battle: BattleState): boolean {
 }
 
 function wastedEffect(sp: EffectSpec, battle: BattleState, move: EnemyMove): boolean {
+  // #90 identity: instances carry DERIVED defIds ('Move:eN', or the shared
+  // 'sap' slot) — match by the same derivation, never the raw move name
+  // (a raw name never equals a derived id, which left the old checks dead).
+  const defId = effectDefId(move.name, undefined, move.effects.indexOf(sp), sp);
   switch (sp.kind) {
     case 'restore':
       // Healing at full HP restores 0 — wasted.
       return battle.enemy.hp >= battle.enemy.maxHp;
-    case 'shield':
-      // Re-casting while an equal-or-stronger ward from THIS move is still
-      // live only refreshes it — wasted (#79 capacity semantics).
-      return battle.effectInstances.some((i) =>
-        i.side === 'enemy' && i.kind === 'shield' && i.defId === move.name &&
-        (i.shieldAmount ?? 0) >= (sp.amount ?? 0) &&
+    case 'shield': {
+      // Refill policy (#92): a recast only makes sense when it grants fresh
+      // capacity — mirror grantShield's authored refill rule (#79).
+      // Refresh-style wards renew the clock WITHOUT refilling, and an
+      // equal-or-weaker strongest-wins recast grants nothing — both stay
+      // wasted while live. Replace-style wards are wasted only while the
+      // pool still holds at least half of the ward's grant: a broken or
+      // meaningfully depleted ward is eligible to refill. (Pool-vs-grant is
+      // exact for single-ward enemies — the authored norm; overlapping
+      // wards attribute the shared pool conservatively to this grant.)
+      const grant = sp.amount ?? 0;
+      const existing = battle.effectInstances.find((i) =>
+        i.side === 'enemy' && i.kind === 'shield' && i.defId === defId &&
+        (i.shieldAmount ?? 0) >= grant &&
         (i.battleLifetime || i.remaining > 0)
       );
+      if (existing === undefined) return false;
+      const refills = sp.stacking !== 'refresh' &&
+        !(sp.stacking === 'strongest' && grant <= (existing.shieldAmount ?? 0));
+      if (!refills) return true;
+      return battle.shield.enemy * 2 >= grant;
+    }
     case 'statmod':
       if (sp.target === 'opponent') return false;
       // Refreshing a live same-source self-buff with an equal-or-shorter
       // duration is wasted.
       return battle.effectInstances.some((i) =>
-        i.side === 'enemy' && i.kind === 'statmod' && i.defId === move.name &&
+        i.side === 'enemy' && i.kind === 'statmod' && i.defId === defId &&
         i.remaining >= sp.duration
       );
     default:

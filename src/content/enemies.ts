@@ -743,7 +743,8 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Umbral Shade',
     emoji: '🌑',
     level: 39,
-    moves: [hit('Null Grasp', 1.3, 'mag', 3), hit('Fade', 1.0, 'mag', 2, SAP(0.25))],
+    // #92: plain damage — "null" promised nullification the spec never had.
+    moves: [hit('Void Grasp', 1.3, 'mag', 3), hit('Fade', 1.0, 'mag', 2, SAP(0.25))],
     drops: { m_void_fragment: 0.3 },
   }),
   mk({
@@ -751,7 +752,19 @@ export const ENEMIES: readonly EnemyDef[] = [
     name: 'Watcher Eye',
     emoji: '👁️',
     level: 39,
-    moves: [hit('Petrify Gaze', 1.25, 'mag', 3), hit('Blink Strike', 1.2, 'phys', 2)],
+    // #92: the gaze lands the documented Petrify flavor of Slow — a real
+    // SPD rider under the shared vocabulary (resist/cleanse/UI), not a
+    // name overpromising plain damage.
+    moves: [
+      hit(
+        'Petrify Gaze',
+        1.25,
+        'mag',
+        3,
+        SLOW(0.25, 2, 'Petrified', '👁️ The gaze sets in — Petrified! SPD −25% for 2 rounds!'),
+      ),
+      hit('Blink Strike', 1.2, 'phys', 2),
+    ],
   }),
   mk({
     id: 'e_shattered',
