@@ -12,7 +12,9 @@ import { performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance, grantShield, incomingAmpPct } from '../src/engine/effects.ts';
 import { type CombatEvent, type DamageCause, setCombatTelemetry } from '../src/engine/telemetry.ts';
 import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/engine/types.ts';
+import { ENEMIES } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
+import { addItem } from '../src/engine/inventory.ts';
 import { renderEquipment, renderItemDetail, triggerDisclosure } from '../src/render/menus.ts';
 import { seeded } from './helpers.ts';
 
@@ -551,4 +553,206 @@ Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduce
     hpEvents.every((e) => e.amount > 0 && e.procProduced === false),
     'amounts are real post-shield HP loss; no content produces proc-produced damage today',
   );
+});
+
+// ── #97: reactive equipment dispatches per actual HP-loss event ──────────
+
+/** Temporarily overrides a content object's field, restoring afterwards. */
+function withOverridden<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K],
+  run: () => void,
+): void {
+  const original = target[key];
+  target[key] = value;
+  try {
+    run();
+  } finally {
+    target[key] = original;
+  }
+}
+
+/** The Grudge Charm (broad onHpDamage) with gates removed: deterministic
+ * always-proc, unlimited per battle, no cooldown. */
+function ungatedGrudge(run: (p: PlayerState) => void): void {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Grudge Prick',
+    trigger: 'onHpDamage',
+    effects: [{
+      kind: 'periodic',
+      target: 'opponent',
+      perRound: -3,
+      duration: 2,
+      tickPhase: 'roundEnd',
+      name: 'Grudge Bleed',
+      tags: ['bleed', 'harmful'],
+    }],
+    desc: 'test fixture: every HP loss answers',
+  }];
+  try {
+    run(hero(700, 'warrior', 5, 't_19'));
+  } finally {
+    charm.triggers = original;
+  }
+}
+
+/** Procs recorded by the battle bookkeeping (successful reactive procs). */
+const procCount = (b: BattleState): number => b.procs?.['t_19:0']?.count ?? 0;
+
+/** Tanky rat for synthetic-move fixtures (#97): the mutated moves belong
+ * to e_rat, so the fight must actually be against the rat. */
+function tankyRat(p: PlayerState, seed: number): BattleState {
+  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
+  b.enemy.hp = 99999;
+  b.enemy.maxHp = 99999;
+  p.battle = b;
+  return b;
+}
+
+Deno.test('#97: a two-hit enemy move answers onHpDamage twice', () => {
+  ungatedGrudge((p) => {
+    const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+    withOverridden(rat, 'moves', [{
+      name: 'Double Bite',
+      weight: 1,
+      effects: [
+        { kind: 'damage', attack: 'phys', power: 1 },
+        { kind: 'damage', attack: 'phys', power: 1 },
+      ],
+    }], () => {
+      const b = tankyRat(p, 601);
+      round(p, b, 601);
+      assertEquals(
+        procCount(b),
+        2,
+        'each ordered HP-loss event dispatches its own proc opportunity',
+      );
+    });
+  });
+});
+
+Deno.test('#97: a cooldown trigger stays spent within the same round', () => {
+  // Authored t_19: cooldown 1 — the second hit of one round cannot re-arm.
+  const p = hero(701, 'warrior', 5, 't_19');
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Double Bite',
+    weight: 1,
+    effects: [
+      { kind: 'damage', attack: 'phys', power: 1 },
+      { kind: 'damage', attack: 'phys', power: 1 },
+    ],
+  }], () => {
+    const b = tankyRat(p, 602);
+    round(p, b, 602);
+    assertEquals(procCount(b), 1, 'cooldown gates the same-round second event');
+  });
+});
+
+Deno.test('#97: damage followed by healing keeps its damage opportunity', () => {
+  ungatedGrudge((p) => {
+    p.hp = 40; // below max so the rider's heal can erase the net loss
+    const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+    withOverridden(rat, 'moves', [{
+      name: 'Leeching Bite',
+      weight: 1,
+      effects: [
+        { kind: 'damage', attack: 'phys', power: 1 },
+        { kind: 'restore', target: 'opponent', hpPctOfMax: 0.5 },
+      ],
+    }], () => {
+      const b = tankyRat(p, 603);
+      round(p, b, 603);
+      assertEquals(
+        procCount(b),
+        1,
+        'net-positive HP movement never suppresses the real damage event',
+      );
+    });
+  });
+});
+
+Deno.test('#97: a shield-only absorption never dispatches', () => {
+  ungatedGrudge((p) => {
+    const b = tankyRat(p, 604);
+    grantShield(b, 'player', {
+      defId: 'test:ward',
+      name: 'Test Ward',
+      kind: 'shield',
+      side: 'player',
+      source: { kind: 'skill', id: 'test', name: 'Test' },
+      shieldAmount: 9999,
+      tags: ['beneficial'],
+      stacking: 'replace',
+      duration: 9,
+      timing: 'immediate',
+      removable: true,
+    });
+    round(p, b, 604);
+    assertEquals(procCount(b), 0, 'no HP reached flesh — no HP-loss event existed');
+  });
+});
+
+Deno.test('#97: Phoenix revival lets the lethal event answer — once', () => {
+  const p = hero(705, 'warrior', 5, 't_19');
+  addItem(p, 'c_phoenix_feather', 1);
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Death Bite',
+    weight: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 9999 }],
+  }], () => {
+    const b = tankyRat(p, 605);
+    round(p, b, 605);
+    assert(p.hp > 0, 'the Cinder revived the wearer');
+    assertEquals(
+      procCount(b),
+      1,
+      'a synchronously revived wearer still answers the lethal HP-loss event',
+    );
+  });
+});
+
+Deno.test('#97: opening strikes answer broad triggers per event, never narrow ones', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'opening', {
+    name: 'Probe Strike',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1 }],
+  }, () => {
+    // Narrow trigger: an opening is not a direct enemy action — silent.
+    const narrow = hero(706, 'warrior', 5, 't_9');
+    const bn = tankyRat(narrow, 606);
+    assertEquals(bn.procs?.['t_9:0'], undefined, 'narrow trigger never answers an opening');
+
+    // Broad trigger: each opening HP loss dispatches (ungated → exactly 1).
+    ungatedGrudge((p) => {
+      const b = tankyRat(p, 607);
+      assertEquals(procCount(b), 1, 'the broad trigger answered the opening strike');
+    });
+  });
+});
+
+Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () => {
+  // The proc's own effect damages the WEARER — that HP loss is
+  // proc-produced and must not trigger equipment again.
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Backlash',
+    trigger: 'onHpDamage',
+    effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
+    desc: 'test fixture: the proc itself wounds the wearer',
+  }];
+  try {
+    const p = hero(707, 'warrior', 20, 't_19');
+    p.hp = 99999; // survive the self-wound loop would-be
+    const b = tankyRat(p, 608);
+    round(p, b, 608);
+    assertEquals(procCount(b), 1, 'the proc-produced self-damage never re-triggered');
+  } finally {
+    charm.triggers = original;
+  }
 });

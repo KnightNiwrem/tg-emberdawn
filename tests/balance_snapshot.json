@@ -291,20 +291,20 @@
         "sk_cleave": 1.415
       },
       "effectRounds": {
-        "player:Venom Bite:e1": 0.135,
         "enemy:t_9:t0:e0": 0.105,
+        "player:Venom Bite:e1": 0.135,
         "player:sap": 0.015,
         "player:Web Snare:e1": 0.035
       },
       "effectApplications": {
-        "player:Venom Bite:e1": 0.135,
         "enemy:t_9:t0:e0": 0.105,
+        "player:Venom Bite:e1": 0.135,
         "player:sap": 0.015,
         "player:Web Snare:e1": 0.035
       },
       "effectSources": {
-        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
         "player:Web Snare:e1": "enemyMove:Web Snare"
       }
@@ -371,18 +371,18 @@
         "sk_cleave": 1.26
       },
       "effectRounds": {
-        "player:Venom Bite:e1": 0.145,
         "enemy:t_9:t0:e0": 0.11,
+        "player:Venom Bite:e1": 0.145,
         "player:Web Snare:e1": 0.03
       },
       "effectApplications": {
-        "player:Venom Bite:e1": 0.145,
         "enemy:t_9:t0:e0": 0.11,
+        "player:Venom Bite:e1": 0.145,
         "player:Web Snare:e1": 0.03
       },
       "effectSources": {
-        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
@@ -830,10 +830,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.23,
-      "avgHpPctEnd": 0.9839,
+      "avgHpPctEnd": 0.984,
       "avgMpPctEnd": 0.9328,
       "avgDealt": 69.55,
-      "avgTaken": 2.9,
+      "avgTaken": 2.88,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.135,
@@ -855,7 +855,7 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "avgDotDealt": 0.35,
-      "avgDotTaken": 0.16,
+      "avgDotTaken": 0.14,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
       "avgExpiredRemovals": 0.02,
@@ -1313,18 +1313,18 @@
         "sk_quick_slash": 0.47
       },
       "effectRounds": {
-        "player:Venom Bite:e1": 0.155,
         "enemy:t_9:t0:e0": 0.165,
+        "player:Venom Bite:e1": 0.155,
         "player:Web Snare:e1": 0.025
       },
       "effectApplications": {
-        "player:Venom Bite:e1": 0.155,
         "enemy:t_9:t0:e0": 0.165,
+        "player:Venom Bite:e1": 0.155,
         "player:Web Snare:e1": 0.025
       },
       "effectSources": {
-        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
@@ -1340,10 +1340,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 1.3,
-      "avgHpPctEnd": 0.9904,
+      "avgHpPctEnd": 0.9906,
       "avgMpPctEnd": 0.8947,
       "avgDealt": 69.43,
-      "avgTaken": 2.04,
+      "avgTaken": 2,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.18,
@@ -1365,7 +1365,7 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "avgDotDealt": 0.31,
-      "avgDotTaken": 0.42,
+      "avgDotTaken": 0.38,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
       "avgExpiredRemovals": 0,
@@ -3802,16 +3802,16 @@
         "sk_cleave": 10.245
       },
       "effectRounds": {
-        "player:Silk Prison:e1": 4.895,
-        "enemy:t_9:t0:e0": 1.445
+        "enemy:t_9:t0:e0": 1.445,
+        "player:Silk Prison:e1": 4.895
       },
       "effectApplications": {
-        "player:Silk Prison:e1": 3.025,
-        "enemy:t_9:t0:e0": 1.445
+        "enemy:t_9:t0:e0": 1.445,
+        "player:Silk Prison:e1": 3.025
       },
       "effectSources": {
-        "player:Silk Prison:e1": "enemyMove:Silk Prison",
-        "enemy:t_9:t0:e0": "item:Thorn Ring"
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Silk Prison:e1": "enemyMove:Silk Prison"
       }
     },
     {
@@ -4886,22 +4886,22 @@
         "enemy:sk_scorch:e1": 0.26,
         "enemy:sk_frost_lance:e1": 0.04,
         "player:Venom Bite:e1": 0.12,
-        "player:Web Snare:e1": 0.045,
-        "enemy:t_9:t0:e0": 0.06
+        "enemy:t_9:t0:e0": 0.06,
+        "player:Web Snare:e1": 0.045
       },
       "effectApplications": {
         "enemy:sk_scorch:e1": 0.22,
         "enemy:sk_frost_lance:e1": 0.04,
         "player:Venom Bite:e1": 0.12,
-        "player:Web Snare:e1": 0.045,
-        "enemy:t_9:t0:e0": 0.06
+        "enemy:t_9:t0:e0": 0.06,
+        "player:Web Snare:e1": 0.045
       },
       "effectSources": {
         "enemy:sk_scorch:e1": "skill:Scorch",
         "enemy:sk_frost_lance:e1": "skill:Frost Lance",
         "player:Venom Bite:e1": "enemyMove:Venom Bite",
-        "player:Web Snare:e1": "enemyMove:Web Snare",
-        "enemy:t_9:t0:e0": "item:Thorn Ring"
+        "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare"
       }
     },
     {
@@ -4916,10 +4916,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.11,
-      "avgHpPctEnd": 0.9851,
+      "avgHpPctEnd": 0.9853,
       "avgMpPctEnd": 0.8668,
       "avgDealt": 63.84,
-      "avgTaken": 2.68,
+      "avgTaken": 2.64,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.125,
@@ -4941,7 +4941,7 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "avgDotDealt": 4.13,
-      "avgDotTaken": 1,
+      "avgDotTaken": 0.96,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
       "avgExpiredRemovals": 0.015,
@@ -4970,8 +4970,8 @@
       "effectRounds": {
         "player:sk_barrier:e0": 1.11,
         "player:sk_barrier:e1": 1.11,
-        "player:Web Snare:e1": 0.095,
         "enemy:t_9:t0:e0": 0.32,
+        "player:Web Snare:e1": 0.095,
         "player:Venom Bite:e1": 0.18,
         "player:sap": 0.05,
         "enemy:sk_scorch:e1": 0.11
@@ -4979,8 +4979,8 @@
       "effectApplications": {
         "player:sk_barrier:e0": 1,
         "player:sk_barrier:e1": 1,
-        "player:Web Snare:e1": 0.07,
         "enemy:t_9:t0:e0": 0.32,
+        "player:Web Snare:e1": 0.07,
         "player:Venom Bite:e1": 0.17,
         "player:sap": 0.05,
         "enemy:sk_scorch:e1": 0.11
@@ -4988,8 +4988,8 @@
       "effectSources": {
         "player:sk_barrier:e0": "skill:Arcane Ward",
         "player:sk_barrier:e1": "skill:Arcane Ward",
-        "player:Web Snare:e1": "enemyMove:Web Snare",
         "enemy:t_9:t0:e0": "item:Thorn Ring",
+        "player:Web Snare:e1": "enemyMove:Web Snare",
         "player:Venom Bite:e1": "enemyMove:Venom Bite",
         "player:sap": "enemyMove:Howl",
         "enemy:sk_scorch:e1": "skill:Scorch"
@@ -5175,10 +5175,10 @@
       "lossRate": 0,
       "timeoutRate": 0,
       "avgRoundsWin": 2.32,
-      "avgHpPctEnd": 0.9808,
+      "avgHpPctEnd": 0.981,
       "avgMpPctEnd": 0.8091,
       "avgDealt": 69.97,
-      "avgTaken": 4.06,
+      "avgTaken": 4.02,
       "avgItems": 0,
       "guardFreq": 0,
       "critsPerFight": 0.2,
@@ -5200,7 +5200,7 @@
       "avgCleanseCasts": 0,
       "avgDispelCasts": 0,
       "avgDotDealt": 1.51,
-      "avgDotTaken": 1.28,
+      "avgDotTaken": 1.24,
       "avgHotHealing": 0,
       "avgWastedPeriodicHealing": 0,
       "avgExpiredRemovals": 0.03,

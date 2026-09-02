@@ -232,7 +232,6 @@ export function startBattle(
     // provenance, through the shared resolver.
     if (def.opening) {
       opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
-      const hpBeforeOpening = p.hp;
       opening.push(...runOpening(
         battle,
         p,
@@ -244,12 +243,6 @@ export function startBattle(
         'opening',
         false,
       ));
-      // #89: opening strikes answer BROAD onHpDamage triggers — an
-      // opening is not a direct enemy action, so the narrow trigger
-      // stays quiet; a fallen wearer procs nothing (#86 parity).
-      if (p.hp > 0 && p.hp < hpBeforeOpening) {
-        opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }, false));
-      }
     }
     // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
     // trinket — then authored order within the item. battleStart procs
@@ -725,13 +718,7 @@ export function performAction(
     // ends the round BEFORE the action and before any later tick (#86).
     const started = gatherTurnStartTicks(battle, maxHpOf(battle, p));
     for (const t of started) {
-      const hpBeforeTick = p.hp;
-      lines.push(...applyPeriodicTick(p, battle, t));
-      // #89: periodic HP loss answers BROAD onHpDamage triggers (never the
-      // narrow enemy-action ones); a fallen wearer procs nothing.
-      if (!battle.tutorial && p.hp > 0 && p.hp < hpBeforeTick) {
-        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
-      }
+      lines.push(...applyPeriodicTick(p, battle, t, rng));
       if (terminalNow()) return 'terminal';
     }
     for (const loss of settleTurnStart(battle, started)) {
@@ -840,11 +827,7 @@ export function performAction(
   const eor = gatherRoundEndTicks(battle, maxHpOf(battle, p));
   let ended = false;
   for (const t of eor) {
-    const hpBeforeTick = p.hp;
-    lines.push(...applyPeriodicTick(p, battle, t));
-    if (!battle.tutorial && p.hp > 0 && p.hp < hpBeforeTick) {
-      lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
-    }
+    lines.push(...applyPeriodicTick(p, battle, t, rng));
     if (terminalNow()) {
       ended = true;
       break;
@@ -865,11 +848,14 @@ export function performAction(
 
 /** Applies one periodic tick (#78): heal or damage the target side, with
  * lethal handling for the player. Enemy-death from ticks leaves hp <= 0
- * for the normal victory resolution. */
+ * for the normal victory resolution. #97: a player-side HP loss dispatches
+ * reactive equipment for THIS event (broad onHpDamage triggers only —
+ * there is no attacker for the narrow enemy-action ones to blame). */
 function applyPeriodicTick(
   p: PlayerState,
   battle: BattleState,
   t: PeriodicTick,
+  rng?: Rng,
 ): string[] {
   const lines: string[] = [];
   if (t.amount >= 0) {
@@ -937,6 +923,11 @@ function applyPeriodicTick(
         amount: hpBefore - p.hp,
         procProduced: false,
       });
+      // #97: the authoritative HP-loss event dispatches the wearer's
+      // broad triggers — a fallen wearer procs nothing (#86 parity).
+      if (p.hp > 0 && !battle.tutorial && rng) {
+        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
+      }
     }
     lines.push(
       `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
@@ -1426,6 +1417,16 @@ function applyDamageEffect(
   );
   if (broke) lines.push('🛡️ Your shield shatters!');
   if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
+  // #97: the authoritative HP-loss event dispatches the wearer's triggers
+  // SYNCHRONOUSLY, once per actual HP loss — a two-hit move answers twice,
+  // a damage-then-heal move keeps its damage opportunity, and shield-only
+  // absorption never dispatches. Phoenix revival already ran above, so a
+  // synchronously revived wearer still answers the lethal event; an
+  // unrecovered terminal hit (hp 0) procs nothing. Proc-produced damage
+  // never dispatches — the recursion boundary is structural (#89).
+  if (hpDmg > 0 && !battle.tutorial && !ctx.procProduced && p.hp > 0) {
+    lines.push(...runReactiveTriggers(p, battle, rng, { cause: ctx.cause }));
+  }
   return lines;
 }
 
@@ -1711,17 +1712,7 @@ function enemyAct(
     procProduced: false,
     afterSnapshot: true,
   };
-  const hpBefore = p.hp;
   lines.push(...executeSpecs(ctx, move.effects));
-  // Reactive equipment (#82/#89): fires when the wearer actually lost HP
-  // to this enemy action — the direct enemy-action cause. Shield-only
-  // absorbs don't count; periodic ticks scan separately with their own
-  // cause; the scripted tutorial hit never procs (tutorial battles scan
-  // nothing). #86: a fallen wearer procs nothing (Phoenix revival leaves
-  // hp > 0, which still counts — the hit was real HP damage).
-  if (!battle.tutorial && p.hp > 0 && p.hp < hpBefore) {
-    lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'enemyAction' }));
-  }
   return lines;
 }
 
