@@ -431,52 +431,6 @@ export interface FightResult {
   duration1Applied: number;
 }
 
-const STRIKE = /(?:hits|sears) .* for (\d+)/;
-const TAKEN = /— (\d+) damage to you/;
-const CRIT = '— critical';
-const DODGE = 'slip aside';
-const ENEMY_HEAL = /recovers (\d+) HP/;
-const SHIELD_GRANT = /absorbing up to (\d+)/;
-const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
-const SHIELD_WASTE = /(\d+) over capacity/;
-const SHIELD_FADE = /(\d+) shield capacity fades/;
-
-/** Player-cast restore lines (#88): skills log `💚 X restores N HP.` and
- * potions log `🧪 X restores N HP.` — both post-clamp, both "restores".
- * Periodic regen (`recover`) and enemy heals (`recovers`) never match. */
-const HEAL_RESTORED = /restores (\d+) HP\./;
-
-/** Sums the actual applied heal from a round's own lines (#88): a net HP
- * delta cannot separate a heal from same-round damage, and the old
- * cumulative-taken sum over-counted. */
-function healRestored(lines: readonly string[]): number {
-  let sum = 0;
-  for (const line of lines) {
-    const m = HEAL_RESTORED.exec(line);
-    if (m) sum += Number(m[1]);
-  }
-  return sum;
-}
-
-/** Expected heal of a heal-type skill (mirrors combat.ts formulas, #78:
- * read from the ordered restore effect, folded live buffs included). */
-function expectedSkillHeal(p: PlayerState, sk: SkillDef): number {
-  const s = statsOf(p);
-  for (const e of sk.effects) {
-    if (e.kind !== 'restore') continue;
-    if (e.hpFull) return s.maxHp;
-    if (e.hpPctOfMax !== undefined) return Math.floor(s.maxHp * e.hpPctOfMax);
-    if (e.hpPower !== undefined) {
-      const battle = p.battle;
-      const magPct = battle ? statPct(battle, 'player', 'mag') : 0;
-      const sap = battle ? sapPct(battle, 'player') : 0;
-      const mag = Math.max(1, Math.round(s.mag * (1 - sap) * (1 + magPct)));
-      return Math.round(mag * e.hpPower * 2.0 + (e.hpFlat ?? 0));
-    }
-  }
-  return 0;
-}
-
 /** Runs ONE real fight on a cloned hero. Never mutates the passed hero and
  * never bypasses combat: victory routes through resolveVictory, defeat
  * through the lethal-hit path. */
@@ -488,16 +442,12 @@ export function runFight(
   origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
 ): FightResult {
   const p = structuredClone(hero) as PlayerState;
-  // #88: structured telemetry is per-fight — installed BEFORE the opening
-  // (battleStart procs emit) and always detached at the end.
+  // #88/#95: structured telemetry is per-fight — installed BEFORE the
+  // opening (battleStart procs emit) and ALWAYS detached in the finally:
+  // battle construction, policy selection, action resolution and
+  // aggregation can all throw without leaking the collector.
   const events: CombatEvent[] = [];
   setCombatTelemetry((e) => events.push(e));
-  // #80: the harness constructs battles through the SAME opening pipeline
-  // as live play — full hero context, seeded rng.
-  const started = startBattle(enemyId, origin, { player: p, rng });
-  if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
-  const b = started.battle;
-  p.battle = b;
   let rounds = 0;
   let lastWasGuard = false;
   const seenIids = new Set<string>();
@@ -546,175 +496,177 @@ export function runFight(
     procHits: 0,
     duration1Applied: 0,
   };
-  /** Line-metric scan (#74 regexes) — now also fed the resolved opening
-   * log ONCE per fight (#84): opening shields/damage are outcomes of the
-   * fight and must count toward grant/absorb/contribution metrics. */
-  const scanLines = (lines: readonly string[]): void => {
-    for (const line of lines) {
-      const strike = STRIKE.exec(line);
-      if (strike) result.dealt += Number(strike[1]);
-      const taken = TAKEN.exec(line);
-      if (taken) result.taken += Number(taken[1]);
-      if (line.includes(CRIT)) result.crits++;
-      if (line.includes(DODGE)) result.dodges++;
-      const eh = ENEMY_HEAL.exec(line);
-      if (eh) result.dealt -= Number(eh[1]);
-      const granted = SHIELD_GRANT.exec(line);
-      if (granted) result.shieldGranted += Number(granted[1]);
-      const absorbed = SHIELD_ABSORB.exec(line);
-      if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
-      const wasted = SHIELD_WASTE.exec(line);
-      if (wasted) result.shieldWasted += Number(wasted[1]);
-      const faded = SHIELD_FADE.exec(line);
-      if (faded) result.shieldExpiryLost += Number(faded[1]);
-      // ⚡-prefixed lines are reactive equipment procs (#82).
-      if (line.startsWith('⚡ ')) result.equipProcs++;
-    }
-  };
-  /** Round-line scan (#88): only per-event regexes remain — dealt/taken/
-   * heals now come from per-round HP deltas, so strike/DoT/heal text can
-   * never double-count or miss (DoT lines never matched the strike
-   * regexes). Shield grant/absorb/waste/fade stay line-parsed: that
-   * decomposition isn't recoverable from HP deltas. */
-  const scanRoundLines = (lines: readonly string[]): void => {
-    for (const line of lines) {
-      if (line.includes(CRIT)) result.crits++;
-      if (line.includes(DODGE)) result.dodges++;
-      const granted = SHIELD_GRANT.exec(line);
-      if (granted) result.shieldGranted += Number(granted[1]);
-      const absorbed = SHIELD_ABSORB.exec(line);
-      if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
-      const wasted = SHIELD_WASTE.exec(line);
-      if (wasted) result.shieldWasted += Number(wasted[1]);
-      const faded = SHIELD_FADE.exec(line);
-      if (faded) result.shieldExpiryLost += Number(faded[1]);
-      // ⚡-prefixed lines are reactive equipment procs (#82).
-      if (line.startsWith('⚡ ')) result.equipProcs++;
-    }
-  };
-  if (b.opening?.lines.length) scanLines(b.opening.lines);
-  // #96: the opening's explicit adjudication — a terminal opening ends the
-  // fight before round 1; victory still routes through resolveVictory.
-  if (started.outcome === 'victory') {
-    resolveVictory(p, b, rng);
-    result.outcome = 'win';
-  } else if (started.outcome === 'defeat') {
-    result.outcome = 'lose';
-  }
-  while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
-    // #84: sample live instances BEFORE acting — opening effects surface on
-    // round 1, uptime counts observed rounds, applications count new iids.
-    for (const i of b.effectInstances) {
-      const key = `${i.side}:${i.defId}`;
-      result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
-      if (!seenIids.has(i.iid)) {
-        seenIids.add(i.iid);
-        result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
-        result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
+  try {
+    // #80: the harness constructs battles through the SAME opening pipeline
+    // as live play — full hero context, seeded rng.
+    const started = startBattle(enemyId, origin, { player: p, rng });
+    if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
+    const b = started.battle;
+    p.battle = b;
+    // Line metric regexes (#84): only presentation the events cannot express
+    // — crit/dodge markers and the shield grant/absorb/waste/fade
+    // decomposition. #95: dealt/taken/heals come ONLY from typed events.
+    const CRIT = '— critical';
+    const DODGE = 'slip aside';
+    const SHIELD_GRANT = /absorbing up to (\d+)/;
+    const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
+    const SHIELD_WASTE = /(\d+) over capacity/;
+    const SHIELD_FADE = /(\d+) shield capacity fades/;
+    /** Line-metric scan (#74 regexes) — now also fed the resolved opening
+     * log ONCE per fight (#84): opening shields are outcomes of the fight
+     * and must count toward grant/absorb metrics. #95: dealt/taken/heals
+     * come ONLY from typed events — never from presentation text. */
+    const scanLines = (lines: readonly string[]): void => {
+      for (const line of lines) {
+        if (line.includes(CRIT)) result.crits++;
+        if (line.includes(DODGE)) result.dodges++;
+        const granted = SHIELD_GRANT.exec(line);
+        if (granted) result.shieldGranted += Number(granted[1]);
+        const absorbed = SHIELD_ABSORB.exec(line);
+        if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
+        const wasted = SHIELD_WASTE.exec(line);
+        if (wasted) result.shieldWasted += Number(wasted[1]);
+        const faded = SHIELD_FADE.exec(line);
+        if (faded) result.shieldExpiryLost += Number(faded[1]);
+        // ⚡-prefixed lines are reactive equipment procs (#82).
+        if (line.startsWith('⚡ ')) result.equipProcs++;
       }
-    }
-    const action = chooseAction(p, b, policy, lastWasGuard);
-    lastWasGuard = action.kind === 'guard';
-    const hpBefore = p.hp;
-    const ehpBefore = b.enemy.hp;
-    const mpBefore = p.mp;
-    const res = performAction(p, b, action, rng);
-    rounds++;
-    // #88: per-round HP deltas — dealt/taken now include periodic ticks
-    // and post-shield HP damage exactly once by construction, immune to
-    // log-line formats. A net enemy heal shows as negative dealt,
-    // preserving the old heal-subtraction semantics.
-    result.dealt += ehpBefore - b.enemy.hp;
-    const takenThisRound = hpBefore - p.hp;
-    result.taken += takenThisRound;
-    if (res.skipped) result.skippedRounds++;
-    if (!res.consumedTurn) result.invalidActions++;
-    result.mpSpent += Math.max(0, mpBefore - p.mp);
-    if (action.kind === 'skill' && res.consumedTurn) {
-      result.skillCasts[action.skillId] = (result.skillCasts[action.skillId] ?? 0) + 1;
-      const cast = skillDef(action.skillId);
-      if (cast) {
-        if (isBuffSkill(cast)) result.buffCasts++;
-        if (isShieldSkill(cast)) result.shieldCasts++;
-        if (isDotSkill(cast)) result.dotCasts++;
-        if (isPureDebuffSkill(cast)) result.debuffCasts++;
-        if (isCleanseSkill(cast)) result.cleanseCasts++;
-        if (isDispelSkill(cast)) result.dispelCasts++;
+    };
+    /** Round-line scan (#88): only per-event regexes remain — dealt/taken/
+     * heals now come from per-round HP deltas, so strike/DoT/heal text can
+     * never double-count or miss (DoT lines never matched the strike
+     * regexes). Shield grant/absorb/waste/fade stay line-parsed: that
+     * decomposition isn't recoverable from HP deltas. */
+    const scanRoundLines = (lines: readonly string[]): void => {
+      for (const line of lines) {
+        if (line.includes(CRIT)) result.crits++;
+        if (line.includes(DODGE)) result.dodges++;
+        const granted = SHIELD_GRANT.exec(line);
+        if (granted) result.shieldGranted += Number(granted[1]);
+        const absorbed = SHIELD_ABSORB.exec(line);
+        if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
+        const wasted = SHIELD_WASTE.exec(line);
+        if (wasted) result.shieldWasted += Number(wasted[1]);
+        const faded = SHIELD_FADE.exec(line);
+        if (faded) result.shieldExpiryLost += Number(faded[1]);
+        // ⚡-prefixed lines are reactive equipment procs (#82).
+        if (line.startsWith('⚡ ')) result.equipProcs++;
       }
-    }
-    scanRoundLines(res.lines);
-    if (action.kind === 'guard') {
-      result.guardRounds++;
-      result.mpFromGuard += Math.max(0, p.mp - mpBefore);
-    }
-    if (action.kind === 'item') result.itemsUsed++;
-    // Heals (#88): counted from the engine's OWN post-clamp restore lines
-    // for this round — see healRestored. Overheal compares against the
-    // formulaic expectation.
-    if (action.kind === 'skill') {
-      const sk = skillDef(action.skillId);
-      if (sk && isHealSkill(sk)) {
-        const applied = healRestored(res.lines);
-        result.healDone += applied;
-        result.overheal += Math.max(0, expectedSkillHeal(p, sk) - applied);
-      }
-    } else if (action.kind === 'item') {
-      const eff = itemDef(action.itemId)?.effect;
-      if (eff?.healHp) {
-        const applied = healRestored(res.lines);
-        result.healDone += applied;
-        result.overheal += Math.max(0, eff.healHp - applied);
-      }
-    }
-    // #86: the engine's explicit terminal adjudication — shared with the
-    // live handler and the tutorial (one outcome authority).
-    if (res.outcome === 'victory') {
+    };
+    if (b.opening?.lines.length) scanLines(b.opening.lines);
+    // #96: the opening's explicit adjudication — a terminal opening ends the
+    // fight before round 1; victory still routes through resolveVictory.
+    if (started.outcome === 'victory') {
       resolveVictory(p, b, rng);
       result.outcome = 'win';
-      break;
-    }
-    if (res.outcome === 'defeat') {
+    } else if (started.outcome === 'defeat') {
       result.outcome = 'lose';
-      break;
     }
-  }
-  setCombatTelemetry(null);
-  // #88: typed-event aggregation — replacement-free sums from structured
-  // engine events (never parsed back out of presentation text).
-  for (const e of events) {
-    switch (e.kind) {
-      case 'periodicTick':
-        if (e.applied < 0) {
-          if (e.side === 'enemy') result.dotDealt += -e.applied;
-          else result.dotTaken += -e.applied;
-        } else if (e.side === 'player') {
-          result.hotHealing += e.applied;
-          result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
+    while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
+      // #84: sample live instances BEFORE acting — opening effects surface on
+      // round 1, uptime counts observed rounds, applications count new iids.
+      for (const i of b.effectInstances) {
+        const key = `${i.side}:${i.defId}`;
+        result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
+        if (!seenIids.has(i.iid)) {
+          seenIids.add(i.iid);
+          result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
+          result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
         }
-        break;
-      case 'effectRemoved':
-        if (e.cause === 'expired') result.expiredRemovals++;
-        else if (e.cause === 'cleansed') result.cleanseRemovals++;
-        else if (e.cause === 'dispelled') result.dispelRemovals++;
-        else result.consumedRemovals++;
-        break;
-      case 'shieldBreak':
-        result.shieldBreaks++;
-        break;
-      case 'procAttempt':
-        result.procAttempts++;
-        if (e.success) result.procHits++;
-        break;
-      case 'effectApplied':
-        // #93: only outcomes that activate a payload count as applications
-        // — extended/ignored recasts report the RETAINED instance.
-        if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
-          if (e.duration === 1) result.duration1Applied++;
+      }
+      const action = chooseAction(p, b, policy, lastWasGuard);
+      lastWasGuard = action.kind === 'guard';
+      const mpBefore = p.mp;
+      const res = performAction(p, b, action, rng);
+      rounds++;
+      if (res.skipped) result.skippedRounds++;
+      if (!res.consumedTurn) result.invalidActions++;
+      result.mpSpent += Math.max(0, mpBefore - p.mp);
+      if (action.kind === 'skill' && res.consumedTurn) {
+        result.skillCasts[action.skillId] = (result.skillCasts[action.skillId] ?? 0) + 1;
+        const cast = skillDef(action.skillId);
+        if (cast) {
+          if (isBuffSkill(cast)) result.buffCasts++;
+          if (isShieldSkill(cast)) result.shieldCasts++;
+          if (isDotSkill(cast)) result.dotCasts++;
+          if (isPureDebuffSkill(cast)) result.debuffCasts++;
+          if (isCleanseSkill(cast)) result.cleanseCasts++;
+          if (isDispelSkill(cast)) result.dispelCasts++;
         }
+      }
+      scanRoundLines(res.lines);
+      if (action.kind === 'guard') {
+        result.guardRounds++;
+        result.mpFromGuard += Math.max(0, p.mp - mpBefore);
+      }
+      if (action.kind === 'item') result.itemsUsed++;
+      // #86: the engine's explicit terminal adjudication — shared with the
+      // live handler and the tutorial (one outcome authority).
+      if (res.outcome === 'victory') {
+        resolveVictory(p, b, rng);
+        result.outcome = 'win';
         break;
-      default:
+      }
+      if (res.outcome === 'defeat') {
+        result.outcome = 'lose';
         break;
+      }
     }
+    // #88/#95: typed-event aggregation — replacement-free sums from
+    // structured engine events (never parsed back out of presentation text).
+    // dealt/taken are GROSS per-event HP damage: enemy heals and lifesteal
+    // no longer subtract from damage dealt, and a same-round heal can never
+    // erase or invert damage taken.
+    for (const e of events) {
+      switch (e.kind) {
+        case 'hpDamaged':
+          if (e.target === 'enemy') result.dealt += e.amount;
+          else result.taken += e.amount;
+          break;
+        case 'hpRestored':
+          // Healing done / overheal for the hero (side player). applied is
+          // the post-clamp delta; attempted − applied is the overflow the
+          // target's full HP trimmed.
+          if (e.side === 'player') {
+            result.healDone += e.applied;
+            result.overheal += Math.max(0, e.attempted - e.applied);
+          }
+          break;
+        case 'periodicTick':
+          if (e.applied < 0) {
+            if (e.side === 'enemy') result.dotDealt += -e.applied;
+            else result.dotTaken += -e.applied;
+          } else if (e.side === 'player') {
+            result.hotHealing += e.applied;
+            result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
+          }
+          break;
+        case 'effectRemoved':
+          if (e.cause === 'expired') result.expiredRemovals++;
+          else if (e.cause === 'cleansed') result.cleanseRemovals++;
+          else if (e.cause === 'dispelled') result.dispelRemovals++;
+          else result.consumedRemovals++;
+          break;
+        case 'shieldBreak':
+          result.shieldBreaks++;
+          break;
+        case 'procAttempt':
+          result.procAttempts++;
+          if (e.success) result.procHits++;
+          break;
+        case 'effectApplied':
+          // #93: only outcomes that activate a payload count as applications
+          // — extended/ignored recasts report the RETAINED instance.
+          if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
+            if (e.duration === 1) result.duration1Applied++;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  } finally {
+    setCombatTelemetry(null);
   }
   if (result.outcome === 'timeout') result.outcome = 'timeout';
   const s = statsOf(p);

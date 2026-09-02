@@ -35,6 +35,10 @@ export type DamageCause =
   | 'proc'
   | 'reflect';
 
+/** #95: what produced an HP restoration — the DamageCause family plus the
+ * item channel (out-of-battle-shaped consumable heals). */
+export type RestoreCause = DamageCause | 'item';
+
 export type CombatEvent =
   | {
     kind: 'effectApplied';
@@ -95,6 +99,18 @@ export type CombatEvent =
      * equipment (#89). */
     procProduced: boolean;
   }
+  | {
+    kind: 'hpRestored';
+    round: number;
+    side: CombatSide;
+    source: string;
+    cause: RestoreCause;
+    /** The formulaic heal before clamping (#95). */
+    attempted: number;
+    /** What actually landed after the max-HP clamp — the gap is
+     * OVERHEAL, never phantom applied healing. */
+    applied: number;
+  }
   | { kind: 'terminal'; round: number; outcome: 'victory' | 'defeat' };
 
 let sink: ((e: CombatEvent) => void) | null = null;
@@ -108,4 +124,10 @@ export function setCombatTelemetry(fn: ((e: CombatEvent) => void) | null): void 
 /** Engine-internal emission point — a no-op without a sink. */
 export function emitCombatEvent(e: CombatEvent): void {
   if (sink) sink(e);
+}
+
+/** Test hook (#95): true while a sink is still installed — collectors
+ * must be detached in a finally, never leaked on a throw. */
+export function isCombatTelemetryAttached(): boolean {
+  return sink !== null;
 }

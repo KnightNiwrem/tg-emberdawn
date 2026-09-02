@@ -1430,7 +1430,10 @@ function applyDamageEffect(
   return lines;
 }
 
-/** One restore effect: MAG-scaled, flat, max-HP-fraction or full. */
+/** One restore effect: MAG-scaled, flat, max-HP-fraction or full. #95:
+ * the line AND the typed hpRestored event report the APPLIED delta —
+ * overflow above the target's max is overheal, never phantom applied
+ * healing in copy or metrics. */
 function applyRestoreEffect(
   ctx: ExecCtx,
   spec: Extract<EffectSpec, { kind: 'restore' }>,
@@ -1438,23 +1441,37 @@ function applyRestoreEffect(
 ): string[] {
   const { p, battle } = ctx;
   const lines: string[] = [];
+  const source = `${ctx.source.kind}:${ctx.source.name}`;
   if (side === 'player') {
     const max = statsOf(p).maxHp;
-    let heal = 0;
-    if (spec.hpFull) heal = max;
-    else if (spec.hpPctOfMax !== undefined) heal = Math.floor(max * spec.hpPctOfMax);
+    let attempted = 0;
+    if (spec.hpFull) attempted = max;
+    else if (spec.hpPctOfMax !== undefined) attempted = Math.floor(max * spec.hpPctOfMax);
     else if (spec.hpPower !== undefined) {
-      heal = Math.round(playerOffense(p, battle, 'mag') * spec.hpPower * 2.0 + (spec.hpFlat ?? 0));
+      attempted = Math.round(
+        playerOffense(p, battle, 'mag') * spec.hpPower * 2.0 + (spec.hpFlat ?? 0),
+      );
     }
-    // Full restores announce even at full HP (Miracle parity); computed
-    // heals show their formulaic amount, clamped on apply (#78).
-    if (spec.hpFull || heal > 0) {
-      p.hp = Math.min(max, p.hp + heal);
+    // Full restores announce even at full HP (Miracle parity) — with the
+    // applied amount, which is honestly 0 there.
+    if (spec.hpFull || attempted > 0) {
+      const before = p.hp;
+      p.hp = Math.min(max, p.hp + attempted);
+      const applied = p.hp - before;
+      emitCombatEvent({
+        kind: 'hpRestored',
+        round: battle.round,
+        side,
+        source,
+        cause: ctx.cause,
+        attempted,
+        applied,
+      });
       lines.push(
-        spec.line?.replace('{n}', String(heal)) ??
+        spec.line?.replace('{n}', String(applied)) ??
           (ctx.actor === 'enemy'
-            ? `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${heal} HP!`
-            : `💚 ${ctx.displayName} restores ${heal} HP.`),
+            ? `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${applied} HP!`
+            : `💚 ${ctx.displayName} restores ${applied} HP.`),
       );
     }
     if (spec.mpPctOfMax) {
@@ -1465,14 +1482,25 @@ function applyRestoreEffect(
     }
   } else {
     const max = battle.enemy.maxHp;
-    let heal = 0;
-    if (spec.hpFull) heal = max - battle.enemy.hp;
-    else if (spec.hpPctOfMax !== undefined) heal = Math.floor(max * spec.hpPctOfMax);
-    if (heal > 0) {
-      battle.enemy.hp = Math.min(max, battle.enemy.hp + heal);
+    let attempted = 0;
+    if (spec.hpFull) attempted = max - battle.enemy.hp;
+    else if (spec.hpPctOfMax !== undefined) attempted = Math.floor(max * spec.hpPctOfMax);
+    if (attempted > 0) {
+      const before = battle.enemy.hp;
+      battle.enemy.hp = Math.min(max, battle.enemy.hp + attempted);
+      const applied = battle.enemy.hp - before;
+      emitCombatEvent({
+        kind: 'hpRestored',
+        round: battle.round,
+        side,
+        source,
+        cause: ctx.cause,
+        attempted,
+        applied,
+      });
       lines.push(
-        spec.line?.replace('{n}', String(heal)) ??
-          `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${heal} HP!`,
+        spec.line?.replace('{n}', String(applied)) ??
+          `💚 ${battle.enemy.name} uses ${ctx.displayName} and recovers ${applied} HP!`,
       );
     }
   }
@@ -1653,6 +1681,15 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
   if (eff.healHp) {
     const before = p.hp;
     p.hp = Math.min(s.maxHp, p.hp + eff.healHp);
+    emitCombatEvent({
+      kind: 'hpRestored',
+      round: p.battle?.round ?? 1,
+      side: 'player',
+      source: `item:${itemDef.name}`,
+      cause: 'item',
+      attempted: eff.healHp,
+      applied: p.hp - before,
+    });
     lines.push(`🧪 ${itemDef.name} restores ${p.hp - before} HP.`);
   }
   if (eff.healMp) {
