@@ -41,7 +41,7 @@ import {
   skillHealPower,
   skillMaxDamagePower,
 } from '../content/skills.ts';
-import { hasLiveFromSource, sapPct, statPct } from './effects.ts';
+import { hasLiveFromSource } from './effects.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
 import { type CombatTraceEntry } from './telemetry.ts';
