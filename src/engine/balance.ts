@@ -617,12 +617,14 @@ export function runFight(
     // structured engine events (never parsed back out of presentation text).
     // dealt/taken are GROSS per-event HP damage: enemy heals and lifesteal
     // no longer subtract from damage dealt, and a same-round heal can never
-    // erase or invert damage taken.
+    // erase or invert damage taken. #106: they sum `hpLost` — the actual
+    // HP delta every damage family reports — so overkill (a 157 resolved
+    // blow onto a 1-HP target) contributes exactly 1, never the formula.
     for (const e of events) {
       switch (e.kind) {
         case 'hpDamaged':
-          if (e.target === 'enemy') result.dealt += e.amount;
-          else result.taken += e.amount;
+          if (e.target === 'enemy') result.dealt += e.hpLost;
+          else result.taken += e.hpLost;
           break;
         case 'hpRestored':
           // Healing done / overheal for the hero (side player). applied is

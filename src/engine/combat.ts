@@ -651,7 +651,8 @@ function tutorialEnemyFloor(b: BattleState): number {
 /** The ONE synchronous player-targeted HP-loss transition (#104): every
  * damage family — direct, opening, periodic, bypass-shield, self/recoil,
  * proc-produced — runs this explicit order after its own shield/HP formula:
- *   2. the hpDamaged trace (shield-only absorbs emit nothing — #89);
+ *   2. the hpDamaged trace (#106: resolved blow + actual hpLost;
+ *      shield-only absorbs emit nothing — #89);
  *   3. at 0 HP, the single immediate lethal-hit/revival interception;
  *   4. still 0 ⇒ terminal — nothing later resolves: no reactions, no
  *      riders, no bookkeeping (the caller's terminal checks adjudicate);
@@ -668,8 +669,10 @@ function resolvePlayerHpLoss(
   battle: BattleState,
   rng: Rng | undefined,
   loss: {
+    /** The resolved blow: post-mitigation, post-shield, pre-floor (#106). */
+    resolved: number;
     /** HP that actually left the player (post-shield, post-floor). */
-    hpDmg: number;
+    hpLost: number;
     attacker: 'player' | 'enemy' | null;
     cause: DamageCause;
     procProduced: boolean;
@@ -677,20 +680,21 @@ function resolvePlayerHpLoss(
   },
   lines: string[],
 ): 'ongoing' | 'terminal' {
-  if (loss.hpDmg > 0) {
+  if (loss.hpLost > 0) {
     recordCombatEvent(loss.trace, {
       kind: 'hpDamaged',
       round: battle.round,
       cause: loss.cause,
       attacker: loss.attacker,
       target: 'player',
-      amount: loss.hpDmg,
+      resolved: loss.resolved,
+      hpLost: loss.hpLost,
       procProduced: loss.procProduced,
     });
   }
   if (p.hp <= 0) lines.push(...onLethalHit(p, battle, loss.trace));
   if (p.hp <= 0) return 'terminal';
-  if (loss.hpDmg > 0 && !battle.tutorial && !loss.procProduced && rng) {
+  if (loss.hpLost > 0 && !battle.tutorial && !loss.procProduced && rng) {
     lines.push(
       ...runReactiveTriggers(p, battle, rng, { cause: loss.cause }, true, loss.trace),
     );
@@ -878,7 +882,8 @@ export function performAction(
       // reactions); its floor keeps the hero above 0, so the interception
       // never fires — and tutorial fights never scan reactions.
       resolvePlayerHpLoss(p, battle, rng, {
-        hpDmg: dmg,
+        resolved: dmg,
+        hpLost: dmg,
         attacker: 'enemy',
         cause: 'enemyAction',
         procProduced: false,
@@ -1025,7 +1030,8 @@ function applyPeriodicTick(
     );
     if (broke) lines.push('🛡️ Your shield shatters!');
     resolvePlayerHpLoss(p, battle, rng, {
-      hpDmg: hpBefore - p.hp,
+      resolved: hpDmg,
+      hpLost: hpBefore - p.hp,
       attacker: null,
       cause: 'periodic',
       procProduced: false,
@@ -1053,7 +1059,10 @@ function applyPeriodicTick(
         cause: 'periodic',
         attacker: null,
         target: 'enemy',
-        amount: hpBefore - battle.enemy.hp,
+        // #106: the resolved tick (post-shield, pre-floor) plus the actual
+        // HP delta — overkill never inflates hpLost.
+        resolved: hpDmg,
+        hpLost: hpBefore - battle.enemy.hp,
         procProduced: false,
       });
     }
@@ -1204,17 +1213,44 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
       case 'lifesteal': {
         // Lifesteal always feeds the CASTER (#78) — enemy-side drains heal
         // the enemy (#83: first enemy-side user is the Marsh Leech's Drain).
+        // #106: like every restoration, the formulaic drain is `attempted`
+        // and the max-HP-clamped delta is `applied` — the typed hpRestored
+        // entry carries both, and the line reports the APPLIED amount,
+        // never the formula.
         if (ctx.lastDamage > 0) {
-          const heal = Math.floor(ctx.lastDamage * spec.pct);
-          if (heal > 0) {
+          const attempted = Math.floor(ctx.lastDamage * spec.pct);
+          if (attempted > 0) {
+            const source = `${ctx.source.kind}:${ctx.source.name}`;
             if (ctx.actor === 'player') {
               const max = statsOf(ctx.p).maxHp;
-              ctx.p.hp = Math.min(max, ctx.p.hp + heal);
-              lines.push(`🩸 You drain ${heal} HP.`);
+              const before = ctx.p.hp;
+              ctx.p.hp = Math.min(max, ctx.p.hp + attempted);
+              const applied = ctx.p.hp - before;
+              recordCombatEvent(ctx.trace, {
+                kind: 'hpRestored',
+                round: ctx.battle.round,
+                side: 'player',
+                source,
+                cause: ctx.cause,
+                attempted,
+                applied,
+              });
+              lines.push(`🩸 You drain ${applied} HP.`);
             } else {
               const maxHp = ctx.battle.enemy.maxHp;
-              ctx.battle.enemy.hp = Math.min(maxHp, ctx.battle.enemy.hp + heal);
-              lines.push(`🩸 ${ctx.battle.enemy.name} drains ${heal} HP from you!`);
+              const before = ctx.battle.enemy.hp;
+              ctx.battle.enemy.hp = Math.min(maxHp, ctx.battle.enemy.hp + attempted);
+              const applied = ctx.battle.enemy.hp - before;
+              recordCombatEvent(ctx.trace, {
+                kind: 'hpRestored',
+                round: ctx.battle.round,
+                side: 'enemy',
+                source,
+                cause: ctx.cause,
+                attempted,
+                applied,
+              });
+              lines.push(`🩸 ${ctx.battle.enemy.name} drains ${applied} HP from you!`);
             }
           }
         }
@@ -1458,20 +1494,26 @@ function applyDamageEffect(
     // of reaching a terminal transition (never a post-zero revival).
     const floor = tutorialEnemyFloor(battle);
     const wouldFell = battle.enemy.hp - hpDmg <= 0;
+    const hpBefore = battle.enemy.hp;
     battle.enemy.hp = Math.max(floor, battle.enemy.hp - hpDmg);
+    // #106: the actual HP delta, capped by available HP (and the tutorial
+    // floor) — overkill is visible in `resolved`, never in `hpLost`.
+    const hpLost = hpBefore - battle.enemy.hp;
     ctx.lastDamage = dealt.dmg;
     ctx.hpDamaged = hpDmg > 0;
     ctx.targetFelled = battle.enemy.hp <= 0;
     // #89: structured HP-damage provenance — shield-only absorbs emit
-    // nothing.
-    if (hpDmg > 0) {
+    // nothing. #106: the entry carries BOTH the resolved blow and the
+    // applied HP loss; the two diverge exactly on overkill.
+    if (hpLost > 0) {
       recordCombatEvent(ctx.trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: ctx.cause,
         attacker: 'player',
         target: 'enemy',
-        amount: hpDmg,
+        resolved: hpDmg,
+        hpLost,
         procProduced: ctx.procProduced,
       });
     }
@@ -1513,6 +1555,7 @@ function applyDamageEffect(
     hpDmg = a.hpDamage;
     broke = a.broke;
   }
+  const hpBefore = p.hp;
   p.hp = Math.max(0, p.hp - hpDmg);
   ctx.lastDamage = dmg;
   ctx.hpDamaged = hpDmg > 0;
@@ -1533,7 +1576,10 @@ function applyDamageEffect(
   // (hp 0) procs nothing. Proc-produced damage never dispatches — the
   // recursion boundary is structural (#89).
   resolvePlayerHpLoss(p, battle, rng, {
-    hpDmg,
+    // #106: the resolved blow AND the actual HP delta — a lethal overkill
+    // records hpLost = the HP the player actually had.
+    resolved: hpDmg,
+    hpLost: hpBefore - p.hp,
     attacker: 'enemy',
     cause: ctx.cause,
     procProduced: ctx.procProduced,

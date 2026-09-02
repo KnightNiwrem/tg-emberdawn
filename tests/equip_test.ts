@@ -529,8 +529,8 @@ Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduce
   assert(by('playerAction', 'enemy').length >= 1, 'the hero strike is provenance-tagged');
   assert(by('periodic', 'enemy').length >= 1, "the proc's bleed tick is provenance-tagged");
   assert(
-    hpEvents.every((e) => e.amount > 0 && e.procProduced === false),
-    'amounts are real post-shield HP loss; no content produces proc-produced damage today',
+    hpEvents.every((e) => e.hpLost > 0 && e.resolved >= e.hpLost && e.procProduced === false),
+    'hpLost is the real applied HP loss (≤ the resolved blow, #106); no content produces proc-produced damage today',
   );
 });
 

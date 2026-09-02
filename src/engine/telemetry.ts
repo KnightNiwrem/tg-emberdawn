@@ -12,7 +12,15 @@
  * order, and concurrent fights each collect their own. Entries are plain
  * data — NEVER persisted (BattleState's saved shape is untouched), never
  * parsed from presentation text, and ignoring them changes nothing: no
- * state, line, outcome or RNG draw depends on recording. */
+ * state, line, outcome or RNG draw depends on recording.
+ *
+ * Applied-HP contract (#106): HP-changing entries distinguish the
+ * FORMULAIC/RESOLVED magnitude from the ACTUAL HP delta. `hpDamaged`
+ * carries `resolved` (post-mitigation, post-shield, pre-floor) and
+ * `hpLost` (the capped beforeHp − afterHp every damage family reports);
+ * `hpRestored`/`revived` carry `attempted` (the formula) and `applied`
+ * (the real delta, overheal = attempted − applied). Metrics that mean
+ * "HP that actually moved" read hpLost/applied, never resolved/attempted. */
 
 import type { EffectSource } from './types.ts';
 
@@ -108,8 +116,17 @@ export type CombatTraceEntry =
     /** Who dealt it (null for environment or self-inflicted causes). */
     attacker: 'player' | 'enemy' | null;
     target: 'player' | 'enemy';
-    /** HP damage after shield absorption. */
-    amount: number;
+    /** #106: the RESOLVED blow — damage after mitigation and shield
+     * absorption, BEFORE the target-HP floor. Overkill included (useful
+     * for combat analysis); never an HP delta. */
+    resolved: number;
+    /** #106: the actual HP the target lost — beforeHp − afterHp, always
+     * capped by available HP. Every damage family (direct, opening,
+     * periodic, bypass-shield, self/recoil, proc) reports this same
+     * meaning, and HP-lost metrics (balance dealt/taken) sum THIS field.
+     * Shield absorption is never counted here. Emitted only when
+     * hpLost > 0 — shield-only absorbs record nothing (#89). */
+    hpLost: number;
     /** Produced inside a reactive-proc resolution — never re-triggers
      * equipment (#89). */
     procProduced: boolean;

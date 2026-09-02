@@ -263,7 +263,11 @@ engine import bans, banned runtime primitives). Do not reinterpret "event", "rea
   - "exploration event" = a data VARIANT selected from content and resolved by a switch;
   - "combat trace" (#101) = plain record entries appended by and returned from the active
     synchronous resolution (`recordCombatEvent` — state changes first, then a plain-data push); no
-    listener registration, no dispatch, no async delivery exists anywhere in the engine.
+    listener registration, no dispatch, no async delivery exists anywhere in the engine. Applied-HP
+    contract (#106): `hpDamaged` carries `resolved` (post-mitigation, post-shield, pre-floor —
+    overkill included) and `hpLost` (the actual capped HP delta every damage family reports);
+    `hpRestored`/`revived` carry `attempted` + `applied`. HP-moved metrics (balance dealt/taken) sum
+    `hpLost`, never `resolved`; lifesteal telemetry and battle text report the applied heal.
 
 ## Adding content (checklist)
 
