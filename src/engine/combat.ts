@@ -648,6 +648,56 @@ function tutorialEnemyFloor(b: BattleState): number {
   return b.tutorial && b.tutorialStep !== 'cleared' ? 1 : 0;
 }
 
+/** The ONE synchronous player-targeted HP-loss transition (#104): every
+ * damage family — direct, opening, periodic, bypass-shield, self/recoil,
+ * proc-produced — runs this explicit order after its own shield/HP formula:
+ *   2. the hpDamaged trace (shield-only absorbs emit nothing — #89);
+ *   3. at 0 HP, the single immediate lethal-hit/revival interception;
+ *   4. still 0 ⇒ terminal — nothing later resolves: no reactions, no
+ *      riders, no bookkeeping (the caller's terminal checks adjudicate);
+ *   5. otherwise the revived survivor's applicable reactive triggers
+ *      dispatch synchronously for THIS event — never in tutorial fights,
+ *      never for proc-produced damage (the recursion bound, #89);
+ *   6. terminal/non-terminal status returns to the caller.
+ * Step 1 (mitigation/ward rules) stays in each family's own resolver, but
+ * everything AFTER the HP delta is shared here, so a lethal hit and a
+ * lethal tick behave identically — same revival order, same reaction
+ * window, same trace shape (#105). */
+function resolvePlayerHpLoss(
+  p: PlayerState,
+  battle: BattleState,
+  rng: Rng | undefined,
+  loss: {
+    /** HP that actually left the player (post-shield, post-floor). */
+    hpDmg: number;
+    attacker: 'player' | 'enemy' | null;
+    cause: DamageCause;
+    procProduced: boolean;
+    trace?: CombatTraceEntry[];
+  },
+  lines: string[],
+): 'ongoing' | 'terminal' {
+  if (loss.hpDmg > 0) {
+    recordCombatEvent(loss.trace, {
+      kind: 'hpDamaged',
+      round: battle.round,
+      cause: loss.cause,
+      attacker: loss.attacker,
+      target: 'player',
+      amount: loss.hpDmg,
+      procProduced: loss.procProduced,
+    });
+  }
+  if (p.hp <= 0) lines.push(...onLethalHit(p, battle, loss.trace));
+  if (p.hp <= 0) return 'terminal';
+  if (loss.hpDmg > 0 && !battle.tutorial && !loss.procProduced && rng) {
+    lines.push(
+      ...runReactiveTriggers(p, battle, rng, { cause: loss.cause }, true, loss.trace),
+    );
+  }
+  return 'ongoing';
+}
+
 /** Validates the queued command WITHOUT charging resources (#86): an
  * invalid command consumes no round, ticks nothing, and never reaches the
  * enemy's slot. Execution re-checks at the player's slot (defense in
@@ -820,18 +870,20 @@ export function performAction(
       const dmg = Math.max(1, p.hp - target);
       p.hp = Math.max(1, p.hp - dmg);
       lines.push(`💥 ${battle.enemy.name} flares with old hearth-fire — ${dmg} damage to you!`);
-      recordCombatEvent(trace, {
-        kind: 'hpDamaged',
-        round: battle.round,
-        cause: 'enemyAction',
-        attacker: 'enemy',
-        target: 'player',
-        amount: dmg,
-        procProduced: false,
-      });
       if (battle.guarding) {
         lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
       }
+      // #104: even the deterministic teaching hit resolves its HP loss
+      // through the shared transition (trace → revival → terminal →
+      // reactions); its floor keeps the hero above 0, so the interception
+      // never fires — and tutorial fights never scan reactions.
+      resolvePlayerHpLoss(p, battle, rng, {
+        hpDmg: dmg,
+        attacker: 'enemy',
+        cause: 'enemyAction',
+        procProduced: false,
+        trace,
+      }, lines);
     } else {
       const move = enemyChooseMove(def, battle, rng);
       lines.push(...enemyAct(p, battle, move, rng, trace));
@@ -945,12 +997,19 @@ function applyPeriodicTick(
   let absorbed = 0;
   let broke = false;
   if (!t.instance.bypassShield) {
-    const a = absorbShield(battle, t.side, dmg);
+    // #105: periodic absorption feeds the same resolution trace as direct
+    // damage — a ward broken by a tick emits its shieldBreak in order.
+    const a = absorbShield(battle, t.side, dmg, trace);
     absorbed = a.absorbed;
     hpDmg = a.hpDamage;
     broke = a.broke;
   }
   if (t.side === 'player') {
+    // #104: the periodic family runs the ONE shared player-targeted HP-loss
+    // transition — trace, then the immediate revival interception, then the
+    // terminal stop, then a revived survivor's reactions — exactly like a
+    // direct hit. #89: periodic HP loss is its own cause — broad onHpDamage
+    // triggers answer it; there is no attacker for the narrow one to blame.
     const hpBefore = p.hp;
     p.hp = Math.max(0, p.hp - hpDmg);
     recordCombatEvent(trace, {
@@ -961,29 +1020,17 @@ function applyPeriodicTick(
       amount: t.amount,
       applied: p.hp - hpBefore,
     });
-    // #89: periodic HP loss is its own cause — broad onHpDamage triggers
-    // answer it; there is no attacker for the narrow one to blame.
-    if (p.hp < hpBefore) {
-      recordCombatEvent(trace, {
-        kind: 'hpDamaged',
-        round: battle.round,
-        cause: 'periodic',
-        attacker: null,
-        target: 'player',
-        amount: hpBefore - p.hp,
-        procProduced: false,
-      });
-      // #97: the authoritative HP-loss event dispatches the wearer's
-      // broad triggers — a fallen wearer procs nothing (#86 parity).
-      if (p.hp > 0 && !battle.tutorial && rng) {
-        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }, true, trace));
-      }
-    }
     lines.push(
       `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
     );
     if (broke) lines.push('🛡️ Your shield shatters!');
-    if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
+    resolvePlayerHpLoss(p, battle, rng, {
+      hpDmg: hpBefore - p.hp,
+      attacker: null,
+      cause: 'periodic',
+      procProduced: false,
+      trace,
+    }, lines);
   } else {
     // #69/#86: the tutorial floor applies to periodic damage too — the
     // fixture can never be felled before its lessons clear.
@@ -1452,34 +1499,28 @@ function applyDamageEffect(
   ctx.lastDamage = dmg;
   ctx.hpDamaged = hpDmg > 0;
   ctx.targetFelled = p.hp <= 0;
-  if (hpDmg > 0) {
-    recordCombatEvent(ctx.trace, {
-      kind: 'hpDamaged',
-      round: battle.round,
-      cause: ctx.cause,
-      attacker: 'enemy',
-      target: 'player',
-      amount: hpDmg,
-      procProduced: ctx.procProduced,
-    });
-  }
   lines.push(
     `💥 ${battle.enemy.name} uses ${ctx.displayName} — ${hpDmg} damage to you!${
       absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
     }`,
   );
   if (broke) lines.push('🛡️ Your shield shatters!');
-  if (p.hp <= 0) lines.push(...onLethalHit(p, battle));
-  // #97: the authoritative HP-loss event dispatches the wearer's triggers
-  // SYNCHRONOUSLY, once per actual HP loss — a two-hit move answers twice,
-  // a damage-then-heal move keeps its damage opportunity, and shield-only
-  // absorption never dispatches. Phoenix revival already ran above, so a
-  // synchronously revived wearer still answers the lethal event; an
-  // unrecovered terminal hit (hp 0) procs nothing. Proc-produced damage
-  // never dispatches — the recursion boundary is structural (#89).
-  if (hpDmg > 0 && !battle.tutorial && !ctx.procProduced && p.hp > 0) {
-    lines.push(...runReactiveTriggers(p, battle, rng, { cause: ctx.cause }, true, ctx.trace));
-  }
+  // #104: the direct family runs the ONE shared player-targeted HP-loss
+  // transition. #97: the authoritative HP-loss event dispatches the
+  // wearer's triggers SYNCHRONOUSLY, once per actual HP loss — a two-hit
+  // move answers twice, a damage-then-heal move keeps its damage
+  // opportunity, and shield-only absorption never dispatches. The revival
+  // interception runs BEFORE the reaction scan, so a synchronously revived
+  // wearer still answers the lethal event; an unrecovered terminal hit
+  // (hp 0) procs nothing. Proc-produced damage never dispatches — the
+  // recursion boundary is structural (#89).
+  resolvePlayerHpLoss(p, battle, rng, {
+    hpDmg,
+    attacker: 'enemy',
+    cause: ctx.cause,
+    procProduced: ctx.procProduced,
+    trace: ctx.trace,
+  }, lines);
   return lines;
 }
 
@@ -1684,7 +1725,7 @@ function applyPlayerAction(
           lines.push('🚫 No smoke clouds this fight — there is no escape.');
           return { lines, consumedTurn: false };
         }
-        const used = consumeItem(p, action.itemId, trace);
+        const used = consumeItem(p, action.itemId, battle, trace);
         if (!used) {
           lines.push('You rummage through your bag and find nothing useful.');
           return { lines, consumedTurn: false };
@@ -1693,7 +1734,7 @@ function applyPlayerAction(
         lines.push(...used, '💨 Smoke floods the field — you slip away safely!');
         return { lines, consumedTurn: true };
       }
-      const consumed = consumeItem(p, action.itemId, trace);
+      const consumed = consumeItem(p, action.itemId, battle, trace);
       if (!consumed) {
         lines.push('You rummage through your bag and find nothing useful.');
         return { lines, consumedTurn: false };
@@ -1728,10 +1769,14 @@ function applyPlayerAction(
   }
 }
 
-/** Consumes a battle-usable item. Caller validates kind. */
+/** Consumes a battle-usable item (#105): the active battle and the
+ * resolution trace arrive EXPLICITLY — never recovered from optional
+ * player state, so round numbers and removal events are exact. Caller
+ * validates kind. */
 function consumeItem(
   p: PlayerState,
   itemId: string,
+  battle: BattleState,
   trace?: CombatTraceEntry[],
 ): string[] | undefined {
   const entry = p.inventory.find((e) => e.id === itemId);
@@ -1746,7 +1791,7 @@ function consumeItem(
     p.hp = Math.min(s.maxHp, p.hp + eff.healHp);
     recordCombatEvent(trace, {
       kind: 'hpRestored',
-      round: p.battle?.round ?? 1,
+      round: battle.round,
       side: 'player',
       source: `item:${itemDef.name}`,
       cause: 'item',
@@ -1763,8 +1808,9 @@ function consumeItem(
   if (eff.cureStatus) {
     // Real tagged cleanse (#78): removes every removable harmful instance —
     // today that is the sapped-strength family; tomorrow it is whatever the
-    // shared vocabulary ships.
-    const removed = p.battle ? removeTagged(p.battle, 'player', ['harmful']) : [];
+    // shared vocabulary ships. #105: each removal records its typed
+    // effectRemoved entry with the real round and cause.
+    const removed = removeTagged(battle, 'player', ['harmful'], undefined, 'cleansed', trace);
     if (removed.length > 0) lines.push(`🧴 ${itemDef.name} cleanses your harmful effects.`);
   }
   entry.qty--;
@@ -1818,15 +1864,31 @@ function enemyAct(
   return lines;
 }
 
-/** Lethal-hit handling: Phoenix Cinder auto-revives ONCE per battle, then
- * defeat stands no matter how many Cinders are left in the bag. */
-export function onLethalHit(p: PlayerState, battle: BattleState): string[] {
+/** Lethal-hit handling (#104): the ONE immediate revival interception.
+ * Phoenix Cinder auto-revives ONCE per battle, then defeat stands no matter
+ * how many Cinders are left in the bag. #105: the transition records a
+ * `revived` trace entry (attempted formula, applied delta) in the same
+ * caller-owned resolution trace — before any later reaction resolves. */
+export function onLethalHit(
+  p: PlayerState,
+  battle: BattleState,
+  trace?: CombatTraceEntry[],
+): string[] {
   const feather = p.inventory.find((e) => e.id === 'c_phoenix_feather');
   if (!feather || battle.phoenixUsed) return [];
   battle.phoenixUsed = true;
   feather.qty--;
   if (feather.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== feather.id);
-  p.hp = Math.floor(statsOf(p).maxHp * 0.5);
+  const attempted = Math.floor(statsOf(p).maxHp * 0.5);
+  const before = p.hp;
+  p.hp = attempted;
+  recordCombatEvent(trace, {
+    kind: 'revived',
+    round: battle.round,
+    source: 'item:Phoenix Cinder',
+    attempted,
+    applied: p.hp - before,
+  });
   return ['🔥 The Phoenix Cinder blazes — you rise again at half health!'];
 }
 

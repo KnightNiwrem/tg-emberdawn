@@ -115,6 +115,18 @@ export type CombatTraceEntry =
      * OVERHEAL, never phantom applied healing. */
     applied: number;
   }
+  | {
+    kind: 'revived';
+    round: number;
+    /** What intercepted the lethal transition — 'item:Phoenix Cinder'
+     * today. The one permitted immediate revival interception (#104). */
+    source: string;
+    /** The formulaic restoration (half max HP for the authored revival). */
+    attempted: number;
+    /** The actual HP delta recorded by the interception — revival runs
+     * from exactly 0, so applied is the restored HP itself. */
+    applied: number;
+  }
   | { kind: 'terminal'; round: number; outcome: 'victory' | 'defeat' };
 
 /** Records one completed state transition (#101): plain data appended to
