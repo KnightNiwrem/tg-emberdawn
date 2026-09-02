@@ -3,11 +3,12 @@
  * report lives in scripts/balance.ts (`deno task balance`); the snapshot is
  * regenerated deliberately with `deno task balance:update`. */
 
-import { assert, assertEquals, assertThrows } from '@std/assert';
+import { assert, assertEquals, assertExists, assertThrows } from '@std/assert';
 import {
   buildSnapshot,
   type CellStat,
   chooseAction,
+  driveQuests,
   dungeonBossSource,
   dungeonFloorsYield,
   eliteShare,
@@ -828,6 +829,11 @@ Deno.test('progression: the full campaign m1→m25 completes for EVERY class (#8
         undefined,
         `${ctx} — campaign stalled; the stuck report names the active quest/gate and objective progress`,
       );
+      assertEquals(
+        rep.stall,
+        undefined,
+        `${ctx} — a completing campaign carries no stall diagnostic (#111)`,
+      );
       assertEquals(rep.campaignDone, true, `${ctx}: every main quest m1→m25 must complete`);
       assert(rep.endLevel >= 40, `${ctx}: endgame pacing collapsed`);
       assert(rep.totalFights <= 12000, `${ctx}: fight count runaway (retry loop?)`);
@@ -849,6 +855,81 @@ Deno.test('progression: the full campaign m1→m25 completes for EVERY class (#8
       }
     }
   }
+});
+
+// ── #111: forced-stall diagnostics ───────────────────────────────────────
+
+Deno.test('progression: a forced stall reports actionable, accurate diagnostics (#111)', () => {
+  // A quest list that can never reach its stop quest: after m1_embers
+  // completes, nothing is available to accept, so the driver grinds until
+  // the guard limit — a deterministic, policy-honest stall whose report
+  // can be asserted field by field. The structured diagnostic is pure
+  // observation: the same seed replays it byte-for-byte.
+  const run = (): ReturnType<typeof driveQuests> =>
+    driveQuests('warrior', 20260902, ['m1_embers'], 'm25_silence');
+  const rep = run();
+  assert(rep.stuck !== undefined, 'the forced stall reports a stuck line');
+  assertExists(rep.stall, 'the stall carries STRUCTURED diagnostics');
+  const s = rep.stall!;
+  // Identity and gate context (class/seed live on the report itself).
+  assertEquals(rep.classId, 'warrior');
+  assertEquals(rep.seed, 20260902);
+  assertEquals(s.quests.length, 1, 'the tracked quest list is complete');
+  assertEquals(s.quests[0]!.id, 'm1_embers');
+  assert(
+    s.quests[0]!.status === 'done' || s.quests[0]!.status === 'active',
+    `the tracked quest shows its real gate status (${s.quests[0]!.status})`,
+  );
+  if (s.quests[0]!.status === 'active') {
+    assertExists(s.quests[0]!.objectives, 'the active quest carries objective progress');
+  }
+  // Progression context, accurate against the report.
+  assertEquals(s.level, rep.endLevel);
+  assert(ZONES.some((z) => z.id === s.zone), 'the stall names a real zone');
+  assert(s.unlockedZones.includes(s.zone), 'the current zone is among the unlocked ones');
+  // Loadout: real ids, consistent tiers, trigger disclosure present.
+  for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+    const id = s.equipment[slot];
+    assert(id === '' || item(id) !== undefined, `${slot} names a real item or is empty`);
+    assertEquals(s.gearTiers[slot], id ? item(id)!.tier : 0, `${slot} tier matches the item`);
+  }
+  assert(
+    s.gearTriggers.every((name) => typeof name === 'string' && name.length > 0),
+    'equipment trigger names are disclosed',
+  );
+  // Resources are bounded and sane.
+  assert(s.hp > 0 && s.hp <= s.maxHp, `hp within bounds (${s.hp}/${s.maxHp})`);
+  assert(s.mp >= 0 && s.mp <= s.maxMp, `mp within bounds (${s.mp}/${s.maxMp})`);
+  assert(s.gold >= 0);
+  assert(s.consumables.every((c) => c.qty > 0), 'consumable quantities are positive');
+  // The final attempt is real and complete.
+  assertExists(s.lastAttempt, 'the final attempted fight is recorded');
+  assert(s.lastAttempt!.enemy.startsWith('e_'), 'the last attempt names an enemy id');
+  assert(
+    ['win', 'death', 'retreat'].includes(s.lastAttempt!.outcome),
+    'the attempt outcome is one of the three real outcomes',
+  );
+  assert(s.lastAttempt!.rounds >= 1 && s.lastAttempt!.rounds <= 200);
+  assert(
+    /^(explore|elite|dungeon)@/.test(s.lastAttempt!.origin),
+    `the origin names the encounter provenance (${s.lastAttempt!.origin})`,
+  );
+  // Retry context: a non-winning final attempt implies a live streak, and
+  // the aggregate failure map is consistent.
+  if (s.lastAttempt!.outcome !== 'win') assert(s.failureStreak >= 1);
+  for (const count of Object.values(s.failures)) assert(count >= 1);
+  // The stuck string is formatted FROM the structured object — spot-check
+  // the key rendered fields.
+  assert(rep.stuck!.includes(`level=${s.level}`));
+  assert(rep.stuck!.includes(`zone=${s.zone}`));
+  assert(rep.stuck!.includes(`last=${s.lastAttempt!.enemy}`));
+  assert(rep.stuck!.includes(`streak=${s.failureStreak}`));
+  assert(rep.stuck!.includes(s.equipment.weapon));
+  // Determinism: the same seed replays the identical diagnostic —
+  // collection neither drifts nor perturbs the run.
+  const again = run();
+  assertEquals(again.stuck, rep.stuck, 'the stall report is deterministic');
+  assertEquals(again.stall, rep.stall, 'the structured diagnostic is deterministic');
 });
 
 // ── #95: typed damage/heal telemetry — metrics never parse copy ──────────

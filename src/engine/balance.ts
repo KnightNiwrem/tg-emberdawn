@@ -1402,6 +1402,59 @@ export interface ProgressionBeat {
   itemsUsed: number;
 }
 
+/** #111: the FINAL attempted fight, bounded to one record — never a
+ * combat log. */
+export interface StallAttempt {
+  enemy: string;
+  /** `explore@zone`, `elite@zone`, `dungeon@zone:floorN[:boss]` — the
+   * encounter provenance that produced the fight. */
+  origin: string;
+  outcome: 'win' | 'death' | 'retreat';
+  rounds: number;
+}
+
+/** #111: one tracked quest's gate context at stall time — the active quest
+ * additionally carries its objective progress (have/need per objective). */
+export interface StallQuest {
+  id: string;
+  status: string;
+  objectives?: { kind: string; target: string; have: number; need: number }[];
+}
+
+/** #111: a compact, structured picture of WHERE and HOW a run stalled —
+ * the loadout, resources, last attempted fight and failure context an
+ * implementor needs to distinguish a tuning problem from a policy bug,
+ * a quest-gate bug or resource starvation. Purely observational: collected
+ * alongside the run, never read back by policy, and never altering RNG
+ * draws, combat state or persistence. Bounded: the final attempt plus
+ * aggregate failure counts, never a combat log. */
+export interface StallDiagnostic {
+  level: number;
+  zone: string;
+  unlockedZones: string[];
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+  gold: number;
+  /** Equipped item ids — '' when the slot is empty. */
+  equipment: { weapon: string; armor: string; trinket: string };
+  /** Tier of each equipped piece (0 = empty/special). */
+  gearTiers: { weapon: number; armor: number; trinket: number };
+  /** Reactive trigger names on the equipped pieces (#82) — the equipment
+   * effects that shape combat outcomes. */
+  gearTriggers: string[];
+  consumables: { id: string; qty: number }[];
+  /** Every tracked quest with its gate status; the active quest carries
+   * objective progress. */
+  quests: StallQuest[];
+  lastAttempt?: StallAttempt;
+  /** Consecutive non-win outcomes against the same enemy (0 after a win). */
+  failureStreak: number;
+  /** Aggregate non-win outcomes per enemy id — the whole-run retry map. */
+  failures: Record<string, number>;
+}
+
 export interface ProgressionReport {
   classId: ClassId;
   seed: number;
@@ -1427,6 +1480,9 @@ export interface ProgressionReport {
   aranyaGearTier: number;
   aranyaDeathsBefore: number;
   stuck?: string;
+  /** #111: the structured stall diagnostic — present exactly when `stuck`
+   * is; the string below is formatted FROM this object. */
+  stall?: StallDiagnostic;
 }
 
 const CH1 = [
@@ -1459,9 +1515,39 @@ export function simulateCampaign(classId: ClassId, seed: number): ProgressionRep
   return driveQuests(classId, seed, ALL_MAINS, ALL_MAINS[ALL_MAINS.length - 1]!);
 }
 
+/** #111: the human-readable stall line, formatted FROM the structured
+ * diagnostic — the report string and the data can never drift, and future
+ * fields stay testable through the object. Bounded: the tracked quests and
+ * the aggregate failure map are finite by construction. */
+function formatStallReport(stall: StallDiagnostic): string {
+  const active = stall.quests.find((q) => q.status === 'active');
+  const detail = active?.objectives
+    ? ` active=${active.id}[${
+      active.objectives.map((o) => `${o.kind}:${o.target}:${o.have}/${o.need}`).join(', ')
+    }]`
+    : ' no-active';
+  const pending = stall.quests.filter((q) => q.status !== 'done').slice(0, 8)
+    .map((q) => `${q.id}:${q.status}`).join(' ');
+  const gear =
+    `weapon=${stall.equipment.weapon}(t${stall.gearTiers.weapon}) armor=${stall.equipment.armor}(t${stall.gearTiers.armor}) trinket=${stall.equipment.trinket}(t${stall.gearTiers.trinket})`;
+  const last = stall.lastAttempt
+    ? ` last=${stall.lastAttempt.enemy}(${stall.lastAttempt.origin} ${stall.lastAttempt.outcome} ${stall.lastAttempt.rounds}r) streak=${stall.failureStreak}`
+    : ' last=none streak=0';
+  return `guard limit reached level=${stall.level} ` +
+    `hp=${stall.hp}/${stall.maxHp} mp=${stall.mp}/${stall.maxMp} gold=${stall.gold} ` +
+    `zone=${stall.zone} zones=[${stall.unlockedZones.join(',')}] ` +
+    `pending=[${pending}]${detail} ` +
+    `gear[${gear}] triggers=[${stall.gearTriggers.join(',')}] ` +
+    `consumables=[${stall.consumables.map((c) => `${c.id}x${c.qty}`).join(',')}]` +
+    `${last} failures={${Object.entries(stall.failures).map(([k, v]) => `${k}:${v}`).join(',')}}`;
+}
+
 /** Drives a quest list from a fresh post-prologue hero to `stopQuest`
- * completion (#88: generalized from the chapter-one driver). */
-function driveQuests(
+ * completion (#88: generalized from the chapter-one driver). Exported for
+ * diagnostics testing (#111): a list whose stop quest is unreachable
+ * forces a deterministic stall whose report can be asserted field by
+ * field. */
+export function driveQuests(
   classId: ClassId,
   seed: number,
   quests: readonly string[],
@@ -1506,12 +1592,26 @@ function driveQuests(
    * `kind` separates quest-driven fights from pure level grinding (#74):
    * the report names both, because conflating them hid a 300-fight
    * collection jump behind a small "grind" number. */
+  const originLabel = (b: BattleState): string => {
+    const o = b.origin;
+    if (o.kind === 'dungeon') {
+      return `dungeon@${o.zoneId}:floor${o.floor}${o.boss ? ':boss' : ''}`;
+    }
+    return `${o.kind}@${o.zoneId}`;
+  };
+  // #111: observation-only stall context — written after each fight, never
+  // read by policy, never touching RNG or combat state.
+  let lastAttempt: StallAttempt | undefined;
+  let lastFoughtEnemy = '';
+  let failureStreak = 0;
+  const failures: Record<string, number> = {};
   const fight = (b: BattleState, kind: 'objective' | 'grind'): 'win' | 'death' | 'retreat' => {
     fights++;
     if (kind === 'objective') objective++;
     else grind++;
     let rounds = 0;
     let lastWasGuard = false;
+    let result: 'win' | 'death' | 'retreat' = 'retreat';
     while (b.phase === 'active' && rounds < 200) {
       const action = chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
       lastWasGuard = action.kind === 'guard';
@@ -1524,15 +1624,32 @@ function driveQuests(
       // #86: the engine's explicit terminal adjudication.
       if (res.outcome === 'victory') {
         resolveVictory(p, b, rng);
-        return 'win';
+        result = 'win';
+        break;
       }
       if (res.outcome === 'defeat') {
         applyDeath(p);
         deaths++;
-        return 'death';
+        result = 'death';
+        break;
       }
     }
-    return 'retreat';
+    // #111: record the attempt AFTER resolution — the diagnostic observes
+    // the completed fight only.
+    lastAttempt = {
+      enemy: b.enemy.id,
+      origin: originLabel(b),
+      outcome: result,
+      rounds,
+    };
+    if (result === 'win') {
+      failureStreak = 0;
+    } else {
+      failureStreak = b.enemy.id === lastFoughtEnemy ? failureStreak + 1 : 1;
+      failures[b.enemy.id] = (failures[b.enemy.id] ?? 0) + 1;
+    }
+    lastFoughtEnemy = b.enemy.id;
+    return result;
   };
 
   const goto = (zoneId: string): void => {
@@ -1877,21 +1994,59 @@ function driveQuests(
     if (!progressed) grindOneLevel();
   }
   if (p.quests[stopQuest]?.status !== 'done') {
+    // #111: the stall is reported as STRUCTURED data first — the string is
+    // formatted from it, so the report and the message can never drift.
+    const equipped = (slot: 'weapon' | 'armor' | 'trinket'): string => p.equipment[slot] ?? '';
+    const tierOf = (id: string): number => id ? itemDef(id)?.tier ?? 0 : 0;
+    const stallQuests: StallQuest[] = quests.map((id) => {
+      const status = p.quests[id]?.status ?? 'none';
+      if (status !== 'active') return { id, status };
+      const q = quest(id);
+      return {
+        id,
+        status,
+        objectives: q?.objectives.map((o, i) => ({
+          kind: o.kind,
+          target: o.target,
+          have: o.kind === 'collect' ? countOf(p, o.target) : questCount(id, i),
+          need: o.count ?? 1,
+        })) ?? [],
+      };
+    });
+    const stall: StallDiagnostic = {
+      level: p.level,
+      zone: p.currentZone,
+      unlockedZones: [...p.unlockedZones],
+      hp: p.hp,
+      maxHp: statsOf(p).maxHp,
+      mp: p.mp,
+      maxMp: statsOf(p).maxMp,
+      gold: p.gold,
+      equipment: {
+        weapon: equipped('weapon'),
+        armor: equipped('armor'),
+        trinket: equipped('trinket'),
+      },
+      gearTiers: {
+        weapon: tierOf(equipped('weapon')),
+        armor: tierOf(equipped('armor')),
+        trinket: tierOf(equipped('trinket')),
+      },
+      gearTriggers: (['weapon', 'armor', 'trinket'] as const).flatMap((slot) =>
+        itemDef(equipped(slot))?.triggers?.map((t) => t.name) ?? []
+      ),
+      consumables: p.inventory
+        .filter((e) => itemDef(e.id)?.kind === 'consumable' && e.qty > 0)
+        .map((e) => ({ id: e.id, qty: e.qty })),
+      quests: stallQuests,
+      lastAttempt,
+      failureStreak,
+      failures,
+    };
+    report.stall = stall;
     // #88: diagnosable stalls — name the active quest and its objective
     // progress so a harness regression is readable from the report alone.
-    const active = quests.find((id) => p.quests[id]?.status === 'active');
-    const detail = active
-      ? ` active=${active}[${
-        quest(active)!.objectives.map((o, i) =>
-          `${o.kind}:${o.target}:${questCount(active, i)}/${o.count ?? 1}`
-        ).join(', ')
-      }]`
-      : ' no-active';
-    const pending = quests.filter((id) => p.quests[id]?.status !== 'done').slice(0, 6)
-      .map((id) => `${id}:${p.quests[id]?.status ?? 'none'}`).join(' ');
-    report.stuck = `guard limit reached level=${p.level} zone=${p.currentZone} zones=[${
-      p.unlockedZones.join(',')
-    }] pending=[${pending}]${detail}`;
+    report.stuck = formatStallReport(stall);
   }
   report.chapter1Done = p.quests['m4_blessing']?.status === 'done';
   // #88: full-campaign completion — every main quest m1→m25 done.
