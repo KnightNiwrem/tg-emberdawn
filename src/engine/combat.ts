@@ -39,7 +39,7 @@ import {
   statPct,
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
-import { type DamageCause, emitCombatEvent } from './telemetry.ts';
+import { type CombatTraceEntry, type DamageCause, recordCombatEvent } from './telemetry.ts';
 
 /** Applies a stat-modifier percentage to a base stat. The result floors
  * at 1 (#85): stacked breaks can shrink a stat to almost nothing but never
@@ -192,6 +192,10 @@ export function startBattle(
   // item charges, no cooldowns; chance rolls draw the injected RNG exactly
   // once and only the outcomes persist.
   const opening: string[] = [];
+  // #101: the construction owns its trace — every opening entry (ward,
+  // opening move, procs, pre-emptives, terminal adjudication) appends here
+  // in exact synchronous resolution order.
+  const trace: CombatTraceEntry[] = [];
   // #96: the opening is an ORDERED RESOLUTION PHASE under the same
   // terminal invariant as a round (#86) — after every HP-changing effect
   // the state is checked, and the first 0-HP transition stops all later
@@ -223,7 +227,7 @@ export function startBattle(
         duration: ward.duration,
         timing: 'immediate',
         removable: false,
-      });
+      }, trace);
       opening.push(
         `🛡️ ${ward.name ?? 'Opening Ward'} — ${def.name} absorbs up to ${ward.amount} damage!`,
       );
@@ -242,6 +246,8 @@ export function startBattle(
         def.opening.effects,
         'opening',
         false,
+        undefined,
+        trace,
       ));
     }
     // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
@@ -261,7 +267,7 @@ export function startBattle(
         if (terminalNow()) break;
         if (tg.trigger !== 'battleStart') continue;
         if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
-          emitCombatEvent({
+          recordCombatEvent(trace, {
             kind: 'procAttempt',
             round: battle.round,
             item: it.name,
@@ -275,7 +281,7 @@ export function startBattle(
           );
           continue;
         }
-        emitCombatEvent({
+        recordCombatEvent(trace, {
           kind: 'procAttempt',
           round: battle.round,
           item: it.name,
@@ -295,6 +301,7 @@ export function startBattle(
           'proc',
           true,
           ti,
+          trace,
         ));
       }
     }
@@ -304,17 +311,17 @@ export function startBattle(
       if (terminalNow()) break;
       const sk = skill(id);
       if (!sk?.preEmptive) continue;
-      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false, false));
+      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false, false, trace));
     }
     // #96: explicit opening adjudication — a lethal strike in either
     // direction ends the fight before round 1 exists.
     outcome = adjudicate();
     if (outcome === 'victory' || outcome === 'defeat') {
-      emitCombatEvent({ kind: 'terminal', round: battle.round, outcome });
+      recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
     }
   }
   if (opening.length > 0) battle.opening = { lines: opening };
-  return { battle, outcome };
+  return { battle, outcome, trace };
 }
 
 /** A deliberately context-free battle CONTAINER (#99): raw enemy
@@ -376,6 +383,7 @@ function runOpening(
   cause: DamageCause,
   procProduced: boolean,
   triggerIndex?: number,
+  trace?: CombatTraceEntry[],
 ): string[] {
   const ctx: ExecCtx = {
     p,
@@ -391,6 +399,7 @@ function runOpening(
     procProduced,
     triggerIndex,
     afterSnapshot: false, // the opening resolves BEFORE round 1's snapshot (#94)
+    trace,
   };
   return executeSpecs(ctx, specs);
 }
@@ -413,6 +422,7 @@ function runReactiveTriggers(
   rng: Rng,
   scan: 'onGuard' | { cause: DamageCause },
   afterSnapshot = true,
+  trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
   const procs = battle.procs ??= {};
@@ -438,7 +448,7 @@ function runReactiveTriggers(
         return;
       }
       if (tg.chance !== undefined && !chance(rng, tg.chance)) {
-        emitCombatEvent({
+        recordCombatEvent(trace, {
           kind: 'procAttempt',
           round: battle.round,
           item: it.name,
@@ -461,8 +471,9 @@ function runReactiveTriggers(
         procProduced: true,
         triggerIndex: ti,
         afterSnapshot,
+        trace,
       };
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'procAttempt',
         round: battle.round,
         item: it.name,
@@ -502,6 +513,10 @@ export type BattleOutcome = 'ongoing' | 'victory' | 'defeat' | 'fled';
 export interface StartBattleResult {
   battle: BattleState;
   outcome: BattleOutcome;
+  /** #101: every entry recorded during THIS construction — the opening
+   * phase, its procs and its terminal adjudication, in resolution order.
+   * Caller-owned plain data; ignoring it changes nothing. */
+  trace: CombatTraceEntry[];
 }
 
 export interface ActionResult {
@@ -515,6 +530,11 @@ export interface ActionResult {
   consumedTurn: boolean;
   /** Terminal result of the round (#86). */
   outcome: BattleOutcome;
+  /** #101: every entry recorded during THIS resolution — player slot,
+   * enemy slot, procs, ticks and the terminal adjudication — in exact
+   * synchronous execution order. Caller-owned plain data; ignoring it
+   * changes no state, line, outcome or RNG draw. */
+  trace: CombatTraceEntry[];
 }
 
 function enemyChooseMove(def: EnemyDef, battle: BattleState, rng: Rng): EnemyMove {
@@ -672,23 +692,26 @@ function validatePlayerAction(
   }
 }
 
+/** The trace this resolution records into (#101): owned by performAction,
+ * returned on its result — no ambient installation anywhere. */
 export function performAction(
   p: PlayerState,
   battle: BattleState,
   action: PlayerAction,
   rng: Rng = defaultRng,
 ): ActionResult {
+  const trace: CombatTraceEntry[] = [];
   const def = enemyDef(battle.enemy.id);
   if (!def || battle.phase !== 'active') {
-    return { battle, lines: [], skipped: false, consumedTurn: false, outcome: 'ongoing' };
+    return { battle, lines: [], skipped: false, consumedTurn: false, outcome: 'ongoing', trace };
   }
   // #96 defensive entry check: a pre-existing terminal state (an opening
   // that already ended the fight, or a battle resumed past 0 HP) resolves
   // immediately — no round runs, no enemy phase, no bookkeeping.
   if (battle.enemy.hp <= 0 || p.hp <= 0) {
     const outcome: BattleOutcome = battle.enemy.hp <= 0 ? 'victory' : 'defeat';
-    emitCombatEvent({ kind: 'terminal', round: battle.round, outcome });
-    return { battle, lines: [], skipped: false, consumedTurn: false, outcome };
+    recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
+    return { battle, lines: [], skipped: false, consumedTurn: false, outcome, trace };
   }
 
   const actedRound = battle.round;
@@ -698,7 +721,14 @@ export function performAction(
   // handler feedback only (never in the battle log — #67/#32).
   const check = validatePlayerAction(p, battle, action);
   if (!check.ok) {
-    return { battle, lines: check.lines, skipped: false, consumedTurn: false, outcome: 'ongoing' };
+    return {
+      battle,
+      lines: check.lines,
+      skipped: false,
+      consumedTurn: false,
+      outcome: 'ongoing',
+      trace,
+    };
   }
 
   const lines: string[] = [];
@@ -718,19 +748,19 @@ export function performAction(
     // ends the round BEFORE the action and before any later tick (#86).
     const started = gatherTurnStartTicks(battle, maxHpOf(battle, p));
     for (const t of started) {
-      lines.push(...applyPeriodicTick(p, battle, t, rng));
+      lines.push(...applyPeriodicTick(p, battle, t, rng, trace));
       if (terminalNow()) return 'terminal';
     }
-    for (const loss of settleTurnStart(battle, started)) {
+    for (const loss of settleTurnStart(battle, started, trace)) {
       lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
     }
     if (terminalNow()) return 'terminal';
-    if (consumeStun(battle, 'player')) {
+    if (consumeStun(battle, 'player', trace)) {
       lines.push('💫 You are stunned and lose your turn!');
       skipped = true;
       return 'continue';
     }
-    const res = applyPlayerAction(p, battle, action, rng);
+    const res = applyPlayerAction(p, battle, action, rng, trace);
     lines.push(...res.lines);
     // #69 rework: the guided fight advances its lesson beats only on the
     // intended action kinds, in order — the beats cannot be skipped or
@@ -751,7 +781,7 @@ export function performAction(
    * ONE enemy action — wherever SPD places it in the round. */
   const runEnemySlot = (): 'continue' | 'terminal' => {
     battle.enemy.turn++;
-    if (consumeStun(battle, 'enemy')) {
+    if (consumeStun(battle, 'enemy', trace)) {
       // The stun is consumed the moment the enemy loses its action (#78);
       // was the stunnedEnemy flag. A stunned turn advances the counter —
       // time passes — but chooses no move (#26).
@@ -771,7 +801,7 @@ export function performAction(
       const dmg = Math.max(1, p.hp - target);
       p.hp = Math.max(1, p.hp - dmg);
       lines.push(`💥 ${battle.enemy.name} flares with old hearth-fire — ${dmg} damage to you!`);
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: 'enemyAction',
@@ -785,7 +815,7 @@ export function performAction(
       }
     } else {
       const move = enemyChooseMove(def, battle, rng);
-      lines.push(...enemyAct(p, battle, move, rng));
+      lines.push(...enemyAct(p, battle, move, rng, trace));
     }
     battle.guarding = false;
     return terminalNow() ? 'terminal' : 'continue';
@@ -803,9 +833,9 @@ export function performAction(
       ? 'defeat'
       : 'ongoing';
     if (outcome === 'victory' || outcome === 'defeat') {
-      emitCombatEvent({ kind: 'terminal', round: actedRound, outcome });
+      recordCombatEvent(trace, { kind: 'terminal', round: actedRound, outcome });
     }
-    return { battle, lines, skipped, consumedTurn: true, outcome };
+    return { battle, lines, skipped, consumedTurn: true, outcome, trace };
   };
 
   // #86 steps 3–5 — resolve up to two slots in initiative order; the first
@@ -827,14 +857,14 @@ export function performAction(
   const eor = gatherRoundEndTicks(battle, maxHpOf(battle, p));
   let ended = false;
   for (const t of eor) {
-    lines.push(...applyPeriodicTick(p, battle, t, rng));
+    lines.push(...applyPeriodicTick(p, battle, t, rng, trace));
     if (terminalNow()) {
       ended = true;
       break;
     }
   }
   if (!ended) {
-    const expired = settleEndOfRound(battle);
+    const expired = settleEndOfRound(battle, trace);
     for (const loss of applyShieldExpiry(battle, expired)) {
       lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
     }
@@ -856,6 +886,7 @@ function applyPeriodicTick(
   battle: BattleState,
   t: PeriodicTick,
   rng?: Rng,
+  trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
   if (t.amount >= 0) {
@@ -863,7 +894,7 @@ function applyPeriodicTick(
       const max = statsOf(p).maxHp;
       const heal = Math.min(t.amount, max - p.hp);
       p.hp = Math.min(max, p.hp + t.amount);
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'periodicTick',
         round: battle.round,
         side: t.side,
@@ -875,7 +906,7 @@ function applyPeriodicTick(
     } else {
       const heal = Math.min(t.amount, battle.enemy.maxHp - battle.enemy.hp);
       battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + t.amount);
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'periodicTick',
         round: battle.round,
         side: t.side,
@@ -903,7 +934,7 @@ function applyPeriodicTick(
   if (t.side === 'player') {
     const hpBefore = p.hp;
     p.hp = Math.max(0, p.hp - hpDmg);
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'periodicTick',
       round: battle.round,
       side: t.side,
@@ -914,7 +945,7 @@ function applyPeriodicTick(
     // #89: periodic HP loss is its own cause — broad onHpDamage triggers
     // answer it; there is no attacker for the narrow one to blame.
     if (p.hp < hpBefore) {
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: 'periodic',
@@ -926,7 +957,7 @@ function applyPeriodicTick(
       // #97: the authoritative HP-loss event dispatches the wearer's
       // broad triggers — a fallen wearer procs nothing (#86 parity).
       if (p.hp > 0 && !battle.tutorial && rng) {
-        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }));
+        lines.push(...runReactiveTriggers(p, battle, rng, { cause: 'periodic' }, true, trace));
       }
     }
     lines.push(
@@ -941,7 +972,7 @@ function applyPeriodicTick(
     const wouldFell = battle.enemy.hp - hpDmg <= 0;
     const hpBefore = battle.enemy.hp;
     battle.enemy.hp = Math.max(floor, battle.enemy.hp - hpDmg);
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'periodicTick',
       round: battle.round,
       side: t.side,
@@ -950,7 +981,7 @@ function applyPeriodicTick(
       applied: battle.enemy.hp - hpBefore,
     });
     if (battle.enemy.hp < hpBefore) {
-      emitCombatEvent({
+      recordCombatEvent(trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: 'periodic',
@@ -1012,6 +1043,9 @@ interface ExecCtx {
    * eligible initiative snapshots. Opening applications run before round
    * 1's snapshot and keep their authored timing. */
   afterSnapshot: boolean;
+  /** #101: the resolution's trace — every emission appends here, in
+   * synchronous execution order, before the outer call returns. */
+  trace?: CombatTraceEntry[];
 }
 
 function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
@@ -1141,7 +1175,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
           ctx.source,
           amount,
         );
-        const grant = grantShield(ctx.battle, side, seed);
+        const grant = grantShield(ctx.battle, side, seed, ctx.trace);
         const line = defaultInstanceLine(ctx, spec, side, amount);
         if (line) lines.push(line);
         if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over capacity — wasted.`);
@@ -1171,13 +1205,13 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         if (spec.kind === 'statmod' && spec.stat === 'spd' && ctx.afterSnapshot) {
           seed.timing = 'defer';
         }
-        applyInstance(ctx.battle, seed);
+        applyInstance(ctx.battle, seed, ctx.trace);
         const line = defaultInstanceLine(ctx, spec, side);
         if (line) lines.push(line);
         break;
       }
       case 'cleanse': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'cleansed');
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'cleansed', ctx.trace);
         if (removed.length > 0 && !spec.quiet) {
           const line = spec.line?.replace('{n}', String(removed.length)) ??
             (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
@@ -1190,7 +1224,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'dispel': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'dispelled');
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'dispelled', ctx.trace);
         if (removed.length > 0 && !spec.quiet) {
           lines.push(
             spec.line?.replace('{n}', String(removed.length)) ??
@@ -1330,7 +1364,7 @@ function applyDamageEffect(
     let absorbed = 0;
     let broke = false;
     if (!spec.bypassShield) {
-      const a = absorbShield(battle, 'enemy', dealt.dmg);
+      const a = absorbShield(battle, 'enemy', dealt.dmg, ctx.trace);
       absorbed = a.absorbed;
       hpDmg = a.hpDamage;
       broke = a.broke;
@@ -1347,7 +1381,7 @@ function applyDamageEffect(
     // #89: structured HP-damage provenance — shield-only absorbs emit
     // nothing.
     if (hpDmg > 0) {
-      emitCombatEvent({
+      recordCombatEvent(ctx.trace, {
         kind: 'hpDamaged',
         round: battle.round,
         cause: ctx.cause,
@@ -1390,7 +1424,7 @@ function applyDamageEffect(
   let absorbed = 0;
   let broke = false;
   if (!spec.bypassShield) {
-    const a = absorbShield(battle, 'player', dmg);
+    const a = absorbShield(battle, 'player', dmg, ctx.trace);
     absorbed = a.absorbed;
     hpDmg = a.hpDamage;
     broke = a.broke;
@@ -1400,7 +1434,7 @@ function applyDamageEffect(
   ctx.hpDamaged = hpDmg > 0;
   ctx.targetFelled = p.hp <= 0;
   if (hpDmg > 0) {
-    emitCombatEvent({
+    recordCombatEvent(ctx.trace, {
       kind: 'hpDamaged',
       round: battle.round,
       cause: ctx.cause,
@@ -1425,7 +1459,7 @@ function applyDamageEffect(
   // unrecovered terminal hit (hp 0) procs nothing. Proc-produced damage
   // never dispatches — the recursion boundary is structural (#89).
   if (hpDmg > 0 && !battle.tutorial && !ctx.procProduced && p.hp > 0) {
-    lines.push(...runReactiveTriggers(p, battle, rng, { cause: ctx.cause }));
+    lines.push(...runReactiveTriggers(p, battle, rng, { cause: ctx.cause }, true, ctx.trace));
   }
   return lines;
 }
@@ -1458,7 +1492,7 @@ function applyRestoreEffect(
       const before = p.hp;
       p.hp = Math.min(max, p.hp + attempted);
       const applied = p.hp - before;
-      emitCombatEvent({
+      recordCombatEvent(ctx.trace, {
         kind: 'hpRestored',
         round: battle.round,
         side,
@@ -1489,7 +1523,7 @@ function applyRestoreEffect(
       const before = battle.enemy.hp;
       battle.enemy.hp = Math.min(max, battle.enemy.hp + attempted);
       const applied = battle.enemy.hp - before;
-      emitCombatEvent({
+      recordCombatEvent(ctx.trace, {
         kind: 'hpRestored',
         round: battle.round,
         side,
@@ -1515,6 +1549,7 @@ function applySkill(
   cause: DamageCause,
   procProduced: boolean,
   afterSnapshot: boolean,
+  trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
   // Buff-style skills announce ONCE with their full rules text (#67 copy,
@@ -1536,6 +1571,7 @@ function applySkill(
     cause,
     procProduced,
     afterSnapshot,
+    trace,
   };
   lines.push(...executeSpecs(ctx, sk.effects));
   return lines;
@@ -1550,6 +1586,7 @@ function applyPlayerAction(
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
+  trace: CombatTraceEntry[],
 ): { lines: string[]; consumedTurn: boolean } {
   const lines: string[] = [];
   const def = enemyDef(battle.enemy.id);
@@ -1573,6 +1610,7 @@ function applyPlayerAction(
         cause: 'playerAction',
         procProduced: false,
         afterSnapshot: true,
+        trace,
       };
       lines.push(...executeSpecs(ctx, [{
         kind: 'damage',
@@ -1611,7 +1649,7 @@ function applyPlayerAction(
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false, true));
+      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false, true, trace));
       return { lines, consumedTurn: true };
     }
     case 'item': {
@@ -1627,7 +1665,7 @@ function applyPlayerAction(
           lines.push('🚫 No smoke clouds this fight — there is no escape.');
           return { lines, consumedTurn: false };
         }
-        const used = consumeItem(p, action.itemId);
+        const used = consumeItem(p, action.itemId, trace);
         if (!used) {
           lines.push('You rummage through your bag and find nothing useful.');
           return { lines, consumedTurn: false };
@@ -1636,7 +1674,7 @@ function applyPlayerAction(
         lines.push(...used, '💨 Smoke floods the field — you slip away safely!');
         return { lines, consumedTurn: true };
       }
-      const consumed = consumeItem(p, action.itemId);
+      const consumed = consumeItem(p, action.itemId, trace);
       if (!consumed) {
         lines.push('You rummage through your bag and find nothing useful.');
         return { lines, consumedTurn: false };
@@ -1648,7 +1686,9 @@ function applyPlayerAction(
       battle.guarding = true;
       p.mp = Math.min(statsOf(p).maxMp, p.mp + Math.ceil(statsOf(p).maxMp * 0.08));
       lines.push('🛡️ You brace behind your guard (+MP).');
-      if (!battle.tutorial) lines.push(...runReactiveTriggers(p, battle, rng, 'onGuard'));
+      if (!battle.tutorial) {
+        lines.push(...runReactiveTriggers(p, battle, rng, 'onGuard', true, trace));
+      }
       return { lines, consumedTurn: true };
     }
     case 'flee': {
@@ -1670,7 +1710,11 @@ function applyPlayerAction(
 }
 
 /** Consumes a battle-usable item. Caller validates kind. */
-function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
+function consumeItem(
+  p: PlayerState,
+  itemId: string,
+  trace?: CombatTraceEntry[],
+): string[] | undefined {
   const entry = p.inventory.find((e) => e.id === itemId);
   if (!entry || entry.qty <= 0) return undefined;
   const itemDef = itemDefLookup(itemId);
@@ -1681,7 +1725,7 @@ function consumeItem(p: PlayerState, itemId: string): string[] | undefined {
   if (eff.healHp) {
     const before = p.hp;
     p.hp = Math.min(s.maxHp, p.hp + eff.healHp);
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'hpRestored',
       round: p.battle?.round ?? 1,
       side: 'player',
@@ -1728,6 +1772,7 @@ function enemyAct(
   battle: BattleState,
   move: EnemyMove,
   rng: Rng,
+  trace: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
   const announcesIntro = !move.effects.some((e) =>
@@ -1748,6 +1793,7 @@ function enemyAct(
     cause: 'enemyAction',
     procProduced: false,
     afterSnapshot: true,
+    trace,
   };
   lines.push(...executeSpecs(ctx, move.effects));
   return lines;

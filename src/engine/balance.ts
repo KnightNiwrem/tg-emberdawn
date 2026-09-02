@@ -44,7 +44,7 @@ import {
 import { hasLiveFromSource, sapPct, statPct } from './effects.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
-import { type CombatEvent, setCombatTelemetry } from './telemetry.ts';
+import { type CombatTraceEntry } from './telemetry.ts';
 
 // ── Heroes ──────────────────────────────────────────────────────────────
 
@@ -442,12 +442,11 @@ export function runFight(
   origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
 ): FightResult {
   const p = structuredClone(hero) as PlayerState;
-  // #88/#95: structured telemetry is per-fight — installed BEFORE the
-  // opening (battleStart procs emit) and ALWAYS detached in the finally:
-  // battle construction, policy selection, action resolution and
-  // aggregation can all throw without leaking the collector.
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
+  // #101: the harness collects ONLY its own fight's trace — startBattle
+  // and every performAction return their entries explicitly, so nested or
+  // concurrent fights cannot cross-contaminate, no collector can leak on
+  // a throw, and no finally exists merely to detach telemetry.
+  const events: CombatTraceEntry[] = [];
   let rounds = 0;
   let lastWasGuard = false;
   const seenIids = new Set<string>();
@@ -496,13 +495,14 @@ export function runFight(
     procHits: 0,
     duration1Applied: 0,
   };
-  try {
+  {
     // #80: the harness constructs battles through the SAME opening pipeline
     // as live play — full hero context, seeded rng.
     const started = startBattle(enemyId, origin, { player: p, rng });
     if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
     const b = started.battle;
     p.battle = b;
+    events.push(...started.trace);
     // Line metric regexes (#84): only presentation the events cannot express
     // — crit/dodge markers and the shield grant/absorb/waste/fade
     // decomposition. #95: dealt/taken/heals come ONLY from typed events.
@@ -579,6 +579,7 @@ export function runFight(
       const mpBefore = p.mp;
       const res = performAction(p, b, action, rng);
       rounds++;
+      events.push(...res.trace);
       if (res.skipped) result.skippedRounds++;
       if (!res.consumedTurn) result.invalidActions++;
       result.mpSpent += Math.max(0, mpBefore - p.mp);
@@ -612,7 +613,7 @@ export function runFight(
         break;
       }
     }
-    // #88/#95: typed-event aggregation — replacement-free sums from
+    // #88/#95/#101: typed-entry aggregation — replacement-free sums from
     // structured engine events (never parsed back out of presentation text).
     // dealt/taken are GROSS per-event HP damage: enemy heals and lifesteal
     // no longer subtract from damage dealt, and a same-round heal can never
@@ -665,8 +666,6 @@ export function runFight(
           break;
       }
     }
-  } finally {
-    setCombatTelemetry(null);
   }
   if (result.outcome === 'timeout') result.outcome = 'timeout';
   const s = statsOf(p);

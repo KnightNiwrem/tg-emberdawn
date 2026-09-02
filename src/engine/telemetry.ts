@@ -1,14 +1,18 @@
-/** Opt-in structured combat telemetry (#88): the engine emits typed events
- * at the moments metrics care about — effect applications and removals
- * (with CAUSE), periodic ticks (with the actually-applied amount), shield
- * breaks and grants, equipment proc attempts, and terminal outcomes.
+/** Structured combat trace (#101): the engine records typed entries at the
+ * moments metrics care about — effect applications and removals (with
+ * CAUSE), periodic ticks (with the actually-applied amount), shield breaks
+ * and grants, HP damage and restores (with structured amounts), equipment
+ * proc attempts, and terminal outcomes.
  *
- * Production never installs a sink: the module-level callback defaults to
- * null and every emission pays one null check. The balance harness
- * installs a collector per simulated fight and detaches afterwards. Events
- * are plain data, emitted synchronously during resolution — NEVER persisted
- * (BattleState's saved shape is untouched) and never parsed from
- * presentation text. */
+ * There is NO module-global sink, event bus, listener registry or async
+ * queue: every resolution OWNS a plain caller-visible array
+ * (CombatTraceEntry[]) and appends plain data SYNCHRONOUSLY after the
+ * state transition it records — `startBattle`/`performAction` return it,
+ * nested subflows (equipment procs) append to the same array in execution
+ * order, and concurrent fights each collect their own. Entries are plain
+ * data — NEVER persisted (BattleState's saved shape is untouched), never
+ * parsed from presentation text, and ignoring them changes nothing: no
+ * state, line, outcome or RNG draw depends on recording. */
 
 export type CombatSide = 'player' | 'enemy';
 
@@ -39,7 +43,7 @@ export type DamageCause =
  * item channel (out-of-battle-shaped consumable heals). */
 export type RestoreCause = DamageCause | 'item';
 
-export type CombatEvent =
+export type CombatTraceEntry =
   | {
     kind: 'effectApplied';
     round: number;
@@ -113,21 +117,12 @@ export type CombatEvent =
   }
   | { kind: 'terminal'; round: number; outcome: 'victory' | 'defeat' };
 
-let sink: ((e: CombatEvent) => void) | null = null;
-
-/** Installs (or clears) the telemetry sink. The harness sets it per fight
- * and ALWAYS clears it in a finally block. */
-export function setCombatTelemetry(fn: ((e: CombatEvent) => void) | null): void {
-  sink = fn;
-}
-
-/** Engine-internal emission point — a no-op without a sink. */
-export function emitCombatEvent(e: CombatEvent): void {
-  if (sink) sink(e);
-}
-
-/** Test hook (#95): true while a sink is still installed — collectors
- * must be detached in a finally, never leaked on a throw. */
-export function isCombatTelemetryAttached(): boolean {
-  return sink !== null;
+/** Records one completed state transition (#101): plain data appended to
+ * the resolution's trace array. Never a dispatched gameplay event —
+ * mechanics never read the trace back. */
+export function recordCombatEvent(
+  trace: CombatTraceEntry[] | undefined,
+  e: CombatTraceEntry,
+): void {
+  trace?.push(e);
 }

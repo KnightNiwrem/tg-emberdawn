@@ -10,7 +10,7 @@ import { assert, assertEquals, assertExists } from '@std/assert';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance, grantShield, incomingAmpPct } from '../src/engine/effects.ts';
-import { type CombatEvent, type DamageCause, setCombatTelemetry } from '../src/engine/telemetry.ts';
+import { type CombatTraceEntry, type DamageCause } from '../src/engine/telemetry.ts';
 import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/engine/types.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
@@ -177,16 +177,11 @@ Deno.test('#82: shield-only absorbs never proc onHpDamage', () => {
     timing: 'immediate',
     removable: false,
   });
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
-  try {
-    const hpBefore = p.hp;
-    const res = round(p, b, s);
-    assertEquals(p.hp, hpBefore, 'the strike never reached HP');
-    assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false);
-  } finally {
-    setCombatTelemetry(null);
-  }
+  const hpBefore = p.hp;
+  const res = round(p, b, s);
+  const events = res.trace;
+  assertEquals(p.hp, hpBefore, 'the strike never reached HP');
+  assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false);
   assertEquals(b.procs?.['t_9:0']?.count ?? 0, 0);
   assertEquals(
     events.filter((e) => e.kind === 'hpDamaged' && e.target === 'player').length,
@@ -425,19 +420,15 @@ Deno.test('#89: cooldown 1 pins exact eligible rounds (R+1 blocked, R+2 re-arms)
   const run = (seed: number) => {
     const p = hero(22, 'warrior', 36, 't_19');
     const b = tankyForge(p, seed);
-    const events: CombatEvent[] = [];
-    setCombatTelemetry((e) => events.push(e));
+    const events: CombatTraceEntry[] = [];
     const procs: number[] = [];
     const hits: boolean[] = [];
-    try {
-      for (let r = 0; r < 3; r++) {
-        p.hp = statsOf(p).maxHp; // survival is not the variable under test
-        const res = round(p, b, seed);
-        hits.push(p.hp < statsOf(p).maxHp); // the warden's strike reached HP
-        if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
-      }
-    } finally {
-      setCombatTelemetry(null);
+    for (let r = 0; r < 3; r++) {
+      p.hp = statsOf(p).maxHp; // survival is not the variable under test
+      const res = round(p, b, seed);
+      events.push(...res.trace);
+      hits.push(p.hp < statsOf(p).maxHp); // the warden's strike reached HP
+      if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
     }
     return { b, events, procs, hits };
   };
@@ -485,15 +476,9 @@ Deno.test('#89: missed chance rolls write nothing (no budget, no cooldown)', () 
   const run = (seed: number) => {
     const p = hero(24, 'warrior', 5, 't_9');
     const b = tankyWolf(p, seed);
-    const events: CombatEvent[] = [];
-    setCombatTelemetry((e) => events.push(e));
-    try {
-      p.hp = statsOf(p).maxHp;
-      const res = round(p, b, seed);
-      return { b, res, events, hit: p.hp < statsOf(p).maxHp };
-    } finally {
-      setCombatTelemetry(null);
-    }
+    p.hp = statsOf(p).maxHp;
+    const res = round(p, b, seed);
+    return { b, res, events: res.trace, hit: p.hp < statsOf(p).maxHp };
   };
   let miss: ReturnType<typeof run> | undefined;
   for (let seed = 1; seed <= 300; seed++) {
@@ -508,9 +493,9 @@ Deno.test('#89: missed chance rolls write nothing (no budget, no cooldown)', () 
   }
   assertExists(miss, 'no seed reproduces a landed strike with a missed chance roll');
   assertEquals(miss.b.procs?.['t_9:0'], undefined, 'the miss wrote no bookkeeping at all');
-  const attempts = miss.events.filter((e): e is Extract<CombatEvent, { kind: 'procAttempt' }> =>
-    e.kind === 'procAttempt'
-  );
+  const attempts = miss.events.filter((
+    e,
+  ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
   assertEquals(attempts.length, 1, 'the miss is recorded as exactly one attempt');
   assertEquals(attempts[0]!.success, false, 'a missed roll is a failure that consumed nothing');
 });
@@ -534,14 +519,8 @@ Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduce
   const s = reactiveSeed('t_19', 5, true);
   const p = hero(26, 'warrior', 5, 't_19');
   const b = tankyWolf(p, s);
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
-  try {
-    round(p, b, s);
-  } finally {
-    setCombatTelemetry(null);
-  }
-  const hpEvents = events.filter((e): e is Extract<CombatEvent, { kind: 'hpDamaged' }> =>
+  const events = round(p, b, s).trace;
+  const hpEvents = events.filter((e): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
     e.kind === 'hpDamaged'
   );
   const by = (cause: DamageCause, target: 'player' | 'enemy') =>

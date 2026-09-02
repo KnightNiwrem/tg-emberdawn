@@ -5,7 +5,7 @@
 
 import type { EffectSpec, EffectTag, StackingPolicy, StatKey } from '../content/types.ts';
 import type { EffectInstance, EffectSource } from './types.ts';
-import { type EffectApplyOutcome, emitCombatEvent } from './telemetry.ts';
+import { type CombatTraceEntry, type EffectApplyOutcome, recordCombatEvent } from './telemetry.ts';
 
 /** The structural slice the effect system operates on (#99): a live effect
  * arena with its clock, instance list, allocator and shield pools.
@@ -145,9 +145,13 @@ export function hasLiveFromSource(
  * have no single-magnitude meaning (flat and %-of-max ticks are different
  * units) — `strongest` is not a valid policy for them and is rejected at
  * application time and by content integrity. */
-export function applyInstance(b: EffectArena, seed: InstanceSeed): ApplyResult {
+export function applyInstance(
+  b: EffectArena,
+  seed: InstanceSeed,
+  trace?: CombatTraceEntry[],
+): ApplyResult {
   const raw = applyInstanceRaw(b, seed);
-  emitCombatEvent({
+  recordCombatEvent(trace, {
     kind: 'effectApplied',
     round: b.round,
     side: raw.instance.side,
@@ -330,13 +334,17 @@ export function stunInstance(b: EffectArena, side: 'player' | 'enemy'): EffectIn
 
 /** Consumes one stunned action at the side's phase: returns true when the
  * action is lost, removing the instance when its actions run out. */
-export function consumeStun(b: EffectArena, side: 'player' | 'enemy'): boolean {
+export function consumeStun(
+  b: EffectArena,
+  side: 'player' | 'enemy',
+  trace?: CombatTraceEntry[],
+): boolean {
   const inst = stunInstance(b, side);
   if (!inst) return false;
   inst.actions = (inst.actions ?? 1) - 1;
   if (inst.actions <= 0) {
     b.effectInstances = b.effectInstances.filter((i) => i !== inst);
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'effectRemoved',
       round: b.round,
       side,
@@ -370,6 +378,7 @@ export function removeTagged(
   tags: EffectTag[],
   max?: number,
   cause: 'cleansed' | 'dispelled' = 'cleansed',
+  trace?: CombatTraceEntry[],
 ): EffectInstance[] {
   const removed: EffectInstance[] = [];
   const keep: EffectInstance[] = [];
@@ -380,7 +389,7 @@ export function removeTagged(
   }
   b.effectInstances = keep;
   for (const i of removed) {
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'effectRemoved',
       round: b.round,
       side: i.side,
@@ -428,9 +437,10 @@ export function grantShield(
   b: EffectArena,
   side: 'player' | 'enemy',
   seed: InstanceSeed,
+  trace?: CombatTraceEntry[],
 ): ShieldGrant {
   const before = b.shield[side];
-  const { outcome } = applyInstance(b, seed);
+  const { outcome } = applyInstance(b, seed, trace);
   const granted = outcome === 'created' || outcome === 'replaced' ? seed.shieldAmount ?? 0 : 0;
   const max = maxShield(b, side);
   const after = Math.min(before + granted, max);
@@ -445,7 +455,13 @@ export function grantShield(
     lost: Math.max(0, before - after),
     max,
   };
-  emitCombatEvent({ kind: 'shieldGrant', round: b.round, side, applied, wasted: grant.wasted });
+  recordCombatEvent(trace, {
+    kind: 'shieldGrant',
+    round: b.round,
+    side,
+    applied,
+    wasted: grant.wasted,
+  });
   return grant;
 }
 
@@ -464,12 +480,15 @@ export function absorbShield(
   b: EffectArena,
   side: 'player' | 'enemy',
   dmg: number,
+  trace?: CombatTraceEntry[],
 ): ShieldAbsorb {
   const pool = b.shield[side];
   const absorbed = Math.min(pool, dmg);
   b.shield[side] = pool - absorbed;
   const broke = absorbed > 0 && b.shield[side] === 0;
-  if (broke) emitCombatEvent({ kind: 'shieldBreak', round: b.round, side });
+  if (broke) {
+    recordCombatEvent(trace, { kind: 'shieldBreak', round: b.round, side });
+  }
   return { absorbed, hpDamage: dmg - absorbed, broke };
 }
 
@@ -538,9 +557,10 @@ export function gatherTurnStartTicks(
 export function settleTurnStart(
   b: EffectArena,
   ticks: readonly PeriodicTick[],
+  trace?: CombatTraceEntry[],
 ): ShieldLoss[] {
   for (const t of ticks) t.instance.remaining--;
-  const expired = pruneExpired(b);
+  const expired = pruneExpired(b, trace);
   return applyShieldExpiry(b, expired);
 }
 
@@ -551,9 +571,10 @@ export function settleTurnStart(
 export function tickPlayerTurnStart(
   b: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
+  trace?: CombatTraceEntry[],
 ): { ticks: PeriodicTick[]; shieldLosses: ShieldLoss[] } {
   const ticks = gatherTurnStartTicks(b, maxHpOf);
-  const shieldLosses = settleTurnStart(b, ticks);
+  const shieldLosses = settleTurnStart(b, ticks, trace);
   return { ticks, shieldLosses };
 }
 
@@ -577,7 +598,7 @@ export function gatherRoundEndTicks(
  * instances skip exactly their first tick (#27/#38/#77), control instances
  * tick by consumption and are untouched here, battle-lifetime instances
  * never age — then the prune. Returns the expired instances. */
-export function settleEndOfRound(b: EffectArena): EffectInstance[] {
+export function settleEndOfRound(b: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
   for (const i of b.effectInstances) {
     if (i.battleLifetime) continue; // lasts the whole battle (#80)
     if (i.kind === 'control') continue;
@@ -585,7 +606,7 @@ export function settleEndOfRound(b: EffectArena): EffectInstance[] {
     if (i.deferFirstTick) i.deferFirstTick = false;
     else i.remaining--;
   }
-  return pruneExpired(b);
+  return pruneExpired(b, trace);
 }
 
 /** End-of-round bookkeeping: periodic `roundEnd` ticks FIRST (an effect at
@@ -599,9 +620,10 @@ export function settleEndOfRound(b: EffectArena): EffectInstance[] {
 export function tickEndOfRound(
   b: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
+  trace?: CombatTraceEntry[],
 ): { ticks: PeriodicTick[]; expired: EffectInstance[]; shieldLosses: ShieldLoss[] } {
   const ticks = gatherRoundEndTicks(b, maxHpOf);
-  const expired = settleEndOfRound(b);
+  const expired = settleEndOfRound(b, trace);
   return { ticks, expired, shieldLosses: applyShieldExpiry(b, expired) };
 }
 
@@ -609,7 +631,7 @@ export function tickEndOfRound(
  * expire ONLY by consumption (their target's next phase always arrives
  * before any prune could race it) — a round-based prune here would delete
  * an enemy-applied stun before the player's turn to lose. */
-export function pruneExpired(b: EffectArena): EffectInstance[] {
+export function pruneExpired(b: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
   const expired: EffectInstance[] = [];
   b.effectInstances = b.effectInstances.filter((i) => {
     const done = i.kind === 'control'
@@ -619,7 +641,7 @@ export function pruneExpired(b: EffectArena): EffectInstance[] {
     return !done;
   });
   for (const i of expired) {
-    emitCombatEvent({
+    recordCombatEvent(trace, {
       kind: 'effectRemoved',
       round: b.round,
       side: i.side,

@@ -23,7 +23,7 @@ import {
   settleEndOfRound,
   statPct,
 } from '../src/engine/effects.ts';
-import { type CombatEvent, setCombatTelemetry } from '../src/engine/telemetry.ts';
+import { type CombatTraceEntry } from '../src/engine/telemetry.ts';
 import type { EffectInstance } from '../src/engine/types.ts';
 import type { EffectSpec } from '../src/content/types.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
@@ -684,32 +684,31 @@ Deno.test('#93: content integrity — strongest is only authored on kinds with d
 
 Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
   const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
-  try {
-    const seed = (over: Partial<InstanceSeed>): InstanceSeed => ({
-      defId: 'probe:tel',
-      name: 'Big',
-      kind: 'statmod',
-      side: 'player',
-      source: { kind: 'skill', id: 'probe', name: 'Probe' },
-      stat: 'atk',
-      pct: 0.4,
-      tags: ['beneficial'],
-      stacking: 'strongest',
-      duration: 2,
-      timing: 'immediate',
-      removable: true,
-      ...over,
-    });
-    applyInstance(b, seed({}));
-    applyInstance(b, seed({ pct: 0.1, name: 'Small', duration: 1 }));
-    applyInstance(b, seed({ pct: 0.1, duration: 6 }));
-  } finally {
-    setCombatTelemetry(null);
-  }
+  // #101: the trace is a caller-owned plain array — no global sink.
+  const events: CombatTraceEntry[] = [];
+  const seed = (over: Partial<InstanceSeed>): InstanceSeed => ({
+    defId: 'probe:tel',
+    name: 'Big',
+    kind: 'statmod',
+    side: 'player',
+    source: { kind: 'skill', id: 'probe', name: 'Probe' },
+    stat: 'atk',
+    pct: 0.4,
+    tags: ['beneficial'],
+    stacking: 'strongest',
+    duration: 2,
+    timing: 'immediate',
+    removable: true,
+    ...over,
+  });
+  applyInstance(b, seed({}), events);
+  applyInstance(b, seed({ pct: 0.1, name: 'Small', duration: 1 }), events);
+  applyInstance(b, seed({ pct: 0.1, duration: 6 }), events);
   assertEquals(events.length, 3, 'all three applications emitted');
-  const [created, ignored, extended] = events as Extract<CombatEvent, { kind: 'effectApplied' }>[];
+  const [created, ignored, extended] = events as Extract<
+    CombatTraceEntry,
+    { kind: 'effectApplied' }
+  >[];
   assertEquals(created.outcome, 'created');
   assertEquals(created.name, 'Big');
   assertEquals(created.duration, 2);

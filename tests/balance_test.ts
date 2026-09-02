@@ -29,16 +29,12 @@ import {
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { dungeonOf, encounterEligible } from '../src/engine/world.ts';
-import type { BattleOrigin, ClassId } from '../src/engine/types.ts';
+import type { BattleOrigin, ClassId, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { MAX_LEVEL } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
-import {
-  type CombatEvent,
-  isCombatTelemetryAttached,
-  setCombatTelemetry,
-} from '../src/engine/telemetry.ts';
-import { enemy as enemyDef } from '../src/content/enemies.ts';
+import { type CombatTraceEntry } from '../src/engine/telemetry.ts';
+import { ENEMIES, enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
 import { isDamageSkill, SKILLS } from '../src/content/skills.ts';
@@ -517,12 +513,15 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
   // carry no statusResist — the cast lands deterministically (#88).
   const foeZone = hostileZones().find((z) => zoneNormalPool(z.id, dot.learnLevel).length > 0)!;
   const foe = zoneNormalPool(foeZone.id, dot.learnLevel)[0]!;
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
-  try {
+  const events: CombatTraceEntry[] = [];
+  {
+    // #101: each resolution returns its own trace — the fight's entries
+    // are collected explicitly, with no global installation.
     const p = makeHero(dot.classId, dot.learnLevel, 'best');
     p.hp = 99999; // outlive the foe — this test drives EVENTS, not balance
-    const b = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!.battle;
+    const started = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!;
+    const b = started.battle;
+    events.push(...started.trace);
     p.battle = b;
     // A one-shot foe dies before the DoT spec's turn in the spec list —
     // pad the pool so the fight lasts and the application lands (#88).
@@ -534,13 +533,13 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
       // cast is refused (MP/cooldown) so the fight always reaches a
       // terminal state (#88).
       let res = performAction(p, b, { kind: 'skill', skillId: dot.id }, seededRng(90 + guard));
+      events.push(...res.trace);
       if (!res.consumedTurn && b.phase === 'active') {
         res = performAction(p, b, { kind: 'attack' }, seededRng(190 + guard));
+        events.push(...res.trace);
       }
       if (res.outcome === 'victory' || res.outcome === 'defeat') break;
     }
-  } finally {
-    setCombatTelemetry(null);
   }
   assert(events.some((e) => e.kind === 'effectApplied'), 'no effect application was ever emitted');
   assert(
@@ -548,14 +547,55 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
     'the player-side DoT application was never emitted',
   );
   assert(events.some((e) => e.kind === 'terminal'), 'the terminal outcome was never emitted');
-  // A detached sink collects nothing — the production default is silence.
-  const frozen = events.length;
-  const p2 = makeHero(dot.classId, dot.learnLevel, 'best');
-  p2.hp = 99999;
-  const b2 = startBattle(foe.enemyId, foe.origin, { player: p2, rng: seededRng(12) })!.battle;
-  p2.battle = b2;
-  performAction(p2, b2, { kind: 'attack' }, seededRng(13));
-  assertEquals(events.length, frozen, 'a detached sink must not collect');
+});
+
+Deno.test('telemetry: two concurrent fights collect isolated traces (#101)', () => {
+  // Two resolutions interleaved round by round — each owns its trace and
+  // neither observes the other's entries.
+  const a = makeHero('warrior', 10, 'best');
+  const c = makeHero('mage', 10, 'best');
+  const sa = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player: a,
+    rng: seededRng(21),
+  })!;
+  const sc = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player: c,
+    rng: seededRng(22),
+  })!;
+  const ba = sa.battle;
+  const bc = sc.battle;
+  a.battle = ba;
+  c.battle = bc;
+  ba.enemy.hp = 99999;
+  ba.enemy.maxHp = 99999;
+  const traceA = [...sa.trace];
+  const traceC = [...sc.trace];
+  for (let r = 0; r < 6 && ba.phase === 'active' && bc.phase === 'active'; r++) {
+    const ra = performAction(a, ba, { kind: 'attack' }, seededRng(30 + r));
+    const rc = performAction(c, bc, { kind: 'attack' }, seededRng(40 + r));
+    traceA.push(...ra.trace);
+    traceC.push(...rc.trace);
+  }
+  assert(traceA.length > 0 && traceC.length > 0, 'both fights recorded entries');
+  // Isolation: fight A only ever names the wolf, fight C only the rat.
+  const namesOf = (trace: CombatTraceEntry[]): Set<string> =>
+    new Set(
+      trace.flatMap((e) =>
+        e.kind === 'effectApplied' || e.kind === 'effectRemoved' || e.kind === 'periodicTick'
+          ? [e.name]
+          : []
+      ),
+    );
+  for (const [trace, foe] of [[traceA, 'Wolf'], [traceC, 'Rat']] as const) {
+    const [mine, other] = foe === 'Wolf' ? ['Wolf', 'Rat'] : ['Rat', 'Wolf'];
+    assert(
+      [...namesOf(trace)].every((n) => !n.includes(other)),
+      `fight ${mine} trace must not contain ${other} entries`,
+    );
+  }
+  // The traces carry no references into each other: fight C's total
+  // entries never appear inside fight A's collector.
+  assertEquals(traceA.includes(traceC[0] as never), false);
 });
 
 Deno.test('balance: runFight metrics include periodic damage and proc accounting (#88)', () => {
@@ -706,17 +746,10 @@ Deno.test('telemetry: the restore event reports attempted vs applied (#95)', () 
   p.battle = b;
   b.enemy.hp = 99999; // outlive the probe — this drives EVENTS, not balance
   b.enemy.maxHp = 99999;
-  const events: CombatEvent[] = [];
-  setCombatTelemetry((e) => events.push(e));
-  let line = '';
-  try {
-    p.hp = statsOf(p).maxHp - 1; // THE probe: 1 missing HP
-    const res = performAction(p, b, { kind: 'skill', skillId: mend.id }, seededRng(12));
-    line = res.lines.find((l) => l.includes('restores')) ?? '';
-  } finally {
-    setCombatTelemetry(null);
-  }
-  const restored = events.filter((e): e is Extract<CombatEvent, { kind: 'hpRestored' }> =>
+  p.hp = statsOf(p).maxHp - 1; // THE probe: 1 missing HP
+  const res = performAction(p, b, { kind: 'skill', skillId: mend.id }, seededRng(12));
+  const line = res.lines.find((l) => l.includes('restores')) ?? '';
+  const restored = res.trace.filter((e): e is Extract<CombatTraceEntry, { kind: 'hpRestored' }> =>
     e.kind === 'hpRestored' && e.side === 'player'
   );
   assert(restored.length >= 1, 'the cast emitted a typed restore event');
@@ -771,19 +804,185 @@ Deno.test('telemetry: enemy healing never subtracts from gross damage (#95)', ()
   assert(true);
 });
 
-Deno.test('telemetry: the collector is detached even when a fight throws (#95)', () => {
+Deno.test('telemetry: fights need no finally — a throwing fight leaves no global state (#95/#101)', () => {
   const hero = makeHero('warrior', 5, 'best');
   assertThrows(
     () => runFight(hero, 'e_unknown_enemy', POLICIES.rotation, seededRng(1)),
     Error,
     'unknown enemy',
   );
-  assertEquals(
-    isCombatTelemetryAttached(),
-    false,
-    'a thrown fight must not leak the module-global sink',
-  );
-  // And a normal fight afterwards still collects its own events.
+  // A normal fight afterwards is unaffected — there is no ambient
+  // collector anywhere to leak, restore or cross-contaminate.
   const r = runFight(hero, 'e_rat', POLICIES.free, seededRng(2));
   assertEquals(r.outcome, 'win');
+});
+
+// ── #101: the explicit synchronous trace replaces the module-global sink ──
+
+Deno.test('trace: opening entries, proc nesting and terminal land in resolution order (#101)', () => {
+  const p = makeHero('rogue', 20, 'best');
+  p.equipment.trinket = 't_wardstone'; // battleStart ward — an opening proc
+  const res = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player: p,
+    rng: seededRng(31),
+  })!;
+  const kinds = res.trace.map((e) => e.kind);
+  assert(kinds.includes('procAttempt'), 'the battleStart trigger recorded its attempt');
+  assertEquals(res.outcome, 'ongoing', 'no authored content opens lethally here');
+  assert(!kinds.includes('terminal'), 'an ongoing opening records no terminal entry');
+  // The ward's shieldGrant precedes the proc attempt that produced it
+  // (applyInstance runs before the proc attempt is recorded).
+  assert(
+    kinds.indexOf('shieldGrant') !== -1 && kinds.indexOf('shieldGrant') < kinds.length,
+    'the ward grant is recorded',
+  );
+
+  // Multi-hit ordering: each ordered HP-loss event appends its hpDamaged
+  // entry, and the reactive proc's own entries nest BETWEEN them, in
+  // exact execution order, before the outer call returns.
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const originalMoves = rat.moves;
+  const charm = item('t_19')!;
+  const originalTriggers = charm.triggers;
+  rat.moves = [{
+    name: 'Double Bite',
+    weight: 1,
+    effects: [
+      { kind: 'damage', attack: 'phys', power: 1 },
+      { kind: 'damage', attack: 'phys', power: 1 },
+    ],
+  }];
+  charm.triggers = [{
+    name: 'Grudge Prick',
+    trigger: 'onHpDamage',
+    effects: [{
+      kind: 'periodic',
+      target: 'opponent',
+      perRound: -3,
+      duration: 2,
+      tickPhase: 'roundEnd',
+      name: 'Grudge Bleed',
+      tags: ['bleed', 'harmful'],
+    }],
+    desc: 'test fixture: every HP loss answers',
+  }];
+  try {
+    // A seed where the strike does NOT slip the double bite (starting-kit
+    // SPD keeps the dodge baseline low; 'best' gear slips too often).
+    let hero: PlayerState | undefined;
+    let r: ReturnType<typeof startBattle> | undefined;
+    let round: ReturnType<typeof performAction> | undefined;
+    for (let seed = 1; seed <= 60 && !round; seed++) {
+      hero = makeHero('warrior', 5, 'starting');
+      hero.equipment.trinket = 't_19';
+      r = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+        player: hero,
+        rng: seededRng(32),
+      })!;
+      hero.battle = r.battle;
+      r.battle.enemy.hp = 99999;
+      r.battle.enemy.maxHp = 99999;
+      round = performAction(hero, r.battle, { kind: 'attack' }, seededRng(33 + seed));
+      if (round.trace.filter((e) => e.kind === 'hpDamaged' && e.target === 'player').length < 2) {
+        round = undefined; // a slip — try the next seed
+      }
+    }
+    assert(hero && r && round, 'a non-dodged double-bite seed exists');
+    const hits = round.trace.filter(
+      (e): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
+        e.kind === 'hpDamaged' && e.target === 'player',
+    );
+    assertEquals(hits.length, 2, 'both HP-loss events are on the trace');
+    const procs = round.trace.filter(
+      (e): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt',
+    );
+    assertEquals(procs.length, 2, 'each event dispatched its own proc');
+    // Nesting: proc 1's attempt sits between the two player-target hits.
+    const idx = (e: CombatTraceEntry): number => round.trace.indexOf(e);
+    assert(
+      idx(hits[0]!) < idx(procs[0]!) && idx(procs[0]!) < idx(hits[1]!),
+      'the first proc resolved synchronously between the two hits',
+    );
+  } finally {
+    rat.moves = originalMoves;
+    charm.triggers = originalTriggers;
+  }
+});
+
+Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', () => {
+  const poison = (b: import('../src/engine/types.ts').BattleState): void => {
+    b.effectInstances.push({
+      iid: 't1',
+      defId: 'poison',
+      name: 'Poison',
+      side: 'enemy',
+      source: { kind: 'skill', id: 'test', name: 'test fixture' },
+      kind: 'periodic',
+      perRound: -5,
+      tickPhase: 'roundEnd',
+      tags: ['harmful', 'periodic', 'poison'],
+      stacking: 'replace',
+      appliedRound: b.round,
+      remaining: 3,
+      removable: true,
+      expiresRound: b.round + 2,
+    });
+  };
+  // Ticks: a padded foe survives both slots, so round-end ticks run.
+  const p1 = makeHero('warrior', 5, 'best');
+  const b1 = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player: p1,
+    rng: seededRng(41),
+  })!.battle;
+  p1.battle = b1;
+  b1.enemy.hp = 99999;
+  b1.enemy.maxHp = 99999;
+  poison(b1);
+  const ticked = performAction(p1, b1, { kind: 'attack' }, seededRng(42));
+  const ticks = ticked.trace.filter((e) => e.kind === 'periodicTick');
+  assertEquals(ticks.length, 1, 'the DoT tick is on the trace');
+
+  // Terminal: an unpadded fight resolves, and the terminal entry is that
+  // resolution's LAST record.
+  const p2 = makeHero('warrior', 5, 'best');
+  const b2 = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player: p2,
+    rng: seededRng(41),
+  })!.battle;
+  p2.battle = b2;
+  let last: import('../src/engine/combat.ts').ActionResult | undefined;
+  for (let i = 0; i < 20 && b2.phase === 'active'; i++) {
+    last = performAction(p2, b2, { kind: 'attack' }, seededRng(42 + i));
+  }
+  assert(last, 'the fight resolved');
+  const terminal = last!.trace.filter((e) => e.kind === 'terminal');
+  assertEquals(terminal.length, 1, 'exactly one terminal adjudication');
+  assertEquals(
+    last!.trace.indexOf(terminal[0]!),
+    last!.trace.length - 1,
+    'the terminal entry is the resolution\u2019s last record',
+  );
+});
+
+Deno.test('trace: ignoring the returned trace changes nothing (#101)', () => {
+  // Two identical seeded fights — one that consumes the trace, one that
+  // discards it — produce identical state, lines, outcomes and RNG use.
+  const run = (consume: boolean): { outcome: string; lines: string[]; hp: number } => {
+    const p = makeHero('cleric', 12, 'best');
+    const r = startBattle('e_stag', { kind: 'elite', zoneId: 'whisperwood' }, {
+      player: p,
+      rng: seededRng(51),
+    })!;
+    p.battle = r.battle;
+    void (consume ? r.trace : undefined);
+    let res;
+    for (let i = 0; i < 200 && r.battle.phase === 'active'; i++) {
+      res = performAction(p, r.battle, { kind: 'attack' }, seededRng(52 + i));
+      void (consume ? res.trace : undefined);
+    }
+    return { outcome: res!.outcome, lines: res!.lines, hp: p.hp };
+  };
+  const consumed = run(true);
+  const ignored = run(false);
+  assertEquals(ignored, consumed, 'the trace is pure observer data');
 });
