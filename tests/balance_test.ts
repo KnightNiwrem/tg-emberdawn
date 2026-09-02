@@ -29,11 +29,13 @@ import {
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { dungeonOf, encounterEligible } from '../src/engine/world.ts';
-import type { BattleOrigin, ClassId, PlayerState } from '../src/engine/types.ts';
+import type { BattleOrigin, BattleState, ClassId, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { MAX_LEVEL } from '../src/engine/classes.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
+import { applyInstance, type InstanceSeed } from '../src/engine/effects.ts';
 import { type CombatTraceEntry } from '../src/engine/telemetry.ts';
+import type { Rng } from '../src/engine/rng.ts';
 import { ENEMIES, enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
@@ -549,53 +551,132 @@ Deno.test('engine: structured telemetry emits typed combat events (#88)', () => 
   assert(events.some((e) => e.kind === 'terminal'), 'the terminal outcome was never emitted');
 });
 
-Deno.test('telemetry: two concurrent fights collect isolated traces (#101)', () => {
+/** #110: a synthetic effect whose application emits a trace entry carrying
+ * the fight's UNIQUE identity (defId + source) — ordinary combat entries
+ * name shared content (saps, stuns), so isolation must be proven with ids
+ * that exist in exactly one fight. */
+function isoSeed(defId: string, side: 'player' | 'enemy'): InstanceSeed {
+  return {
+    defId,
+    name: defId,
+    kind: 'statmod',
+    side,
+    source: { kind: 'skill', id: defId, name: defId },
+    stat: 'atk',
+    pct: 0,
+    tags: ['beneficial'],
+    stacking: 'stack',
+    duration: 9,
+    timing: 'immediate',
+    removable: true,
+  };
+}
+
+/** Unique trace identities present in one fight's trace. */
+function isoIds(trace: CombatTraceEntry[]): Set<string> {
+  return new Set(
+    trace.flatMap((e) => (e.kind === 'effectApplied' ? [e.defId, e.source] : [])),
+  );
+}
+
+/** The isolation assertion itself — deliberately factored so the
+ * counterfactual block below can prove it FAILS under contamination. */
+function assertTraceIsolation(trace: CombatTraceEntry[], own: string, other: string): void {
+  const ids = isoIds(trace);
+  assert(ids.has(own), `the trace must carry its own unique effect (${own})`);
+  assertEquals(
+    ids.has(other),
+    false,
+    `the trace must never carry the other fight's unique effect (${other})`,
+  );
+}
+
+/** One padded fight WITHOUT actions: construction, the unique synthetic
+ * effect, and the opening trace. The action loop is applied separately so
+ * the interleaved run and the solo reruns execute identical sequences. */
+function buildIsoFight(
+  classId: ClassId,
+  level: number,
+  enemyId: string,
+  zoneId: string,
+  startSeed: number,
+  isoId: string,
+  isoSide: 'player' | 'enemy',
+): { p: PlayerState; b: BattleState; trace: CombatTraceEntry[] } {
+  const p = makeHero(classId, level, 'best');
+  const started = startBattle(enemyId, { kind: 'explore', zoneId }, {
+    player: p,
+    rng: seededRng(startSeed),
+  })!;
+  const b = started.battle;
+  p.battle = b;
+  b.enemy.hp = 99999;
+  b.enemy.maxHp = 99999;
+  const trace: CombatTraceEntry[] = [...started.trace];
+  // The unique synthetic application emits its effectApplied entry — with
+  // the fight's unique defId AND source — into THIS fight's trace only.
+  applyInstance(b, isoSeed(isoId, isoSide), trace);
+  return { p, b, trace };
+}
+
+/** `rounds` basic attacks at fixed action seeds, appended to the trace. */
+function runIsoActions(
+  f: { p: PlayerState; b: BattleState; trace: CombatTraceEntry[] },
+  actionSeedBase: number,
+  rounds: number,
+): void {
+  for (let r = 0; r < rounds; r++) {
+    const res = performAction(f.p, f.b, { kind: 'attack' }, seededRng(actionSeedBase + r));
+    f.trace.push(...res.trace);
+  }
+}
+
+Deno.test('telemetry: two concurrent fights collect isolated traces (#101, #110)', () => {
   // Two resolutions interleaved round by round — each owns its trace and
-  // neither observes the other's entries.
-  const a = makeHero('warrior', 10, 'best');
-  const c = makeHero('mage', 10, 'best');
-  const sa = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: a,
-    rng: seededRng(21),
-  })!;
-  const sc = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
-    player: c,
-    rng: seededRng(22),
-  })!;
-  const ba = sa.battle;
-  const bc = sc.battle;
-  a.battle = ba;
-  c.battle = bc;
-  ba.enemy.hp = 99999;
-  ba.enemy.maxHp = 99999;
-  const traceA = [...sa.trace];
-  const traceC = [...sc.trace];
-  for (let r = 0; r < 6 && ba.phase === 'active' && bc.phase === 'active'; r++) {
-    const ra = performAction(a, ba, { kind: 'attack' }, seededRng(30 + r));
-    const rc = performAction(c, bc, { kind: 'attack' }, seededRng(40 + r));
-    traceA.push(...ra.trace);
-    traceC.push(...rc.trace);
+  // neither observes the other's entries. Each fight carries a UNIQUE
+  // trace-producing effect id, and each interleaved trace must equal its
+  // SOLO rerun byte-for-byte — so swapped traces, a globally appended
+  // collector, or entries tagged with the wrong fight's id all FAIL,
+  // where the old absence-of-names check could pass vacuously.
+  const interA = buildIsoFight('warrior', 10, 'e_wolf', 'whisperwood', 21, 'iso-fight-a', 'player');
+  const interC = buildIsoFight('mage', 10, 'e_rat', 'outskirts', 22, 'iso-fight-b', 'enemy');
+  for (let r = 0; r < 6; r++) {
+    // Interleaved: one action of fight A, then one of fight C, per round.
+    const ra = performAction(interA.p, interA.b, { kind: 'attack' }, seededRng(30 + r));
+    interA.trace.push(...ra.trace);
+    const rc = performAction(interC.p, interC.b, { kind: 'attack' }, seededRng(40 + r));
+    interC.trace.push(...rc.trace);
   }
-  assert(traceA.length > 0 && traceC.length > 0, 'both fights recorded entries');
-  // Isolation: fight A only ever names the wolf, fight C only the rat.
-  const namesOf = (trace: CombatTraceEntry[]): Set<string> =>
-    new Set(
-      trace.flatMap((e) =>
-        e.kind === 'effectApplied' || e.kind === 'effectRemoved' || e.kind === 'periodicTick'
-          ? [e.name]
-          : []
-      ),
-    );
-  for (const [trace, foe] of [[traceA, 'Wolf'], [traceC, 'Rat']] as const) {
-    const [mine, other] = foe === 'Wolf' ? ['Wolf', 'Rat'] : ['Rat', 'Wolf'];
-    assert(
-      [...namesOf(trace)].every((n) => !n.includes(other)),
-      `fight ${mine} trace must not contain ${other} entries`,
-    );
-  }
-  // The traces carry no references into each other: fight C's total
-  // entries never appear inside fight A's collector.
-  assertEquals(traceA.includes(traceC[0] as never), false);
+  const soloA = buildIsoFight('warrior', 10, 'e_wolf', 'whisperwood', 21, 'iso-fight-a', 'player');
+  runIsoActions(soloA, 30, 6);
+  const soloC = buildIsoFight('mage', 10, 'e_rat', 'outskirts', 22, 'iso-fight-b', 'enemy');
+  runIsoActions(soloC, 40, 6);
+  assert(interA.trace.length > 0 && interC.trace.length > 0, 'both fights recorded entries');
+  // EXACT equality: the interleaved collection is entry-for-entry the solo
+  // rerun — nothing extra was appended, nothing went missing.
+  assertEquals(interA.trace, soloA.trace, 'fight A interleaved equals its solo rerun');
+  assertEquals(interC.trace, soloC.trace, 'fight C interleaved equals its solo rerun');
+  // The unique ids partition cleanly across the two traces.
+  assertTraceIsolation(interA.trace, 'iso-fight-a', 'iso-fight-b');
+  assertTraceIsolation(interC.trace, 'iso-fight-b', 'iso-fight-a');
+  // The assertions are load-bearing — each contamination mode trips them.
+  assertThrows(
+    // Swapped: fight C's trace offered as fight A's.
+    () => assertTraceIsolation(interC.trace, 'iso-fight-a', 'iso-fight-b'),
+    Error,
+    'own unique effect (iso-fight-a)',
+  );
+  assertThrows(
+    // Globally appended: one collector holding both fights' entries.
+    () => assertTraceIsolation([...interA.trace, ...interC.trace], 'iso-fight-a', 'iso-fight-b'),
+    Error,
+    'must never carry',
+  );
+  assertThrows(
+    () => assertEquals(interA.trace, interC.trace),
+    Error,
+    'Values are not equal',
+  );
 });
 
 Deno.test('balance: runFight metrics include periodic damage and proc accounting (#88)', () => {
@@ -1003,25 +1084,90 @@ Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', (
   );
 });
 
-Deno.test('trace: ignoring the returned trace changes nothing (#101)', () => {
-  // Two identical seeded fights — one that consumes the trace, one that
-  // discards it — produce identical state, lines, outcomes and RNG use.
-  const run = (consume: boolean): { outcome: string; lines: string[]; hp: number } => {
+/** #110: a counting RNG — ONE continuous mulberry32 stream whose every
+ * draw increments a shared counter, so comparisons see TOTAL RNG use (the
+ * old per-action reseeding could hide an extra draw entirely). */
+function countingRng(seed: number): { rng: Rng; draws: () => number } {
+  let draws = 0;
+  const base = seededRng(seed);
+  return {
+    rng: () => {
+      draws++;
+      return base();
+    },
+    draws: () => draws,
+  };
+}
+
+Deno.test('trace: ignoring the returned trace changes nothing — full state and draw parity (#101, #110)', () => {
+  // Two identical fights on ONE continuous seeded stream each — one that
+  // consumes the traces, one that discards them — must end with
+  // byte-identical FULL state (player + battle, including the proc
+  // bookkeeping, instance ids, cooldowns and pools the old field-picking
+  // comparison skipped), identical text, and the exact same number of RNG
+  // draws. Trace collection is caller-owned and never persisted, so the
+  // snapshots exclude the trace itself.
+  const run = (consume: boolean, leaky = false) => {
     const p = makeHero('cleric', 12, 'best');
+    const counter = countingRng(1051);
     const r = startBattle('e_stag', { kind: 'elite', zoneId: 'whisperwood' }, {
       player: p,
-      rng: seededRng(51),
+      rng: counter.rng,
     })!;
     p.battle = r.battle;
     void (consume ? r.trace : undefined);
     let res;
     for (let i = 0; i < 200 && r.battle.phase === 'active'; i++) {
-      res = performAction(p, r.battle, { kind: 'attack' }, seededRng(52 + i));
+      res = performAction(p, r.battle, { kind: 'attack' }, counter.rng);
       void (consume ? res.trace : undefined);
+      if (leaky) counter.rng(); // #110 counterfactual: one EXTRA draw per action
     }
-    return { outcome: res!.outcome, lines: res!.lines, hp: p.hp };
+    const snapshot = JSON.stringify({
+      // battle is a live back-reference, excluded from the player's shape
+      player: { ...p, battle: undefined },
+      battle: r.battle,
+    });
+    return {
+      snapshot,
+      outcome: res!.outcome,
+      lines: res!.lines,
+      draws: counter.draws(),
+    };
   };
   const consumed = run(true);
   const ignored = run(false);
-  assertEquals(ignored, consumed, 'the trace is pure observer data');
+  assertEquals(
+    ignored.snapshot,
+    consumed.snapshot,
+    'the trace is pure observer data — full state parity',
+  );
+  assertEquals(ignored.outcome, consumed.outcome);
+  assertEquals(ignored.lines, consumed.lines, 'identical text');
+  assertEquals(ignored.draws, consumed.draws, 'the exact same number of RNG draws');
+  // The parity assertions are load-bearing:
+  // (1) an extra RNG draw per action shifts BOTH the stream and the count —
+  // the snapshot and draw-count comparisons must fail;
+  const leaky = run(false, true);
+  assert(leaky.draws > consumed.draws, 'the leak actually consumed extra draws');
+  assertThrows(
+    () => assertEquals(leaky.snapshot, consumed.snapshot),
+    Error,
+    'Values are not equal',
+  );
+  assertThrows(
+    () => assertEquals(leaky.draws, consumed.draws),
+    Error,
+    'Values are not equal',
+  );
+  // (2) a mutation of trace-INDEPENDENT bookkeeping — instance ids the old
+  // comparison never looked at — is caught by the full-state snapshot;
+  const tampered = JSON.parse(consumed.snapshot) as {
+    battle: { effectSeq: number };
+  };
+  tampered.battle.effectSeq += 1;
+  assertThrows(
+    () => assertEquals(JSON.stringify(tampered), consumed.snapshot),
+    Error,
+    'Values are not equal',
+  );
 });
