@@ -6,7 +6,7 @@
 
 import { assert, assertEquals, assertExists } from '@std/assert';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
-import { performAction, startBattle } from '../src/engine/combat.ts';
+import { performAction, previewBattle, startBattle } from '../src/engine/combat.ts';
 import { applyInstance, maxShield, seedForSpec, tickEndOfRound } from '../src/engine/effects.ts';
 import type { BattleOrigin, BattleState, PlayerState } from '../src/engine/types.ts';
 import { renderBattle, renderSkillMenu } from '../src/render/battle.ts';
@@ -148,7 +148,7 @@ Deno.test('#80: battle-lifetime wards never tick down or expire', () => {
 });
 
 Deno.test('#80: a 99-round opening shield expires at the end of round 99', () => {
-  const b = startBattle('e_rat', ORIGIN)!;
+  const b = previewBattle('e_rat', ORIGIN)!;
   const inst = applyInstance(
     b,
     seedForSpec(
@@ -207,6 +207,18 @@ Deno.test('#80: tutorial provenance suppresses openings at construction', () => 
   assertEquals(b.shield.player, 0);
   assertEquals(b.tutorial, true);
   assertEquals(b.tutorialStep, 'basic');
+});
+
+Deno.test('#91: previewBattle resolves no opening — not even the boss ward', () => {
+  // The preview container is for menus/telemetry only: raw enemy state with
+  // no hero attached. It must never leak partial opening resolution.
+  const boss = previewBattle('e_aldric', BOSS_ORIGIN)!;
+  assertEquals(boss.opening, undefined);
+  assertEquals(boss.effectInstances.length, 0);
+  assertEquals(boss.shield.enemy, 0, 'boss provenance grants nothing without the hero');
+  const plain = previewBattle('e_rat', ORIGIN)!;
+  assertEquals(plain.opening, undefined);
+  assertEquals(plain.effectInstances.length, 0);
 });
 
 Deno.test('#80: the opening renders expanded on round 1, collapsed thereafter', () => {

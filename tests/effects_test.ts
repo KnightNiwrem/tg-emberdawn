@@ -14,7 +14,7 @@ import {
   migratePlayer,
   statsOf,
 } from '../src/engine/character.ts';
-import { performAction, startBattle } from '../src/engine/combat.ts';
+import { performAction, previewBattle } from '../src/engine/combat.ts';
 import {
   applyInstance,
   effectDefId,
@@ -35,7 +35,7 @@ Deno.test('effects: different sources on one stat coexist and fold additively (#
   p.level = 30;
   p.skills.push('sk_war_cry');
   p.mp = 999;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -60,7 +60,7 @@ Deno.test('effects: same-source policies are explicit — replace vs stack (#78)
   p.level = 40;
   p.skills.push('sk_war_cry', 'sk_adrenaline');
   p.mp = 999;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -98,7 +98,7 @@ Deno.test('effects: same-source policies are explicit — replace vs stack (#78)
 
 Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
   const p = createPlayer(503, 'T', 'warrior');
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   const sap = (pct: number): void => {
     applyInstance(b, {
@@ -140,7 +140,7 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
   p.skills.push('sk_miracle');
   p.mp = 999;
   p.hp = 10;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
   p.battle = b;
@@ -177,7 +177,7 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
 Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
   const p = createPlayer(505, 'T', 'warrior');
   p.level = 20;
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   // Synthetic Poison (no content ships DoTs yet — vocabulary proof): 5/round.
   b.effectSeq++;
@@ -210,7 +210,7 @@ Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
 
 Deno.test('effects: control instances consume the target\u2019s actions (#78)', () => {
   const p = createPlayer(506, 'T', 'warrior');
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   b.effectInstances.push({
     iid: 't2',
@@ -245,7 +245,7 @@ Deno.test('effects: control instances consume the target\u2019s actions (#78)', 
 Deno.test('migratePlayer: v5 in-flight battles map CombatBuffs to effect instances (#78)', () => {
   const p = createPlayer(507, 'T', 'cleric');
   p.stateVersion = 5;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   // Simulate a v5 battle mid-fight: Blessing legs, a sap, a live enemy stun.
   const rec = b as unknown as Record<string, unknown>;
   rec.buffs = {
@@ -371,7 +371,7 @@ Deno.test('#90: content integrity — derived keys never collide within one sour
 });
 
 Deno.test('#90: refresh is an atomic rebuild — payload and clock renew together', () => {
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const base: InstanceSeed = {
     defId: 'test:refresh',
     name: 'Old Brand',
@@ -412,7 +412,7 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
 });
 
 Deno.test('#90: refresh flips finite ↔ battle-lifetime coherently', () => {
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const finite: InstanceSeed = {
     defId: 'test:lt',
     name: 'Finite',
@@ -440,7 +440,7 @@ Deno.test('#90: refresh flips finite ↔ battle-lifetime coherently', () => {
 });
 
 Deno.test('#90: strongest retains the winner — no timing leak, coherent extension', () => {
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const strong: InstanceSeed = {
     defId: 'test:strong',
     name: 'Big',
@@ -485,7 +485,7 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
 });
 
 Deno.test('#90: strongest battle-lifetime upgrade and incoming-wins are whole', () => {
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const strong: InstanceSeed = {
     defId: 'test:strong2',
     name: 'Big',
@@ -536,7 +536,7 @@ Deno.test('#90: stacking states survive a JSON round-trip and keep matching', ()
     timing: 'immediate',
     removable: true,
   };
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   applyInstance(b, base);
   applyInstance(b, { ...base, stacking: 'stack', defId: 'test:rt2', name: 'S1' });
   applyInstance(b, { ...base, stacking: 'refresh', defId: 'test:rt3', name: 'Rf' });
@@ -553,7 +553,7 @@ Deno.test('#90: stacking states survive a JSON round-trip and keep matching', ()
   // instances still match their identities for further reapplication.
   const snapshot = JSON.stringify(b.effectInstances);
   assertEquals(JSON.stringify(JSON.parse(snapshot)), snapshot);
-  const b2 = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b2 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b2.effectInstances = JSON.parse(snapshot) as EffectInstance[];
   b2.effectSeq = b.effectSeq;
   const re = applyInstance(b2, { ...base, defId: 'test:rt3', stacking: 'refresh', name: 'Again' });

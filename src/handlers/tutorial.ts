@@ -12,6 +12,7 @@
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { startBattle } from '../engine/combat.ts';
+import { defaultRng } from '../engine/rng.ts';
 import { statsOf } from '../engine/character.ts';
 import { CLASSES } from '../engine/classes.ts';
 import { applyTutorialOutcome } from '../engine/tutorial.ts';
@@ -130,6 +131,7 @@ export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationR
       }
       const b = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone }, {
         player: p,
+        rng: defaultRng,
         tutorial: true,
       });
       if (!b) return { toast: 'Nothing stirs.' };

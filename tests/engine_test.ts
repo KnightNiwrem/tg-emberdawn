@@ -20,8 +20,8 @@ import {
   dodgeChance,
   performAction,
   type PlayerAction,
+  previewBattle,
   rollRewards,
-  startBattle,
 } from '../src/engine/combat.ts';
 import { type BattleState, CLASS_IDS, type ClassId } from '../src/engine/types.ts';
 import {
@@ -106,7 +106,7 @@ Deno.test('grantXp levels up, restores pools and learns skills', () => {
 Deno.test('combat: deterministic battle to victory with rewards', () => {
   const rng = seeded(42);
   const p = createPlayer(4, 'T', 'warrior');
-  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const battle = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   const attack: PlayerAction = { kind: 'attack' };
   let rounds = 0;
   while (battle.enemy.hp > 0 && rounds < 100) {
@@ -124,7 +124,7 @@ Deno.test('combat: deterministic battle to victory with rewards', () => {
 Deno.test('combat: player deals damage and takes damage in a real fight', () => {
   const rng = seeded(7);
   const p = createPlayer(5, 'T', 'warrior');
-  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const battle = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const hpBefore = p.hp;
   const enemyHpBefore = battle.enemy.hp;
   performAction(p, battle, { kind: 'attack' }, rng);
@@ -152,7 +152,7 @@ Deno.test('combat: free basic action is class-typed in label and verb (#70)', ()
   ];
   for (const [cid, name, verb] of cases) {
     const p = createPlayer(700, 'T', cid);
-    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
     const r = performAction(p, b, { kind: 'attack' }, seeded(21));
     assert(
       r.lines.some((l) => l.includes(name) && l.includes(` ${verb} `)),
@@ -164,7 +164,7 @@ Deno.test('combat: free basic action is class-typed in label and verb (#70)', ()
 Deno.test('combat: MAG/ATK buffs and Sapped modify the correct free action (#70)', () => {
   const dmg = (cid: ClassId, pct: { atk?: number; mag?: number; weaken?: number }): number => {
     const p = createPlayer(701, 'T', cid);
-    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const b = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
     // Live instances fold into the free action (#78): ATK/MAG buffs raise
     // their own stat; Sapped cuts the outgoing damage of both legs.
     if (pct.atk) injectMod(b, 'player', 'atk', pct.atk);
@@ -205,7 +205,7 @@ Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () 
   mage.level = 45;
   mage.hp = 99999; // #86: survive Aldric's responses — a defeated actor no longer acts
   const mDraws = strikeDraws(34, statsOf(mage).luck);
-  const mb = startBattle('e_aldric', origin)!;
+  const mb = previewBattle('e_aldric', origin)!;
   const mBefore = mb.enemy.hp;
   performAction(mage, mb, { kind: 'attack' }, seeded(34));
   const mDmg = mBefore - mb.enemy.hp;
@@ -232,7 +232,7 @@ Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () 
   const warrior = createPlayer(703, 'T', 'warrior');
   warrior.level = 45;
   const wDraws = strikeDraws(34, statsOf(warrior).luck);
-  const wb = startBattle('e_aldric', origin)!;
+  const wb = previewBattle('e_aldric', origin)!;
   const wBefore = wb.enemy.hp;
   performAction(warrior, wb, { kind: 'attack' }, seeded(34));
   const wDmg = wBefore - wb.enemy.hp;
@@ -249,7 +249,7 @@ Deno.test('combat: free action floors at 1 damage and surfaces crits (#70)', () 
   // raw roll to the 1-damage floor.
   const p = createPlayer(704, 'T', 'mage');
   p.hp = 99999; // #86: survive Aldric's response — a defeated actor no longer acts
-  const floor = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  const floor = previewBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
   injectMod(floor, 'enemy', 'spd', -0.95); // #86: guarantee the mage takes slot 1
   const before = floor.enemy.hp;
   const r = performAction(p, floor, { kind: 'attack' }, seeded(9));
@@ -269,7 +269,7 @@ Deno.test('combat: free action floors at 1 damage and surfaces crits (#70)', () 
     }
   }
   assert(critSeed > 0, 'expected a crit seed within 1..40');
-  const critBattle = startBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
+  const critBattle = previewBattle('e_aldric', { kind: 'explore', zoneId: 'crownspire' })!;
   injectMod(critBattle, 'enemy', 'spd', -0.95); // #86: the mage takes slot 1 — draws align
   const r2 = performAction(p, critBattle, { kind: 'attack' }, seeded(critSeed));
   assert(r2.lines.some((l) => l.includes('critical')), 'crit line must carry the marker');
@@ -281,7 +281,7 @@ Deno.test('combat: skills consume mp and respect cooldown', () => {
   p.level = 13;
   p.skills.push('sk_arcane_surge', 'sk_firebolt');
   p.mp = statsOf(p).maxMp;
-  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const battle = previewBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' })!;
   const mpBefore = p.mp;
   const r1 = performAction(p, battle, { kind: 'skill', skillId: 'sk_arcane_surge' }, rng);
   assert(p.mp < mpBefore, 'mp should be spent');
@@ -309,7 +309,7 @@ Deno.test('combat: guard halves incoming damage', () => {
   );
 
   function play(action: 'guard' | 'attack') {
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const battle = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     const pc = createPlayer(10, 'T', 'cleric');
     performAction(pc, battle, { kind: action }, seeded(5));
     return battle;
@@ -320,7 +320,7 @@ Deno.test('boss battles cannot be fled', () => {
   const rng = seeded(3);
   const p = createPlayer(9, 'T', 'rogue');
   p.level = 45;
-  const battle = startBattle('e_aldric', {
+  const battle = previewBattle('e_aldric', {
     kind: 'dungeon',
     zoneId: 'umbra',
     dungeonId: 'd_throne',
@@ -379,7 +379,7 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   const rng = seeded(55);
   const p = createPlayer(60, 'T', 'warrior');
   p.level = 45;
-  const b = startBattle('e_vosk', { kind: 'explore', zoneId: 'hollowmere' })!;
+  const b = previewBattle('e_vosk', { kind: 'explore', zoneId: 'hollowmere' })!;
   p.battle = b;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
@@ -395,7 +395,7 @@ Deno.test('boss specials fire on the configured Nth enemy action (#26)', () => {
   const m = createPlayer(61, 'T', 'mage');
   m.level = 45;
   m.hp = 99999; // #86: survive the collapse hits — a defeated actor ends the round
-  const b2 = startBattle('e_chronolich', { kind: 'explore', zoneId: 'sunspire' })!;
+  const b2 = previewBattle('e_chronolich', { kind: 'explore', zoneId: 'sunspire' })!;
   m.battle = b2;
   b2.enemy.hp = 99999;
   b2.enemy.maxHp = 99999;
@@ -419,7 +419,7 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
     p.level = 40;
     p.skills.push(skillId);
     p.mp = 999;
-    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     b.enemy.hp = 99999;
     b.enemy.maxHp = 99999;
     p.battle = b;
@@ -513,7 +513,7 @@ Deno.test('combat: Blessing empowers MAG/DEF — never Cleric-dead ATK (#77)', (
     p.level = 20;
     p.skills.push('sk_blessing');
     p.mp = 999;
-    const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+    const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
     b.enemy.hp = 99999;
     b.enemy.maxHp = 99999;
     p.battle = b;
@@ -555,7 +555,7 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
   const p = createPlayer(66, 'T', 'warrior');
   p.level = 45;
   // Ruin Sentinel: Guard Stance (weight 1 vs Stone Fist 3).
-  const b = startBattle('e_sentinel', { kind: 'explore', zoneId: 'sunspire' })!;
+  const b = previewBattle('e_sentinel', { kind: 'explore', zoneId: 'sunspire' })!;
   p.battle = b;
   b.enemy.hp = 99999;
   b.enemy.maxHp = 99999;
@@ -587,7 +587,7 @@ Deno.test('enemy guard moves guard instead of attacking; Howl deals no chip dama
   const rng2 = seeded(76);
   const w = createPlayer(67, 'T', 'warrior');
   w.level = 45;
-  const wb = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const wb = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   w.battle = wb;
   wb.enemy.hp = 99999;
   wb.enemy.maxHp = 99999;
@@ -612,7 +612,7 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   p.level = 45;
 
   // Overworld elite: smokeable, and its kills do not inflate boss stats.
-  const elite = startBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
+  const elite = previewBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
   p.battle = elite;
   assert(!elite.enemy.isBoss, 'the overworld Warden is an elite, not a boss');
   addItem(p, 'c_smoke_bomb', 1);
@@ -620,7 +620,7 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   assertEquals(elite.phase, 'fled', 'elites can be smoked out of');
 
   const afterElite = p.stats.bossesSlain;
-  const elite2 = startBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
+  const elite2 = previewBattle('e_warden', { kind: 'elite', zoneId: 'abyss' })!;
   elite2.enemy.hp = 0;
   resolveVictory(p, elite2, seeded(82));
   assertEquals(
@@ -630,7 +630,7 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   );
 
   // Dungeon boss floor: inescapable and boss-counted.
-  const boss = startBattle('e_warden', {
+  const boss = previewBattle('e_warden', {
     kind: 'dungeon',
     zoneId: 'abyss',
     dungeonId: 'd_seam',
@@ -798,7 +798,7 @@ Deno.test('migratePlayer: in-flight v3 battles normalize to the structured histo
   // A REAL v3 save (the version #67 retired) — the chain now walks it
   // v3→v4→v5, so the prologue stamp applies on the way through (#69).
   p.stateVersion = 3;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   p.battle = b;
   // Simulate a pre-#67 save: an in-flight battle still carrying the flat log.
   (p.battle as unknown as Record<string, unknown>).log = ['🐺 Wolf blocks your path!'];
@@ -1078,7 +1078,11 @@ Deno.test('Sunspire Key: enemies never drop it in any quest/gate state — m11 r
   const hammer = (tag: string) => {
     const rng = seeded(40 + tag.length);
     for (let i = 0; i < 80; i++) {
-      resolveVictory(p, startBattle('e_automaton', { kind: 'explore', zoneId: 'sunspire' })!, rng);
+      resolveVictory(
+        p,
+        previewBattle('e_automaton', { kind: 'explore', zoneId: 'sunspire' })!,
+        rng,
+      );
     }
   };
   // Quest-relevant state (m11 open, gate pending): kills never mint a key.
@@ -1099,12 +1103,12 @@ Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', 
   const p = createPlayer(32, 'T', 'warrior');
   const rng = seeded(31);
   for (let i = 0; i < 40; i++) {
-    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+    resolveVictory(p, previewBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
   }
   assertEquals(countOf(p, 'q_toxin_sample'), 0, 'no open quest → drops suppressed');
   p.quests['m6_toxin'] = { status: 'active', counts: [0] };
   for (let i = 0; i < 60; i++) {
-    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+    resolveVictory(p, previewBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
   }
   const got = countOf(p, 'q_toxin_sample');
   assert(got >= 1 && got <= 4, `expected 1..4 samples while m6 open, got ${got}`);
@@ -1116,7 +1120,7 @@ Deno.test('resolveVictory suppresses irrelevant quest drops; needed ones flow', 
   assertEquals(turnInQuest(p, 'm6_toxin', 'npc_ferryman').ok, true);
   assertEquals(countOf(p, 'q_toxin_sample'), 0, 'turn-in consumes the goods');
   for (let i = 0; i < 20; i++) {
-    resolveVictory(p, startBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
+    resolveVictory(p, previewBattle('e_leech', { kind: 'explore', zoneId: 'hollowmere' })!, rng);
   }
   assertEquals(countOf(p, 'q_toxin_sample'), 0, 'done quest → the tap stays shut');
 });
@@ -1291,7 +1295,7 @@ Deno.test('dodge: a slipped blow deals nothing and says so in the round (#72)', 
     const rng = seeded(seed);
     const p = createPlayer(900 + seed, 'T', 'rogue');
     p.level = 8; // a real SPD edge over the rat, without one-shotting it
-    const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' })!;
+    const battle = previewBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' })!;
     p.battle = battle;
     for (let round = 0; round < 6 && !dodged; round++) {
       const hpBefore = p.hp;
@@ -1317,7 +1321,7 @@ Deno.test('dodge: zero-power status moves are never slipped (#72)', () => {
     const rng = seeded(seed);
     const p = createPlayer(1200 + seed, 'T', 'rogue');
     p.level = 12;
-    const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
+    const battle = previewBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' })!;
     p.battle = battle;
     for (let round = 0; round < 8; round++) {
       const r = performAction(p, battle, { kind: 'attack' }, rng);

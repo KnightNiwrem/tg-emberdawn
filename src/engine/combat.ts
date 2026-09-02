@@ -131,13 +131,15 @@ function dealDamage(
  * pool, effect instances, opening log) and are never rerolled on
  * save/load/rerender — this pipeline is the only place they run. */
 export interface StartBattleOpts {
-  /** The fighting hero. Required for enemy openings, equipment effects and
-   * pre-emptive skills (the resolver needs a stat/target owner); omitted
-   * calls resolve the encounter boss ward only. */
-  player?: PlayerState;
+  /** The fighting hero (#91: MANDATORY) — enemy-global openings, equipped
+   * battle-start triggers and learned pre-emptive skills all need a
+   * stat/target owner, so a playable battle cannot be constructed without
+   * one. A hero-less battle container must go through previewBattle. */
+  player: PlayerState;
   /** Seeded RNG for opening chance rolls — one draw per authored chance,
-   * outcome-only persistence afterwards. */
-  rng?: Rng;
+   * outcome-only persistence afterwards. Explicit by contract: opening
+   * resolution is never left to ambient randomness. */
+  rng: Rng;
   /** Guided-prologue provenance (#69/#80): suppresses EVERY opening source
    * and phase-gates the fight at construction. The tutorial must never
    * depend on post-construction marking that runs too late. */
@@ -147,7 +149,7 @@ export interface StartBattleOpts {
 export function startBattle(
   enemyId: string,
   origin: BattleOrigin,
-  opts: StartBattleOpts = {},
+  opts: StartBattleOpts,
 ): BattleState | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
@@ -191,7 +193,7 @@ export function startBattle(
   // once and only the outcomes persist.
   const opening: string[] = [];
   if (!opts.tutorial) {
-    const opRng = opts.rng ?? defaultRng;
+    const opRng = opts.rng;
     // 1. Pre-emptive boss ward (#79): ONLY on boss-provenance encounters —
     // the same enemy id faced outside the boss floor never opens with it.
     // One-time capacity, no regeneration, not dispellable.
@@ -215,93 +217,125 @@ export function startBattle(
       );
     }
     const p = opts.player;
-    if (p) {
-      // 2. Enemy-global opening move (#80): fires for this enemy in every
-      // provenance, through the shared resolver.
-      if (def.opening) {
-        opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
-        const hpBeforeOpening = p.hp;
-        opening.push(...runOpening(
-          battle,
-          p,
-          opRng,
-          'enemy',
-          { kind: 'enemyMove', id: def.id, name: def.opening.name },
-          def.opening.name,
-          def.opening.effects,
-          'opening',
-          false,
-        ));
-        // #89: opening strikes answer BROAD onHpDamage triggers — an
-        // opening is not a direct enemy action, so the narrow trigger
-        // stays quiet; a fallen wearer procs nothing (#86 parity).
-        if (p.hp > 0 && p.hp < hpBeforeOpening) {
-          opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }));
-        }
+    // 2. Enemy-global opening move (#80): fires for this enemy in every
+    // provenance, through the shared resolver.
+    if (def.opening) {
+      opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
+      const hpBeforeOpening = p.hp;
+      opening.push(...runOpening(
+        battle,
+        p,
+        opRng,
+        'enemy',
+        { kind: 'enemyMove', id: def.id, name: def.opening.name },
+        def.opening.name,
+        def.opening.effects,
+        'opening',
+        false,
+      ));
+      // #89: opening strikes answer BROAD onHpDamage triggers — an
+      // opening is not a direct enemy action, so the narrow trigger
+      // stays quiet; a fallen wearer procs nothing (#86 parity).
+      if (p.hp > 0 && p.hp < hpBeforeOpening) {
+        opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }));
       }
-      // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
-      // trinket — then authored order within the item. battleStart procs
-      // resolve exactly ONCE here: one injected-RNG draw per authored
-      // chance, with success AND failure recorded in the opening log.
-      // Each item is its own source, so different items coexist;
-      // same-source reapplication follows the authored stacking policy.
-      for (const slot of ['weapon', 'armor', 'trinket'] as const) {
-        const itemId = p.equipment[slot];
-        const it = itemId ? itemDefLookup(itemId) : undefined;
-        if (!it?.triggers?.length) continue;
-        for (const [ti, tg] of it.triggers.entries()) {
-          if (tg.trigger !== 'battleStart') continue;
-          if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
-            emitCombatEvent({
-              kind: 'procAttempt',
-              round: battle.round,
-              item: it.name,
-              trigger: tg.name,
-              success: false,
-            });
-            opening.push(
-              `💤 ${it.name}: ${tg.name} does not wake this time (${
-                Math.round(tg.chance * 100)
-              }% roll missed).`,
-            );
-            continue;
-          }
+    }
+    // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
+    // trinket — then authored order within the item. battleStart procs
+    // resolve exactly ONCE here: one injected-RNG draw per authored
+    // chance, with success AND failure recorded in the opening log.
+    // Each item is its own source, so different items coexist;
+    // same-source reapplication follows the authored stacking policy.
+    for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+      const itemId = p.equipment[slot];
+      const it = itemId ? itemDefLookup(itemId) : undefined;
+      if (!it?.triggers?.length) continue;
+      for (const [ti, tg] of it.triggers.entries()) {
+        if (tg.trigger !== 'battleStart') continue;
+        if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
           emitCombatEvent({
             kind: 'procAttempt',
             round: battle.round,
             item: it.name,
             trigger: tg.name,
-            success: true,
+            success: false,
           });
-          opening.push(...runOpening(
-            battle,
-            p,
-            opRng,
-            'player',
-            { kind: 'item', id: it.id, name: it.name },
-            tg.name,
-            tg.effects,
-            // #89: a battleStart trigger IS a reactive proc — its damage
-            // is proc-produced and never re-triggers equipment.
-            'proc',
-            true,
-            ti,
-          ));
+          opening.push(
+            `💤 ${it.name}: ${tg.name} does not wake this time (${
+              Math.round(tg.chance * 100)
+            }% roll missed).`,
+          );
+          continue;
         }
+        emitCombatEvent({
+          kind: 'procAttempt',
+          round: battle.round,
+          item: it.name,
+          trigger: tg.name,
+          success: true,
+        });
+        opening.push(...runOpening(
+          battle,
+          p,
+          opRng,
+          'player',
+          { kind: 'item', id: it.id, name: it.name },
+          tg.name,
+          tg.effects,
+          // #89: a battleStart trigger IS a reactive proc — its damage
+          // is proc-produced and never re-triggers equipment.
+          'proc',
+          true,
+          ti,
+        ));
       }
-      // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
-      // or cooldown cost — the opening never charges resources.
-      for (const id of p.skills) {
-        const sk = skill(id);
-        if (!sk?.preEmptive) continue;
-        opening.push(...applySkill(p, battle, sk, opRng, 'opening', false));
-      }
-      // An opening can wound but never end the fight before it begins.
-      battle.enemy.hp = Math.max(1, battle.enemy.hp);
     }
+    // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
+    // or cooldown cost — the opening never charges resources.
+    for (const id of p.skills) {
+      const sk = skill(id);
+      if (!sk?.preEmptive) continue;
+      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false));
+    }
+    // An opening can wound but never end the fight before it begins.
+    battle.enemy.hp = Math.max(1, battle.enemy.hp);
   }
   if (opening.length > 0) battle.opening = { lines: opening };
   return battle;
+}
+
+/** A deliberately context-free battle container (#91): raw enemy
+ * construction ONLY — it resolves NO opening at all (not even the boss
+ * ward) and is never a playable battle. For content inspection and tests
+ * that need a bare BattleState. Playable fights MUST go through
+ * startBattle, which requires the fighting hero and an explicit RNG. */
+export function previewBattle(
+  enemyId: string,
+  origin: BattleOrigin,
+): BattleState | undefined {
+  const def = enemyDef(enemyId);
+  if (!def) return undefined;
+  const isBoss = origin.kind === 'dungeon' && origin.boss === true;
+  return {
+    enemy: {
+      id: def.id,
+      name: def.name,
+      hp: def.hp,
+      maxHp: def.hp,
+      isBoss,
+      turn: 0,
+    },
+    phase: 'active',
+    round: 1,
+    cooldowns: {},
+    guarding: false,
+    effectInstances: [],
+    effectSeq: 0,
+    shield: { player: 0, enemy: 0 },
+    history: [],
+    phoenixUsed: false,
+    origin,
+  };
 }
 
 /** Runs one opening spec list through the shared resolver (#80). Openings

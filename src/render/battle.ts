@@ -333,7 +333,8 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
     if (!learned.has(sk.id) || !sk.preEmptive) continue;
     blocks.push(para([{
       type: 'italic',
-      text: `⚡ ${sk.name} — fires automatically as the battle opens. ${sk.desc}`,
+      text:
+        `⚡ ${sk.name} — automatic at battle open (once per battle; no MP or cooldown). ${sk.desc}`,
     } as RichText]));
   }
   if (usable.length === 0) {

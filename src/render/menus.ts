@@ -236,13 +236,17 @@ export function renderSkills(p: PlayerState): InputRichMessage {
   ];
   for (const sk of all) {
     const have = learned.has(sk.id);
+    // #91: pre-emptive skills never render a payable MP/CD label — they
+    // fire automatically, once, as the battle opens, costing nothing.
+    const head = sk.preEmptive
+      ? `${
+        have ? '✅' : `🔒 Lv ${sk.learnLevel}`
+      } ${sk.name} — ⚡ automatic at battle open (once per battle) · no MP or cooldown cost`
+      : `${have ? '✅' : `🔒 Lv ${sk.learnLevel}`} ${sk.name} — ${sk.mpCost} MP${
+        sk.cooldown ? ` · CD ${sk.cooldown}` : ''
+      }`;
     blocks.push(para([
-      {
-        type: 'bold',
-        text: `${have ? '✅' : `🔒 Lv ${sk.learnLevel}`} ${sk.name} — ${sk.mpCost} MP${
-          sk.cooldown ? ` · CD ${sk.cooldown}` : ''
-        }${sk.preEmptive ? ' · ⚡ battle open' : ''}`,
-      } as RichText,
+      { type: 'bold', text: head } as RichText,
       { type: 'italic', text: `\n${sk.desc}` } as RichText,
     ]));
   }
