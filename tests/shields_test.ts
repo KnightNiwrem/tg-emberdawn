@@ -194,6 +194,54 @@ Deno.test('shields: repeatable replace sources cannot grow the pool unbounded (#
   assertEquals(maxShield(b, 'player'), 100);
 });
 
+Deno.test('shields: strongest wards compare capacity, not pct (#93)', () => {
+  const { b } = battleFor(910);
+  // First grant creates the contribution.
+  const first = grantShield(b, 'player', ward('s', 100, 'strongest'));
+  assertEquals(first.applied, 100);
+  assertEquals(b.shield.player, 100);
+  assertEquals(maxShield(b, 'player'), 100);
+  // A STRONGER recast supersedes it whole: the 200-point contribution
+  // replaces the 100-point one — existing current is preserved up to the
+  // new maximum, overflow is wasted.
+  const stronger = grantShield(b, 'player', ward('s', 200, 'strongest'));
+  assertEquals(b.effectInstances.filter((i) => i.defId === 's').length, 1, 'one slot');
+  assertEquals(maxShield(b, 'player'), 200, 'the bigger ward now backs the pool');
+  assertEquals(b.shield.player, 200, '100 current preserved, +100 fresh, capped at 200');
+  assertEquals(stronger.applied, 100, 'only the fresh capacity entered');
+  assertEquals(stronger.wasted, 100, 'the capped remainder');
+  assertEquals(stronger.lost, 0);
+  // A weaker recast neither overwrites nor refills — the 200 stands.
+  absorbShield(b, 'player', 200); // drain the pool to 0
+  const weaker = grantShield(b, 'player', ward('s', 150, 'strongest'));
+  assertEquals(weaker.applied, 0, 'a weaker ward never refills');
+  assertEquals(weaker.wasted, 0, 'its capacity never even entered the pool');
+  assertEquals(maxShield(b, 'player'), 200, 'the stronger contribution still stands');
+  assertEquals(b.shield.player, 0);
+  // An equal-strength recast follows the documented lifetime rule: it may
+  // only extend the lifetime — never refill.
+  const longer = ward('s', 200, 'strongest');
+  longer.duration = 9;
+  const extended = grantShield(b, 'player', longer);
+  assertEquals(extended.applied, 0, 'equal strength never refills');
+  assertEquals(maxShield(b, 'player'), 200);
+  const inst = b.effectInstances.find((i) => i.defId === 's')!;
+  assertEquals(inst.expiresRound, 9, 'equal-strength recast extended the lifetime');
+});
+
+Deno.test('shields: strongest vs refresh vs replace grant behavior stays distinct (#93)', () => {
+  const { b } = battleFor(911);
+  grantShield(b, 'player', ward('r', 100, 'refresh'));
+  absorbShield(b, 'player', 100);
+  // Refresh renews the clock but the depleted pool stays empty.
+  grantShield(b, 'player', ward('r', 100, 'refresh'));
+  assertEquals(b.shield.player, 0, 'refresh never refills');
+  assertEquals(maxShield(b, 'player'), 100);
+  // Replace grants fresh capacity again.
+  grantShield(b, 'player', ward('r', 100, 'replace'));
+  assertEquals(b.shield.player, 100, 'replace refills');
+});
+
 Deno.test('shields: bypassShield lands on HP and leaves the ward untouched (#79)', () => {
   let observed = false;
   for (let seed = 1; seed <= 120 && !observed; seed++) {

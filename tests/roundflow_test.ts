@@ -127,7 +127,7 @@ Deno.test('#86: a faster player’s lethal hit skips the enemy slot and ALL end-
     assertEquals(res.outcome, 'victory');
     assertEquals(p.hp, hpBefore, 'the winner’s DoT never ticked');
     assertEquals(b.round, 1, 'no end-of-round ran — the round counter never advanced');
-    assertEquals(dot.remaining, 9, 'bookkeeping (expiry) never ran');
+    assertEquals(dot.instance.remaining, 9, 'bookkeeping (expiry) never ran');
     assertEquals(b.history.length, 1, 'the terminal round is recorded exactly once');
     assert(!res.lines.some((l) => l.includes('💥')), 'the enemy never acted');
     return;
@@ -210,8 +210,8 @@ Deno.test('#86: a lethal round-end tick stops later ticks and bookkeeping', () =
     const res = round(p, b, s);
     assertEquals(res.outcome, 'defeat');
     assertEquals(p.hp, 0);
-    assertEquals(dotB.remaining, 9, 'the later tick never ran — and never decayed');
-    assert(b.effectInstances.includes(dotB), 'the surviving instance was never pruned');
+    assertEquals(dotB.instance.remaining, 9, 'the later tick never ran — and never decayed');
+    assert(b.effectInstances.includes(dotB.instance), 'the surviving instance was never pruned');
     assertEquals(b.cooldowns['sk_sunder_armor'] ?? 0, 2, 'cooldown decay never ran');
     return;
   }
@@ -228,7 +228,7 @@ Deno.test('#86: end-of-round Regen can never revive a defeated actor', () => {
     const res = round(p, b, s);
     if (res.outcome !== 'defeat') continue;
     assertEquals(p.hp, 0, 'the HoT never revived the fallen');
-    assertEquals(hot.remaining, 9, 'the HoT never ticked at all');
+    assertEquals(hot.instance.remaining, 9, 'the HoT never ticked at all');
     assert(!res.lines.some((l) => l.includes('💚')));
     return;
   }

@@ -35,7 +35,11 @@ export type StatKey =
  * - `replace`: retire the prior same-source instance, apply a fresh one.
  * - `refresh`: keep the existing magnitude, renew expiry.
  * - `stack`: add an independent contribution.
- * - `strongest`: keep the stronger magnitude (renewing expiry on ties). */
+ * - `strongest`: keep the stronger magnitude, compared per effect kind
+ *   (#93): |pct| for statmods, capacity for shields, actions for controls.
+ *   A weaker or equal recast never downgrades — it may only extend the
+ *   lifetime. Not defined for periodics (flat and %-of-max ticks are
+ *   different units) — content integrity rejects the combination. */
 export type StackingPolicy = 'replace' | 'refresh' | 'stack' | 'strongest';
 
 /** Effect tags drive cleanse/dispel targeting and UI colouring. */

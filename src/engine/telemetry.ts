@@ -12,6 +12,16 @@
 
 export type CombatSide = 'player' | 'enemy';
 
+/** #93: what an effect application actually did. Telemetry reports the
+ * RETAINED instance for `extended`/`ignored`, so a rejected weaker recast
+ * can never be counted as though its incoming payload became active. */
+export type EffectApplyOutcome =
+  | 'created'
+  | 'replaced'
+  | 'refreshed'
+  | 'extended'
+  | 'ignored';
+
 /** #89: what produced a burst of HP damage. `enemyAction` — a direct enemy
  * move; `playerAction` — the player's own strike/skill; `periodic` —
  * DOT/HOT ticks; `opening` — the battle-opening phase; `proc` — reactive-
@@ -31,12 +41,16 @@ export type CombatEvent =
     round: number;
     side: CombatSide;
     defId: string;
+    /** The RETAINED instance's display name — a rejected weaker recast
+     * reports the winner's payload, never its own (#93). */
     name: string;
-    /** Authored duration (battle-lifetime ⇒ 0) — duration-1 casts are
-     * countable without mid-round state sampling (#88). */
+    /** The RETAINED instance's remaining life (battle-lifetime ⇒ 0).
+     * Count only created/replaced/refreshed outcomes as applications
+     * (#93): extended/ignored recasts activate no new payload. */
     duration: number;
     tags: string[];
     source: string;
+    outcome: EffectApplyOutcome;
   }
   | {
     kind: 'effectRemoved';

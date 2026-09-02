@@ -697,7 +697,11 @@ export function runFight(
         if (e.success) result.procHits++;
         break;
       case 'effectApplied':
-        if (e.duration === 1) result.duration1Applied++;
+        // #93: only outcomes that activate a payload count as applications
+        // — extended/ignored recasts report the RETAINED instance.
+        if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
+          if (e.duration === 1) result.duration1Applied++;
+        }
         break;
       default:
         break;

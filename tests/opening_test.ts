@@ -165,7 +165,7 @@ Deno.test('#80: a 99-round opening shield expires at the end of round 99', () =>
       { kind: 'encounter', id: 'test', name: 'test' },
     ),
   );
-  assertEquals(inst.expiresRound, 99);
+  assertEquals(inst.instance.expiresRound, 99);
 });
 
 Deno.test('#80: save/load/rerender never rerolls or reapplies the opening', () => {

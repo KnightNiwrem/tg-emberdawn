@@ -7,7 +7,7 @@
  * consumption, the v5→v6 save migration, and #90's stable per-effect
  * identity plus atomic reapplication semantics. */
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 import {
   createPlayer,
   CURRENT_STATE_VERSION,
@@ -23,6 +23,7 @@ import {
   settleEndOfRound,
   statPct,
 } from '../src/engine/effects.ts';
+import { type CombatEvent, setCombatTelemetry } from '../src/engine/telemetry.ts';
 import type { EffectInstance } from '../src/engine/types.ts';
 import type { EffectSpec } from '../src/content/types.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
@@ -387,8 +388,9 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
     removable: true,
   };
   const first = applyInstance(b, base);
-  assertEquals(first.name, 'Old Brand');
-  assertEquals(first.deferFirstTick, true);
+  assertEquals(first.instance.name, 'Old Brand');
+  assertEquals(first.instance.deferFirstTick, true);
+  assertEquals(first.outcome, 'created');
 
   const recast = applyInstance(b, {
     ...base,
@@ -397,7 +399,8 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
     duration: 2,
     timing: 'immediate',
   });
-  assertEquals(recast.iid, first.iid, 'refresh keeps its identity');
+  assertEquals(recast.instance.iid, first.instance.iid, 'refresh keeps its identity');
+  assertEquals(recast.outcome, 'refreshed');
   assertEquals(b.effectInstances.length, 1, 'same list slot — no duplicate');
   const inst = b.effectInstances[0]!;
   assertEquals(inst.name, 'New Brand', 'payload wholly renewed');
@@ -429,14 +432,14 @@ Deno.test('#90: refresh flips finite ↔ battle-lifetime coherently', () => {
   };
   applyInstance(b, finite);
   const upgraded = applyInstance(b, { ...finite, name: 'Forever', battleLifetime: true });
-  assertEquals(upgraded.battleLifetime, true, 'flag set');
-  assertEquals(upgraded.expiresRound, Number.MAX_SAFE_INTEGER);
+  assertEquals(upgraded.instance.battleLifetime, true, 'flag set');
+  assertEquals(upgraded.instance.expiresRound, Number.MAX_SAFE_INTEGER);
   for (let i = 0; i < 3; i++) settleEndOfRound(b);
   assertEquals(b.effectInstances.length, 1, 'battle-lifetime never ages out');
   const downgraded = applyInstance(b, { ...finite, name: 'Finite Again' });
-  assertEquals(downgraded.battleLifetime, undefined, 'flag cleared');
-  assertEquals(downgraded.remaining, 2);
-  assertEquals(downgraded.expiresRound, 2, 'finite clock rebuilt from the anchor round');
+  assertEquals(downgraded.instance.battleLifetime, undefined, 'flag cleared');
+  assertEquals(downgraded.instance.remaining, 2);
+  assertEquals(downgraded.instance.expiresRound, 2, 'finite clock rebuilt from the anchor round');
 });
 
 Deno.test('#90: strongest retains the winner — no timing leak, coherent extension', () => {
@@ -456,8 +459,9 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
     removable: true,
   };
   const winner = applyInstance(b, strong);
-  assertEquals(winner.remaining, 2);
-  assertEquals(winner.expiresRound, 2);
+  assertEquals(winner.instance.remaining, 2);
+  assertEquals(winner.instance.expiresRound, 2);
+  assertEquals(winner.outcome, 'created');
 
   // A weaker DEFER-timed recast must not leak its timing into the winner.
   const retained = applyInstance(b, {
@@ -467,19 +471,21 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
     timing: 'defer',
     name: 'Small',
   });
-  assertEquals(retained.iid, winner.iid);
-  assertEquals(retained.pct, 0.4, 'winner magnitude stands');
-  assertEquals(retained.deferFirstTick, false, 'no timing leak from the weaker recast');
-  assertEquals(retained.name, 'Big', 'payload untouched');
+  assertEquals(retained.instance.iid, winner.instance.iid);
+  assertEquals(retained.instance.pct, 0.4, 'winner magnitude stands');
+  assertEquals(retained.instance.deferFirstTick, false, 'no timing leak from the weaker recast');
+  assertEquals(retained.instance.name, 'Big', 'payload untouched');
+  assertEquals(retained.outcome, 'ignored', 'weaker + shorter: fully ignored');
 
   // A longer weaker recast extends coherently: remaining and expiresRound
   // move by the same delta.
   const longer = applyInstance(b, { ...strong, pct: 0.1, duration: 4, timing: 'defer' });
-  assertEquals(longer.expiresRound, 5, 'anchor round 1 + duration 4, deferred');
-  assertEquals(longer.remaining, 5, 'extended by the same delta');
+  assertEquals(longer.instance.expiresRound, 5, 'anchor round 1 + duration 4, deferred');
+  assertEquals(longer.instance.remaining, 5, 'extended by the same delta');
+  assertEquals(longer.outcome, 'extended');
   assertEquals(
-    longer.expiresRound - longer.remaining,
-    winner.expiresRound - winner.remaining,
+    longer.instance.expiresRound - longer.instance.remaining,
+    winner.instance.expiresRound - winner.instance.remaining,
     'the two clocks moved together',
   );
 });
@@ -509,16 +515,18 @@ Deno.test('#90: strongest battle-lifetime upgrade and incoming-wins are whole', 
     battleLifetime: true,
     name: 'Small',
   });
-  assertEquals(upgraded.iid, winner.iid);
-  assertEquals(upgraded.battleLifetime, true);
-  assertEquals(upgraded.expiresRound, Number.MAX_SAFE_INTEGER);
-  assertEquals(upgraded.remaining, 1);
-  assertEquals(upgraded.pct, 0.4, 'winner magnitude stands');
+  assertEquals(upgraded.instance.iid, winner.instance.iid);
+  assertEquals(upgraded.instance.battleLifetime, true);
+  assertEquals(upgraded.instance.expiresRound, Number.MAX_SAFE_INTEGER);
+  assertEquals(upgraded.instance.remaining, 1);
+  assertEquals(upgraded.instance.pct, 0.4, 'winner magnitude stands');
+  assertEquals(upgraded.outcome, 'extended', 'weaker battle-lifetime recast only extends');
   // A stronger recast applies WHOLE: fresh identity, fresh payload.
   const stronger = applyInstance(b, { ...strong, pct: 0.5 });
-  assert(stronger.iid !== winner.iid, 'a winning recast is a new application');
-  assertEquals(stronger.pct, 0.5);
-  assertEquals(stronger.battleLifetime, undefined, 'finite again — no stale flag');
+  assert(stronger.instance.iid !== winner.instance.iid, 'a winning recast is a new application');
+  assertEquals(stronger.instance.pct, 0.5);
+  assertEquals(stronger.instance.battleLifetime, undefined, 'finite again — no stale flag');
+  assertEquals(stronger.outcome, 'replaced');
 });
 
 Deno.test('#90: stacking states survive a JSON round-trip and keep matching', () => {
@@ -557,6 +565,141 @@ Deno.test('#90: stacking states survive a JSON round-trip and keep matching', ()
   b2.effectInstances = JSON.parse(snapshot) as EffectInstance[];
   b2.effectSeq = b.effectSeq;
   const re = applyInstance(b2, { ...base, defId: 'test:rt3', stacking: 'refresh', name: 'Again' });
-  assertEquals(re.iid, b.effectInstances.find((i) => i.defId === 'test:rt3')!.iid);
+  assertEquals(re.instance.iid, b.effectInstances.find((i) => i.defId === 'test:rt3')!.iid);
   assertEquals(b2.effectInstances.length, b.effectInstances.length, 'no duplicate identity');
+});
+
+// ── #93: kind-aware strongest magnitudes and outcome-true telemetry ─────
+
+Deno.test('#93: strongest shields compare capacity — 200 supersedes 100', () => {
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const ward = (amount: number): InstanceSeed => ({
+    defId: 'probe:strongest',
+    name: `Ward ${amount}`,
+    kind: 'shield',
+    side: 'player',
+    source: { kind: 'skill', id: 'probe', name: 'Probe' },
+    shieldAmount: amount,
+    tags: ['beneficial'],
+    stacking: 'strongest',
+    duration: 3,
+    timing: 'immediate',
+    removable: true,
+  });
+  const first = applyInstance(b, ward(100));
+  assertEquals(first.outcome, 'created');
+  const second = applyInstance(b, ward(200));
+  assertEquals(second.outcome, 'replaced', 'a 200-point ward supersedes the 100-point one');
+  assertEquals(b.effectInstances.length, 1, 'one slot for the identity');
+  assertEquals(b.effectInstances[0]!.shieldAmount, 200, 'the stronger capacity stands');
+  assertEquals(b.effectInstances[0]!.name, 'Ward 200', 'the incoming payload became active');
+  // A weaker recast is retained-payload: nothing changes at all.
+  const weaker = applyInstance(b, ward(50));
+  assertEquals(weaker.outcome, 'ignored');
+  assertEquals(weaker.instance.shieldAmount, 200, 'the winner still stands');
+  assertEquals(weaker.instance.name, 'Ward 200', 'payload untouched');
+  // Controls compare consumed actions.
+  const stun = (actions: number): InstanceSeed => ({
+    defId: 'probe:stun',
+    name: 'Stun',
+    kind: 'control',
+    side: 'enemy',
+    source: { kind: 'skill', id: 'probe2', name: 'Probe2' },
+    control: 'stun',
+    actions,
+    tags: ['harmful', 'control'],
+    stacking: 'strongest',
+    duration: actions,
+    timing: 'immediate',
+    removable: true,
+  });
+  applyInstance(b, stun(1));
+  const bigger = applyInstance(b, stun(2));
+  assertEquals(bigger.outcome, 'replaced', 'a 2-action stun beats a 1-action stun');
+  assertEquals(b.effectInstances.find((i) => i.kind === 'control')!.actions, 2);
+  const smaller = applyInstance(b, stun(1));
+  assertEquals(smaller.outcome, 'ignored');
+  assertEquals(b.effectInstances.find((i) => i.kind === 'control')!.actions, 2);
+});
+
+Deno.test('#93: strongest is rejected for periodic effects', () => {
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  assertThrows(
+    () =>
+      applyInstance(b, {
+        defId: 'probe:dot',
+        name: 'Probe Rot',
+        kind: 'periodic',
+        side: 'enemy',
+        source: { kind: 'skill', id: 'probe3', name: 'Probe3' },
+        perRound: -5,
+        tickPhase: 'roundEnd',
+        tags: ['harmful', 'periodic'],
+        stacking: 'strongest',
+        duration: 3,
+        timing: 'immediate',
+        removable: true,
+      }),
+    Error,
+    'strongest stacking is not defined for periodic effects',
+  );
+});
+
+Deno.test('#93: content integrity — strongest is only authored on kinds with defined magnitudes', () => {
+  const check = (label: string, specs: readonly EffectSpec[]): void => {
+    for (const sp of specs) {
+      if (sp.stacking !== 'strongest') continue;
+      assert(
+        sp.kind === 'statmod' || sp.kind === 'shield' || sp.kind === 'control',
+        `${label}: strongest is not defined for ${sp.kind} effects`,
+      );
+    }
+  };
+  for (const sk of SKILLS) check(`skill ${sk.id}`, sk.effects);
+  for (const it of ITEMS) {
+    it.triggers?.forEach((tg, ti) => check(`item ${it.id} trigger ${ti}`, tg.effects));
+  }
+  for (const en of ENEMIES) {
+    for (const mv of en.moves) check(`enemy ${en.id} move ${mv.name}`, mv.effects);
+    if (en.opening) check(`enemy ${en.id} opening`, en.opening.effects);
+  }
+});
+
+Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
+  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const events: CombatEvent[] = [];
+  setCombatTelemetry((e) => events.push(e));
+  try {
+    const seed = (over: Partial<InstanceSeed>): InstanceSeed => ({
+      defId: 'probe:tel',
+      name: 'Big',
+      kind: 'statmod',
+      side: 'player',
+      source: { kind: 'skill', id: 'probe', name: 'Probe' },
+      stat: 'atk',
+      pct: 0.4,
+      tags: ['beneficial'],
+      stacking: 'strongest',
+      duration: 2,
+      timing: 'immediate',
+      removable: true,
+      ...over,
+    });
+    applyInstance(b, seed({}));
+    applyInstance(b, seed({ pct: 0.1, name: 'Small', duration: 1 }));
+    applyInstance(b, seed({ pct: 0.1, duration: 6 }));
+  } finally {
+    setCombatTelemetry(null);
+  }
+  assertEquals(events.length, 3, 'all three applications emitted');
+  const [created, ignored, extended] = events as Extract<CombatEvent, { kind: 'effectApplied' }>[];
+  assertEquals(created.outcome, 'created');
+  assertEquals(created.name, 'Big');
+  assertEquals(created.duration, 2);
+  assertEquals(ignored.outcome, 'ignored');
+  assertEquals(ignored.name, 'Big', 'an ignored recast reports the RETAINED payload');
+  assertEquals(ignored.duration, 2, '…and its remaining life, never the incoming seed');
+  assertEquals(extended.outcome, 'extended');
+  assertEquals(extended.name, 'Big');
+  assertEquals(extended.duration, 6, 'the extended lifetime is what is now live');
 });

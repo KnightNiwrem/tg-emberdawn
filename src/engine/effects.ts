@@ -5,7 +5,18 @@
 
 import type { EffectSpec, EffectTag, StackingPolicy, StatKey } from '../content/types.ts';
 import type { BattleState, EffectInstance, EffectSource } from './types.ts';
-import { emitCombatEvent } from './telemetry.ts';
+import { type EffectApplyOutcome, emitCombatEvent } from './telemetry.ts';
+
+/** #93: what an effect application actually did — the explicit outcome
+ * returned by `applyInstance` and reported by its telemetry. */
+export type ApplyOutcome = EffectApplyOutcome;
+
+export interface ApplyResult {
+  /** The instance now backing the effect (the new one, or the retained
+   * prior one for refresh/strongest-loss cases). */
+  instance: EffectInstance;
+  outcome: ApplyOutcome;
+}
 
 /** The last round index an effect applied at `appliedRound` stays active
  * in, given its timing (#27/#38/#77 semantics, now data-driven):
@@ -90,34 +101,45 @@ export function hasLiveFromSource(
 
 /** Applies an effect instance with its authored stacking policy. Returns
  * the instance now backing the effect (the new one, or the retained prior
- * one for refresh/strongest-loss cases). Emits a structured
- * `effectApplied` event (#88) — the harness counts applications and
- * duration-1 casts without mid-round state sampling.
+ * one for refresh/strongest-loss cases) PLUS the explicit outcome (#93).
+ * Emits a structured `effectApplied` event (#88) describing the RETAINED
+ * payload — an ignored weaker recast can never be counted as an active
+ * application.
  *
  * #90 transition semantics — every policy is a COMPLETE step:
- * - `stack`: an independent instance joins the list.
- * - `replace`: the old instance is wholly retired; a fresh one applies.
+ * - `stack`: an independent instance joins the list (`created`).
+ * - `replace`: the old instance is wholly retired; a fresh one applies
+ *   (`replaced`).
  * - `refresh`: atomic rebuild — the recast is the latest intent, so the
  *   WHOLE payload (tags, removability, tick/bypass data, shield capacity,
  *   source/name) and the clock renew together from the fresh application;
- *   nothing stale survives. Same iid, same list slot.
- * - `strongest`: the stronger magnitude applies whole; a weaker recast
- *   keeps the winning payload AND its timing untouched (no timing leak)
- *   and may only extend the lifetime, with remaining and expiresRound
- *   moving by the same delta so they can never disagree. */
-export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstance {
-  const inst = applyInstanceRaw(b, seed);
+ *   nothing stale survives. Same iid, same list slot (`refreshed`).
+ * - `strongest`: the stronger magnitude applies whole (`replaced`); a
+ *   weaker recast keeps the winning payload AND its timing untouched (no
+ *   timing leak) and may only extend the lifetime, with remaining and
+ *   expiresRound moving by the same delta so they can never disagree
+ *   (`extended` when the lifetime grew, `ignored` otherwise).
+ *
+ * #93 strongest magnitudes are KIND-AWARE — |pct| for statmods (saps
+ * store negative, so the stronger sap is more negative and still wins),
+ * shield capacity for wards, consumed actions for controls. Periodics
+ * have no single-magnitude meaning (flat and %-of-max ticks are different
+ * units) — `strongest` is not a valid policy for them and is rejected at
+ * application time and by content integrity. */
+export function applyInstance(b: BattleState, seed: InstanceSeed): ApplyResult {
+  const raw = applyInstanceRaw(b, seed);
   emitCombatEvent({
     kind: 'effectApplied',
     round: b.round,
-    side: inst.side,
-    defId: seed.defId,
-    name: seed.name,
-    duration: seed.battleLifetime === true ? 0 : seed.duration,
-    tags: [...seed.tags],
+    side: raw.instance.side,
+    defId: raw.instance.defId,
+    name: raw.instance.name,
+    duration: raw.instance.battleLifetime === true ? 0 : raw.instance.remaining,
+    tags: [...raw.instance.tags],
     source: `${seed.source.kind}:${seed.source.name}`,
+    outcome: raw.outcome,
   });
-  return inst;
+  return raw;
 }
 
 /** The single authority for instance construction and lifetime
@@ -163,36 +185,62 @@ function buildInstance(b: BattleState, seed: InstanceSeed, iid?: string): Effect
   };
 }
 
-function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
+/** #93: the kind-aware `strongest` magnitude. Works structurally over both
+ * seeds and live instances (same payload fields). */
+function effectMagnitude(
+  e: { kind: EffectInstance['kind']; pct?: number; shieldAmount?: number; actions?: number },
+): number {
+  switch (e.kind) {
+    case 'statmod':
+      return Math.abs(e.pct ?? 0);
+    case 'shield':
+      return e.shieldAmount ?? 0;
+    case 'control':
+      return e.actions ?? 0;
+    case 'periodic':
+      throw new Error(
+        `strongest stacking is not defined for periodic effects (flat and %-of-max ticks are different units)`,
+      );
+  }
+}
+
+function applyInstanceRaw(b: BattleState, seed: InstanceSeed): ApplyResult {
+  // #93: `strongest` has no defined magnitude for periodics — reject the
+  // combination up front, whether or not an identity already exists.
+  if (seed.stacking === 'strongest' && seed.kind === 'periodic') {
+    throw new Error(
+      `strongest stacking is not defined for periodic effects (flat and %-of-max ticks are different units)`,
+    );
+  }
   const idx = b.effectInstances.findIndex((i) => sameIdentity(i, seed));
   if (idx === -1) {
     const inst = buildInstance(b, seed);
     b.effectInstances.push(inst);
-    return inst;
+    return { instance: inst, outcome: 'created' };
   }
   const existing = b.effectInstances[idx]!;
   switch (seed.stacking) {
     case 'stack': {
       const inst = buildInstance(b, seed);
       b.effectInstances.push(inst);
-      return inst;
+      return { instance: inst, outcome: 'created' };
     }
     case 'refresh': {
       // #90 atomic rebuild: the recast is the latest intent — the whole
       // payload and the clock renew together from the fresh application;
       // nothing stale survives. Same iid, same list slot.
       b.effectInstances[idx] = buildInstance(b, seed, existing.iid);
-      return b.effectInstances[idx]!;
+      return { instance: b.effectInstances[idx]!, outcome: 'refreshed' };
     }
     case 'strongest': {
-      const incoming = seed.pct ?? 0;
-      const current = existing.pct ?? 0;
-      // Magnitudes, not signed pcts: saps are stored negative, so the
-      // STRONGER sap has the MORE negative pct and must still win (#78).
-      if (Math.abs(incoming) > Math.abs(current)) {
+      // #93: kind-aware magnitudes, not raw signed pcts. Saps are stored
+      // negative, so the STRONGER sap has the MORE negative pct and must
+      // still win (#78) — |pct| handles that; shields compare capacity;
+      // controls compare consumed actions.
+      if (effectMagnitude(seed) > effectMagnitude(existing)) {
         // Retire the weaker instance and apply the fresh one whole.
         b.effectInstances[idx] = buildInstance(b, seed);
-        return b.effectInstances[idx]!;
+        return { instance: b.effectInstances[idx]!, outcome: 'replaced' };
       }
       // Keep the winning payload AND its timing — a weaker recast may not
       // leak its own timing metadata (#90); it may only extend the
@@ -211,13 +259,14 @@ function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
           existing.remaining += freshLife - existing.expiresRound;
           existing.expiresRound = freshLife;
         }
+        return { instance: existing, outcome: 'extended' };
       }
-      return existing;
+      return { instance: existing, outcome: 'ignored' };
     }
     case 'replace':
     default: {
       b.effectInstances[idx] = buildInstance(b, seed);
-      return b.effectInstances[idx]!;
+      return { instance: b.effectInstances[idx]!, outcome: 'replaced' };
     }
   }
 }
@@ -349,23 +398,21 @@ export interface ShieldGrant {
 }
 
 /** Grants one shield contribution (#79). applyInstance handles the
- * authored stacking policy: `refresh` renews the clock WITHOUT refilling
- * a depleted pool; `replace`/`stack` (and a stronger-wins recast) grant
- * fresh capacity. The pool then rises by the granted amount, capped to
- * the new maximum. */
+ * authored stacking policy; #93 ties the refill to the EXPLICIT outcome:
+ * fresh capacity enters the pool only on `created`/`replaced` — a
+ * `refresh` renews the clock WITHOUT refilling, and a weaker or equal
+ * `strongest` recast (`extended`/`ignored`) never touches the pool. The
+ * pool then rises by the granted amount, capped to the new maximum:
+ * existing current is preserved up to the cap, overflow grant capacity
+ * is `wasted`, and pool above a SHRUNK maximum is `lost`. */
 export function grantShield(
   b: BattleState,
   side: 'player' | 'enemy',
   seed: InstanceSeed,
 ): ShieldGrant {
-  const existing = b.effectInstances.find((i) => sameIdentity(i, seed));
-  const refill = existing === undefined ||
-    (seed.stacking !== 'refresh' &&
-      !(seed.stacking === 'strongest' &&
-        (seed.shieldAmount ?? 0) <= (existing.shieldAmount ?? 0)));
-  const granted = refill ? seed.shieldAmount ?? 0 : 0;
   const before = b.shield[side];
-  applyInstance(b, seed);
+  const { outcome } = applyInstance(b, seed);
+  const granted = outcome === 'created' || outcome === 'replaced' ? seed.shieldAmount ?? 0 : 0;
   const max = maxShield(b, side);
   const after = Math.min(before + granted, max);
   b.shield[side] = after;
