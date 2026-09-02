@@ -243,8 +243,10 @@ Deno.test('#83: bosses carry authored status resistance; ordinary enemies do not
     ['e_chronolich', 0.3],
     ['e_jormunis', 0.3],
     ['e_ignivar', 0.3],
-    ['e_aldric', 0.4],
-    ['e_warden', 0.4],
+    // #88: retuned alongside their fight numbers — still authored, still
+    // boss-only resistance.
+    ['e_aldric', 0.3],
+    ['e_warden', 0.3],
   ];
   for (const [id, resist] of bosses) {
     assertEquals(enemy(id)?.statusResist, resist, `${id} resistance`);

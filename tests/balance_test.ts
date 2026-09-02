@@ -7,16 +7,20 @@ import { assert, assertEquals } from '@std/assert';
 import {
   buildSnapshot,
   type CellStat,
+  chooseAction,
+  dungeonBossSource,
   dungeonFloorsYield,
   eliteShare,
   type EncounterSource,
   exploreDropZonesFor,
   hostileZones,
   makeHero,
+  MATRIX_LEVELS,
   POLICIES,
   runCell,
   runFight,
   seededRng,
+  simulateCampaign,
   simulateChapterOne,
   tutorialEnemies,
   zoneHostilePool,
@@ -27,9 +31,13 @@ import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { dungeonOf, encounterEligible } from '../src/engine/world.ts';
 import type { BattleOrigin, ClassId } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
+import { MAX_LEVEL } from '../src/engine/classes.ts';
+import { performAction, startBattle } from '../src/engine/combat.ts';
+import { type CombatEvent, setCombatTelemetry } from '../src/engine/telemetry.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
+import { isDamageSkill, SKILLS } from '../src/content/skills.ts';
 import { zone as zoneDef, ZONES } from '../src/content/zones.ts';
 
 const FIGHTS = 300;
@@ -479,4 +487,201 @@ Deno.test('balance: unique equipment effects have a deterministic trigger scenar
     'the wardstone opening was never observed',
   );
   assertEquals(res.invalidActions, 0);
+});
+
+// ── #88: effect-aware harness coverage & metrics ───────────────────────────
+
+Deno.test('balance: the level matrix covers every authored unlock (#88)', () => {
+  const unlocks = [...new Set(SKILLS.map((s) => s.learnLevel))].sort((a, b) => a - b);
+  for (const lv of unlocks) {
+    assert(MATRIX_LEVELS.includes(lv), `unlock level ${lv} missing from the matrix`);
+  }
+  assert(MATRIX_LEVELS.includes(2), 'the post-prologue breakpoint is exercised');
+  assert(MATRIX_LEVELS.includes(MAX_LEVEL), 'the endgame cap is exercised');
+  for (let i = 1; i < MATRIX_LEVELS.length; i++) {
+    assert(MATRIX_LEVELS[i]! > MATRIX_LEVELS[i - 1]!, 'matrix levels must be sorted + unique');
+  }
+});
+
+Deno.test('engine: structured telemetry emits typed combat events (#88)', () => {
+  const dot = SKILLS.find((sk) =>
+    sk.effects.some((e) => e.kind === 'periodic' && (e.perRound ?? 0) < 0)
+  )!;
+  assert(dot, 'content has a harmful periodic skill');
+  // A same-band normal survives long enough to eat a DoT, and normals
+  // carry no statusResist — the cast lands deterministically (#88).
+  const foeZone = hostileZones().find((z) => zoneNormalPool(z.id, dot.learnLevel).length > 0)!;
+  const foe = zoneNormalPool(foeZone.id, dot.learnLevel)[0]!;
+  const events: CombatEvent[] = [];
+  setCombatTelemetry((e) => events.push(e));
+  try {
+    const p = makeHero(dot.classId, dot.learnLevel, 'best');
+    p.hp = 99999; // outlive the foe — this test drives EVENTS, not balance
+    const b = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!;
+    p.battle = b;
+    // A one-shot foe dies before the DoT spec's turn in the spec list —
+    // pad the pool so the fight lasts and the application lands (#88).
+    b.enemy.maxHp *= 5;
+    b.enemy.hp = b.enemy.maxHp;
+    let guard = 0;
+    while (b.phase === 'active' && guard++ < 60) {
+      // Cast the DoT on cooldown; fall back to the basic attack when the
+      // cast is refused (MP/cooldown) so the fight always reaches a
+      // terminal state (#88).
+      let res = performAction(p, b, { kind: 'skill', skillId: dot.id }, seededRng(90 + guard));
+      if (!res.consumedTurn && b.phase === 'active') {
+        res = performAction(p, b, { kind: 'attack' }, seededRng(190 + guard));
+      }
+      if (res.outcome === 'victory' || res.outcome === 'defeat') break;
+    }
+  } finally {
+    setCombatTelemetry(null);
+  }
+  assert(events.some((e) => e.kind === 'effectApplied'), 'no effect application was ever emitted');
+  assert(
+    events.some((e) => e.kind === 'effectApplied' && e.side === 'enemy'),
+    'the player-side DoT application was never emitted',
+  );
+  assert(events.some((e) => e.kind === 'terminal'), 'the terminal outcome was never emitted');
+  // A detached sink collects nothing — the production default is silence.
+  const frozen = events.length;
+  const p2 = makeHero(dot.classId, dot.learnLevel, 'best');
+  p2.hp = 99999;
+  const b2 = startBattle(foe.enemyId, foe.origin, { player: p2, rng: seededRng(12) })!;
+  p2.battle = b2;
+  performAction(p2, b2, { kind: 'attack' }, seededRng(13));
+  assertEquals(events.length, frozen, 'a detached sink must not collect');
+});
+
+Deno.test('balance: runFight metrics include periodic damage and proc accounting (#88)', () => {
+  const dot = SKILLS.find((sk) =>
+    sk.effects.some((e) => e.kind === 'periodic' && (e.perRound ?? 0) < 0)
+  )!;
+  const hero = makeHero(dot.classId, dot.learnLevel, 'best');
+  const boss = dungeonBossSource('whisperwood')!;
+  let dotCasts = 0;
+  let dotDealt = 0;
+  let dealt = 0;
+  let dotTaken = 0;
+  let taken = 0;
+  let attempts = 0;
+  let hits = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = runFight(hero, boss.enemyId, POLICIES.tactical, seededRng(500 + i), boss.origin);
+    dotCasts += r.dotCasts;
+    dotDealt += r.dotDealt;
+    dealt += r.dealt;
+    dotTaken += r.dotTaken;
+    taken += r.taken;
+    attempts += r.procAttempts;
+    hits += r.procHits;
+    assertEquals(r.invalidActions, 0, 'tactical policy selected an unusable skill');
+  }
+  assert(dotCasts > 0, 'the tactical policy never cast the DoT');
+  assert(dotDealt > 0, 'DoT ticks never reached HP (or were never counted)');
+  assert(dealt >= dotDealt, 'dealt must include the player DoT damage');
+  assert(dotTaken <= taken, 'taken must include enemy DoT damage');
+  assert(attempts >= hits, 'proc attempts must be >= hits');
+});
+
+Deno.test('balance: cell percentiles expose the fight tails (#88)', () => {
+  const cell = runCell({
+    classId: 'warrior',
+    level: 5,
+    gear: 'best',
+    policy: POLICIES.rotation,
+    pool: 'whisperwood',
+    sources: zoneHostilePool('whisperwood', 5),
+    fights: 60,
+    seed: 4242,
+  });
+  assertEquals(cell.fights, 60);
+  assert(cell.roundsP50 <= cell.roundsP90, 'rounds p50 must not exceed p90');
+  assert(cell.hpPctP50 <= cell.hpPctP90, 'hp p50 must not exceed p90');
+  assert(cell.dodgesP50 <= cell.dodgesP90, 'dodge p50 must not exceed p90');
+  assert(cell.avgDotDealt >= 0 && cell.avgDotTaken >= 0, 'telemetry averages are defined');
+  assert(cell.avgProcAttempts >= cell.avgProcHits, 'proc attempts must be >= hits');
+});
+
+Deno.test('balance: tactical policy pierces wards, finishes wounds, breaks the matched stat (#88)', () => {
+  const piercer = SKILLS.find((sk) =>
+    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'damage' && e.bypassShield === true)
+  )!;
+  const finisher = SKILLS.find((sk) =>
+    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'damage' && e.execute !== undefined)
+  )!;
+  // Breaks are DAMAGE skills with statmod riders (#84 offense family) —
+  // found by rider, not by the pure-debuff predicate.
+  const defBreak = SKILLS.find((sk) =>
+    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'statmod' && e.stat === 'def')
+  )!;
+  const resBreak = SKILLS.find((sk) =>
+    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'statmod' && e.stat === 'res')
+  )!;
+  assert(piercer && finisher && defBreak && resBreak, 'content authors all four tactical tools');
+
+  const battle = (cid: ClassId, level: number, seed: number) => {
+    const p = makeHero(cid, level, 'best');
+    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+      player: p,
+      rng: seededRng(seed),
+    })!;
+    p.battle = b;
+    return { p, b };
+  };
+
+  // (a) A live enemy ward routes the offense pick to the ward-ignoring
+  //     skill — ordinary damage would pool INTO the ward (#88).
+  {
+    const { p, b } = battle(piercer.classId, piercer.learnLevel, 21);
+    p.skills = [piercer.id];
+    b.shield.enemy = 40;
+    const act = chooseAction(p, b, POLICIES.tactical, false);
+    assertEquals(act, { kind: 'skill', skillId: piercer.id });
+  }
+  // (b) Inside the execute threshold the finisher outranks the plain
+  //     strike that sorts first (#88).
+  {
+    const plain = SKILLS.find((sk) =>
+      sk.classId === finisher.classId && isDamageSkill(sk) &&
+      !sk.effects.some((e) => e.kind === 'damage' && e.execute !== undefined)
+    )!;
+    assert(plain, 'the finisher class has a second damage skill');
+    const { p, b } = battle(finisher.classId, finisher.learnLevel, 22);
+    p.skills = [plain.id, finisher.id];
+    b.enemy.hp = Math.max(1, Math.floor(b.enemy.maxHp * 0.2));
+    const act = chooseAction(p, b, POLICIES.tactical, false);
+    assertEquals(act, { kind: 'skill', skillId: finisher.id });
+  }
+  // (c) A phys hero holding both breaks leads with the DEF break while
+  //     the fight has length — its own strikes can exploit it (#88).
+  {
+    const { p, b } = battle(
+      defBreak.classId,
+      Math.max(defBreak.learnLevel, resBreak.learnLevel),
+      23,
+    );
+    p.skills = [resBreak.id, defBreak.id];
+    const act = chooseAction(p, b, POLICIES.tactical, false);
+    assertEquals(act, { kind: 'skill', skillId: defBreak.id });
+  }
+  // (d) The same pair on a MAG hero flips the pick to the RES break —
+  //     matching follows the hero's damage type, not skill order (#88).
+  {
+    const { p, b } = battle(
+      resBreak.classId,
+      Math.max(defBreak.learnLevel, resBreak.learnLevel),
+      24,
+    );
+    p.skills = [defBreak.id, resBreak.id];
+    const act = chooseAction(p, b, POLICIES.tactical, false);
+    assertEquals(act, { kind: 'skill', skillId: resBreak.id });
+  }
+});
+
+Deno.test('progression: the full campaign m1→m25 completes with real combat (#88)', () => {
+  const rep = simulateCampaign('warrior', 20260902);
+  assertEquals(rep.stuck, undefined, `campaign stalled at level ${rep.endLevel}`);
+  assertEquals(rep.campaignDone, true, 'the main questline must reach m25');
+  assert(rep.endLevel >= 40, `endgame pacing collapsed (${rep.endLevel})`);
 });

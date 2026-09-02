@@ -14,7 +14,7 @@
 import type { BattleOrigin, BattleState, ClassId, PlayerState } from './types.ts';
 import { CLASS_IDS } from './types.ts';
 import type { DungeonDef, EnemyDef, SkillDef, ZoneDef } from '../content/types.ts';
-import { xpForNextLevel } from './classes.ts';
+import { CLASSES, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { applyDeath, createPlayer, grantXp, statsOf } from './character.ts';
 import { performAction, type PlayerAction, startBattle } from './combat.ts';
 import { resolveVictory } from './world.ts';
@@ -33,8 +33,8 @@ import {
 import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS, shopStock } from '../content/items.ts';
-import { quest, zoneOfNpc } from '../content/quests.ts';
-import { skill as skillDef } from '../content/skills.ts';
+import { quest, QUESTS, zoneOfNpc } from '../content/quests.ts';
+import { skill as skillDef, SKILLS } from '../content/skills.ts';
 import {
   isDamageSkill,
   isHealSkill,
@@ -44,6 +44,7 @@ import {
 import { sapPct, statPct } from './effects.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
+import { type CombatEvent, setCombatTelemetry } from './telemetry.ts';
 
 // ── Heroes ──────────────────────────────────────────────────────────────
 
@@ -137,7 +138,9 @@ function isDotSkill(sk: SkillDef): boolean {
 
 /** Pure enemy debuff — a negative opponent statmod with NO damage rider
  * (damage+debuff hybrids stay in the offense family, #84 ordering). */
-function isPureDebuffSkill(sk: SkillDef): boolean {
+/** A debuff-only utility skill (no damage, no heal): the tactical policy
+ * casts these for value, and the harness counts them (#84). */
+export function isPureDebuffSkill(sk: SkillDef): boolean {
   if (isDamageSkill(sk)) return false;
   return sk.effects.some((e) =>
     e.kind === 'statmod' && e.target === 'opponent' && (e.pct ?? 0) < 0
@@ -301,20 +304,47 @@ function tacticalAction(
   if (buff && b.enemy.hp > b.enemy.maxHp * 0.3) {
     return { kind: 'skill', skillId: buff.id };
   }
+  // 5b. Shatter a live ward (#88): ordinary damage pools INTO the ward —
+  //     a ward-ignoring strike pays through it instead of feeding it.
+  if (b.shield.enemy > 0) {
+    const piercer = offense.find((sk) =>
+      usable(sk) && sk.effects.some((e) => e.kind === 'damage' && e.bypassShield === true)
+    );
+    if (piercer) return { kind: 'skill', skillId: piercer.id };
+  }
+  // 5c. Execute window (#88): inside a finisher's threshold its bonus
+  //     strike is the expected-value pick, ahead of raw-power sorting.
+  const foeHpPct = b.enemy.hp / b.enemy.maxHp;
+  const finisher = offense.find((sk) =>
+    usable(sk) &&
+    sk.effects.some((e) => e.kind === 'damage' && e.execute && foeHpPct < e.execute.belowPct)
+  );
+  if (finisher) return { kind: 'skill', skillId: finisher.id };
   // 6. DoT when the remaining fight is long enough for the ticks to pay.
   const dot = learned.filter(isDotSkill).find((sk) => usable(sk) && !liveOn('enemy', sk.id));
   if (dot && b.enemy.hp > expectedDotTotal(dot, b.enemy.maxHp)) {
     return { kind: 'skill', skillId: dot.id };
   }
-  // 7. Pure debuff (sap / armor-break / vulnerable) while it has time.
+  // 7. Pure debuff (sap / weaken) while it has time. Damage-carrying
+  //    breaks are NOT here — they stay in the offense family (#84).
   const debuff = learned.filter(isPureDebuffSkill).find((sk) =>
     usable(sk) && !liveOn('enemy', sk.id)
   );
   if (debuff && b.enemy.hp > b.enemy.maxHp * 0.35) {
     return { kind: 'skill', skillId: debuff.id };
   }
-  // 8. Damage rotation, then the shared fallbacks.
-  const sk = offense.find(usable);
+  // 8. Damage rotation, then the shared fallbacks. While the fight still
+  //    has length, prefer the break rider that matches the hero's OWN
+  //    damage type (#88): a phys hero sundering DEF buys real strikes;
+  //    the same hero shattering RES would buy nothing.
+  const prefStat = CLASSES[p.classId].basicAction.kind === 'phys' ? 'def' : 'res';
+  const breakPick = b.enemy.hp > b.enemy.maxHp * 0.5
+    ? offense.find((cand) =>
+      usable(cand) && !liveOn('enemy', cand.id) &&
+      cand.effects.some((e) => e.kind === 'statmod' && e.stat === prefStat)
+    )
+    : undefined;
+  const sk = breakPick ?? offense.find(usable);
   if (sk) return { kind: 'skill', skillId: sk.id };
   const cheapest = offense.map((x) => x.mpCost).sort((a, z) => a - z)[0] ?? 0;
   if (policy.items && p.hp < s.maxHp * 0.35) {
@@ -373,6 +403,30 @@ export interface FightResult {
   effectRounds: Record<string, number>;
   effectApplications: Record<string, number>;
   effectSources: Record<string, string>;
+  /** ── Structured-telemetry metrics (#88) ── sums from the engine's
+   * typed event stream (opt-in sink), never parsed from log text. */
+  /** Periodic (DoT) damage that actually reached HP, by direction. */
+  dotDealt: number;
+  dotTaken: number;
+  /** Periodic healing that actually landed (regen, HoTs). */
+  hotHealing: number;
+  /** Periodic heal magnitude trimmed by full HP — the gap the tick
+   * never banked (#88). */
+  wastedPeriodicHealing: number;
+  /** Effect removals by cause (#88). */
+  expiredRemovals: number;
+  cleanseRemovals: number;
+  dispelRemovals: number;
+  consumedRemovals: number;
+  /** Times a live ward pool was driven to zero by damage (#88). */
+  shieldBreaks: number;
+  /** Equipment proc attempts and hits (#88): a missed chance roll is
+   * still an attempt. */
+  procAttempts: number;
+  procHits: number;
+  /** Applications whose authored duration is 1 round — transient
+   * effects invisible to top-of-round sampling (#88). */
+  duration1Applied: number;
 }
 
 const STRIKE = /(?:hits|sears) .* for (\d+)/;
@@ -384,6 +438,23 @@ const SHIELD_GRANT = /absorbing up to (\d+)/;
 const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
 const SHIELD_WASTE = /(\d+) over capacity/;
 const SHIELD_FADE = /(\d+) shield capacity fades/;
+
+/** Player-cast restore lines (#88): skills log `💚 X restores N HP.` and
+ * potions log `🧪 X restores N HP.` — both post-clamp, both "restores".
+ * Periodic regen (`recover`) and enemy heals (`recovers`) never match. */
+const HEAL_RESTORED = /restores (\d+) HP\./;
+
+/** Sums the actual applied heal from a round's own lines (#88): a net HP
+ * delta cannot separate a heal from same-round damage, and the old
+ * cumulative-taken sum over-counted. */
+function healRestored(lines: readonly string[]): number {
+  let sum = 0;
+  for (const line of lines) {
+    const m = HEAL_RESTORED.exec(line);
+    if (m) sum += Number(m[1]);
+  }
+  return sum;
+}
 
 /** Expected heal of a heal-type skill (mirrors combat.ts formulas, #78:
  * read from the ordered restore effect, folded live buffs included). */
@@ -415,6 +486,10 @@ export function runFight(
   origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
 ): FightResult {
   const p = structuredClone(hero) as PlayerState;
+  // #88: structured telemetry is per-fight — installed BEFORE the opening
+  // (battleStart procs emit) and always detached at the end.
+  const events: CombatEvent[] = [];
+  setCombatTelemetry((e) => events.push(e));
   // #80: the harness constructs battles through the SAME opening pipeline
   // as live play — full hero context, seeded rng.
   const b = startBattle(enemyId, origin, { player: p, rng });
@@ -455,6 +530,18 @@ export function runFight(
     effectRounds: {},
     effectApplications: {},
     effectSources: {},
+    dotDealt: 0,
+    dotTaken: 0,
+    hotHealing: 0,
+    wastedPeriodicHealing: 0,
+    expiredRemovals: 0,
+    cleanseRemovals: 0,
+    dispelRemovals: 0,
+    consumedRemovals: 0,
+    shieldBreaks: 0,
+    procAttempts: 0,
+    procHits: 0,
+    duration1Applied: 0,
   };
   /** Line-metric scan (#74 regexes) — now also fed the resolved opening
    * log ONCE per fight (#84): opening shields/damage are outcomes of the
@@ -469,6 +556,27 @@ export function runFight(
       if (line.includes(DODGE)) result.dodges++;
       const eh = ENEMY_HEAL.exec(line);
       if (eh) result.dealt -= Number(eh[1]);
+      const granted = SHIELD_GRANT.exec(line);
+      if (granted) result.shieldGranted += Number(granted[1]);
+      const absorbed = SHIELD_ABSORB.exec(line);
+      if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
+      const wasted = SHIELD_WASTE.exec(line);
+      if (wasted) result.shieldWasted += Number(wasted[1]);
+      const faded = SHIELD_FADE.exec(line);
+      if (faded) result.shieldExpiryLost += Number(faded[1]);
+      // ⚡-prefixed lines are reactive equipment procs (#82).
+      if (line.startsWith('⚡ ')) result.equipProcs++;
+    }
+  };
+  /** Round-line scan (#88): only per-event regexes remain — dealt/taken/
+   * heals now come from per-round HP deltas, so strike/DoT/heal text can
+   * never double-count or miss (DoT lines never matched the strike
+   * regexes). Shield grant/absorb/waste/fade stay line-parsed: that
+   * decomposition isn't recoverable from HP deltas. */
+  const scanRoundLines = (lines: readonly string[]): void => {
+    for (const line of lines) {
+      if (line.includes(CRIT)) result.crits++;
+      if (line.includes(DODGE)) result.dodges++;
       const granted = SHIELD_GRANT.exec(line);
       if (granted) result.shieldGranted += Number(granted[1]);
       const absorbed = SHIELD_ABSORB.exec(line);
@@ -497,9 +605,17 @@ export function runFight(
     const action = chooseAction(p, b, policy, lastWasGuard);
     lastWasGuard = action.kind === 'guard';
     const hpBefore = p.hp;
+    const ehpBefore = b.enemy.hp;
     const mpBefore = p.mp;
     const res = performAction(p, b, action, rng);
     rounds++;
+    // #88: per-round HP deltas — dealt/taken now include periodic ticks
+    // and post-shield HP damage exactly once by construction, immune to
+    // log-line formats. A net enemy heal shows as negative dealt,
+    // preserving the old heal-subtraction semantics.
+    result.dealt += ehpBefore - b.enemy.hp;
+    const takenThisRound = hpBefore - p.hp;
+    result.taken += takenThisRound;
     if (res.skipped) result.skippedRounds++;
     if (!res.consumedTurn) result.invalidActions++;
     result.mpSpent += Math.max(0, mpBefore - p.mp);
@@ -515,25 +631,26 @@ export function runFight(
         if (isDispelSkill(cast)) result.dispelCasts++;
       }
     }
-    scanLines(res.lines);
+    scanRoundLines(res.lines);
     if (action.kind === 'guard') {
       result.guardRounds++;
       result.mpFromGuard += Math.max(0, p.mp - mpBefore);
     }
     if (action.kind === 'item') result.itemsUsed++;
-    // Heals: actual applied HP (excluding damage taken this round) and
-    // overheal against the formulaic expectation.
+    // Heals (#88): counted from the engine's OWN post-clamp restore lines
+    // for this round — see healRestored. Overheal compares against the
+    // formulaic expectation.
     if (action.kind === 'skill') {
       const sk = skillDef(action.skillId);
       if (sk && isHealSkill(sk)) {
-        const applied = Math.max(0, p.hp - hpBefore + result.taken);
+        const applied = healRestored(res.lines);
         result.healDone += applied;
         result.overheal += Math.max(0, expectedSkillHeal(p, sk) - applied);
       }
     } else if (action.kind === 'item') {
       const eff = itemDef(action.itemId)?.effect;
       if (eff?.healHp) {
-        const applied = Math.max(0, p.hp - hpBefore + result.taken);
+        const applied = healRestored(res.lines);
         result.healDone += applied;
         result.overheal += Math.max(0, eff.healHp - applied);
       }
@@ -548,6 +665,40 @@ export function runFight(
     if (res.outcome === 'defeat') {
       result.outcome = 'lose';
       break;
+    }
+  }
+  setCombatTelemetry(null);
+  // #88: typed-event aggregation — replacement-free sums from structured
+  // engine events (never parsed back out of presentation text).
+  for (const e of events) {
+    switch (e.kind) {
+      case 'periodicTick':
+        if (e.applied < 0) {
+          if (e.side === 'enemy') result.dotDealt += -e.applied;
+          else result.dotTaken += -e.applied;
+        } else if (e.side === 'player') {
+          result.hotHealing += e.applied;
+          result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
+        }
+        break;
+      case 'effectRemoved':
+        if (e.cause === 'expired') result.expiredRemovals++;
+        else if (e.cause === 'cleansed') result.cleanseRemovals++;
+        else if (e.cause === 'dispelled') result.dispelRemovals++;
+        else result.consumedRemovals++;
+        break;
+      case 'shieldBreak':
+        result.shieldBreaks++;
+        break;
+      case 'procAttempt':
+        result.procAttempts++;
+        if (e.success) result.procHits++;
+        break;
+      case 'effectApplied':
+        if (e.duration === 1) result.duration1Applied++;
+        break;
+      default:
+        break;
     }
   }
   if (result.outcome === 'timeout') result.outcome = 'timeout';
@@ -726,11 +877,44 @@ export interface CellStat {
   effectRounds: Record<string, number>;
   effectApplications: Record<string, number>;
   effectSources: Record<string, string>;
+  /** ── Structured-telemetry averages (#88) ── */
+  avgDotDealt: number;
+  avgDotTaken: number;
+  avgHotHealing: number;
+  avgWastedPeriodicHealing: number;
+  avgExpiredRemovals: number;
+  avgCleanseRemovals: number;
+  avgDispelRemovals: number;
+  avgConsumedRemovals: number;
+  avgShieldBreaks: number;
+  avgProcAttempts: number;
+  avgProcHits: number;
+  avgDuration1Applied: number;
+  /** Nearest-rank percentiles across fights (#88): averages hide the
+   * tail — a thin catastrophic-loss band is invisible in avgHpPctEnd. */
+  roundsP50: number;
+  roundsP90: number;
+  hpPctP50: number;
+  hpPctP90: number;
+  mpPctP50: number;
+  mpPctP90: number;
+  dodgesP50: number;
+  dodgesP90: number;
+  equipProcsP50: number;
+  equipProcsP90: number;
 }
 
 const r4 = (n: number): number => Math.round(n * 10000) / 10000;
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+/** Nearest-rank percentile (#88): q=0.5 → median, q=0.9 → p90. */
+function percentile(values: number[], q: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1));
+  return r3(sorted[idx]!);
+}
 
 /** Sums per-fight observation maps into a cell accumulator (#84). */
 function addInto(dst: Record<string, number>, src: Record<string, number>): void {
@@ -780,6 +964,24 @@ export function runCell(spec: CellSpec): CellStat {
     effectRounds: {} as Record<string, number>,
     effectApplications: {} as Record<string, number>,
     effectSources: {} as Record<string, string>,
+    // #88: telemetry sums + per-fight value arrays for percentiles.
+    dotDealt: 0,
+    dotTaken: 0,
+    hotHealing: 0,
+    wastedPeriodicHealing: 0,
+    expiredRemovals: 0,
+    cleanseRemovals: 0,
+    dispelRemovals: 0,
+    consumedRemovals: 0,
+    shieldBreaks: 0,
+    procAttempts: 0,
+    procHits: 0,
+    duration1Applied: 0,
+    roundsArr: [] as number[],
+    hpPctArr: [] as number[],
+    mpPctArr: [] as number[],
+    dodgesArr: [] as number[],
+    procsArr: [] as number[],
   };
   const rng = (() => {
     let a = spec.seed >>> 0;
@@ -835,6 +1037,24 @@ export function runCell(spec: CellSpec): CellStat {
     addInto(acc.effectRounds, res.effectRounds);
     addInto(acc.effectApplications, res.effectApplications);
     for (const [k, v] of Object.entries(res.effectSources)) acc.effectSources[k] = v;
+    // #88: structured-telemetry sums + percentile samples.
+    acc.dotDealt += res.dotDealt;
+    acc.dotTaken += res.dotTaken;
+    acc.hotHealing += res.hotHealing;
+    acc.wastedPeriodicHealing += res.wastedPeriodicHealing;
+    acc.expiredRemovals += res.expiredRemovals;
+    acc.cleanseRemovals += res.cleanseRemovals;
+    acc.dispelRemovals += res.dispelRemovals;
+    acc.consumedRemovals += res.consumedRemovals;
+    acc.shieldBreaks += res.shieldBreaks;
+    acc.procAttempts += res.procAttempts;
+    acc.procHits += res.procHits;
+    acc.duration1Applied += res.duration1Applied;
+    acc.roundsArr.push(res.rounds);
+    acc.hpPctArr.push(res.hpPct);
+    acc.mpPctArr.push(res.mpPct);
+    acc.dodgesArr.push(res.dodges);
+    acc.procsArr.push(res.equipProcs);
   }
   const f = spec.fights;
   const wins = acc.wins;
@@ -874,6 +1094,28 @@ export function runCell(spec: CellSpec): CellStat {
     avgDebuffCasts: r3(acc.debuffCasts / f),
     avgCleanseCasts: r3(acc.cleanseCasts / f),
     avgDispelCasts: r3(acc.dispelCasts / f),
+    avgDotDealt: r2(acc.dotDealt / f),
+    avgDotTaken: r2(acc.dotTaken / f),
+    avgHotHealing: r2(acc.hotHealing / f),
+    avgWastedPeriodicHealing: r3(acc.wastedPeriodicHealing / f),
+    avgExpiredRemovals: r3(acc.expiredRemovals / f),
+    avgCleanseRemovals: r3(acc.cleanseRemovals / f),
+    avgDispelRemovals: r3(acc.dispelRemovals / f),
+    avgConsumedRemovals: r3(acc.consumedRemovals / f),
+    avgShieldBreaks: r3(acc.shieldBreaks / f),
+    avgProcAttempts: r3(acc.procAttempts / f),
+    avgProcHits: r3(acc.procHits / f),
+    avgDuration1Applied: r3(acc.duration1Applied / f),
+    roundsP50: percentile(acc.roundsArr, 0.5),
+    roundsP90: percentile(acc.roundsArr, 0.9),
+    hpPctP50: percentile(acc.hpPctArr, 0.5),
+    hpPctP90: percentile(acc.hpPctArr, 0.9),
+    mpPctP50: percentile(acc.mpPctArr, 0.5),
+    mpPctP90: percentile(acc.mpPctArr, 0.9),
+    dodgesP50: percentile(acc.dodgesArr, 0.5),
+    dodgesP90: percentile(acc.dodgesArr, 0.9),
+    equipProcsP50: percentile(acc.procsArr, 0.5),
+    equipProcsP90: percentile(acc.procsArr, 0.9),
     skillCasts: avgMap(acc.skillCasts, f),
     effectRounds: avgMap(acc.effectRounds, f),
     effectApplications: avgMap(acc.effectApplications, f),
@@ -883,10 +1125,21 @@ export function runCell(spec: CellSpec): CellStat {
 
 // ── Standard matrices ───────────────────────────────────────────────────
 
-/** Levels the issue names, then representative gear/zone breakpoints.
- * #84: every skill-unlock breakpoint is covered (12 Expose Weakness,
- * 13/14 Whirlwind/Aegis, 16, 17 Venom Cut, 22, 28, 31, 45 postgame). */
-export const MATRIX_LEVELS = [1, 2, 4, 7, 9, 12, 13, 14, 16, 17, 22, 28, 31, 45] as const;
+/** #88: derived from content — EVERY authored skill-unlock level plus the
+ * non-unlock breakpoints (2: the canonical post-prologue state,
+ * MAX_LEVEL: the endgame cap). A new skill's learnLevel lands in the
+ * matrix without hand-editing this list; the matrix-coverage test pins
+ * the derivation so the stale-list regression can never recur. */
+const AUTHORED_UNLOCK_LEVELS = [...new Set(SKILLS.map((s) => s.learnLevel))].sort(
+  (a, b) => a - b,
+);
+export const MATRIX_LEVELS: readonly number[] = [
+  ...new Set([
+    ...AUTHORED_UNLOCK_LEVELS,
+    2,
+    MAX_LEVEL,
+  ]),
+].sort((a, b) => a - b);
 export const MATRIX_FIGHTS = 120;
 
 /** Zones whose authored bands admit at least one ordinary battle (#74 —
@@ -1130,6 +1383,30 @@ export function buildSnapshot(): BalanceSnapshot {
       }],
     });
   }
+  // 6. Every dungeon boss at its intended level (#88): a representative
+  //    rotation cell per boss, plus an under-geared (starting-kit) variant
+  //    — the reviewed before/after cells for every gear-gated fight.
+  for (const z of ZONES) {
+    const boss = dungeonBossSource(z.id);
+    if (!boss) continue;
+    const intended = z.levels[1];
+    push({
+      classId: 'warrior',
+      level: intended,
+      gear: 'best',
+      policy: POLICIES.rotation,
+      pool: `boss:${boss.enemyId}:intended`,
+      sources: [boss],
+    });
+    push({
+      classId: 'mage',
+      level: Math.max(1, intended - 1),
+      gear: 'starting',
+      policy: POLICIES.rotation,
+      pool: `boss:${boss.enemyId}:undergeared`,
+      sources: [boss],
+    });
+  }
   return {
     fightsPerCell: SNAPSHOT_FIGHTS,
     note:
@@ -1169,6 +1446,9 @@ export interface ProgressionReport {
   totalEncounterAttempts: number;
   totalItemsUsed: number;
   chapter1Done: boolean;
+  /** #88: the FULL main questline (m1→m25) completed — only the campaign
+   * driver can set this; chapter-one runs report false. */
+  campaignDone: boolean;
   aranyaLevel: number;
   aranyaGearTier: number;
   aranyaDeathsBefore: number;
@@ -1193,6 +1473,26 @@ function weaponTier(p: PlayerState): number {
  * outcome: level 2+, #74) with REAL combat, rewards, shops and deaths.
  * Reveals when story beats unlock, how much grinding the curve demands,\ * and what gear the boss actually needed. */
 export function simulateChapterOne(classId: ClassId, seed: number): ProgressionReport {
+  return driveQuests(classId, seed, CH1, 'm4_blessing');
+}
+
+const ALL_MAINS = QUESTS.filter((q) => q.main).map((q) => q.id);
+
+/** #88: the FULL main questline m1→m25 with the same real-combat
+ * machinery — the balance evidence that every chapter (not just the
+ * opening) is traversable with real fights, deaths, shops and grinding. */
+export function simulateCampaign(classId: ClassId, seed: number): ProgressionReport {
+  return driveQuests(classId, seed, ALL_MAINS, ALL_MAINS[ALL_MAINS.length - 1]!);
+}
+
+/** Drives a quest list from a fresh post-prologue hero to `stopQuest`
+ * completion (#88: generalized from the chapter-one driver). */
+function driveQuests(
+  classId: ClassId,
+  seed: number,
+  quests: readonly string[],
+  stopQuest: string,
+): ProgressionReport {
   const rng: Rng = seededRng(seed);
   // #74: ONE canonical post-tutorial constructor — the fresh class kit at
   // level 2. The live item lesson spends a potion and the reward replaces
@@ -1222,6 +1522,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
     totalEncounterAttempts: 0,
     totalItemsUsed: 0,
     chapter1Done: false,
+    campaignDone: false,
     aranyaLevel: 0,
     aranyaGearTier: 0,
     aranyaDeathsBefore: 0,
@@ -1319,19 +1620,36 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
    * at the m5_arms beat, and the Whisperwood's band carries it too — a real
    * shopper compares both. Ends wherever the better rack was. */
   function shop(): void {
+    // #88: the full campaign shops EVERY unlocked rack — the chapter-one
+    // pair starved late chapters of tier-appropriate steel, and a level-45
+    // hero in chapter-one gear cannot survive its own story fights.
     shopHere();
-    if (p.unlockedZones.includes('whisperwood') && p.currentZone !== 'whisperwood') {
-      travel(p, 'whisperwood');
+    for (const z of ZONES) {
+      if (!p.unlockedZones.includes(z.id) || p.currentZone === z.id) continue;
+      if (
+        shopStock(z.id, shopTierForZone(z, p.level), { level: p.level, classId: p.classId })
+          .length === 0
+      ) {
+        continue;
+      }
+      travel(p, z.id);
       shopHere();
     }
   }
 
   /** Explore-farm until the level rises; returns fights spent. */
   const grindOneLevel = (): number => {
+    // #88: at the level cap a grind can never pay — bail before burning
+    // 300 explores that cannot gain a level.
+    if (p.level >= MAX_LEVEL) return 0;
     const start = p.level;
-    // Farm where the level band has live hostiles (#73): the Outskirts for
-    // levels 1–2, the Whisperwood from 3.
-    const farmZone = p.level < 3 ? 'outskirts' : 'whisperwood';
+    // Farm where the hero's band is LIVE (#73, #88): the highest unlocked
+    // zone whose hostile table still spawns at this level — the Outskirts
+    // for levels 1–2, the Whisperwood from 3, later wilds as they unlock.
+    const farmZone =
+      [...hostileZones()].reverse().find((z) =>
+        p.unlockedZones.includes(z.id) && zoneHostilePool(z.id, p.level).length > 0
+      )?.id ?? 'outskirts';
     let n = 0;
     while (p.level === start && n < 300) {
       n++;
@@ -1494,7 +1812,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
 
   const turnInReady = (): void => {
     syncAvailability(p);
-    for (const qid of CH1) {
+    for (const qid of quests) {
       if (p.quests[qid]?.status !== 'turnIn') continue;
       const q = quest(qid);
       if (!q) continue;
@@ -1519,7 +1837,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
 
   const acceptAvailable = (): void => {
     syncAvailability(p);
-    for (const qid of CH1) {
+    for (const qid of quests) {
       if (p.quests[qid]?.status !== 'available') continue;
       const q = quest(qid);
       if (!q) continue;
@@ -1533,11 +1851,12 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
 
   let guard = 0;
   const statusOf = (qid: string): string | undefined => p.quests[qid]?.status;
-  while (statusOf('m4_blessing') !== 'done' && ++guard < 300) {
+  const guardLimit = 300 + quests.length * 40;
+  while (statusOf(stopQuest) !== 'done' && ++guard < guardLimit) {
     turnInReady();
-    if (statusOf('m4_blessing') === 'done') break;
+    if (statusOf(stopQuest) === 'done') break;
     acceptAvailable();
-    const active = CH1.find((id) => p.quests[id]?.status === 'active');
+    const active = quests.find((id) => p.quests[id]?.status === 'active');
     if (!active) {
       grindOneLevel();
       continue;
@@ -1550,9 +1869,17 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
       const have = obj.kind === 'collect' ? countOf(p, obj.target) : questCount(active, i);
       if (have >= need) continue;
       if (obj.kind === 'kill') {
-        progressed = active === 'm3_roots'
-          ? clearBoss('whisperwood')
-          : farmKills(active, i, obj.target, need);
+        // #88: dungeon-sourced kills (chapter bosses, floor mobs) route
+        // through a real dive — farmKills only reaches explore tables.
+        // m3_roots keeps its authored route; later chapters resolve the
+        // owning dungeon from the boss map, then from floor yields.
+        const diveZone = active === 'm3_roots'
+          ? 'whisperwood'
+          : zoneOfEnemy(obj.target)
+          ? undefined
+          : ZONES.find((z) => z.dungeon && dungeonBossSource(z.id)?.enemyId === obj.target)?.id ??
+            ZONES.find((z) => z.dungeon && dungeonFloorsYield(obj.target, z.dungeon, 1))?.id;
+        progressed = diveZone ? clearBoss(diveZone) : farmKills(active, i, obj.target, need);
       } else if (obj.kind === 'collect') {
         progressed = farmCollect(obj.target, need);
       } else if (obj.kind === 'talk') {
@@ -1565,13 +1892,36 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
       } else if (obj.kind === 'reach') {
         travel(p, obj.target);
         progressed = true;
+      } else if (obj.kind === 'dungeon') {
+        // #88: later chapters gate story beats behind dungeon dives —
+        // clear the named dungeon's boss with real fights.
+        const dz = ZONES.find((z) => z.dungeon?.id === obj.target);
+        progressed = dz ? clearBoss(dz.id) : false;
       }
       if (!progressed) break;
     }
     if (!progressed) grindOneLevel();
   }
-  if (p.quests['m4_blessing']?.status !== 'done') report.stuck = 'guard limit reached';
+  if (p.quests[stopQuest]?.status !== 'done') {
+    // #88: diagnosable stalls — name the active quest and its objective
+    // progress so a harness regression is readable from the report alone.
+    const active = quests.find((id) => p.quests[id]?.status === 'active');
+    const detail = active
+      ? ` active=${active}[${
+        quest(active)!.objectives.map((o, i) =>
+          `${o.kind}:${o.target}:${questCount(active, i)}/${o.count ?? 1}`
+        ).join(', ')
+      }]`
+      : ' no-active';
+    const pending = quests.filter((id) => p.quests[id]?.status !== 'done').slice(0, 6)
+      .map((id) => `${id}:${p.quests[id]?.status ?? 'none'}`).join(' ');
+    report.stuck = `guard limit reached level=${p.level} zone=${p.currentZone} zones=[${
+      p.unlockedZones.join(',')
+    }] pending=[${pending}]${detail}`;
+  }
   report.chapter1Done = p.quests['m4_blessing']?.status === 'done';
+  // #88: full-campaign completion — every main quest m1→m25 done.
+  report.campaignDone = ALL_MAINS.every((id) => p.quests[id]?.status === 'done');
   report.endLevel = p.level;
   report.endGold = p.gold;
   report.totalDeaths = deaths;

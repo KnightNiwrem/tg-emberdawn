@@ -724,10 +724,15 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🔥',
     level: 38,
     boss: true,
-    mul: { hp: 3.2, xp: 3, gold: 3.8, mag: 1.3, def: 1.35 },
+    // #88: the campaign sim exposed this fight as unwinnable — a 3.2× pool
+    // with a 12%-per-4-rounds rekindle (~58 HP/round on the scaled pool)
+    // out-paced every hero's sustained damage at the authored band (all
+    // classes, both policies: 0/16; cleric fights stalled at the cap).
+    // Tuned to the ch2–ch4 boss envelope; probed winnable at 37–38.
+    mul: { hp: 2.4, xp: 3, gold: 3.8, mag: 1.3, def: 1.35 },
     statusResist: 0.3,
-    moves: [hit('Solar Flare', 1.5, 'mag', 3), hit('Cinder Storm', 1.3, 'mag', 2)],
-    special: { every: 4, move: move('Rekindling', 1, HEAL(0.12)) },
+    moves: [hit('Solar Flare', 1.3, 'mag', 3), hit('Cinder Storm', 1.1, 'mag', 2)],
+    special: { every: 4, move: move('Rekindling', 1, HEAL(0.05)) },
     drops: { m_cinder_heart: 1.0, t_5: 0.6 },
     desc: 'The oldest fire still burning. Tired. Cornered. Dangerous.',
   }),
@@ -800,21 +805,26 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '👑',
     level: 45,
     boss: true,
-    mul: { hp: 3.4, xp: 4, gold: 4, atk: 1.2, mag: 1.25, def: 1.4, res: 1.35 },
-    statusResist: 0.4,
+    // #88: the campaign sim exposed the same wall Ignivar had — a 3.4×
+    // pool behind 1.4× defenses and a 2.2×-MAG special every 3 rounds
+    // one-shot squishies at the authored band (every class 0/16 with the
+    // plain rotation; mage fights ended in ~4 rounds). Tuned to stay the
+    // hardest fight in the game while remaining winnable with tactics.
+    mul: { hp: 2.6, xp: 4, gold: 4, atk: 1.2, mag: 1.25, def: 1.3, res: 1.25 },
+    statusResist: 0.3,
     // #79: the Sundered King opens boss-provenance fights behind a large
     // one-time ward (long expiry, no regeneration, not dispellable).
     openingShield: { amount: 250, duration: 4, name: 'Sovereign Ward' },
     moves: [
-      hit('Sundering Blow', 1.55, 'phys', 3),
+      hit('Sundering Blow', 1.1, 'phys', 3),
       // #79: the king's will cuts through wards untouched — shield-
       // bypassing damage, endgame texture plus a resolver regression path.
-      move('Wardrender', 1, { kind: 'damage', attack: 'phys', power: 1.3, bypassShield: true }),
+      move('Wardrender', 1, { kind: 'damage', attack: 'phys', power: 0.95, bypassShield: true }),
       // #79: the sap only lands on flesh — a fully-shielded Crown never
       // weakens (requireHpDamage rider gating).
-      hit('Crown of Night', 1.4, 'mag', 2, { ...SAP(0.3), requireHpDamage: true }),
+      hit('Crown of Night', 1.05, 'mag', 2, { ...SAP(0.3), requireHpDamage: true }),
     ],
-    special: { every: 3, move: hit('Divide the Flame', 2.2, 'mag', 1) },
+    special: { every: 3, move: hit('Divide the Flame', 1.15, 'mag', 1) },
     drops: { m_void_fragment: 1.0, t_6: 0.7 },
     desc: 'He split the flame to rule both halves. He lost himself in the seam.',
   }),
@@ -851,11 +861,15 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🌌',
     level: 45,
     boss: true,
-    mul: { hp: 3.6, xp: 4, gold: 4.5, atk: 1.25, mag: 1.3, def: 1.45, res: 1.4 },
-    statusResist: 0.4,
+    // #88: the campaign sim exposed the same wall pattern (3.6× pool,
+    // 1.45/1.4 shells, a 2.3×-MAG special every 3 rounds) — unwinnable at
+    // the authored band by any class. Tuned to stay the void's last word
+    // while remaining winnable with real play (#88 probes).
+    mul: { hp: 2.6, xp: 4, gold: 4.5, atk: 1.25, mag: 1.3, def: 1.3, res: 1.25 },
+    statusResist: 0.3,
     moves: [
-      hit('Void Lance', 1.6, 'mag', 3),
-      hit('Entropy Field', 1.35, 'mag', 2, SAP(0.3)),
+      hit('Void Lance', 1.2, 'mag', 3),
+      hit('Entropy Field', 1.1, 'mag', 2, SAP(0.3)),
     ],
     special: {
       every: 3,
@@ -866,7 +880,7 @@ export const ENEMIES: readonly EnemyDef[] = [
       move: move(
         'Final Silence',
         1,
-        { kind: 'damage', attack: 'mag', power: 2.3 },
+        { kind: 'damage', attack: 'mag', power: 1.2 },
         { kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 },
       ),
     },

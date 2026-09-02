@@ -38,6 +38,7 @@ import {
   statPct,
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
+import { emitCombatEvent } from './telemetry.ts';
 
 /** Applies a stat-modifier percentage to a base stat. The result floors
  * at 1 (#85): stacked breaks can shrink a stat to almost nothing but never
@@ -241,6 +242,13 @@ export function startBattle(
         for (const tg of it.triggers) {
           if (tg.trigger !== 'battleStart') continue;
           if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
+            emitCombatEvent({
+              kind: 'procAttempt',
+              round: battle.round,
+              item: it.name,
+              trigger: tg.name,
+              success: false,
+            });
             opening.push(
               `💤 ${it.name}: ${tg.name} does not wake this time (${
                 Math.round(tg.chance * 100)
@@ -248,6 +256,13 @@ export function startBattle(
             );
             continue;
           }
+          emitCombatEvent({
+            kind: 'procAttempt',
+            round: battle.round,
+            item: it.name,
+            trigger: tg.name,
+            success: true,
+          });
           opening.push(...runOpening(
             battle,
             p,
@@ -331,7 +346,16 @@ function runReactiveTriggers(
       if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round < tg.cooldown) {
         return;
       }
-      if (tg.chance !== undefined && !chance(rng, tg.chance)) return;
+      if (tg.chance !== undefined && !chance(rng, tg.chance)) {
+        emitCombatEvent({
+          kind: 'procAttempt',
+          round: battle.round,
+          item: it.name,
+          trigger: tg.name,
+          success: false,
+        });
+        return;
+      }
       const ctx: ExecCtx = {
         p,
         battle,
@@ -343,6 +367,13 @@ function runReactiveTriggers(
         targetFelled: false,
         hpDamaged: false,
       };
+      emitCombatEvent({
+        kind: 'procAttempt',
+        round: battle.round,
+        item: it.name,
+        trigger: tg.name,
+        success: true,
+      });
       lines.push(...executeSpecs(ctx, tg.effects).map((l) => `⚡ ${l}`));
       st.count++;
       st.round = battle.round;
@@ -629,6 +660,9 @@ export function performAction(
       : p.hp <= 0
       ? 'defeat'
       : 'ongoing';
+    if (outcome === 'victory' || outcome === 'defeat') {
+      emitCombatEvent({ kind: 'terminal', round: actedRound, outcome });
+    }
     return { battle, lines, skipped, consumedTurn: true, outcome };
   };
 
@@ -684,10 +718,26 @@ function applyPeriodicTick(
       const max = statsOf(p).maxHp;
       const heal = Math.min(t.amount, max - p.hp);
       p.hp = Math.min(max, p.hp + t.amount);
+      emitCombatEvent({
+        kind: 'periodicTick',
+        round: battle.round,
+        side: t.side,
+        name: t.name,
+        amount: t.amount,
+        applied: heal,
+      });
       if (heal > 0) lines.push(`💚 You recover ${heal} HP (${t.name}).`);
     } else {
       const heal = Math.min(t.amount, battle.enemy.maxHp - battle.enemy.hp);
       battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + t.amount);
+      emitCombatEvent({
+        kind: 'periodicTick',
+        round: battle.round,
+        side: t.side,
+        name: t.name,
+        amount: t.amount,
+        applied: heal,
+      });
       if (heal > 0) lines.push(`💚 ${battle.enemy.name} recovers ${heal} HP (${t.name}).`);
     }
     return lines;
@@ -706,7 +756,16 @@ function applyPeriodicTick(
     broke = a.broke;
   }
   if (t.side === 'player') {
+    const hpBefore = p.hp;
     p.hp = Math.max(0, p.hp - hpDmg);
+    emitCombatEvent({
+      kind: 'periodicTick',
+      round: battle.round,
+      side: t.side,
+      name: t.name,
+      amount: t.amount,
+      applied: p.hp - hpBefore,
+    });
     lines.push(
       `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
     );
@@ -717,7 +776,16 @@ function applyPeriodicTick(
     // fixture can never be felled before its lessons clear.
     const floor = tutorialEnemyFloor(battle);
     const wouldFell = battle.enemy.hp - hpDmg <= 0;
+    const hpBefore = battle.enemy.hp;
     battle.enemy.hp = Math.max(floor, battle.enemy.hp - hpDmg);
+    emitCombatEvent({
+      kind: 'periodicTick',
+      round: battle.round,
+      side: t.side,
+      name: t.name,
+      amount: t.amount,
+      applied: battle.enemy.hp - hpBefore,
+    });
     lines.push(
       `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${t.name}).${
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
@@ -908,7 +976,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'cleanse': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max);
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'cleansed');
         if (removed.length > 0 && !spec.quiet) {
           const line = spec.line?.replace('{n}', String(removed.length)) ??
             (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
@@ -921,7 +989,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'dispel': {
-        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max);
+        const removed = removeTagged(ctx.battle, side, spec.tags, spec.max, 'dispelled');
         if (removed.length > 0 && !spec.quiet) {
           lines.push(
             spec.line?.replace('{n}', String(removed.length)) ??

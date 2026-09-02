@@ -5,6 +5,7 @@
 
 import type { EffectSpec, EffectTag, StackingPolicy, StatKey } from '../content/types.ts';
 import type { BattleState, EffectInstance, EffectSource } from './types.ts';
+import { emitCombatEvent } from './telemetry.ts';
 
 /** The last round index an effect applied at `appliedRound` stays active
  * in, given its timing (#27/#38/#77 semantics, now data-driven):
@@ -56,8 +57,25 @@ function sameIdentity(a: EffectInstance, seed: InstanceSeed): boolean {
 
 /** Applies an effect instance with its authored stacking policy. Returns
  * the instance now backing the effect (the new one, or the retained prior
- * one for refresh/strongest-loss cases). */
+ * one for refresh/strongest-loss cases). Emits a structured
+ * `effectApplied` event (#88) — the harness counts applications and
+ * duration-1 casts without mid-round state sampling. */
 export function applyInstance(b: BattleState, seed: InstanceSeed): EffectInstance {
+  const inst = applyInstanceRaw(b, seed);
+  emitCombatEvent({
+    kind: 'effectApplied',
+    round: b.round,
+    side: inst.side,
+    defId: seed.defId,
+    name: seed.name,
+    duration: seed.battleLifetime === true ? 0 : seed.duration,
+    tags: [...seed.tags],
+    source: `${seed.source.kind}:${seed.source.name}`,
+  });
+  return inst;
+}
+
+function applyInstanceRaw(b: BattleState, seed: InstanceSeed): EffectInstance {
   const existing = b.effectInstances.find((i) => sameIdentity(i, seed));
   const battleLife = seed.battleLifetime === true;
   const make = (): EffectInstance => {
@@ -185,6 +203,14 @@ export function consumeStun(b: BattleState, side: 'player' | 'enemy'): boolean {
   inst.actions = (inst.actions ?? 1) - 1;
   if (inst.actions <= 0) {
     b.effectInstances = b.effectInstances.filter((i) => i !== inst);
+    emitCombatEvent({
+      kind: 'effectRemoved',
+      round: b.round,
+      side,
+      defId: inst.defId,
+      name: inst.name,
+      cause: 'consumed',
+    });
   }
   return true;
 }
@@ -203,12 +229,14 @@ export function hasRemovableTagged(
 
 /** Removes up to `max` removable tagged instances from a side; returns the
  * removed instances (for logs/metrics). Cleanse/dispel can never touch
- * unremovable encounter conditions. */
+ * unremovable encounter conditions. `cause` labels the structured removal
+ * events (#88) — the caller knows whether it was cleansing or dispelling. */
 export function removeTagged(
   b: BattleState,
   side: 'player' | 'enemy',
   tags: EffectTag[],
   max?: number,
+  cause: 'cleansed' | 'dispelled' = 'cleansed',
 ): EffectInstance[] {
   const removed: EffectInstance[] = [];
   const keep: EffectInstance[] = [];
@@ -218,6 +246,16 @@ export function removeTagged(
     else keep.push(i);
   }
   b.effectInstances = keep;
+  for (const i of removed) {
+    emitCombatEvent({
+      kind: 'effectRemoved',
+      round: b.round,
+      side: i.side,
+      defId: i.defId,
+      name: i.name,
+      cause,
+    });
+  }
   return removed;
 }
 
@@ -270,7 +308,14 @@ export function grantShield(
   // the grant capacity the cap trimmed, `lost` existing pool discarded
   // because the new maximum sits below it (small-ward replacement).
   const applied = Math.max(0, after - before);
-  return { applied, wasted: granted - applied, lost: Math.max(0, before - after), max };
+  const grant: ShieldGrant = {
+    applied,
+    wasted: granted - applied,
+    lost: Math.max(0, before - after),
+    max,
+  };
+  emitCombatEvent({ kind: 'shieldGrant', round: b.round, side, applied, wasted: grant.wasted });
+  return grant;
 }
 
 export interface ShieldAbsorb {
@@ -292,7 +337,9 @@ export function absorbShield(
   const pool = b.shield[side];
   const absorbed = Math.min(pool, dmg);
   b.shield[side] = pool - absorbed;
-  return { absorbed, hpDamage: dmg - absorbed, broke: absorbed > 0 && b.shield[side] === 0 };
+  const broke = absorbed > 0 && b.shield[side] === 0;
+  if (broke) emitCombatEvent({ kind: 'shieldBreak', round: b.round, side });
+  return { absorbed, hpDamage: dmg - absorbed, broke };
 }
 
 export interface ShieldLoss {
@@ -440,6 +487,16 @@ export function pruneExpired(b: BattleState): EffectInstance[] {
     if (done) expired.push(i);
     return !done;
   });
+  for (const i of expired) {
+    emitCombatEvent({
+      kind: 'effectRemoved',
+      round: b.round,
+      side: i.side,
+      defId: i.defId,
+      name: i.name,
+      cause: 'expired',
+    });
+  }
   return expired;
 }
 
