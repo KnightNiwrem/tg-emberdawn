@@ -192,6 +192,7 @@ export type ViewId =
   | 'inventory'
   | 'item'
   | 'equipment'
+  | 'equippedItem'
   | 'skills'
   | 'quests'
   | 'npcq'
@@ -206,7 +207,9 @@ export interface SceneState {
   view: ViewId;
   /** Pagination / selection parameter for the current view (e.g. page, shop slot). */
   arg?: string;
-  /** Secondary parameter (e.g. page while in sell mode). */
+  /** Secondary parameter (e.g. page while in sell mode). For item details
+   * (#112): the origin context — the inventory page it came from, or 'eq'
+   * when opened from the Equipment screen, so Back returns to the origin. */
   arg2?: string;
 }
 

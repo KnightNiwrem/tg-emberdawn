@@ -1205,7 +1205,13 @@ Deno.test('trace: ignoring the returned trace changes nothing — full state and
     }
     const snapshot = JSON.stringify({
       // battle is a live back-reference, excluded from the player's shape
-      player: { ...p, battle: undefined },
+      player: {
+        ...p,
+        battle: undefined,
+        // wall-clock creation stamps differ between runs by construction —
+        // normalize them; every GAMEPLAY stat stays in the comparison.
+        stats: { ...p.stats, createdAt: 0, lastPlayed: 0 },
+      },
       battle: r.battle,
     });
     return {

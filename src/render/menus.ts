@@ -3,10 +3,10 @@
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
 import type { ItemDef } from '../content/types.ts';
-import { item, itemName } from '../content/items.ts';
-import { isEquippable } from '../content/items.ts';
+import { isEquippable, item } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { MAX_LEVEL } from '../engine/classes.ts';
+import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import { buttonsRow, cbBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
@@ -83,17 +83,37 @@ export function triggerDisclosure(def: ItemDef | undefined): string[] {
   });
 }
 
-export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessage {
-  const def = item(itemId);
-  const qty = p.inventory.find((e) => e.id === itemId)?.qty ?? 0;
+/** Where a detail view was opened FROM (#112) — the Back button returns to
+ * the origin (the same inventory page, or the Equipment screen) instead of
+ * a hardcoded zone. */
+export type ItemDetailOrigin =
+  | { kind: 'inventory'; page: number }
+  | { kind: 'equipment' }
+  | { kind: 'zone' };
+
+/** Parses the scene's origin marker (#112): a digit string is the inventory
+ * page, 'eq' the Equipment screen, anything else the legacy zone fallback. */
+export function itemDetailOrigin(arg2: string | undefined): ItemDetailOrigin {
+  if (arg2 === 'eq') return { kind: 'equipment' };
+  if (arg2 !== undefined && /^\d+$/.test(arg2)) return { kind: 'inventory', page: Number(arg2) };
+  return { kind: 'zone' };
+}
+
+function detailBackRow(origin: ItemDetailOrigin): InputRichBlock {
+  const btn = origin.kind === 'equipment'
+    ? cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))
+    : origin.kind === 'inventory'
+    ? cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'p', arg: origin.page }))
+    : cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }));
+  return buttonsRow([btn]);
+}
+
+/** Shared static item facts (#112): stats, consumable effect, trigger
+ * mechanics, flavor, requirement. Bag and equipped detail wrappers layer
+ * their own headings and actions over this so the two detail pages cannot
+ * drift. */
+function itemFactBlocks(def: ItemDef): InputRichBlock[] {
   const blocks: InputRichBlock[] = [];
-  if (!def || qty === 0) {
-    blocks.push(para('That item has vanished from your bag.'));
-    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }))]));
-    return { blocks };
-  }
-  blocks.push(heading(`${def.name} ×${qty}`, 4));
-  blocks.push(...noticesBlocks(p));
   if (def.stats) {
     const lines = Object.entries(def.stats)
       .map(([k, v]) => `${statEmoji(k)} +${v} ${k.toUpperCase()}`)
@@ -116,6 +136,26 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
   if (def.level > 1 && (def.kind === 'weapon' || def.kind === 'armor' || def.kind === 'trinket')) {
     blocks.push(para(`Requires level ${def.level}.`));
   }
+  return blocks;
+}
+
+export function renderItemDetail(
+  p: PlayerState,
+  itemId: string,
+  originArg2?: string,
+): InputRichMessage {
+  const def = item(itemId);
+  const qty = p.inventory.find((e) => e.id === itemId)?.qty ?? 0;
+  const blocks: InputRichBlock[] = [];
+  const origin = itemDetailOrigin(originArg2);
+  if (!def || qty === 0) {
+    blocks.push(para('That item has vanished from your bag.'));
+    blocks.push(detailBackRow(origin));
+    return { blocks };
+  }
+  blocks.push(heading(`${def.name} ×${qty}`, 4));
+  blocks.push(...noticesBlocks(p));
+  blocks.push(...itemFactBlocks(def));
 
   const row = [];
   const eq = isEquippable(itemId, p.classId, p.level);
@@ -145,7 +185,7 @@ export function renderItemDetail(p: PlayerState, itemId: string): InputRichMessa
   // trophies) renders an informational view with the Back row only — an
   // empty buttons block fails Telegram's 1–8 button validation.
   if (row.length > 0) blocks.push(buttonsRow(row, 'left'));
-  blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }))]));
+  blocks.push(detailBackRow(origin));
   return { blocks };
 }
 
@@ -172,31 +212,45 @@ function statEmoji(k: string): string {
   }
 }
 
+const SLOT_LABELS: Record<EquipSlot, string> = {
+  weapon: '🗡️ Weapon',
+  armor: '🛡️ Armor',
+  trinket: '💍 Trinket',
+};
+
+const SLOT_NAMES: Record<EquipSlot, string> = {
+  weapon: 'weapon',
+  armor: 'armor',
+  trinket: 'trinket',
+};
+
+/** The Equipment screen: a COMPACT slot overview (#112) — slot, item name,
+ * temper marker, and a `⚡ Combat effect` indicator where triggers exist.
+ * The full multi-line trigger disclosure lives on each equipped item's
+ * detail view (slot-addressed), so the overview no longer uniquely expands
+ * triggered gear while omitting everyone else's stats. */
 export function renderEquipment(p: PlayerState): InputRichMessage {
-  const slots: { slot: EquipSlot; label: string }[] = [
-    { slot: 'weapon', label: '🗡️ Weapon' },
-    { slot: 'armor', label: '🛡️ Armor' },
-    { slot: 'trinket', label: '💍 Trinket' },
-  ];
+  const slots: EquipSlot[] = ['weapon', 'armor', 'trinket'];
   const blocks: InputRichBlock[] = [
     heading('🛠️ Equipment', 4),
     ...noticesBlocks(p),
   ];
-  for (const { slot, label } of slots) {
+  for (const slot of slots) {
     const id = p.equipment[slot];
-    const name = id ? itemName(id) : '— empty —';
-    const lvl = slot !== 'trinket' && id ? temperText(p, slot) : '';
-    blocks.push(para(`${label}: ${name}${lvl}`));
-    for (const line of triggerDisclosure(id ? item(id) : undefined)) {
-      blocks.push(para(line));
+    const def = id ? item(id) : undefined;
+    if (!id || !def) {
+      blocks.push(para(`${SLOT_LABELS[slot]}: — empty —`));
+      continue; // an empty slot exposes no inspection route (#112)
     }
-    if (id) {
-      blocks.push(
-        buttonsRow([
-          cbBtn(`Unequip ${label.slice(2)}`, encodeCb({ v: 'equipment', a: 'rm', arg: slot })),
-        ], 'left'),
-      );
-    }
+    const lvl = slot !== 'trinket' ? temperText(p, slot) : '';
+    const eff = def.triggers?.length ? ' ⚡ Combat effect' : '';
+    blocks.push(para(`${SLOT_LABELS[slot]}: ${def.name}${lvl}${eff}`));
+    blocks.push(
+      buttonsRow([
+        cbBtn(`🔍 Details`, encodeCb({ v: 'equipment', a: 'view', arg: slot })),
+        cbBtn(`Unequip ${SLOT_NAMES[slot]}`, encodeCb({ v: 'equipment', a: 'rm', arg: slot })),
+      ], 'left'),
+    );
   }
   // Owned equippables by slot
   const owned = p.inventory.filter((e) => {
@@ -221,7 +275,44 @@ export function renderEquipment(p: PlayerState): InputRichMessage {
   return { blocks };
 }
 
-import { temperLevel } from '../engine/forge.ts';
+/** The EQUIPPED item's detail view (#112), addressed BY SLOT — the slot is
+ * re-resolved from player state at render time, so forged or stale ids can
+ * never inspect an item that is no longer equipped. Shows the same factual
+ * information as the bag detail (stats, description, requirements, exact
+ * trigger mechanics, temper level and its effective contribution) with the
+ * equipped state instead of a bag quantity, and NO bag-only controls: the
+ * only actions are Unequip (the validated operation, returning exactly one
+ * copy to the bag) and Back to Equipment. */
+export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): InputRichMessage {
+  const blocks: InputRichBlock[] = [];
+  const id = p.equipment[slot];
+  const def = id ? item(id) : undefined;
+  if (!id || !def) {
+    // Safe explanatory state (#112): an empty slot — or a def that went
+    // missing — never claims the item "vanished from your bag".
+    blocks.push(para(`That ${SLOT_NAMES[slot]} slot is empty.`));
+    blocks.push(buttonsRow([cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))]));
+    return { blocks };
+  }
+  const temper = slot !== 'trinket' ? temperLevel(p, slot) : 0;
+  const temperMark = temper > 0 ? ` +${temper}` : '';
+  blocks.push(heading(`${def.name}${temperMark}`, 4));
+  blocks.push(...noticesBlocks(p));
+  blocks.push(para(`Equipped: ${SLOT_LABELS[slot]}. This piece is worn, not carried.`));
+  if (temper > 0) {
+    const pct = Math.round(temperBonusOf(p, id) * 100);
+    blocks.push(para(`🔧 Forge-tempered +${temper} — +${pct}% to this item's own stats.`));
+  }
+  blocks.push(...itemFactBlocks(def));
+  blocks.push(
+    buttonsRow([
+      cbBtn('🔓 Unequip', encodeCb({ v: 'equipment', a: 'rm', arg: slot }), 'danger'),
+      cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
+    ], 'left'),
+  );
+  return { blocks };
+}
+
 function temperText(p: PlayerState, slot: 'weapon' | 'armor'): string {
   const t = temperLevel(p, slot);
   return t > 0 ? ` +${t}` : '';

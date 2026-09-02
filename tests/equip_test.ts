@@ -15,7 +15,12 @@ import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/e
 import { ENEMIES } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { addItem } from '../src/engine/inventory.ts';
-import { renderEquipment, renderItemDetail, triggerDisclosure } from '../src/render/menus.ts';
+import {
+  renderEquipment,
+  renderEquippedItemDetail,
+  renderItemDetail,
+  triggerDisclosure,
+} from '../src/render/menus.ts';
 import { seeded } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
@@ -362,8 +367,19 @@ Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => 
   const bag = hero(14, 'warrior', 32, 't_7');
   bag.inventory.push({ id: 't_7', qty: 1 });
   assert(JSON.stringify(renderItemDetail(bag, 't_7')).includes('⚡ Battle start'));
+  // #112: the Equipment overview is COMPACT — it shows the ⚡ indicator
+  // only; the full mechanics moved to the equipped item's detail view,
+  // where they remain exact.
+  const overview = JSON.stringify(renderEquipment(hero(15, 'warrior', 28, 't_15')));
+  assert(overview.includes('⚡ Combat effect'), 'the overview marks triggered gear');
   assert(
-    JSON.stringify(renderEquipment(hero(15, 'warrior', 28, 't_15'))).includes('⚡ Battle start'),
+    !overview.includes('⚡ Battle start'),
+    'the overview no longer expands trigger sentences',
+  );
+  assert(
+    JSON.stringify(renderEquippedItemDetail(hero(16, 'warrior', 28, 't_15'), 'trinket'))
+      .includes('⚡ Battle start'),
+    'the equipped detail carries the exact disclosure',
   );
 });
 
@@ -1037,4 +1053,98 @@ Deno.test('#109: lethal player self-damage obeys the immediate-revival contract'
   } finally {
     charm.triggers = original;
   }
+});
+
+// ── #112: context-aware detail views for equipped items ─────────────────
+
+Deno.test('#112: every occupied slot exposes Details; empty slots expose none', () => {
+  const p = hero(900, 'warrior', 5, 't_15'); // starter weapon + armor equipped, trinket t_15
+  const overview = JSON.stringify(renderEquipment(p));
+  assert(overview.includes('e:vi:weapon'), 'the occupied weapon slot offers Details');
+  assert(overview.includes('e:vi:armor'), 'the occupied armor slot offers Details');
+  assert(overview.includes('e:vi:trinket'), 'the occupied trinket slot offers Details');
+  // An empty slot renders no inspection route at all.
+  const bare = hero(901, 'warrior', 5);
+  delete bare.equipment.trinket;
+  const bareJson = JSON.stringify(renderEquipment(bare));
+  assert(!bareJson.includes('e:vi:trinket'), 'an empty trinket slot offers no Details');
+  assert(bareJson.includes('— empty —'), 'the empty slot is labelled as such');
+});
+
+Deno.test('#112: equipped details show full facts with NO bag-only controls', () => {
+  for (const slot of ['weapon', 'armor', 'trinket'] as const) {
+    const p = hero(902, 'warrior', 5, 't_15');
+    const json = JSON.stringify(renderEquippedItemDetail(p, slot));
+    assert(json.includes('Equipped'), `${slot} detail names the equipped state`);
+    assert(!json.includes('×'), `${slot} detail shows no bag quantity`);
+    assert(!json.includes('Sell'), `${slot} detail offers no Sell`);
+    assert(!json.includes('Drop'), `${slot} detail offers no Drop`);
+    assert(!json.includes('⚔️ Equip'), `${slot} detail offers no Equip`);
+    assert(!json.includes('🧪 Use'), `${slot} detail offers no Use`);
+    assert(json.includes('e:rm'), `${slot} detail offers the validated Unequip`);
+    assert(json.includes('e:op'), `${slot} detail offers Back to Equipment`);
+  }
+});
+
+Deno.test('#112: triggered equipped gear discloses exact mechanics in its detail', () => {
+  const p = hero(903, 'warrior', 28, 't_15'); // Rime Ward — battleStart shield
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'trinket'));
+  // The full ward sentence, derived from the trigger fields (#82 parity).
+  assert(json.includes('⚡ Battle start'));
+  assert(json.includes('absorbing up to 35 damage'));
+  // Static stats and requirements are present too.
+  assert(json.includes('RES'), 'static stats render');
+  assert(json.includes('✨'), 'stat emoji block renders');
+});
+
+Deno.test('#112: tempered equipped gear shows level and effective contribution', () => {
+  const p = hero(904, 'warrior', 5);
+  p.flags['forge_i_w_warrior_1'] = 2; // item-pattern mastery flag (#24)
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  assert(json.includes('+2'), 'the temper level renders');
+  assert(json.includes('16%'), 'the effective contribution renders (+8%/level)');
+  const clean = hero(905, 'warrior', 5);
+  assert(
+    !JSON.stringify(renderEquippedItemDetail(clean, 'weapon')).includes('Forge-tempered'),
+    'untempered gear shows no temper block',
+  );
+});
+
+Deno.test('#112: an equipped item absent from Inventory stays inspectable', () => {
+  // Equipped gear is REMOVED from the bag (qty 0 there) — the equipped
+  // detail never consults bag quantities.
+  const p = hero(906, 'warrior', 5);
+  assert(!p.inventory.some((e) => e.id === p.equipment.weapon), 'the weapon is not in the bag');
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  assert(json.includes('Equipped:'), 'the equipped weapon renders despite zero bag qty');
+  assert(!json.includes('vanished from your bag'), 'no phantom "vanished" state');
+});
+
+Deno.test('#112: an empty-slot detail renders the safe explanatory state', () => {
+  const p = hero(907, 'warrior', 5);
+  delete p.equipment.trinket;
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'trinket'));
+  assert(json.includes('slot is empty'), 'the safe explanatory state renders');
+  assert(json.includes('e:op'), 'Back to Equipment remains reachable');
+  assert(!json.includes('vanished from your bag'), 'never claims the item left the bag');
+});
+
+Deno.test('#112: bag detail Back returns to the ORIGIN, not the zone', () => {
+  const bag = hero(908, 'warrior', 5);
+  bag.inventory.push({ id: 't_7', qty: 1 });
+  // From inventory page 3: Back re-opens that same page.
+  assert(
+    JSON.stringify(renderItemDetail(bag, 't_7', '3')).includes('i:pg:3'),
+    'an inventory-origin detail returns to its page',
+  );
+  // From the Equipment screen: Back returns there.
+  assert(
+    JSON.stringify(renderItemDetail(bag, 't_7', 'eq')).includes('e:op'),
+    'an equipment-origin detail returns to Equipment',
+  );
+  // No origin context: the legacy zone fallback stays.
+  assert(
+    JSON.stringify(renderItemDetail(bag, 't_7')).includes('i:bk'),
+    'a context-less detail keeps the legacy fallback',
+  );
 });

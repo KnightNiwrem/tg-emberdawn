@@ -46,7 +46,12 @@ import {
 } from '../src/content/quests.ts';
 import { STARTING_ZONES } from '../src/content/zones.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
-import { renderInventory, renderItemDetail } from '../src/render/menus.ts';
+import {
+  renderEquipment,
+  renderEquippedItemDetail,
+  renderInventory,
+  renderItemDetail,
+} from '../src/render/menus.ts';
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
@@ -499,6 +504,127 @@ Deno.test('inventory Equipment button opens equipment; Back returns (#17)', asyn
   );
   cur = (await store.get(921))!;
   assertEquals(cur.scene.view, 'inventory');
+});
+
+// ── equipped-item inspection flow (#112) ─────────────────────────────────
+
+Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (#112)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(930, 'T', 'warrior');
+  p.equipment.trinket = 't_15'; // triggered gear, equipped (absent from the bag)
+  p.messageId = 600;
+  p.uiRev = 0;
+  p.scene = { view: 'inventory', arg: '2' };
+  await store.set(930, p);
+
+  // 1. Inventory → Equipment.
+  await handleCallback(fakeCtx(930, 600, withRev(0, 'e:op')), store);
+  let cur = (await store.get(930))!;
+  assertEquals(cur.scene.view, 'equipment');
+
+  // 2. Inspect the equipped trinket — slot-addressed, rev-stamped.
+  await handleCallback(fakeCtx(930, 600, withRev(cur.uiRev ?? 0, 'e:vi:trinket')), store);
+  cur = (await store.get(930))!;
+  assertEquals(cur.scene.view, 'equippedItem');
+  assertEquals(cur.scene.arg, 'trinket');
+
+  // 3. The delivered view carries the exact trigger mechanics and the
+  // equipped state — never a bag quantity or bag-only controls.
+  const player = cur;
+  const detail = JSON.stringify(renderEquippedItemDetail(player, 'trinket'));
+  assert(detail.includes('⚡ Battle start'), 'the detail discloses the trigger');
+  assert(detail.includes('Equipped'), 'the detail names the equipped state');
+  assert(!detail.includes('Sell'), 'no bag-only Sell on the equipped copy');
+
+  // 4. Back from the equipped detail returns to Equipment.
+  await handleCallback(fakeCtx(930, 600, withRev(cur.uiRev ?? 0, 'e:op')), store);
+  cur = (await store.get(930))!;
+  assertEquals(cur.scene.view, 'equipment', 'Back returns to Equipment');
+});
+
+Deno.test('unequip from the equipped detail returns a copy and clears the slot (#112)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(931, 'T', 'warrior');
+  p.gold = 100000;
+  addItem(p, 'w_warrior_2', 1); // one copy in the bag; a SECOND copy equipped
+  p.equipment.weapon = 'w_warrior_2';
+  p.hp = statsOf(p).maxHp;
+  p.messageId = 610;
+  p.uiRev = 0;
+  p.scene = { view: 'equippedItem', arg: 'weapon' };
+  await store.set(931, p);
+  const bagBefore = countOf(p, 'w_warrior_2');
+
+  await handleCallback(fakeCtx(931, 610, withRev(0, 'e:rm:weapon')), store);
+  const cur = (await store.get(931))!;
+  assertEquals(cur.equipment.weapon, undefined, 'the slot cleared');
+  assertEquals(
+    countOf(cur, 'w_warrior_2'),
+    bagBefore + 1,
+    'exactly ONE copy returned to the bag',
+  );
+  assertEquals(cur.scene.view, 'equipment', 'Back on the Equipment overview');
+  assert(
+    cur.hp <= statsOf(cur).maxHp,
+    'pools clamp after the equipment change',
+  );
+});
+
+Deno.test('forged inspect/unequip taps cannot mutate a slot they do not own (#112)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(934, 'T', 'warrior');
+  delete p.equipment.trinket; // nothing equipped there
+  p.messageId = 620;
+  p.uiRev = 0;
+  p.scene = { view: 'equipment' };
+  await store.set(934, p);
+
+  // A forged SLOT TOKEN never changes the scene.
+  await handleCallback(fakeCtx(934, 620, withRev(0, 'e:vi:dagger')), store);
+  let cur = (await store.get(934))!;
+  assertEquals(cur.scene.view, 'equipment', 'unknown slot token is a no-op');
+
+  // Inspecting an EMPTY slot is safe: the view explains, nothing mutates.
+  await handleCallback(fakeCtx(934, 620, withRev(cur.uiRev ?? 0, 'e:vi:trinket')), store);
+  cur = (await store.get(934))!;
+  assertEquals(cur.scene.view, 'equippedItem');
+  assertEquals(cur.equipment.trinket, undefined);
+  const safe = JSON.stringify(renderEquippedItemDetail(cur, 'trinket'));
+  assert(safe.includes('slot is empty'), 'the safe explanatory state renders');
+
+  // Unequipping an empty slot is a harmless no-op (existing validated path).
+  await handleCallback(fakeCtx(934, 620, withRev(cur.uiRev ?? 0, 'e:rm:trinket')), store);
+  cur = (await store.get(934))!;
+  assertEquals(cur.equipment.trinket, undefined, 'no phantom item entered the bag');
+  assertEquals(cur.scene.view, 'equipment');
+});
+
+Deno.test('Back from an inventory detail returns to the SAME page (#112)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(935, 'T', 'warrior');
+  p.gold = 1000;
+  addItem(p, 'c_minor_potion', 2);
+  p.messageId = 630;
+  p.uiRev = 0;
+  p.scene = { view: 'inventory', arg: '1' };
+  await store.set(935, p);
+
+  // Tap the item on page 1 — the detail records the origin page.
+  await handleCallback(fakeCtx(935, 630, withRev(0, 'i:v:c_minor_potion')), store);
+  let cur = (await store.get(935))!;
+  assertEquals(cur.scene.view, 'item');
+  assertEquals(cur.scene.arg, 'c_minor_potion');
+  assertEquals(cur.scene.arg2, '1', 'the origin page is captured');
+
+  // The rendered Back button re-opens page 1, and tapping it does.
+  assert(
+    JSON.stringify(renderItemDetail(cur, 'c_minor_potion', cur.scene.arg2)).includes('i:pg:1'),
+    'the Back button encodes the origin page',
+  );
+  await handleCallback(fakeCtx(935, 630, withRev(cur.uiRev ?? 0, 'i:pg:1')), store);
+  cur = (await store.get(935))!;
+  assertEquals(cur.scene.view, 'inventory');
+  assertEquals(cur.scene.arg, '1', 'Back returned to the SAME page, not the zone or page 0');
 });
 
 // ── render-revision replay guard (#16) ──────────────────────────────────

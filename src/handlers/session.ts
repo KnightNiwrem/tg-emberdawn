@@ -5,7 +5,7 @@
 
 import type { Context } from 'grammy';
 import type { InputRichMessage } from 'grammy/types';
-import type { PlayerState } from '../engine/types.ts';
+import type { EquipSlot, PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import { withRev } from '../codec.ts';
 import { answerCallbackBestEffort } from './ack.ts';
@@ -14,6 +14,7 @@ import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
   renderEquipment,
+  renderEquippedItemDetail,
   renderInventory,
   renderItemDetail,
   renderSkills,
@@ -46,9 +47,15 @@ function renderFor(p: PlayerState): InputRichMessage {
     case 'inventory':
       return renderInventory(p, Number(p.scene.arg ?? 0));
     case 'item':
-      return renderItemDetail(p, p.scene.arg ?? '');
+      // #112: arg2 carries the origin context (the inventory page it came
+      // from, or 'eq' for the Equipment screen) so Back returns to it.
+      return renderItemDetail(p, p.scene.arg ?? '', p.scene.arg2);
     case 'equipment':
       return renderEquipment(p);
+    case 'equippedItem':
+      // #112: the equipped detail is addressed BY SLOT and re-resolves the
+      // item from player state at render time.
+      return renderEquippedItemDetail(p, (p.scene.arg ?? 'weapon') as EquipSlot);
     case 'skills':
       return renderSkills(p);
     case 'quests':

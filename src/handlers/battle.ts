@@ -184,7 +184,13 @@ export function itemAction(
     if (lines.length === 0) return { toast: 'Nothing happened.' };
     removeItem(p, itemId, 1);
     p.notices = lines;
-    p.scene = { view: 'item', arg: itemId };
+    // #112: re-rendering the detail keeps its origin context so Back still
+    // returns where the player came from.
+    p.scene = {
+      view: 'item',
+      arg: itemId,
+      ...(p.scene.view === 'item' && p.scene.arg2 !== undefined ? { arg2: p.scene.arg2 } : {}),
+    };
     return {};
   }
   if (op === 'eq') {

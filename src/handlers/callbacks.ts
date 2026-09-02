@@ -108,7 +108,19 @@ function dispatch(
         return {};
       }
       if (cb.a === 'v') {
-        player.scene = { view: 'item', arg: cb.arg };
+        // #112: the detail records WHERE it was opened from — the current
+        // inventory page, or the Equipment screen — so its Back button
+        // returns to the origin instead of a hardcoded view.
+        const origin = player.scene.view === 'inventory'
+          ? (player.scene.arg ?? '0')
+          : player.scene.view === 'equipment'
+          ? 'eq'
+          : undefined;
+        player.scene = {
+          view: 'item',
+          arg: cb.arg,
+          ...(origin !== undefined ? { arg2: origin } : {}),
+        };
         return {};
       }
       return itemAction(player, cb.a, cb.arg);
@@ -119,6 +131,16 @@ function dispatch(
         // used to encode the BACK code, so tapping it just redrew Inventory
         // and the unequip screen was unreachable.
         player.scene = { view: 'equipment' };
+        return {};
+      }
+      if (cb.a === 'view') {
+        // #112: inspect the EQUIPPED item by SLOT — the slot is the
+        // authoritative ownership check (the renderer re-resolves
+        // player.equipment[slot]); a forged/unknown slot token never
+        // changes the scene.
+        if (cb.arg === 'weapon' || cb.arg === 'armor' || cb.arg === 'trinket') {
+          player.scene = { view: 'equippedItem', arg: cb.arg };
+        }
         return {};
       }
       if (cb.a === 'bk') {

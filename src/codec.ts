@@ -22,6 +22,7 @@ export type Cb =
   | { v: 'inventory'; a: 'v' | 'u' | 'eq' | 'sell' | 'drop'; arg: string }
   | { v: 'inventory'; a: 'bk' }
   | { v: 'equipment'; a: 'rm'; arg: string }
+  | { v: 'equipment'; a: 'view'; arg: string }
   | { v: 'equipment'; a: 'open' }
   | { v: 'equipment'; a: 'bk' }
   | { v: 'skills'; a: 'bk' }
@@ -75,7 +76,15 @@ export function encodeCb(c: Cb): string {
       if (c.a === 'bk') return 'i:bk';
       return `i:${c.a}:${c.arg}`;
     case 'equipment':
-      return c.a === 'bk' ? 'e:bk' : c.a === 'open' ? 'e:op' : `e:rm:${c.arg}`;
+      // #112: `vi` inspects the EQUIPPED item by SLOT — the slot is the
+      // authoritative ownership check, never an arbitrary item id.
+      return c.a === 'bk'
+        ? 'e:bk'
+        : c.a === 'open'
+        ? 'e:op'
+        : c.a === 'view'
+        ? `e:vi:${c.arg}`
+        : `e:rm:${c.arg}`;
     case 'skills':
       return 's:bk';
     case 'quests':
@@ -135,6 +144,7 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
     case 'e':
       if (a === 'op') return { v: 'equipment', a: 'open' };
       if (a === 'bk') return { v: 'equipment', a: 'bk' };
+      if (a === 'vi') return { v: 'equipment', a: 'view', arg };
       if (a === 'rm') return { v: 'equipment', a: 'rm', arg };
       return undefined;
     case 's':
