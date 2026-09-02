@@ -237,7 +237,7 @@ export function startBattle(
       // opening is not a direct enemy action, so the narrow trigger
       // stays quiet; a fallen wearer procs nothing (#86 parity).
       if (p.hp > 0 && p.hp < hpBeforeOpening) {
-        opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }));
+        opening.push(...runReactiveTriggers(p, battle, opRng, { cause: 'opening' }, false));
       }
     }
     // 3. Equipped-item triggers (#82): stable slot order — weapon, armor,
@@ -295,7 +295,7 @@ export function startBattle(
     for (const id of p.skills) {
       const sk = skill(id);
       if (!sk?.preEmptive) continue;
-      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false));
+      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false, false));
     }
     // An opening can wound but never end the fight before it begins.
     battle.enemy.hp = Math.max(1, battle.enemy.hp);
@@ -368,6 +368,7 @@ function runOpening(
     cause,
     procProduced,
     triggerIndex,
+    afterSnapshot: false, // the opening resolves BEFORE round 1's snapshot (#94)
   };
   return executeSpecs(ctx, specs);
 }
@@ -389,6 +390,7 @@ function runReactiveTriggers(
   battle: BattleState,
   rng: Rng,
   scan: 'onGuard' | { cause: DamageCause },
+  afterSnapshot = true,
 ): string[] {
   const lines: string[] = [];
   const procs = battle.procs ??= {};
@@ -436,6 +438,7 @@ function runReactiveTriggers(
         cause: 'proc',
         procProduced: true,
         triggerIndex: ti,
+        afterSnapshot,
       };
       emitCombatEvent({
         kind: 'procAttempt',
@@ -962,6 +965,13 @@ interface ExecCtx {
   /** #90 authored trigger index for equipment-trigger specs — part of the
    * stacking identity, so distinct triggers on one item never collide. */
   triggerIndex?: number;
+  /** #94: true when this application happens AFTER the current round's
+   * initiative snapshot (any mid-round slot). SPD statmods applied then
+   * defer their first decay — they never spent a unit on a snapshot that
+   * already happened, so an advertised N-turn SPD effect always covers N
+   * eligible initiative snapshots. Opening applications run before round
+   * 1's snapshot and keep their authored timing. */
+  afterSnapshot: boolean;
 }
 
 function other(side: 'player' | 'enemy'): 'player' | 'enemy' {
@@ -1111,6 +1121,16 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
           side,
           ctx.source,
         );
+        // #94: SPD's advertised rounds are INITIATIVE snapshots. An SPD
+        // statmod applied after this round's snapshot already happened
+        // spends no unit on it — its first decay defers, so an N-turn
+        // effect always covers N eligible snapshots (its dodge/flee value
+        // simply follows liveness, documented in AGENTS.md #72). Opening
+        // applications precede round 1's snapshot and keep their authored
+        // timing, so they still cover round 1..N.
+        if (spec.kind === 'statmod' && spec.stat === 'spd' && ctx.afterSnapshot) {
+          seed.timing = 'defer';
+        }
         applyInstance(ctx.battle, seed);
         const line = defaultInstanceLine(ctx, spec, side);
         if (line) lines.push(line);
@@ -1416,6 +1436,7 @@ function applySkill(
   rng: Rng,
   cause: DamageCause,
   procProduced: boolean,
+  afterSnapshot: boolean,
 ): string[] {
   const lines: string[] = [];
   // Buff-style skills announce ONCE with their full rules text (#67 copy,
@@ -1436,6 +1457,7 @@ function applySkill(
     hpDamaged: false,
     cause,
     procProduced,
+    afterSnapshot,
   };
   lines.push(...executeSpecs(ctx, sk.effects));
   return lines;
@@ -1472,6 +1494,7 @@ function applyPlayerAction(
         hpDamaged: false,
         cause: 'playerAction',
         procProduced: false,
+        afterSnapshot: true,
       };
       lines.push(...executeSpecs(ctx, [{
         kind: 'damage',
@@ -1510,7 +1533,7 @@ function applyPlayerAction(
       }
       p.mp -= sk.mpCost;
       if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false));
+      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false, true));
       return { lines, consumedTurn: true };
     }
     case 'item': {
@@ -1637,6 +1660,7 @@ function enemyAct(
     hpDamaged: false,
     cause: 'enemyAction',
     procProduced: false,
+    afterSnapshot: true,
   };
   const hpBefore = p.hp;
   lines.push(...executeSpecs(ctx, move.effects));

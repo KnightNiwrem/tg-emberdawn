@@ -206,6 +206,14 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   enemy guard stances, and zero-power status moves are NEVER dodged (the roll lives only in the
   damaging branch of enemyAct; test-enforced). Dodges are a visible 💨 round line. Smoke Step (+45%
   SPD) is a stay-and-fight defensive tool; Flee still uses SPD separately.
+- **SPD duration = initiative snapshots (#94):** initiative is snapshotted from effective SPD before
+  either actor's slot (#86), and an advertised N-turn SPD effect covers exactly N eligible
+  snapshots: a mid-round SPD application (any slot after the snapshot) defers its first decay — the
+  cast round spent no unit on a snapshot that already decided — while OPENING SPD applications
+  (enemy openings like the Chrono Anchor, pre-emptive skills) precede round 1's snapshot and count
+  it (`timing: immediate`, rounds 1..N). Dodge and Flee simply follow liveness while the instance is
+  up, so a faster caster still gets same-round value on top of its N snapshots. Refresh re-banks the
+  full count from the recast round.
 - **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
   Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
   delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a

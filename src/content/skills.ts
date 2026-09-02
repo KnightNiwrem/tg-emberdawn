@@ -452,7 +452,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['slow'],
       },
     ],
-    desc: '120% ATK and cripple: −30% enemy SPD for 2 turns.',
+    desc: '120% ATK and cripple: −30% enemy SPD for 2 turns — its next two moves come slower.',
   }),
   S({
     id: 'sk_smoke_step',
@@ -463,7 +463,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('spd', 0.45, 3)],
-    desc: '+45% SPD for 3 turns — outpace the foe and slip its blows.',
+    desc: '+45% SPD for 3 turns — outpace the foe for its next three moves and slip its blows.',
   }),
   S({
     id: 'sk_expose_weakness',

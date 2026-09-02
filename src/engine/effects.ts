@@ -20,11 +20,18 @@ export interface ApplyResult {
 
 /** The last round index an effect applied at `appliedRound` stays active
  * in, given its timing (#27/#38/#77 semantics, now data-driven):
- * - `immediate`: the cast round counts (DEF/RES/SPD defend the cast round's
+ * - `immediate`: the cast round counts (DEF/RES defend the cast round's
  *   enemy response; enemy guards cover the rounds AFTER their cast), so the
  *   first end-of-round tick is not skipped.
  * - `defer`: the cast round cannot use the stat (ATK/MAG empower only
- *   future actions), so the first tick is skipped. */
+ *   future actions), so the first tick is skipped.
+ *
+ * #94 SPD special case: SPD's advertised rounds are INITIATIVE snapshots.
+ * A mid-round SPD application (after the snapshot already happened) is
+ * forced to `defer` by the combat resolver, so an N-turn SPD effect always
+ * covers exactly N eligible snapshots; opening applications precede round
+ * 1's snapshot and stay `immediate` (rounds 1..N). Dodge/flee simply
+ * follow liveness while the instance is up. */
 function expiresRoundFor(
   appliedRound: number,
   duration: number,

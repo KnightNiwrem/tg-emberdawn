@@ -442,26 +442,25 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
   assertEquals(modRemaining(w.b, 'player', 'atk'), 0, 'exactly the advertised 3 empowered actions');
   assertEquals(statPct(w.b, 'player', 'atk'), 0);
 
-  // Time Warp (mage: mag + spd): the legs have DIFFERENT phase semantics
-  // since #77. MAG empowers only future actions — the cast round cannot
-  // use it — so its first decay stays deferred. SPD (since #72) drives
-  // enemy-response avoidance, so it defends the cast round itself and
-  // ticks like DEF/RES: cast-round response + two more = exactly three
-  // enemy responses from a three-turn buff.
+  // Time Warp (mage: mag + spd): both legs defer their cast-round tick
+  // since #94. MAG empowers only future actions — the cast round cannot
+  // use it. SPD's advertised rounds are INITIATIVE snapshots (#94): a
+  // mid-round cast spends no unit on the already-decided snapshot, so its
+  // first decay defers too — the foe's next three moves face the haste.
   const m = mkBattle('mage', 63, 'sk_time_warp');
   performAction(m.p, m.b, { kind: 'skill', skillId: 'sk_time_warp' }, seeded(66));
   assertEquals(modRemaining(m.b, 'player', 'mag'), 3, 'mag deferred on the cast round');
   assertEquals(
     modRemaining(m.b, 'player', 'spd'),
-    2,
-    'spd ticks on the cast round it defends (#77)',
+    3,
+    'spd defers on the cast round — snapshots are its unit (#94)',
   );
   performAction(m.p, m.b, { kind: 'attack' }, seeded(67));
   assertEquals(modRemaining(m.b, 'player', 'mag'), 2);
-  assertEquals(modRemaining(m.b, 'player', 'spd'), 1);
+  assertEquals(modRemaining(m.b, 'player', 'spd'), 2);
   performAction(m.p, m.b, { kind: 'attack' }, seeded(68));
   assertEquals(modRemaining(m.b, 'player', 'mag'), 1);
-  assertEquals(modRemaining(m.b, 'player', 'spd'), 0, 'spd covered the cast round + two responses');
+  assertEquals(modRemaining(m.b, 'player', 'spd'), 1, 'three snapshots, cast round excluded');
 
   // Adrenaline Surge (heal + atk 2): defers like other offensive keys.
   const a = mkBattle('warrior', 64, 'sk_adrenaline');
@@ -473,24 +472,26 @@ Deno.test('buff durations: phase-aware cast-round decay (#27, #38, #77)', () => 
   performAction(a.p, a.b, { kind: 'attack' }, seeded(71));
   assertEquals(modRemaining(a.b, 'player', 'atk'), 0, 'exactly the advertised 2 empowered actions');
 
-  // Smoke Step (rogue: SPD only, 3 turns): since #72 SPD shapes the enemy
-  // RESPONSE through avoidance, so it defends the cast round itself and
-  // ticks like DEF/RES (#77) — the cast-round response plus two more is
-  // AT MOST three enemy responses from a three-turn buff.
+  // Smoke Step (rogue: SPD only, 3 turns): since #94 SPD's advertised
+  // rounds are INITIATIVE snapshots — a mid-round cast spends no unit on
+  // the already-decided snapshot, so its first decay defers and the buff
+  // covers exactly the foe's NEXT three moves.
   const sk = mkBattle('rogue', 78, 'sk_smoke_step');
   performAction(sk.p, sk.b, { kind: 'skill', skillId: 'sk_smoke_step' }, seeded(79));
   assertEquals(
     modRemaining(sk.b, 'player', 'spd'),
-    2,
-    'cast round counts — SPD defended that response (#77)',
+    3,
+    'cast round spent no initiative unit — the full 3 snapshots remain (#94)',
   );
   performAction(sk.p, sk.b, { kind: 'attack' }, seeded(80));
-  assertEquals(modRemaining(sk.b, 'player', 'spd'), 1);
+  assertEquals(modRemaining(sk.b, 'player', 'spd'), 2);
   performAction(sk.p, sk.b, { kind: 'attack' }, seeded(81));
+  assertEquals(modRemaining(sk.b, 'player', 'spd'), 1);
+  performAction(sk.p, sk.b, { kind: 'attack' }, seeded(82));
   assertEquals(
     modRemaining(sk.b, 'player', 'spd'),
     0,
-    'at most three responses, incl. the cast round',
+    'exactly three initiative snapshots, cast round excluded',
   );
   assertEquals(statPct(sk.b, 'player', 'spd'), 0);
 

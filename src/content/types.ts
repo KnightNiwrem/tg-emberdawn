@@ -137,7 +137,13 @@ export type EffectSpec =
      * the first end-of-round tick is skipped, so the effect is active for
      * `duration` rounds starting with the NEXT round. `immediate`: active
      * the round it is cast — defensive stats count the cast round's enemy
-     * response, enemy guards their following rounds. */
+     * response, enemy guards their following rounds.
+     *
+     * #94 SPD exception: SPD's advertised rounds are INITIATIVE snapshots.
+     * Mid-round SPD applications are forced to `defer` by the resolver (the
+     * snapshot already happened, so the cast round cannot be spent on it) —
+     * an N-turn SPD effect always covers N eligible snapshots. Opening SPD
+     * applications keep `immediate` (round 1 counts, rounds 1..N). */
     timing: 'defer' | 'immediate';
     /** Display name (defaults to the casting skill/move name). */
     name?: string;

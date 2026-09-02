@@ -354,3 +354,108 @@ Deno.test('#86: an invalid command consumes no round and ticks nothing', () => {
   assertEquals(b.history.length, 0, 'no round was recorded');
   assertEquals(b.round, 1);
 });
+
+// ── #94: SPD effects are measured in initiative snapshots ────────────────
+
+Deno.test('#94: Smoke Step covers three snapshots — faster OR slower caster', () => {
+  for (const fasterCaster of [true, false]) {
+    let seen = false;
+    for (let s = 1; s <= 200 && !seen; s++) {
+      const p = hero(5000 + s, 'rogue', 9);
+      p.skills.push('sk_smoke_step');
+      p.mp = 999;
+      const b = fight('e_rat', p, s);
+      b.enemy.hp = 99999; // outlive the observation window
+      if (fasterCaster) injectMod(b, 'enemy', 'spd', -0.95);
+      else injectMod(b, 'player', 'spd', -0.95);
+      const ord = orderOf(round(p, b, s).lines);
+      if (!ord) continue;
+      if ((ord.player < ord.enemy) !== fasterCaster) continue;
+      seen = true;
+      // The rogue then casts Smoke Step mid-round — AFTER this round's
+      // snapshot. (Attack action next to the cast keeps rng draws sane.)
+      const castRound = b.round;
+      round(p, b, s + 1, { kind: 'skill', skillId: 'sk_smoke_step' });
+      const inst = b.effectInstances.find((i) => i.defId === 'sk_smoke_step:e0')!;
+      // The cast round's own bookkeeping consumed the defer marker
+      // WITHOUT ticking — remaining is untouched: no unit was spent on the
+      // already-decided snapshot (#94).
+      assertEquals(inst.remaining, 3, 'the cast round spent no initiative unit');
+      assertEquals(inst.expiresRound, castRound + 3, 'one snapshot per advertised turn');
+      // Three further rounds: 3 → 2 → 1 → 0 — exactly the foe's next
+      // three moves face the haste, whichever side was faster at cast.
+      for (let i = 0; i < 3; i++) {
+        round(p, b, s + 10 + i);
+        const left = b.effectInstances.find((i2) => i2.defId === 'sk_smoke_step:e0');
+        assertEquals(left?.remaining ?? 0, 2 - i, `snapshot ${i + 1} consumed one unit`);
+      }
+      assertEquals(
+        b.effectInstances.some((i2) => i2.defId === 'sk_smoke_step:e0'),
+        false,
+        'expired exactly after its third snapshot',
+      );
+    }
+    assert(seen, `a ${fasterCaster ? 'faster' : 'slower'}-caster seed exists`);
+  }
+});
+
+Deno.test('#94: Crippling Cut slows two snapshots regardless of application slot', () => {
+  for (const fasterCaster of [true, false]) {
+    let seen = false;
+    for (let s = 1; s <= 200 && !seen; s++) {
+      const p = hero(5400 + s, 'rogue', 9);
+      p.skills.push('sk_crippling_cut');
+      p.mp = 999;
+      const b = fight('e_rat', p, s);
+      b.enemy.hp = 99999;
+      if (fasterCaster) injectMod(b, 'player', 'spd', 5);
+      else injectMod(b, 'enemy', 'spd', 5);
+      const ord = orderOf(round(p, b, s).lines);
+      if (!ord) continue;
+      if ((ord.player < ord.enemy) !== fasterCaster) continue;
+      seen = true;
+      const castRound = b.round;
+      round(p, b, s + 1, { kind: 'skill', skillId: 'sk_crippling_cut' });
+      const inst = b.effectInstances.find((i) => i.defId === 'sk_crippling_cut:e1')!;
+      assertEquals(inst.remaining, 2, 'the cast round spent no initiative unit (#94)');
+      assertEquals(inst.expiresRound, castRound + 2);
+      for (let i = 0; i < 2; i++) {
+        round(p, b, s + 10 + i);
+        const left = b.effectInstances.find((i2) => i2.defId === 'sk_crippling_cut:e1');
+        assertEquals(left?.remaining ?? 0, 1 - i, `slowed snapshot ${i + 1}`);
+      }
+      assertEquals(b.effectInstances.some((i2) => i2.defId === 'sk_crippling_cut:e1'), false);
+    }
+    assert(seen, `a ${fasterCaster ? 'faster' : 'slower'}-rogue seed exists`);
+  }
+});
+
+Deno.test('#94: opening SPD effects keep authored timing — the Chrono Anchor covers round 1', () => {
+  // The wisp's Chrono Anchor fires in the OPENING (before round 1's
+  // snapshot), so round 1 spends a unit: rounds 1..2 for its 2 turns.
+  const p = hero(5700, 'warrior', 19);
+  const b = fight('e_chronowisp', p, 7);
+  const anchor = b.effectInstances.find((i) => i.name === 'Chrono Anchor')!;
+  assertEquals(anchor.side, 'player');
+  assertEquals(anchor.deferFirstTick, false, 'opening applications are never deferred');
+  assertEquals(anchor.expiresRound, 2, 'round 1 counts — rounds 1..2');
+  assertEquals(anchor.remaining, 2);
+});
+
+Deno.test('#94: refreshing a mid-round SPD buff re-banks its full snapshot count', () => {
+  for (let s = 1; s <= 100; s++) {
+    const p = hero(5800 + s, 'rogue', 9);
+    p.skills.push('sk_smoke_step');
+    p.mp = 999;
+    const b = fight('e_rat', p, s);
+    b.enemy.hp = 99999;
+    round(p, b, s, { kind: 'skill', skillId: 'sk_smoke_step' }); // cast round 1
+    delete b.cooldowns['sk_smoke_step'];
+    round(p, b, s + 1, { kind: 'skill', skillId: 'sk_smoke_step' }); // recast round 2
+    const inst = b.effectInstances.find((i) => i.defId === 'sk_smoke_step:e0')!;
+    assertEquals(inst.remaining, 3, 'refresh rebuilt the clock from the recast round');
+    assertEquals(inst.expiresRound, 2 + 3, 'three fresh snapshots from round 3');
+    return;
+  }
+  throw new AssertionError('no usable seed');
+});
