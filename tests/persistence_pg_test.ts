@@ -2,7 +2,9 @@
  * PgStore round-trip against a REAL Postgres.
  * Skipped unless TEST_PG_URL is set:
  *   TEST_PG_URL=postgresql://user:pass@host:5432/db deno task test:pg
- * CI runs it via a postgres service container.
+ * CI runs it via a postgres service container; locally, one command
+ * provisions a throwaway container, runs the suite, and tears it down:
+ *   deno task test:pg:local
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert';

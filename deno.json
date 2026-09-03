@@ -7,6 +7,7 @@
     "balance": "deno run --allow-read scripts/balance.ts",
     "balance:update": "deno run --allow-read --allow-write scripts/balance.ts --update-snapshot",
     "test:pg": "deno test --allow-import --allow-env --allow-net --allow-read --allow-write tests/persistence_pg_test.ts",
+    "test:pg:local": "sh scripts/pg-local.sh",
     "migrate:pg": "deno run --allow-net --allow-env src/persistence/migrate.ts",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",

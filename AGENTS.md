@@ -55,6 +55,7 @@ place on every action.
 deno task check   # typecheck everything (must pass before commit)
 deno task test    # engine + bot integration tests (must pass)
 deno task test:pg # Postgres round-trip (real DB; skipped unless TEST_PG_URL set)
+deno task test:pg:local # test:pg against a throwaway Docker Postgres (provisions + cleans up)
 deno task fmt     # deno fmt (run before commit)
 deno task lint    # deno lint (must pass)
 npx fallow        # dead code / duplication / complexity audit (advisory)
