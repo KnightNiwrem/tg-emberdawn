@@ -35,10 +35,10 @@ Deno.test('agent docs: root AGENTS.md size does not exceed 12 KiB ceiling (#135)
 
 Deno.test('agent docs: root AGENTS.md declares supported authoritative lifecycle status (#135)', () => {
   const content = Deno.readTextFileSync(AGENTS_MD_URL);
-  const match = content.match(/### Current phase:\s*([^\n\r]+)/);
+  const match = content.match(/^### Current phase:\s*([^\n\r]+)$/m);
   assert(
     match !== null,
-    'AGENTS.md must declare authoritative lifecycle status in "### Current phase: <PHASE>"',
+    'AGENTS.md must declare authoritative lifecycle status in "### Current phase: <PHASE>" heading line',
   );
   const phase = match[1].trim();
   const validPhases = ['PRE-LAUNCH', 'LIVE'];
