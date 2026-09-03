@@ -76,7 +76,7 @@ const POISON = (perRound: number, turns = 3): EffectSpec => ({
   name: 'Poison',
   tags: ['poison', 'harmful'],
   bypassShield: true,
-  line: `☠️ The venom bites in — Poison (${perRound} damage/round, ignores wards)!`,
+  line: `☠️ The venom bites in — Poison (${perRound} damage/round, ignores Shields)!`,
 });
 
 const SLOW = (pct = 0.25, turns = 2, name = 'Slowed', flavor?: string): EffectSpec => ({
@@ -499,7 +499,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         duration: 2,
         timing: 'immediate',
         name: 'Chrono Anchor',
-        line: '⏳ The wisp anchors you outside time — SPD −20% for 2 turns.',
+        line: '⏳ The wisp anchors you outside time — SPD −20% for 2 rounds.',
         tags: ['slow'],
       }],
     },

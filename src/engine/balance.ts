@@ -510,8 +510,9 @@ export function runFight(
     const DODGE = 'slip aside';
     const SHIELD_GRANT = /absorbing up to (\d+)/;
     const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
-    const SHIELD_WASTE = /(\d+) over capacity/;
-    const SHIELD_FADE = /(\d+) shield capacity fades/;
+    const SHIELD_WASTE = /(\d+) over Shield capacity/;
+    // #121 canonical wording: the pool is always "Shield".
+    const SHIELD_FADE = /(\d+) Shield capacity fades/;
     /** Line-metric scan (#74 regexes) — now also fed the resolved opening
      * log ONCE per fight (#84): opening shields are outcomes of the fight
      * and must count toward grant/absorb metrics. #95: dealt/taken/heals

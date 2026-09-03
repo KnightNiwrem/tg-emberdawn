@@ -843,7 +843,7 @@ export function performAction(
       if (terminalNow()) return 'terminal';
     }
     for (const loss of settleTurnStart(battle, started, trace)) {
-      lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+      lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
     }
     if (terminalNow()) return 'terminal';
     if (consumeStun(battle, 'player', trace)) {
@@ -962,7 +962,7 @@ export function performAction(
   if (!ended) {
     const expired = settleEndOfRound(battle, trace);
     for (const loss of applyShieldExpiry(battle, expired)) {
-      lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+      lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
     }
     for (const [k, v] of Object.entries(battle.cooldowns)) {
       if (v <= 1) delete battle.cooldowns[k];
@@ -1314,8 +1314,8 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         const grant = grantShield(ctx.battle, side, seed, ctx.trace);
         const line = defaultInstanceLine(ctx, spec, side, amount);
         if (line) lines.push(line);
-        if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over capacity — wasted.`);
-        if (grant.lost > 0) lines.push(`🛡️ ${grant.lost} shield capacity fades.`);
+        if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over Shield capacity — wasted.`);
+        if (grant.lost > 0) lines.push(`🛡️ ${grant.lost} Shield capacity fades.`);
         break;
       }
       case 'statmod':
@@ -1365,7 +1365,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         }
         // A removed ward contribution's capacity leaves the pool (#79).
         for (const loss of applyShieldExpiry(ctx.battle, removed)) {
-          lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+          lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
         }
         break;
       }
@@ -1383,13 +1383,13 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
           lines.push(
             spec.line?.replace('{n}', String(removed.length)) ??
               (side === 'player'
-                ? '✨ Your benefits are stripped away!'
-                : `✨ ${ctx.battle.enemy.name}'s benefits are stripped.`),
+                ? '✨ Your beneficial effects are stripped away!'
+                : `✨ ${ctx.battle.enemy.name}'s beneficial effects are stripped.`),
           );
         }
         // A stripped ward contribution's capacity leaves the pool (#79).
         for (const loss of applyShieldExpiry(ctx.battle, removed)) {
-          lines.push(`🛡️ ${loss.lost} shield capacity fades.`);
+          lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
         }
         break;
       }
@@ -1456,8 +1456,8 @@ function defaultInstanceLine(
     case 'shield': {
       const cap = amount ?? spec.amount ?? 0;
       return side === 'player'
-        ? `🛡️ A ward settles over you — absorbing up to ${cap} damage!`
-        : `🛡️ ${enemyName} raises a ward absorbing up to ${cap} damage!`;
+        ? `🛡️ A Shield settles over you — absorbing up to ${cap} damage!`
+        : `🛡️ ${enemyName} raises a Shield absorbing up to ${cap} damage!`;
     }
     default:
       return undefined;

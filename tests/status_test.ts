@@ -179,7 +179,7 @@ Deno.test('#83: Frost Shell is a real expiring ward, not a mitigation stance', (
     p.hp = 99999; // #86: a fallen hero freezes the round — survive the shell scan
     const b = fight('e_iceling', p, t);
     const res = round(p, b, t);
-    if (res.lines.some((l) => l.includes('raises a ward absorbing up to 65 damage'))) {
+    if (res.lines.some((l) => l.includes('raises a Shield absorbing up to 65 damage'))) {
       s = t;
       break;
     }
@@ -197,7 +197,7 @@ Deno.test('#83: Frost Shell is a real expiring ward, not a mitigation stance', (
   // gone (expired) with an empty pool — unless it was drained first.
   for (let r = 0; r < 6; r++) {
     const res = round(p, b, s + 1 + r);
-    if (!res.lines.some((l) => l.includes('raises a ward'))) break;
+    if (!res.lines.some((l) => l.includes('raises a Shield'))) break;
   }
   assertEquals(
     b.effectInstances.some((i) => i.side === 'enemy' && i.kind === 'shield'),
@@ -292,7 +292,7 @@ Deno.test('#83: enemy AI skips re-warding over a live ward', () => {
     const p = hero(500 + t, 'warrior', 18);
     const b = fight('e_sentinel', p, t);
     const res = round(p, b, t);
-    if (res.lines.some((l) => l.includes('raises a ward absorbing up to 45 damage'))) {
+    if (res.lines.some((l) => l.includes('raises a Shield absorbing up to 45 damage'))) {
       s = t;
       break;
     }
@@ -310,7 +310,7 @@ Deno.test('#83: enemy AI skips re-warding over a live ward', () => {
     const res = round(p, b, s + 1 + r);
     if (b.effectInstances.some((i) => i.kind === 'shield' && i.side === 'enemy')) {
       assertEquals(
-        res.lines.some((l) => l.includes('raises a ward')),
+        res.lines.some((l) => l.includes('raises a Shield')),
         false,
         'no refresh over a live ward',
       );
@@ -364,7 +364,7 @@ Deno.test('#83: Final Silence strips an active blessing — dispel, not a new st
     false,
     'the blessing was stripped',
   );
-  assert(res.lines.some((l) => l.includes('benefits are stripped')));
+  assert(res.lines.some((l) => l.includes('beneficial effects are stripped')));
   assert(
     res.lines.some((l) => l.includes('damage to you')),
     'the special still struck — dispel is a rider, not a replacement',
@@ -736,7 +736,7 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
     p.hp = 99999; // #86: survive the scan window
     const b = fight('e_sentinel', p, t);
     const res = round(p, b, t);
-    if (res.lines.some((l) => l.includes('raises a ward'))) {
+    if (res.lines.some((l) => l.includes('raises a Shield'))) {
       s = t;
       break;
     }
@@ -756,7 +756,7 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
   let refilled = false;
   for (let r = 0; r < 16 && !refilled; r++) {
     const res = round(p1, b1, s + 10 + r, { kind: 'guard' });
-    refilled = res.lines.some((l) => l.includes('raises a ward'));
+    refilled = res.lines.some((l) => l.includes('raises a Shield'));
   }
   assert(refilled, 'a broken ward is refill-eligible: the AI recasts it');
   assertEquals(b1.shield.enemy, 45, 'the recast grants fresh capacity');
@@ -773,7 +773,7 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
   for (let r = 0; r < 12; r++) {
     const res = round(p2, b2, s + 40 + r, { kind: 'guard' });
     assertEquals(
-      res.lines.some((l) => l.includes('raises a ward')),
+      res.lines.some((l) => l.includes('raises a Shield')),
       false,
       'a near-full ward is never recast',
     );
@@ -787,7 +787,7 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
     if (b1.effectInstances.every((i) => !(i.side === 'enemy' && i.kind === 'shield'))) {
       sawExpired = true;
     }
-    if (sawExpired && res.lines.some((l) => l.includes('raises a ward'))) {
+    if (sawExpired && res.lines.some((l) => l.includes('raises a Shield'))) {
       recastAfterExpiry = true;
     }
   }
