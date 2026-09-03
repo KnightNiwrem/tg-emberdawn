@@ -8,6 +8,7 @@ import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
 import { npc, npcInZone, quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
+import { npcTopics } from '../engine/npc.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
@@ -584,6 +585,61 @@ export function renderQuestInteraction(
   }
   row.push(cbBtn('⬅️ Back', encodeCb({ v: 'npcq', a: 'bk' })));
   blocks.push(buttonsRow(row));
+  return { blocks };
+}
+
+// ── NPC topic menu (#123) ────────────────────────────────────────────────
+
+/** The NPC topic-selection scene (#123): every currently available topic —
+ * ready turn-ins, new offers, active business, authored lore — is rendered
+ * as its own row (priority order emphasizes, never suppresses). The
+ * default greeting is the concise header, so an NPC with no business still
+ * exposes their authored conversation instead of flashing a notice. Pure
+ * navigation: nothing here mutates. */
+export function renderNpcTopics(p: PlayerState): InputRichMessage {
+  const npcId = p.scene.arg ?? '';
+  const def = npc(npcId);
+  const blocks: Block[] = [];
+  if (!def || !npcInZone(p.currentZone, npcId)) {
+    blocks.push(para('Nobody there.'));
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'bk' }))]));
+    return { blocks };
+  }
+  if (p.scene.arg2?.startsWith('lore:')) {
+    const topic = def.topics?.find((t) => t.id === p.scene.arg2!.slice('lore:'.length));
+    blocks.push(heading(`🗣️ ${def.name}`, 4));
+    blocks.push(...noticesBlocks(p));
+    if (topic) blocks.push(quote({ type: 'italic', text: topic.text }));
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
+    return { blocks };
+  }
+  if (p.scene.arg2?.startsWith('q:')) {
+    const q = quest(p.scene.arg2.slice('q:'.length));
+    blocks.push(heading(`🗣️ ${def.name}`, 4));
+    blocks.push(...noticesBlocks(p));
+    if (q) {
+      blocks.push(para([{ type: 'bold', text: q.name } as RichText]));
+      blocks.push(para(questStatusLine(p, q.id)));
+    }
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
+    return { blocks };
+  }
+  blocks.push(heading(`🗣️ ${def.name}`, 4));
+  blocks.push(quote({ type: 'italic', text: def.greeting }));
+  blocks.push(...noticesBlocks(p));
+  const topics = npcTopics(p, npcId);
+  if (topics.length > 0) blocks.push(para('Choose a topic:'));
+  for (const t of topics) {
+    blocks.push(
+      buttonsRow([
+        cbBtn(
+          t.label,
+          encodeCb({ v: 'npc', a: t.kind === 'lore' ? 'lore' : 'q', arg: t.id }),
+        ),
+      ], 'left'),
+    );
+  }
+  blocks.push(buttonsRow([cbBtn('👋 Leave', encodeCb({ v: 'npc', a: 'bk' }))]));
   return { blocks };
 }
 

@@ -240,12 +240,18 @@ Deno.test('ready notice: talking to the NPC surfaces the notice through the full
   p.messageId = 950;
   await store.set(1211, p);
 
-  // Bram is the second NPC of Emberdawn Village — talking to him completes
-  // m2's talk objective and opens the authoritative interaction.
+  // Bram is the second NPC of Emberdawn Village — selecting m2's business
+  // topic from his menu is the conversation: it completes m2's talk
+  // objective and opens the authoritative interaction.
   const cur0 = (await store.get(1211))!;
-  const tap = fakeCtxCapture(1211, 950, withRev(cur0.uiRev ?? 0, 'z:tk:1'));
+  let tap = fakeCtxCapture(1211, 950, withRev(cur0.uiRev ?? 0, 'z:tk:1'));
   await handleCallback(tap.ctx, store);
-  const cur = (await store.get(1211))!;
+  let cur = (await store.get(1211))!;
+  assertEquals(cur.scene.view, 'npc');
+  assertEquals(cur.scene.arg, 'npc_bram');
+  tap = fakeCtxCapture(1211, 950, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter'));
+  await handleCallback(tap.ctx, store);
+  cur = (await store.get(1211))!;
   assertEquals(cur.scene.view, 'npcq');
   assertEquals(cur.scene.arg, 'm2_letter');
   assertEquals(cur.scene.arg2, 'npc_bram');

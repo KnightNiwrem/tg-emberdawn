@@ -218,13 +218,17 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
 - **Quest actions are physical (#64):** `acceptQuest`/`turnInQuest` take the acting NPC id and
   REQUIRE it to be the quest's configured starter/finisher AND standing in the player's current zone
   (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can
-  bypass it). The ONLY mutation surface is the `npcq` interaction view, opened by talking to an NPC;
-  its handler revalidates the live scene context (quest + npc match), and the engine revalidates
-  contact + location. The Quest Log is a READ-ONLY journal (#65): it renders NO lifecycle buttons,
-  the codec cannot even express `q:a:`/`q:t:`, and it only NAMES the physical contact ("Start with X
-  — Zone." / "Return to Y — Zone.") — log navigation can never act on a quest. Backing out or
-  traveling leaves the interaction (scene resets, uiRev bumps), and the revision guard kills replays
-  and duplicate rewards.
+  bypass it). Talking to an NPC opens the #123 TOPIC MENU — pure navigation that performs NO story
+  mutation (never `onTalk`, never accept/turn-in); every valid topic (ready turn-ins, offers, active
+  business, authored lore) is enumerated by the pure resolver `src/engine/npc.ts` and revalidated at
+  tap time. Selecting an active quest's topic is the legacy conversation beat that ticks its talk
+  objective (until #127 replaces it with authored dialogue events). The ONLY quest mutation surface
+  remains the `npcq` interaction view, opened from a topic; its handler revalidates the live scene
+  context (quest + npc match), and the engine revalidates contact + location. The Quest Log is a
+  READ-ONLY journal (#65): it renders NO lifecycle buttons, the codec cannot even express
+  `q:a:`/`q:t:`, and it only NAMES the physical contact ("Start with X — Zone." / "Return to Y —
+  Zone.") — log navigation can never act on a quest. Backing out or traveling leaves the interaction
+  (scene resets, uiRev bumps), and the revision guard kills replays and duplicate rewards.
 - **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
   (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
   flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip

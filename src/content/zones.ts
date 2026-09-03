@@ -54,17 +54,35 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'Elder Maren',
         greeting:
           "The Flame dims a little more each season, traveler — but dim is not dark, and we are not done. If you've come to help, the Warden's board has work.",
+        topics: [{
+          id: 'maren_flame',
+          label: 'Ask about the Great Flame',
+          text:
+            '"It is the oldest fire — the one every hearth in the valley is lit from. What is being lost is not wood or oil. It is the mornings we were promised. Keep that in mind, and you will know what is worth fighting for."',
+        }],
       },
       {
         id: 'npc_bram',
         name: 'Blacksmith Bram',
         greeting:
           "Bring me ore and coin, and I'll keep your edge true. A forge is a promise that tomorrow needs tools.",
+        topics: [{
+          id: 'bram_forge',
+          label: 'Ask about the forge',
+          text:
+            '"Six generations of my family have kept this fire. Every edge that ever held the line out there was hammered here. Whatever comes, the forge keeps its promise: tomorrow needs tools, and tools need hands."',
+        }],
       },
       {
         id: 'npc_lyra',
         name: 'Healer Lyra',
         greeting: 'Drink, rest, mend. The Flame keeps its own — I just handle the paperwork.',
+        topics: [{
+          id: 'lyra_work',
+          label: 'Ask about her work',
+          text:
+            '"Scrapes mend in a week. Nerve takes longer. I patch both, and I do not ask which you deserve — the village needs its people walking."',
+        }],
       },
     ],
   },
@@ -164,11 +182,23 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_warden_tom',
         name: 'Warden Tom',
         greeting: 'Keep to the paths. The Hollow ate two rangers this moon.',
+        topics: [{
+          id: 'tom_wood',
+          label: 'Ask about the wood',
+          text:
+            '"The Whisperwood was kind once. Whatever rots the roots comes from deeper in — the Hollow is a symptom, not the sickness. Mind the paths until we know better."',
+        }],
       },
       {
         id: 'npc_pell',
         name: 'Ranger Pell',
         greeting: 'You walk loud. The wood forgives it — spiders don’t. Speak, or move on.',
+        topics: [{
+          id: 'pell_spiders',
+          label: 'Ask about the spiders',
+          text:
+            '"Woodfangs take shin, hoof, and heirloom alike. Kill them where they nest, or carry nothing soft and nothing slow."',
+        }],
       },
     ],
   },
@@ -238,6 +268,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'The Ferryman',
         greeting:
           "Coin for crossing, truth for free: don't drink the water, don't kneel to the Tyrant.",
+        topics: [{
+          id: 'ferry_water',
+          label: 'Ask about the water',
+          text:
+            '"The poison is patient. It waits in the low places for the desperate. Boil what you drink, keep to the poles and paths, and the swamp will let you keep most of what you brought."',
+        }],
       },
     ],
   },
@@ -297,6 +333,12 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_curator',
         name: 'Curator Ombra',
         greeting: 'Every relic here once told the time. Now they just tell the end of it.',
+        topics: [{
+          id: 'ombra_records',
+          label: 'Ask about the ledgers',
+          text:
+            '"A dishonest city still deserves honest books. I record what remains, and what was taken, and who profited. Ledgers outlast looters — that is the whole art."',
+        }],
       },
     ],
   },
@@ -359,6 +401,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'Ice-Outcast Rho',
         greeting:
           "The wyrm isn't cruel. It's cold in the way mountains are cold. Don't take it personal.",
+        topics: [{
+          id: 'rho_pass',
+          label: 'Ask about the pass',
+          text:
+            '"The mountain froze everyone else\'s promises but mine. I keep watch because someone unfrozen should be counting who goes up and who comes down."',
+        }],
       },
     ],
   },
@@ -428,6 +476,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'Ashen Monk Sorrel',
         greeting:
           'Ignivar does not want to fight you. But he will, because everything here wants him dead.',
+        topics: [{
+          id: 'sorrel_flame',
+          label: 'Ask about the starving flame',
+          text:
+            '"He guarded the Flame for a thousand years, and when it began to fail, we called the hunger his fault. Starving is not falling. Hold on to that before you judge anything out here."',
+        }],
       },
     ],
   },
@@ -494,6 +548,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'The Archivist',
         greeting:
           'I record what the flame remembers. It remembers you, a little. Keep making it worth remembering.',
+        topics: [{
+          id: 'archivist_record',
+          label: 'Ask about the record',
+          text:
+            '"Memory is the one wealth the King never thought to steal. So I keep it — page by page — against the day it matters. Today may be that day."',
+        }],
       },
     ],
   },
@@ -561,6 +621,12 @@ export const ZONES: readonly ZoneDef[] = [
         name: 'Echo of Maren',
         greeting:
           'Even I end up as an echo here, it seems. Go on then, hero — the seam likes you better than most.',
+        topics: [{
+          id: 'echo_self',
+          label: 'Ask how she is here',
+          text:
+            '"I sought the crown once, long before you. The seam keeps what climbs down it, and I kept walking. What remains is a hope that never learned to stop."',
+        }],
       },
     ],
   },

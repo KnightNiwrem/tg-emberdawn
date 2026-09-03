@@ -96,10 +96,15 @@ Deno.test('handler: log callbacks refuse with guidance; NPC interaction is the o
   cur = (await store.get(982))!;
   assertEquals(cur.quests['m1_embers']?.status, 'available', 'log cannot turn in either');
 
-  // Back to the zone, then talk to Maren (npc index 0): the npcq opens.
+  // Back to the zone, then talk to Maren (npc index 0): the topic menu
+  // opens (#123), and selecting the quest business routes to the npcq.
   await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'q:bk')), store);
   cur = (await store.get(982))!;
   await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'z:tk:0')), store);
+  cur = (await store.get(982))!;
+  assertEquals(cur.scene.view, 'npc');
+  assertEquals(cur.scene.arg, 'npc_maren');
+  await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'npc:q:m1_embers')), store);
   cur = (await store.get(982))!;
   assertEquals(cur.scene.view, 'npcq');
   assertEquals(cur.scene.arg2, 'npc_maren');
@@ -125,9 +130,12 @@ Deno.test('handler: duplicate turn-in callbacks cannot grant rewards twice (#64)
   p.messageId = 910;
   await store.set(983, p);
 
-  // Open the interaction the way the UI does: talk to Maren.
+  // Open the interaction the way the UI does: talk to Maren, then pick the
+  // ready quest's topic.
   let cur = (await store.get(983))!;
   await handleCallback(fakeCtx(983, 910, withRev(cur.uiRev ?? 0, 'z:tk:0')), store);
+  cur = (await store.get(983))!;
+  await handleCallback(fakeCtx(983, 910, withRev(cur.uiRev ?? 0, 'npc:q:m1_embers')), store);
   cur = (await store.get(983))!;
   assertEquals(cur.scene.view, 'npcq');
   const rev = cur.uiRev ?? 0;
@@ -178,8 +186,12 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64)', async ()
   await store.set(985, p);
 
   let cur = (await store.get(985))!;
-  // Talk to Maren (index 0) — she OFFERS m2 (starter routing).
+  // Talk to Maren (index 0) and pick her m2 topic — she OFFERS m2 (starter
+  // routing through the #123 topic menu).
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'z:tk:0')), store);
+  cur = (await store.get(985))!;
+  assertEquals(cur.scene.view, 'npc');
+  await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(985))!;
   assertEquals(cur.scene.view, 'npcq');
   assertEquals(cur.scene.arg, 'm2_letter');
@@ -188,14 +200,23 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64)', async ()
   cur = (await store.get(985))!;
   assertEquals(cur.quests['m2_letter']?.status, 'active');
 
-  // Back out, then talk to Bram: onTalk ticks the talk objective, and Bram
-  // is the FINISHER — ready business surfaces ahead of new offers (#63).
+  // Back out to Maren's topic menu, then go talk to Bram: selecting m2's
+  // active-business topic IS the conversation — the talk objective ticks
+  // there, and Bram is the FINISHER (#63).
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'n:bk')), store);
   cur = (await store.get(985))!;
-  assertEquals(cur.scene.view, 'zone', 'Back leaves the interaction');
+  assertEquals(cur.scene.view, 'npc', 'Back returns to the NPC topic menu');
+  assertEquals(cur.scene.arg, 'npc_maren');
+  await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:bk')), store);
+  cur = (await store.get(985))!;
+  assertEquals(cur.scene.view, 'zone');
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'z:tk:1')), store); // Bram
   cur = (await store.get(985))!;
-  assertEquals(cur.scene.view, 'npcq');
+  assertEquals(cur.scene.view, 'npc');
+  assertEquals(cur.scene.arg, 'npc_bram');
+  await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
+  cur = (await store.get(985))!;
+  assertEquals(cur.scene.view, 'npcq', 'the conversation readies the quest');
   assertEquals(cur.scene.arg, 'm2_letter');
   assertEquals(cur.scene.arg2, 'npc_bram', 'Bram is the finisher');
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'n:t:m2_letter')), store);

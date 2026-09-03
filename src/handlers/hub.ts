@@ -21,11 +21,10 @@ import {
   acceptQuest,
   onTalk,
   questReadyLine,
-  questStatusLine,
   syncAvailability,
   turnInQuest,
 } from '../engine/quests.ts';
-import { quest, QUESTS } from '../content/quests.ts';
+import { npc, npcInZone, quest } from '../content/quests.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
@@ -91,48 +90,84 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
   return enterBattle(p, res.battle, res.outcome ?? 'ongoing', res.lines);
 }
 
-/** Talk to a zone NPC; opens their quest when one is ready. Lifecycle roles
- * route independently (#63): ready turn-ins (this NPC finishes it) outrank
- * new offers (this NPC starts it), so a player carrying completed business
- * is never hidden behind a different available quest. */
+/** Talk to a zone NPC: opens the explicit topic-selection scene (#123).
+ * Opening the menu is NAVIGATION — it never advances talk objectives,
+ * never accepts or turns in a quest, and never mutates story state. Which
+ * topic the player selects decides what happens (see npcAction). */
 function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   const z = zoneDef(p.currentZone);
   const npc = z?.npcs[npcIndex];
   if (!npc) return { toast: 'Nobody there.' };
-  // A talk objective completing here is announced in THIS interaction
-  // (#119) — whichever branch below owns the screen.
-  const readyLines = onTalk(p, npc.id).map(questReadyLine);
-  const ready = QUESTS.find((q) => q.finishNpc === npc.id && p.quests[q.id]?.status === 'turnIn');
-  if (ready) {
-    // Open the AUTHORITATIVE NPC interaction (#64): only this view's buttons
-    // can turn the quest in, and only while the player stands here.
-    p.scene = { view: 'npcq', arg: ready.id, arg2: npc.id };
-    p.notices = [npc.greeting, ...readyLines];
-    return {};
-  }
-  const offered = QUESTS.find((q) =>
-    q.startNpc === npc.id && p.quests[q.id]?.status === 'available'
-  );
-  if (offered) {
-    p.scene = { view: 'npcq', arg: offered.id, arg2: npc.id };
-    p.notices = [npc.greeting, ...readyLines];
-    return {};
-  }
-  const active = QUESTS.find((q) =>
-    (q.startNpc === npc.id || q.finishNpc === npc.id) && p.quests[q.id]?.status === 'active'
-  );
-  if (active) {
-    p.notices = [
-      npc.greeting,
-      ...readyLines,
-      `📜 ${active.name}: ${questStatusLine(p, active.id)}`,
-    ];
-    p.scene = { view: 'zone' };
-    return {};
-  }
-  p.notices = [`🗣️ ${npc.name}: “${npc.greeting}”`, ...readyLines];
-  p.scene = { view: 'zone' };
+  p.scene = { view: 'npc', arg: npc.id };
   return {};
+}
+
+/** NPC topic-menu actions (#123). Every selection revalidates the live
+ * scene context (view + NPC id), the NPC's physical presence in the
+ * current zone, and the CURRENT quest/topic availability — stale, forged
+ * or no-longer-valid topic callbacks are harmless refusals. */
+export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult {
+  switch (cb.a) {
+    case 'bk':
+      // Leaving the scene invalidates its buttons (rev bump on commit).
+      p.scene = { view: 'zone' };
+      return {};
+    case 'op': {
+      if (!npcInZone(p.currentZone, cb.arg)) return { toast: 'Nobody there.' };
+      p.scene = { view: 'npc', arg: cb.arg };
+      return {};
+    }
+    case 'q': {
+      // Quest business must be selected from a live topic menu for an NPC
+      // who is actually here.
+      if (p.scene.view !== 'npc' || !p.scene.arg) {
+        return { toast: 'That conversation has moved on — talk to the NPC again.' };
+      }
+      const npcId = p.scene.arg;
+      if (!npcInZone(p.currentZone, npcId)) return { toast: 'Nobody there.' };
+      const q = quest(cb.arg);
+      if (!q) return { toast: 'That business has moved on.' };
+      const st = p.quests[q.id]?.status ?? 'unavailable';
+      // Accept/turn-in route to the AUTHORITATIVE interaction (#64); the
+      // engine revalidates contact and location again inside it.
+      if (st === 'available' && q.startNpc === npcId) {
+        p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
+        return {};
+      }
+      if (st === 'turnIn' && q.finishNpc === npcId) {
+        p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
+        return {};
+      }
+      if (st === 'active' && (q.startNpc === npcId || q.finishNpc === npcId)) {
+        // Interim conversation beat (#123, replaced by authored dialogue
+        // events in #127): selecting an active quest's topic IS the
+        // conversation — the named NPC's talk objectives tick HERE, never
+        // on generic contact. Readiness is announced exactly once (#119).
+        const ready = onTalk(p, npcId);
+        if (ready.includes(q.id)) {
+          p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
+          p.notices = ready.map(questReadyLine);
+          return {};
+        }
+        p.notices = ready.map(questReadyLine);
+        p.scene = { view: 'npc', arg: npcId, arg2: `q:${q.id}` };
+        return {};
+      }
+      return { toast: 'That business has moved on.' };
+    }
+    case 'lore': {
+      if (p.scene.view !== 'npc' || !p.scene.arg) {
+        return { toast: 'That topic has moved on.' };
+      }
+      const npcId = p.scene.arg;
+      const def = npc(npcId);
+      if (!npcInZone(p.currentZone, npcId) || !def?.topics?.some((t) => t.id === cb.arg)) {
+        return { toast: 'That topic has moved on.' };
+      }
+      p.scene = { view: 'npc', arg: npcId, arg2: `lore:${cb.arg}` };
+      return {};
+    }
+  }
 }
 
 export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResult {
@@ -248,8 +283,12 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
  * can never mint n:* callbacks. */
 export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResult {
   if (cb.a === 'bk') {
-    // Leaving the conversation invalidates its buttons (rev bump on commit).
-    p.scene = { view: 'zone' };
+    // Back goes to the same NPC's topic menu (#123) when the scene still
+    // names that NPC and they are physically here; otherwise to the zone.
+    const npcId = p.scene.view === 'npcq' ? p.scene.arg2 : undefined;
+    p.scene = npcId && npcInZone(p.currentZone, npcId)
+      ? { view: 'npc', arg: npcId }
+      : { view: 'zone' };
     return {};
   }
   const questId = cb.arg;

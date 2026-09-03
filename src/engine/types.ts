@@ -183,6 +183,7 @@ export type ViewId =
   | 'tutorial'
   | 'travel'
   | 'zone'
+  | 'npc'
   | 'battle'
   | 'battleSkills'
   | 'battleItems'

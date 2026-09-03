@@ -29,6 +29,7 @@ import {
   renderDeath,
   renderForge,
   renderHelp,
+  renderNpcTopics,
   renderQuestDetail,
   renderQuestInteraction,
   renderQuests,
@@ -72,6 +73,10 @@ function renderFor(p: PlayerState): InputRichMessage {
       // The authoritative NPC interaction (#64): arg is the quest, arg2 the
       // NPC the dialogue is with — the context the engine revalidates.
       return renderQuestInteraction(p, p.scene.arg ?? '', p.scene.arg2 ?? '');
+    case 'npc':
+      // The NPC topic menu (#123): arg is the NPC id, arg2 an optional
+      // sub-state ('lore:<topicId>' or 'q:<questId>').
+      return renderNpcTopics(p);
     case 'shop':
       return p.scene.arg === 'sell'
         ? renderSell(p, Number(p.scene.arg2 ?? 0))

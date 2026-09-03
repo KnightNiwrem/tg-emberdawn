@@ -35,7 +35,8 @@ import {
   turnInQuest,
 } from '../src/engine/quests.ts';
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
-import { shopAction, zoneAction } from '../src/handlers/hub.ts';
+import { npcAction, shopAction, zoneAction } from '../src/handlers/hub.ts';
+import { npcTopics } from '../src/engine/npc.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
 import {
   npc,
@@ -531,12 +532,16 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
   assertEquals(cur.quests['m3_roots'].status, 'turnIn', 'the log cannot turn in');
   assertEquals(cur.gold, goldBefore, 'no rewards from the log');
 
-  // The REAL path: back to the zone, talk to Bram (the finisher), turn in.
+  // The REAL path: back to the zone, talk to Bram (the finisher), pick the
+  // ready quest's topic (#123), turn in.
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'q:bk')), store);
   cur = (await store.get(920))!;
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'z:tk:1')), store); // Bram
   cur = (await store.get(920))!;
-  assertEquals(cur.scene.view, 'npcq', 'talk opens the NPC interaction');
+  assertEquals(cur.scene.view, 'npc', 'talk opens the topic menu');
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'npc:q:m3_roots')), store);
+  cur = (await store.get(920))!;
+  assertEquals(cur.scene.view, 'npcq', 'the topic opens the NPC interaction');
   assertEquals(cur.scene.arg, 'm3_roots');
   assertEquals(cur.scene.arg2, 'npc_bram');
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'n:t:m3_roots')), store);
@@ -1607,7 +1612,7 @@ Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred fr
   assertEquals(questFinisher('m2_letter')!.npc.id, q.finishNpc);
 });
 
-Deno.test('NPC talk opens their authored quest (#31)', () => {
+Deno.test('NPC talk opens their authored quest (#31, #123)', () => {
   const p = createPlayer(972, 'T', 'warrior');
   p.level = 7;
   // The chain (#73): after m4_floors, Bram offers the m5_arms preparation.
@@ -1617,8 +1622,14 @@ Deno.test('NPC talk opens their authored quest (#31)', () => {
   syncAvailability(p);
   // Bram is the second NPC of Emberdawn Village (maren, bram, lyra).
   zoneAction(p, { v: 'zone', a: 'tk', arg: 1 });
-  assertEquals(p.scene.arg, 'm5_arms', "talk opens the giver's quest");
-  assert(p.notices.length > 0, 'a greeting is shown');
+  assertEquals(p.scene.view, 'npc');
+  assertEquals(p.scene.arg, 'npc_bram');
+  // The offer is enumerated as a topic; selecting it routes to the
+  // authoritative interaction.
+  assert(npcTopics(p, 'npc_bram').some((t) => t.id === 'm5_arms' && t.kind === 'questOffer'));
+  npcAction(p, { v: 'npc', a: 'q', arg: 'm5_arms' });
+  assertEquals(p.scene.view, 'npcq', "the topic opens the giver's quest");
+  assertEquals(p.scene.arg, 'm5_arms');
 });
 
 Deno.test('actionless item details render no empty button rows (#39)', () => {

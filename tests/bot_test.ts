@@ -119,9 +119,13 @@ Deno.test('quest accept via NPC talk — the authoritative interaction (#64)', a
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
-  await tap(store, user, 'z:tk:0'); // talk to Elder Maren — m1's starter
+  await tap(store, user, 'z:tk:0'); // open Elder Maren's topic menu (#123)
+  const menu = (await store.get(4242))!;
+  assertEquals(menu.scene.view, 'npc', 'talk opens the topic menu');
+  assertEquals(menu.scene.arg, 'npc_maren');
+  await tap(store, user, 'npc:q:m1_embers'); // pick the quest business topic
   const opened = (await store.get(4242))!;
-  assertEquals(opened.scene.view, 'npcq', 'talk opens the NPC interaction');
+  assertEquals(opened.scene.view, 'npcq', 'the topic routes to the NPC interaction');
   assertEquals(opened.scene.arg, 'm1_embers');
   assertEquals(opened.scene.arg2, 'npc_maren');
   await tap(store, user, 'n:a:m1_embers'); // accept at the NPC

@@ -374,11 +374,24 @@ export interface Objective {
   count?: number;
 }
 
+/** An authored ordinary conversation/lore topic (#123): stable compact id,
+ * player-facing label, and the authored text. Lives with the NPC — never
+ * fabricated in handlers. Quest topics are derived from quest state by the
+ * pure resolver in engine/npc.ts, not authored here. */
+export interface NpcTopicDef {
+  id: string;
+  label: string;
+  text: string;
+}
+
 export interface NpcDef {
   id: string;
   name: string;
   /** Shown when talked to with no active business. */
   greeting: string;
+  /** Authored lore/conversation topics (#123), offered alongside quest
+   * business on the NPC topic menu. */
+  topics?: NpcTopicDef[];
 }
 
 export interface QuestDef {

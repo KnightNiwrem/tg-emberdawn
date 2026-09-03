@@ -16,6 +16,9 @@ export type Cb =
   | { v: 'zone'; a: 'sh' }
   | { v: 'zone'; a: 'fg' }
   | { v: 'zone'; a: 'tk'; arg: number }
+  | { v: 'npc'; a: 'op'; arg: string }
+  | { v: 'npc'; a: 'q' | 'lore'; arg: string }
+  | { v: 'npc'; a: 'bk' }
   | { v: 'battle'; a: 'atk' | 'gd' | 'fl' | 'go' | 'sk' | 'it' }
   | { v: 'battle'; a: 'use'; arg: string }
   | { v: 'inventory'; a: 'p'; arg: number }
@@ -68,6 +71,10 @@ export function encodeCb(c: Cb): string {
   switch (c.v) {
     case 'zone':
       return `z:${c.a === 'hm' ? 'hm' : c.a}${c.a === 'tk' ? `:${c.arg}` : ''}`;
+    case 'npc':
+      // #123 topic menu: open (by NPC id), quest-business/lore selection,
+      // and leave. Revalidation of NPC/zone/state lives in the handler.
+      return c.a === 'bk' ? 'npc:bk' : `npc:${c.a}:${c.arg}`;
     case 'battle':
       if (c.a === 'use') return `b:us:${c.arg}`;
       return `b:${c.a}`;
@@ -163,6 +170,13 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'bk') return { v: 'npcq', a: 'bk' };
       const na = act(a, ['a', 't'] as const);
       return na ? { v: 'npcq', a: na, arg } : undefined;
+    }
+    case 'npc': {
+      // #123 topic menu navigation. Every action revalidates the live
+      // scene, zone, NPC presence and current availability in the handler.
+      if (a === 'bk') return { v: 'npc', a: 'bk' };
+      const na = act(a, ['op', 'q', 'lore'] as const);
+      return na ? { v: 'npc', a: na, arg } : undefined;
     }
     case 'h': {
       if (a === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };
