@@ -18,9 +18,10 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell } from '../engine/shops.ts';
 import { temper } from '../engine/forge.ts';
 import { syncAvailability } from '../engine/quests.ts';
-import { npc, npcInZone, quest } from '../content/quests.ts';
+import { npc, npcInZone } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
 import type { DialogueDef } from '../content/types.ts';
+import { npcTopics } from '../engine/npc.ts';
 import { applyDialogueChoice, applyStoryEffects, storyNoticeLines } from '../engine/story.ts';
 import { evalCondition } from '../engine/conditions.ts';
 import { applyDeath } from '../engine/character.ts';
@@ -123,65 +124,50 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
       }
       const npcId = p.scene.arg;
       if (!npcInZone(p.currentZone, npcId)) return { toast: 'Nobody there.' };
-      const q = quest(cb.arg);
-      if (!q) return { toast: 'That business has moved on.' };
-      const st = p.quests[q.id]?.status ?? 'unavailable';
-      // #127: acceptance and turn-in live in the quest's AUTHORED dialogue
-      // flows — the central acceptQuest/turnInQuest authorities run inside
-      // their choice effects, with contact + location revalidated by the
-      // engine. The offer/turn-in dialogues are content-integrity-mandatory.
-      if (st === 'available' && q.startNpc === npcId) {
-        const d = q.offerDialogue ? dialogue(q.offerDialogue) : undefined;
-        if (!d) return { toast: 'That business has moved on.' };
+      // #131: re-resolve the exact row (kind + id) from a FRESH resolution
+      // by the ONE authoritative resolver — the same enumeration that
+      // rendered the menu. A stale, forged or no-longer-available
+      // selection is absent and refuses without mutation; the row carries
+      // a dialogue ONLY when this NPC owns it, so quest business can never
+      // open another NPC's conversation. #127: the dialogues' accept/
+      // hand-over CHOICES invoke the central acceptQuest/turnInQuest
+      // authorities as story effects, revalidated on-site by the engine.
+      const row = npcTopics(p, npcId).find((t) => t.kind !== 'lore' && t.id === cb.arg);
+      if (!row) return { toast: 'That business has moved on.' };
+      if (row.dialogueId) {
+        const d = dialogue(row.dialogueId);
+        if (!d || d.npcId !== npcId) return { toast: 'That business has moved on.' };
         enterDialogueNode(p, d, d.start);
         return {};
       }
-      if (st === 'turnIn' && q.finishNpc === npcId) {
-        const d = q.turnInDialogue ? dialogue(q.turnInDialogue) : undefined;
-        if (!d) return { toast: 'That business has moved on.' };
-        enterDialogueNode(p, d, d.start);
-        return {};
-      }
-      if (st === 'active' && (q.startNpc === npcId || q.finishNpc === npcId)) {
-        // Active business: a quest whose conversation objective has not yet
-        // fired opens its authored conversation dialogue (reaching its
-        // event node advances the quest); otherwise a pure progress
-        // reminder. Neither mutates by itself.
-        const pendingEvent = q.objectives.some((o) =>
-          o.kind === 'storyEvent' && !p.storyEvents.includes(o.target)
-        );
-        const conv = q.conversationDialogue && pendingEvent
-          ? dialogue(q.conversationDialogue)
-          : undefined;
-        if (conv) {
-          enterDialogueNode(p, conv, conv.start);
-          return {};
-        }
-        p.notices = [];
-        p.scene = { view: 'npc', arg: npcId, arg2: `q:${q.id}` };
-        return {};
-      }
-      return { toast: 'That business has moved on.' };
+      // No owned dialogue to open (active business at the non-owning
+      // contact, or its event already fired): a pure progress reminder —
+      // navigation only, never a story mutation.
+      p.notices = [];
+      p.scene = { view: 'npc', arg: npcId, arg2: `q:${row.questId}` };
+      return {};
     }
     case 'lore': {
       if (p.scene.view !== 'npc' || !p.scene.arg) {
         return { toast: 'That topic has moved on.' };
       }
       const npcId = p.scene.arg;
-      const def = npc(npcId);
-      const topic = def?.topics?.find((t) => t.id === cb.arg);
-      if (!npcInZone(p.currentZone, npcId) || !topic) {
-        return { toast: 'That topic has moved on.' };
-      }
+      if (!npcInZone(p.currentZone, npcId)) return { toast: 'Nobody there.' };
+      // #131: the fresh resolved row is the authority — its `when` was
+      // just re-evaluated, so a condition that turned false after the menu
+      // rendered (or a forged/condition-hidden id) refuses here.
+      const row = npcTopics(p, npcId).find((t) => t.kind === 'lore' && t.id === cb.arg);
+      if (!row) return { toast: 'That topic has moved on.' };
       // A dialogue-backed topic (#124) opens the conversation scene at its
       // start node; the static text renders the single-beat view.
-      if (topic.dialogue) {
-        const d = dialogue(topic.dialogue);
+      if (row.dialogueId) {
+        const d = dialogue(row.dialogueId);
         if (!d || d.npcId !== npcId) return { toast: 'That topic has moved on.' };
         p.scene = { view: 'dialogue', arg: d.id, arg2: d.start };
         return {};
       }
-      if (!topic.text) return { toast: 'That topic has moved on.' };
+      const topic = npc(npcId)?.topics?.find((t) => t.id === cb.arg);
+      if (!topic?.text) return { toast: 'That topic has moved on.' };
       p.scene = { view: 'npc', arg: npcId, arg2: `lore:${cb.arg}` };
       return {};
     }

@@ -224,34 +224,35 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   game-clear moment = defeating King Aldric (flag set via dungeon first-clear `crownRestored`). Keep
   new writing in this register: setbacks are real but framed as "not yet", never "never".
 - **Quest state machine:** unavailable → available → active → turnIn → done. `syncAvailability` is
-  idempotent; call it after xp gains, zone entry and turn-ins. Kill/reach/talk/dungeon objectives
-  tick via engine hooks (`onKill`, `onZoneEnter`, `onTalk`, `onDungeonClear`); collect objectives
-  read the bag live. Every hook RETURNS the quests its event just made turn-in-ready, and
-  `refreshProgress()` is the single active→turnIn transition authority (#119): readiness is
-  announced exactly once, by the surface that caused it — `resolveVictory` collects ready ids from
-  drops, the kill, the availability refresh, dungeon bookkeeping and first-clear rewards and appends
-  one deduped `questReadyLine` (`📜 "<name>" is ready to turn in!`, the ONE shared formatter) per
-  quest after all of the victory's mutations; `travel()` puts it in the arrival lines; the talk
-  interaction and `acceptQuest` (whose result carries `lines`, so an immediately-complete quest
-  reports acceptance AND readiness) put it in the interaction notices. It is never re-derived at
-  render time and never re-announced for an already-`turnIn` quest. Random quest-item drops are
-  relevance-capped (`questDropAllowed`): they flow only while an open (available/active) quest still
-  needs them, and stop permanently once it's done. Every quest carries explicit lifecycle contacts
-  (#63): `startNpc` offers it and `finishNpc` accepts the turn-in — usually the same NPC, but
-  delivery flows hand them to different people (m2_letter: Maren starts, Bram finishes; the finisher
-  is NEVER inferred from a talk objective). Talking to an NPC surfaces quests they are ready to
-  finish first, then quests they offer (talk discovery, #31). Both contacts must resolve to real
-  NPCs placed in exactly one zone — resolve them via the canonical helpers in content/quests.ts
+  idempotent; call it after xp gains, zone entry and turn-ins. Kill/reach/dungeon objectives tick
+  via engine hooks (`onKill`, `onZoneEnter`, `onDungeonClear`); conversation progression is explicit
+  story events (see _Quest actions are physical_ below); collect objectives read the bag live. Every
+  hook RETURNS the quests its event just made turn-in-ready, and `refreshProgress()` is the single
+  active→turnIn transition authority (#119): readiness is announced exactly once, by the surface
+  that caused it — `resolveVictory` collects ready ids from drops, the kill, the availability
+  refresh, dungeon bookkeeping and first-clear rewards and appends one deduped `questReadyLine`
+  (`📜 "<name>" is ready to turn in!`, the ONE shared formatter) per quest after all of the
+  victory's mutations; `travel()` puts it in the arrival lines; the talk interaction and
+  `acceptQuest` (whose result carries `lines`, so an immediately-complete quest reports acceptance
+  AND readiness) put it in the interaction notices. It is never re-derived at render time and never
+  re-announced for an already-`turnIn` quest. Random quest-item drops are relevance-capped
+  (`questDropAllowed`): they flow only while an open (available/active) quest still needs them, and
+  stop permanently once it's done. Every quest carries explicit lifecycle contacts (#63): `startNpc`
+  offers it and `finishNpc` accepts the turn-in — usually the same NPC, but delivery flows hand them
+  to different people (m2_letter: Maren starts, Bram finishes; the finisher is NEVER inferred from a
+  talk objective). Talking to an NPC surfaces quests they are ready to finish first, then quests
+  they offer (talk discovery, #31). Both contacts must resolve to real NPCs placed in exactly one
+  zone — resolve them via the canonical helpers in content/quests.ts
   (`questStarter`/`questFinisher`/`zoneOfNpc`/`npcInZone`; content-integrity tested). There is no
   quest-log-only fallback: m23_aldric starts and ends with the Archivist's throne-room send-off, and
   sq_locket belongs to Ranger Pell in the Whisperwood. Destination quests (#66) START in the
   preceding region and FINISH with the destination contact — m5 Bram→Ferryman, m9 Ferryman→Ombra,
   m13 Ombra→Rho, m16 Rho→Sorrel, m20 Sorrel→Archivist, m24 Archivist→Echo — so the journey stays the
   point instead of an arrive-then-accept loop; intro/outro speak as the contact who hands the quest
-  over or receives it. A quest accepted AT the NPC its talk objective names counts the acceptance
-  conversation as the talk (m8/m17/m22) — dialogue quests never demand a second identical
-  interaction. Contact zones must be reachable at the quest's point in the progression
-  (content-integrity tested).
+  over or receives it. Conversation objectives advance ONLY through explicit authored story events
+  (#127) — the legacy 'talk' objective kind and same-NPC acceptance auto-completion are retired; no
+  dialogue quest ever demands a second identical interaction. Contact zones must be reachable at the
+  quest's point in the progression (content-integrity tested).
 - **Quest actions are physical (#64, #127):** `acceptQuest`/`turnInQuest` take the acting NPC id and
   REQUIRE it to be the quest's configured starter/finisher AND standing in the player's current zone
   (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can
@@ -265,12 +266,19 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   (`Objective kind: 'storyEvent'`): reaching the authored node (or confirming the authored choice)
   emits the event through `onStoryEvent` — opening menus, selecting topics, and generic NPC contact
   never advance anything, and same-NPC acceptance auto-completing conversations is RETIRED. The old
-  `npcq` transaction view is gone; active-business topics open a quest's `conversationDialogue`
-  (while its event is pending) or a pure progress reminder. The Quest Log is a READ-ONLY journal
-  (#65): it renders NO lifecycle buttons, the codec cannot even express `q:a:`/`q:t:`, and it only
-  NAMES the physical contact ("Start with X — Zone." / "Return to Y — Zone.") — log navigation can
-  never act on a quest. Backing out or traveling leaves the interaction (scene resets, uiRev bumps),
-  and the revision guard kills replays and duplicate rewards.
+  `npcq` transaction view is gone; topics are bound to their OWNING NPC (#131): the resolver row is
+  the single authority for BOTH rendering and selection — each row carries the dialogue it opens
+  only when the selected NPC owns it (`dialogue.npcId === selected NPC`), and handlers re-resolve
+  the exact row (kind + id) from a FRESH `npcTopics(p, npcId)` at tap time, so stale, forged or
+  condition-hidden selections (a lore `when` is re-evaluated on selection) refuse without mutation.
+  Active-business policy: the row is LISTED at both contacts as a pointer, but the quest's
+  `conversationDialogue` opens ONLY at the NPC who owns it (while its event is pending); any other
+  contact's row is a pure non-mutating progress reminder — m2_letter can emit `heard_bram_reading`
+  only through Bram's own conversation, never from Maren's menu. The Quest Log is a READ-ONLY
+  journal (#65): it renders NO lifecycle buttons, the codec cannot even express `q:a:`/`q:t:`, and
+  it only NAMES the physical contact ("Start with X — Zone." / "Return to Y — Zone.") — log
+  navigation can never act on a quest. Backing out or traveling leaves the interaction (scene
+  resets, uiRev bumps), and the revision guard kills replays and duplicate rewards.
 - **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
   (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
   flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip
@@ -447,7 +455,7 @@ Three concepts stay separate (#114):
   by regex over arbitrary source text.
 - **Terminology (all direct and ordered — none of these authorize a bus):**
   - "reactive trigger" (equipment) = an immediate nested synchronous call (`runReactiveTriggers`);
-  - "quest hook" (`onKill`/`onTalk`/`onZoneEnter`) = an ordinary directly invoked function;
+  - "quest hook" (`onKill`/`onZoneEnter`/`onDungeonClear`) = an ordinary directly invoked function;
   - "exploration event" = a data VARIANT selected from content and resolved by a switch;
   - "combat trace" (#101) = plain record entries appended by and returned from the active
     synchronous resolution (`recordCombatEvent` — state changes first, then a plain-data push); no
