@@ -16,6 +16,7 @@ import { ENEMIES } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { addItem } from '../src/engine/inventory.ts';
 import {
+  classRequirementText,
   renderEquipment,
   renderEquippedItemDetail,
   renderItemDetail,
@@ -1147,4 +1148,52 @@ Deno.test('#112: bag detail Back returns to the ORIGIN, not the zone', () => {
     JSON.stringify(renderItemDetail(bag, 't_7')).includes('i:bk'),
     'a context-less detail keeps the legacy fallback',
   );
+});
+
+Deno.test('#113: bag detail shows the class restriction of class-locked gear', () => {
+  // A mage inspecting warrior gear: the restriction is an item FACT, visible
+  // even while Equip is withheld.
+  const p = hero(910, 'mage', 5);
+  p.inventory.push({ id: 'w_warrior_1', qty: 1 });
+  const json = JSON.stringify(renderItemDetail(p, 'w_warrior_1'));
+  assert(json.includes('Class: Warrior'), 'the bag detail names the allowed class');
+  assert(!json.includes('⚔️ Equip'), 'an incompatible item still withholds Equip');
+});
+
+Deno.test('#113: equipped detail shows the same class restriction', () => {
+  const p = hero(911, 'warrior', 5); // w_warrior_1 equipped from creation
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  assert(json.includes('Class: Warrior'), 'the equipped detail names the allowed class');
+});
+
+Deno.test('#113: level-1 class-locked gear shows its class with no level line', () => {
+  const p = hero(912, 'warrior', 1);
+  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  assert(item('w_warrior_1')!.level === 1, 'starter gear is level 1');
+  assert(json.includes('Class: Warrior'), 'the class restriction still renders at level 1');
+  assert(!json.includes('Requires level'), 'no level line is needed for a level-1 piece');
+});
+
+Deno.test('#113: unrestricted equipment renders no class limitation', () => {
+  const p = hero(913, 'warrior', 5);
+  p.inventory.push({ id: 't_7', qty: 1 });
+  const bagJson = JSON.stringify(renderItemDetail(p, 't_7'));
+  assert(!bagJson.includes('Class:'), 'an unrestricted trinket shows no class line in the bag');
+  const eq = hero(914, 'warrior', 5, 't_7');
+  const eqJson = JSON.stringify(renderEquippedItemDetail(eq, 'trinket'));
+  assert(!eqJson.includes('Class:'), 'an unrestricted trinket shows no class line equipped');
+});
+
+Deno.test('#113: classRequirementText renders canonical names in declaration order', () => {
+  const def = item('w_warrior_1')!;
+  assertEquals(classRequirementText(def), 'Class: Warrior');
+  assertEquals(classRequirementText(item('t_7')!), null, 'unrestricted items yield no line');
+  const multi = { ...def, classes: ['cleric', 'warrior'] as ClassId[] };
+  assertEquals(
+    classRequirementText(multi),
+    'Classes: Warrior, Cleric',
+    'multi-class restrictions list every class in canonical declaration order',
+  );
+  const consumable = { ...def, kind: 'consumable' as const };
+  assertEquals(classRequirementText(consumable), null, 'consumables ignore class restrictions');
 });

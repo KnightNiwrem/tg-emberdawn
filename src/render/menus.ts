@@ -5,7 +5,7 @@ import type { EquipSlot, PlayerState } from '../engine/types.ts';
 import type { ItemDef } from '../content/types.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
-import { MAX_LEVEL } from '../engine/classes.ts';
+import { CLASSES, MAX_LEVEL } from '../engine/classes.ts';
 import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import { buttonsRow, cbBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
@@ -108,6 +108,21 @@ function detailBackRow(origin: ItemDetailOrigin): InputRichBlock {
   return buttonsRow([btn]);
 }
 
+/** The class-restriction fact line for an equipment detail (#113): canonical
+ * display names from the class definitions, ordered by declaration, `null`
+ * when the piece is unrestricted. Kept as a pure item fact — never derived
+ * from the viewer's own eligibility. */
+export function classRequirementText(def: ItemDef): string | null {
+  if (!def.classes || (def.kind !== 'weapon' && def.kind !== 'armor' && def.kind !== 'trinket')) {
+    return null;
+  }
+  const names = Object.values(CLASSES)
+    .filter((c) => def.classes!.includes(c.id))
+    .map((c) => c.name);
+  if (names.length === 0) return null;
+  return names.length === 1 ? `Class: ${names[0]}` : `Classes: ${names.join(', ')}`;
+}
+
 /** Shared static item facts (#112): stats, consumable effect, trigger
  * mechanics, flavor, requirement. Bag and equipped detail wrappers layer
  * their own headings and actions over this so the two detail pages cannot
@@ -133,6 +148,10 @@ function itemFactBlocks(def: ItemDef): InputRichBlock[] {
     blocks.push(para(triggerDisclosure(def).join('\n')));
   }
   if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
+  // Requirements are item FACTS (#113), shown regardless of the viewer's own
+  // eligibility — a missing Equip button must never be the only signal.
+  const classReq = classRequirementText(def);
+  if (classReq) blocks.push(para(classReq));
   if (def.level > 1 && (def.kind === 'weapon' || def.kind === 'armor' || def.kind === 'trinket')) {
     blocks.push(para(`Requires level ${def.level}.`));
   }
