@@ -3,7 +3,7 @@
     "start": "deno run --allow-net --allow-env --allow-read --allow-import src/main.ts",
     "webhook": "deno run --allow-net --allow-env --allow-import scripts/webhook.ts",
     "check": "deno check --allow-import src/main.ts src/persistence/migrate.ts scripts/webhook.ts scripts/balance.ts tests/",
-    "test": "deno test --allow-import --allow-env --allow-net --allow-read tests/",
+    "test": "deno test --allow-import --allow-env --allow-net --allow-read --allow-run=deno tests/",
     "balance": "deno run --allow-read scripts/balance.ts",
     "balance:update": "deno run --allow-read --allow-write scripts/balance.ts --update-snapshot",
     "test:pg": "deno test --allow-import --allow-env --allow-net --allow-read --allow-write tests/persistence_pg_test.ts",

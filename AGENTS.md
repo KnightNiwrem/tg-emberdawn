@@ -239,26 +239,44 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   come from the ENCOUNTER — only a dungeon boss floor (`origin.boss`) is boss-classified. The Abyss
   overworld Warden is a farmable ELITE: fleeable, smokeable, not counted.
 
-## The synchronous gameplay architecture boundary (#102)
+## The ordered-completion gameplay boundary (#102, corrected by #114)
 
-Telegram/network/database code may be asynchronous — gameplay may not. This boundary is the
-project's core shape: **async I/O sandwich around a synchronous, deterministic game core**. It is
-regression-pinned by `tests/architecture_test.ts` (sync API contracts, no-pending-work-at-return,
-engine import bans, banned runtime primitives). Do not reinterpret "event", "reactive", "hook",
-"trace" or "emit" as a request for event-driven mechanics.
+Telegram/network/database code is asynchronous I/O around a deterministic game core. The
+architectural invariant is **ordered completion** — one deterministic, explicitly ordered resolution
+flow that is COMPLETE before rendering/persistence proceeds — not a lexical ban on async vocabulary.
+It is regression-pinned by `tests/architecture_test.ts` (sync API signature contracts,
+no-pending-work-at-return, observable ordering, a compiler dependency-graph import check). Do not
+reinterpret "event", "reactive", "hook", "trace" or "emit" as a request for event-driven mechanics.
 
-- **Allowed asynchronous boundary.** Async code is expected ONLY for: receiving Telegram updates and
+Three concepts stay separate (#114):
+
+1. **Ordered resolution (required).** One authoritative coordinator owns combat phases and nested
+   sub-resolution; SPD determines the first actor; each action/effect fully resolves before the next
+   begins; terminal state is checked immediately after every potentially lethal transition; when HP
+   reaches 0 and no immediate revival succeeds, no later action, rider, reaction, or end-of-round
+   effect runs; regeneration never revives a terminal combatant and DoT never creates a post-victory
+   mutual KO.
+2. **Async syntax (neutral).** A Promise-returning function whose every step is awaited is still a
+   single ordered flow — async syntax is neither proof of order nor proof of disorder. Never scan
+   source for `async`/`await`/`Promise` tokens as an architecture test, and never hand-roll a
+   TypeScript lexer to do it. Today's engine entry points are synchronous and stay that way (the
+   test-suite signature pins are a compile-time contract for the CURRENT API shape, not proof
+   against event-driven design); converting them is out of scope.
+3. **Event-driven orchestration (unwanted for combat).** No listener-registration order, event bus,
+   timer, microtask queue, or detached/background callback drives combat resolution; no unawaited
+   state-mutating work; no `Promise.all` over mutations of the same fight. Traces stay caller-owned
+   plain data returned by the active resolution, never asynchronously published events.
+
+- **Async I/O sandwich.** Async code belongs ONLY at the boundary: receiving Telegram updates and
   grammY middleware; serializing concurrent updates for the same user; Postgres/network I/O;
-  sending/editing Telegram messages; webhook lifecycle and scripts. The async boundary must LOAD
-  state, invoke synchronous engine operations, RENDER/PERSIST the completed result, and return. It
+  sending/editing Telegram messages; webhook lifecycle and scripts. The boundary LOADS state,
+  invokes the engine's ordered resolution, RENDERS/PERSISTS the completed result, and returns. It
   never interleaves with resolution.
-- **Synchronous gameplay boundary.** Functions that mutate or resolve gameplay — combat, openings,
-  effects, equipment reactions, quests, exploration, progression, rewards, death/revival — must:
-  complete before returning; use direct calls, ordered loops and explicit return values; perform
-  terminal checks inline; consume RNG synchronously and deterministically; leave no pending gameplay
-  work; require no queue draining, event-loop tick, timer advancement or listener flush; and never
-  rely on listener registration order.
-- **Terminology (all direct and synchronous — none of these authorize a bus):**
+- **Import boundary.** Gameplay modules (`src/engine`, `src/content`) depend only on local gameplay
+  code — never grammy, node:/npm:/jsr: packages, handlers, or persistence. This is enforced via the
+  Deno compiler's own dependency graph (`deno info --json`) in `tests/architecture_test.ts` — never
+  by regex over arbitrary source text.
+- **Terminology (all direct and ordered — none of these authorize a bus):**
   - "reactive trigger" (equipment) = an immediate nested synchronous call (`runReactiveTriggers`);
   - "quest hook" (`onKill`/`onTalk`/`onZoneEnter`) = an ordinary directly invoked function;
   - "exploration event" = a data VARIANT selected from content and resolved by a switch;

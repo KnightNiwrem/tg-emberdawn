@@ -1,17 +1,39 @@
-/** #102: the synchronous gameplay architecture boundary — regression
- * guardrails, not a general proof of program synchrony.
+/** #102, corrected by #114: the gameplay architecture boundary is an
+ * ORDERED-COMPLETION contract, not a vocabulary ban.
  *
- * The intended architecture: Telegram/network/database handling may be
- * asynchronous, but GAMEPLAY resolution is a synchronous, deterministic
- * call graph. Handlers load state, invoke pure synchronous engine
- * operations, render/persist the completed result, then return. These
- * tests pin the boundary so a future change cannot quietly introduce an
- * event bus, deferred gameplay work, or Promise-returning engine APIs.
+ * The intended architecture: Telegram/network/database handling is
+ * asynchronous I/O around a deterministic game core. Handlers load state,
+ * invoke the engine's ordered resolution, render/persist the COMPLETED
+ * result, then return. Three concepts stay separate (#114):
+ *
+ *  1. ORDERED RESOLUTION (required) — one authoritative coordinator owns
+ *     combat phases and nested sub-resolution; each action/effect fully
+ *     resolves before the next begins; terminal checks fire inline at every
+ *     potentially lethal transition.
+ *  2. ASYNC SYNTAX (neutral) — a Promise-returning function whose every
+ *     step is awaited is still a single ordered flow. Async syntax is
+ *     neither proof of order nor proof of disorder, so this suite contains
+ *     NO lexical scanner for async/await/Promise tokens.
+ *  3. EVENT-DRIVEN ORCHESTRATION (unwanted for combat) — listeners, buses,
+ *     timers, queues or detached callbacks fanning combat work out of the
+ *     authoritative flow. This stays unwanted regardless of syntax.
+ *
+ * What these tests pin:
+ *  - the CURRENT engine entry points are synchronous (a compile-time
+ *    contract for today's API shape — not a claim that sync proves order);
+ *  - resolution is COMPLETE at return: no pending work, no thenables, the
+ *    trace and state observable immediately;
+ *  - the observable ORDER of resolution: the SPD-selected first actor acts
+ *    first, a lethal first slot stops everything after it, and the
+ *    terminal entry closes the trace;
+ *  - the import boundary via the Deno compiler's own dependency graph
+ *    (`deno info --json`) — never regex over arbitrary TypeScript text.
  *
  * Deliberately NOT flagged: direct synchronous functions named onKill /
  * onTalk / onZoneEnter / runReactiveTriggers, content "exploration
  * events" (data variants resolved by a switch), and plain trace entry
- * arrays — the words are fine; the ASYNC MECHANICS are what is banned. */
+ * arrays — the words are fine; hidden ownership and fan-out are what the
+ * contract forbids. */
 
 import { assert, assertEquals } from '@std/assert';
 import {
@@ -44,6 +66,7 @@ import {
   turnInQuest,
   type TurnInResult,
 } from '../src/engine/quests.ts';
+import { injectMod, seeded } from './helpers.ts';
 
 const ORIGIN: BattleOrigin = { kind: 'explore', zoneId: 'outskirts' };
 
@@ -51,7 +74,10 @@ const ORIGIN: BattleOrigin = { kind: 'explore', zoneId: 'outskirts' };
 //
 // Each assignment pins the engine entry point to a NON-Promise signature:
 // making any of these functions async breaks the compile with an
-// architecture-specific error (Promise<T> is not assignable to T).
+// architecture-specific error (Promise<T> is not assignable to T). This
+// pins the CURRENT contract only (#114) — a synchronous signature is not,
+// by itself, proof that gameplay is not event-driven; the ordered-
+// resolution tests below carry that weight.
 
 Deno.test('architecture: gameplay entry points are pinned to synchronous signatures (#102)', () => {
   // Combat construction + resolution.
@@ -143,143 +169,47 @@ Deno.test('architecture: a full action is COMPLETE at return — state, log, tra
   assertEquals(pv.phase, 'preview');
 });
 
-// ── 5 + 6. Engine dependency boundary and forbidden runtime primitives ───
+// ── 3. Ordered resolution: the observable contract (#114) ────────────────
+
+Deno.test('architecture: a lethal first slot ends resolution in order — terminal closes the trace (#114)', () => {
+  // The faster player one-shots the enemy. The ordered-completion contract,
+  // observed from OUTSIDE the engine:
+  //  - the SPD-selected first actor acted and the defeated actor never did;
+  //  - terminal state was checked immediately at the lethal transition;
+  //  - NOTHING follows the terminal entry — no end-of-round effects, no
+  //    later riders, no counter advancement;
+  //  - the caller sees only the fully resolved state.
+  for (let s = 1; s <= 100; s++) {
+    const p = createPlayer(11400 + s, 'T', 'warrior');
+    p.level = 30;
+    const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(s) })!.battle;
+    p.battle = b;
+    injectMod(b, 'enemy', 'spd', -0.95); // the player takes the first slot
+    b.enemy.hp = 5; // one-strike terminal
+    const res = performAction(p, b, { kind: 'attack' }, seeded(s));
+    if (res.outcome !== 'victory') continue; // find a decisive seed
+
+    assert(
+      !res.trace.some((e) => e.kind === 'hpDamaged' && e.target === 'player'),
+      'the defeated actor never acted',
+    );
+    const last = res.trace[res.trace.length - 1];
+    assertEquals(last?.kind, 'terminal', 'the terminal entry closes the trace');
+    assertEquals(b.round, 1, 'no end-of-round bookkeeping ran after the kill');
+    assertEquals(b.enemy.hp <= 0, true, 'terminal state is visible at return');
+    return;
+  }
+  throw new Error('no lethal first-slot seed found');
+});
+
+// ── 4. Import boundary via the compiler's dependency graph (#114) ────────
 
 /** Gameplay modules: the pure engine and its content database. Handlers,
  * render glue and persistence are EXCLUDED — Telegram code is expected to
- * be asynchronous. */
+ * be asynchronous I/O. */
 const GAMEPLAY_DIRS = ['src/engine', 'src/content'];
 
-/** Single-pass lexical strip (#110): removes comments AND blanks string/
- * template literal CONTENTS so documentation and display prose about async
- * mechanics never trips the runtime-primitive guard, while keeping the
- * quote delimiters (and code structure) intact. Char-scanned, so a `//`
- * inside a string or a quote inside a comment cannot desync it. */
-function stripCommentsAndStrings(src: string): string {
-  let out = '';
-  let i = 0;
-  const n = src.length;
-  while (i < n) {
-    const c = src[i]!;
-    const d = src[i + 1];
-    if (c === '/' && d === '/') {
-      while (i < n && src[i] !== '\n') i++; // line comment — dropped
-    } else if (c === '/' && d === '*') {
-      i += 2; // block comment — dropped
-      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++;
-      i += 2;
-    } else if (c === '"' || c === "'" || c === '`') {
-      out += c; // string/template — keep delimiters, blank the contents
-      i++;
-      while (i < n && src[i] !== c) {
-        if (src[i] === '\\') i++; // skip the escaped character
-        i++;
-      }
-      out += c;
-      i++;
-    } else {
-      out += c;
-      i++;
-    }
-  }
-  return out;
-}
-
-/** Comment-strip only (strings KEPT): import specifiers live in strings. */
-function stripComments(src: string): string {
-  let out = '';
-  let i = 0;
-  const n = src.length;
-  while (i < n) {
-    const c = src[i]!;
-    const d = src[i + 1];
-    if (c === '/' && d === '/') {
-      while (i < n && src[i] !== '\n') i++;
-    } else if (c === '/' && d === '*') {
-      i += 2;
-      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++;
-      i += 2;
-    } else {
-      out += c;
-      i++;
-    }
-  }
-  return out;
-}
-
-/** Every module specifier a snippet imports or re-exports (#110): spans
- * newlines and covers `import … from`, side-effect `import '…'`, and
- * `export … from` — no line-form assumptions. */
-function importSpecifiers(code: string): string[] {
-  const specs: string[] = [];
-  const fromRe = /(?:\bimport\b|\bexport\b)[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g;
-  const sideEffectRe = /\bimport\s*['"]([^'"]+)['"]/g;
-  for (const m of code.matchAll(fromRe)) specs.push(m[1]!);
-  for (const m of code.matchAll(sideEffectRe)) specs.push(m[1]!);
-  return specs;
-}
-
-/** Banned IMPORT targets in gameplay modules: Telegram transport, the
- * async handler/persistence layers, and event-bus libraries. */
-const BANNED_IMPORTS: [RegExp, string][] = [
-  [/['"]grammy/i, 'grammy (Telegram transport) must never be imported by gameplay modules'],
-  [/['"]node:/, 'node built-ins (node:events, node:timers, …) are not gameplay dependencies'],
-  [/['"]deno\.land\/std\/async/, 'deno/std/async utilities are not gameplay dependencies'],
-  [/['"]npm:/, 'npm packages are not gameplay dependencies'],
-  [/['"][^'"]*handlers\//, 'handlers are the async I/O boundary — never imported by gameplay'],
-  [/['"][^'"]*persistence\//, 'persistence is the async I/O boundary — never imported by gameplay'],
-  [
-    /['"](eventemitter3|rxjs|nanobus|mitt|event-target-shim)['"]/i,
-    'event-bus libraries are banned in gameplay modules',
-  ],
-];
-
-/** Banned RUNTIME primitives (post comment+string strip): async gameplay
- * callbacks of ANY syntactic form — function, arrow, method, generator —
- * deferred work, dynamic imports, and listener registries (#110). */
-const BANNED_CODE: [RegExp, string][] = [
-  [/\bEventEmitter\b/, 'EventEmitter is an event bus — gameplay resolves by direct calls'],
-  [/\bEventTarget\b/, 'EventTarget is an event bus — gameplay resolves by direct calls'],
-  [/\bdispatchEvent\b/, 'dispatchEvent is event-bus semantics — call the function directly'],
-  [
-    /\b(addEventListener|removeEventListener)\b/,
-    'listener registries are banned — no gameplay listeners exist',
-  ],
-  [/\bqueueMicrotask\b/, 'queueMicrotask defers gameplay work — resolution completes at return'],
-  [/\bsetTimeout\b/, 'setTimeout defers gameplay work — timers never drive mechanics'],
-  [/\bsetInterval\b/, 'setInterval defers gameplay work — timers never drive mechanics'],
-  [/\bnew Promise\b/, 'gameplay never constructs Promises — plain values and direct returns only'],
-  // #110: ANY async token post-strip — async function, async arrow,
-  // async method, async generator — not just the `async function` form.
-  [/\basync\b/, 'gameplay functions are synchronous — no async callbacks of any form'],
-  [/\bawait\b/, 'gameplay never awaits — resolution completes before returning'],
-  [/\bimport\s*\(/, 'dynamic import() defers work behind a promise — import statically'],
-  [/\.then\(/, 'promise chaining defers gameplay work — use direct calls and return values'],
-];
-
-/** The full source guard for one gameplay module (#110): returns the
- * violations (empty = clean) so fixtures can probe detection power
- * directly and real files run the exact same scan. */
-function scanGameplaySource(src: string): string[] {
-  const violations: string[] = [];
-  const codeOnly = stripCommentsAndStrings(src);
-  for (const [pattern, why] of BANNED_CODE) {
-    const hit = pattern.exec(codeOnly);
-    if (hit) {
-      violations.push(`${why} (found "${hit[0]}")`);
-    }
-  }
-  const commentStripped = stripComments(src);
-  for (const spec of importSpecifiers(commentStripped)) {
-    for (const [pattern, why] of BANNED_IMPORTS) {
-      if (pattern.test(`'${spec}'`)) violations.push(`import '${spec}' — ${why}`);
-    }
-  }
-  return violations;
-}
-
-/** Recursively collects .ts files under a directory (plain synchronous
- * walk — the guard itself must not need async machinery). */
+/** Recursively collects .ts files under a directory. */
 function collectSources(dir: string): string[] {
   const out: string[] = [];
   for (const entry of Deno.readDirSync(dir)) {
@@ -290,83 +220,42 @@ function collectSources(dir: string): string[] {
   return out;
 }
 
-Deno.test('architecture: gameplay modules import no Telegram/handler/persistence/event-bus code (#102)', () => {
+/** The transitive module closure of one file, resolved by the Deno
+ * compiler itself (`deno info --json`) — a real TypeScript-aware
+ * dependency graph, not text scraping (#114). */
+async function dependencyClosure(root: string): Promise<string[]> {
+  // Invoked BY NAME so the test task's `--allow-run=deno` (a program-name
+  // allowlist, not a path one) covers it on every install layout.
+  const out = await new Deno.Command('deno', {
+    args: ['info', '--json', root],
+    stdout: 'piped',
+    stderr: 'piped',
+  }).output();
+  if (!out.success) {
+    throw new Error(`deno info failed for ${root}:\n${new TextDecoder().decode(out.stderr)}`);
+  }
+  const graph = JSON.parse(new TextDecoder().decode(out.stdout)) as {
+    modules: { specifier: string }[];
+  };
+  return graph.modules.map((m) => m.specifier);
+}
+
+Deno.test('architecture: gameplay modules depend only on local gameplay code (compiler graph, #114)', async () => {
   for (const dir of GAMEPLAY_DIRS) {
     for (const path of collectSources(dir)) {
-      const violations = scanGameplaySource(Deno.readTextFileSync(path));
-      assert(
-        violations.length === 0,
-        `${path}: architecture boundary violated —\n    ${
-          violations.map((v) => v.replace(/\n/g, '\n    ')).join('\n    ')
-        }`,
-      );
+      const closure = await dependencyClosure(path);
+      for (const spec of closure) {
+        assert(
+          spec.startsWith('file://'),
+          `${path}: gameplay depends on non-local code — ${spec}\n` +
+            '    (grammy, node:/npm:/jsr:/https: dependencies and event-bus libraries ' +
+            'are all unreachable from the gameplay core)',
+        );
+        assert(
+          !spec.includes('/src/handlers/') && !spec.includes('/src/persistence/'),
+          `${path}: gameplay depends on the async I/O boundary — ${spec}`,
+        );
+      }
     }
-  }
-});
-
-Deno.test('architecture: gameplay modules use no async/timer/listener runtime primitives (#102)', () => {
-  for (const dir of GAMEPLAY_DIRS) {
-    for (const path of collectSources(dir)) {
-      const violations = scanGameplaySource(Deno.readTextFileSync(path));
-      assert(
-        violations.length === 0,
-        `${path}: architecture boundary violated —\n    ${
-          violations.map((v) => v.replace(/\n/g, '\n    ')).join('\n    ')
-        }\n    The gameplay boundary is synchronous: resolution completes before returning.`,
-      );
-    }
-  }
-});
-
-/** #110 fixture probe: every banned syntactic form is detected, and the
- * documented vocabulary in comments/strings never produces a false
- * positive. This pins the GUARD's detection power — the file scans above
- * only prove today's real sources are clean. */
-Deno.test('architecture: the source guard detects async arrows, methods, dynamic imports — and tolerates prose (#110)', () => {
-  // Each banned form is rejected, in whatever syntax it hides.
-  const banned: [string, string][] = [
-    ['async function f() {}', 'async function'],
-    ['const f = async () => 1;', 'async arrow'],
-    ['class A { async run() {} }', 'async method'],
-    ['const o = { async tick() {} };', 'async object-literal method'],
-    ['async function* g() {}', 'async generator'],
-    ['const x = await p;', 'await'],
-    ['const m = import("./late.ts");', 'dynamic import'],
-    ['const m = await import("./late.ts");', 'awaited dynamic import'],
-    ['p.then(() => {});', 'promise chaining'],
-    ['setTimeout(fn, 10);', 'timer'],
-    ['queueMicrotask(fn);', 'microtask'],
-    ['new Promise((res) => res(1));', 'promise construction'],
-    ['bus.addEventListener("tick", fn);', 'listener registry'],
-    ['import { x } from "grammy";', 'banned import'],
-    ['import {\n  y,\n} from "node:events";', 'multiline banned import'],
-    ["import 'grammy';", 'side-effect banned import'],
-    ["export * from '../handlers/session.ts';", 'handler re-export'],
-    ['import type { Ctx } from "grammy";', 'type-only banned import'],
-  ];
-  for (const [snippet, label] of banned) {
-    const violations = scanGameplaySource(snippet);
-    assert(
-      violations.length > 0,
-      `the guard must reject an ${label} in the gameplay boundary`,
-    );
-  }
-  // Allowed terminology — the documented words for DIRECT synchronous
-  // mechanics — never trips the scan, in comments or string content.
-  const allowed = [
-    '// runReactiveTriggers is a direct synchronous call, not an event bus',
-    '// the words async, await, listener, emit, dispatch and setTimeout appear here',
-    '/* onKill/onTalk/onZoneEnter are ordinary directly invoked quest hooks */',
-    'const label = "no queue draining, no event-loop tick, no grammy import";',
-    'const msg = `await the EventEmitter dispatch (grammy, node:events)`;',
-    'function onKill(enemyId: string): void { progress++; }',
-    'const trace: string[] = []; trace.push("dispatchEvent");',
-  ];
-  for (const snippet of allowed) {
-    assertEquals(
-      scanGameplaySource(snippet),
-      [],
-      `allowed prose/mechanics must not false-positive:\n    ${snippet}`,
-    );
   }
 });
