@@ -22,7 +22,7 @@ import {
   renderItemDetail,
   triggerDisclosure,
 } from '../src/render/menus.ts';
-import { seeded } from './helpers.ts';
+import { injectMod, seeded } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 
@@ -1196,4 +1196,249 @@ Deno.test('#113: classRequirementText renders canonical names in declaration ord
   );
   const consumable = { ...def, kind: 'consumable' as const };
   assertEquals(classRequirementText(consumable), null, 'consumables ignore class restrictions');
+});
+
+// ── #115: incoming-damage modifiers apply exactly once ──────────────────
+
+/** A constant-stream RNG that counts its draws: 0.5 makes variance neutral
+ * (rng.ts multiplies by 1 − 0.1 + 0.5·0.2 = 1.0) and fails every chance
+ * roll these fixtures care about (crit ≈6%, dodge ≤20%). */
+function countedStream(): { rng: () => number; draws: () => number } {
+  let draws = 0;
+  return {
+    rng: () => {
+      draws++;
+      return 0.5;
+    },
+    draws: () => draws,
+  };
+}
+
+/** The expected single-application result of a raw blow under the constant
+ * stream: variance rounds the raw value, then the target's incoming
+ * modifier scales it ONCE (floored at 1), exactly like the shared
+ * post-processing block in applyDamageEffect. */
+function onceModified(raw: number, mod: number): number {
+  return Math.max(1, Math.round(Math.max(1, Math.round(raw)) * (1 + mod)));
+}
+
+/** The #115 regression signature: the modifier ALSO folded into the raw
+ * formula, so the shared block applies it a second time. */
+function twiceModified(raw: number, mod: number): number {
+  return Math.max(1, Math.round(Math.max(1, Math.round(raw * (1 + mod))) * (1 + mod)));
+}
+
+Deno.test('#115: enemy → player damage applies the player’s incoming modifier exactly once', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Heavy Bite',
+    weight: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 10 }],
+  }], () => {
+    const run = (mod: number | undefined, id: number) => {
+      const p = hero(id, 'warrior', 5);
+      p.hp = 99999;
+      const b = tankyRat(p, id);
+      if (mod !== undefined) injectMod(b, 'player', 'incoming', mod);
+      const c = countedStream();
+      const before = p.hp;
+      const res = performAction(p, b, { kind: 'attack' }, c.rng);
+      const hits = hpEvents(res.trace).filter((e) =>
+        e.target === 'player' && e.attacker === 'enemy'
+      );
+      assertEquals(hits.length, 1, 'exactly one enemy hit lands');
+      // The raw blow from the same runtime values the engine reads
+      // (enemy offense, player mitigation ×0.85, no guard), variance
+      // neutralized by the constant stream.
+      const raw = Math.max(1, rat.atk * 10 - statsOf(p).def * 0.85);
+      return {
+        p,
+        res,
+        hit: hits[0]!,
+        before,
+        draws: c.draws(),
+        raw,
+        expected: onceModified(raw, mod ?? 0),
+      };
+    };
+    const clean = run(undefined, 1110);
+    const amp = run(0.5, 1111);
+    const damp = run(-0.5, 1112);
+    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(r.hit.resolved, r.expected, `${label}: the resolved blow applies it once`);
+      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
+      assertEquals(r.p.hp, r.before - r.expected, `${label}: player HP moved by exactly that`);
+      assert(
+        r.res.lines.some((l) => l.includes(`${r.expected}`)),
+        `${label}: the battle text reports the once-modified amount`,
+      );
+    }
+    assertEquals(amp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+    assertEquals(damp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+    assert(
+      amp.hit.resolved !== twiceModified(clean.raw, 0.5),
+      'the +50% blow is not the doubled application',
+    );
+    assert(
+      damp.hit.resolved !== twiceModified(clean.raw, -0.5),
+      'the −50% blow is not the doubled application',
+    );
+  });
+});
+
+Deno.test('#115: enemy self-damage applies the enemy’s incoming modifier exactly once', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Self Lash',
+    weight: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 10, target: 'self' }],
+  }], () => {
+    const run = (mod: number | undefined, id: number) => {
+      const p = hero(id, 'warrior', 5);
+      p.hp = 99999;
+      const b = tankyRat(p, id);
+      if (mod !== undefined) injectMod(b, 'enemy', 'incoming', mod);
+      const c = countedStream();
+      const before = b.enemy.hp;
+      // The player guards: no player damage touches the enemy, so the ONLY
+      // enemy HP loss is the self-lash.
+      const res = performAction(p, b, { kind: 'guard' }, c.rng);
+      const hits = hpEvents(res.trace).filter((e) =>
+        e.target === 'enemy' && e.attacker === 'enemy'
+      );
+      assertEquals(hits.length, 1, 'exactly one self-inflicted hit');
+      const raw = Math.max(1, rat.atk * 10 - rat.def * 0.85);
+      return { b, hit: hits[0]!, before, draws: c.draws(), expected: onceModified(raw, mod ?? 0) };
+    };
+    const clean = run(undefined, 1120);
+    const amp = run(0.5, 1121);
+    const damp = run(-0.5, 1122);
+    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(r.hit.resolved, r.expected, `${label}: the self-hit applies it once`);
+      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
+      assertEquals(r.b.enemy.hp, r.before - r.expected, `${label}: enemy HP moved by exactly that`);
+    }
+    assertEquals(amp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+    assertEquals(damp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+  });
+});
+
+Deno.test('#115: player-authored damage applies the resolved target’s modifier once', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Bite',
+    weight: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 1 }],
+  }], () => {
+    // Opponent-directed: the player's strike against a Vulnerable enemy.
+    const p = hero(1130, 'warrior', 5);
+    p.hp = 99999;
+    const b = tankyRat(p, 1131);
+    injectMod(b, 'enemy', 'incoming', 0.5);
+    const c = countedStream();
+    const before = b.enemy.hp;
+    const res = performAction(p, b, { kind: 'attack' }, c.rng);
+    const hits = hpEvents(res.trace).filter((e) => e.target === 'enemy' && e.attacker === 'player');
+    assertEquals(hits.length, 1, 'exactly one player hit lands');
+    // Player strike: crit roll fails on the 0.5 stream, variance neutral.
+    const raw = Math.max(1, statsOf(p).atk - rat.def * 0.85);
+    const expected = onceModified(raw, 0.5);
+    assertEquals(hits[0]!.resolved, expected, 'the enemy’s +50% incoming applies exactly once');
+    assertEquals(hits[0]!.hpLost, expected);
+    assertEquals(b.enemy.hp, before - expected);
+  });
+});
+
+Deno.test('#115: player self-damage applies the wearer’s incoming modifier exactly once', () => {
+  const charm = item('t_19')!;
+  const original = charm.triggers;
+  charm.triggers = [{
+    name: 'Heavy Toll',
+    trigger: 'onGuard',
+    effects: [{ kind: 'damage', attack: 'phys', power: 10, target: 'self' }],
+    desc: 'test fixture: bracing costs blood',
+  }];
+  try {
+    const run = (mod: number | undefined, id: number) => {
+      const p = hero(id, 'warrior', 5, 't_19');
+      p.hp = 99999;
+      const b = tankyRat(p, id);
+      if (mod !== undefined) injectMod(b, 'player', 'incoming', mod);
+      const c = countedStream();
+      const before = p.hp;
+      const res = performAction(p, b, { kind: 'guard' }, c.rng);
+      const allHits = hpEvents(res.trace).filter((e) => e.target === 'player');
+      const hits = allHits.filter((e) => e.attacker === 'player');
+      assertEquals(hits.length, 1, 'exactly one self-inflicted hit');
+      const raw = Math.max(1, statsOf(p).atk * 10 - statsOf(p).def * 0.85);
+      const totalLost = allHits.reduce((s, e) => s + e.hpLost, 0); // the rat's bite included
+      return {
+        p,
+        hit: hits[0]!,
+        before,
+        draws: c.draws(),
+        totalLost,
+        expected: onceModified(raw, mod ?? 0),
+      };
+    };
+    const clean = run(undefined, 1140);
+    const amp = run(0.5, 1141);
+    const damp = run(-0.5, 1142);
+    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(r.hit.resolved, r.expected, `${label}: the recoil applies it once`);
+      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
+      assertEquals(
+        r.p.hp,
+        r.before - r.totalLost,
+        `${label}: player HP moved by exactly the reported losses`,
+      );
+    }
+    assertEquals(amp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+    assertEquals(damp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
+  } finally {
+    charm.triggers = original;
+  }
+});
+
+Deno.test('#115: shield absorption derives from the once-modified amount', () => {
+  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  withOverridden(rat, 'moves', [{
+    name: 'Heavy Bite',
+    weight: 1,
+    effects: [{ kind: 'damage', attack: 'phys', power: 10 }],
+  }], () => {
+    const p = hero(1150, 'warrior', 5);
+    p.hp = 99999;
+    const b = tankyRat(p, 1151);
+    injectMod(b, 'player', 'incoming', 0.5);
+    grantShield(b, 'player', {
+      defId: 'test:ward',
+      name: 'Test Ward',
+      kind: 'shield',
+      side: 'player',
+      source: { kind: 'skill', id: 'test', name: 'Test' },
+      shieldAmount: 9999,
+      tags: ['beneficial'],
+      stacking: 'replace',
+      duration: 9,
+      timing: 'immediate',
+      removable: true,
+    });
+    const c = countedStream();
+    const before = p.hp;
+    const res = performAction(p, b, { kind: 'attack' }, c.rng);
+    const raw = Math.max(1, rat.atk * 10 - statsOf(p).def * 0.85);
+    const expected = onceModified(raw, 0.5);
+    assertEquals(b.shield.player, 9999 - expected, 'the ward absorbed the once-modified blow');
+    assertEquals(p.hp, before, 'no HP reached flesh');
+    assertEquals(
+      hpEvents(res.trace).filter((e) => e.target === 'player').length,
+      0,
+      'a shield-only absorb records nothing',
+    );
+    assert(
+      res.lines.some((l) => l.includes(`🛡️ ${expected} absorbed`)),
+      'the battle text reports the once-modified absorption',
+    );
+  });
 });

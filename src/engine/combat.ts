@@ -1523,10 +1523,10 @@ function applyDamageEffect(
     const mitig = (target === 'player'
       ? playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player')
       : enemyMitigation(battle, spec.attack)) * 0.85;
-    const raw = Math.max(
-      1,
-      (offense * spec.power - mitig) * guard * (1 + incomingAmpPct(battle, target)),
-    );
+    // #115: the target's incoming modifier does NOT enter the raw formula
+    // here — the shared post-processing block below applies it EXACTLY ONCE
+    // for both actor sides, after crit/variance/execute.
+    const raw = Math.max(1, (offense * spec.power - mitig) * guard);
     dealt = { dmg: variance(rng, raw), crit: false };
   }
   // Execute window (#81): a wounded TARGET takes the bonus strike.
