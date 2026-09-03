@@ -33,11 +33,20 @@ Deno.test('agent docs: root AGENTS.md size does not exceed 12 KiB ceiling (#135)
   );
 });
 
-Deno.test('agent docs: root AGENTS.md declares PRE-LAUNCH authoritative status (#135)', () => {
+Deno.test('agent docs: root AGENTS.md declares supported authoritative lifecycle status (#135)', () => {
   const content = Deno.readTextFileSync(AGENTS_MD_URL);
+  const match = content.match(/### Current phase:\s*([^\n\r]+)/);
   assert(
-    content.includes('Current phase: PRE-LAUNCH'),
-    'AGENTS.md must declare authoritative status "Current phase: PRE-LAUNCH"',
+    match !== null,
+    'AGENTS.md must declare authoritative lifecycle status in "### Current phase: <PHASE>"',
+  );
+  const phase = match[1].trim();
+  const validPhases = ['PRE-LAUNCH', 'LIVE'];
+  assert(
+    validPhases.includes(phase),
+    `AGENTS.md declares unknown lifecycle phase "${phase}"; supported phases are: ${
+      validPhases.join(', ')
+    }`,
   );
 });
 

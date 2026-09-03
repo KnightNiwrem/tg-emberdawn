@@ -20,8 +20,8 @@ transactionally against a draft clone; retries are suppressed by stable one-shot
 
 Authored conversations reside in `src/content/dialogues.ts` (`DialogueDef`):
 
-- Each dialogue defines a stable ID, an owning NPC (`npcId`), a `startNodeId`, and a collection of
-  nodes (`kind: 'line' | 'choice'`).
+- Each dialogue defines a stable ID, an owning NPC (`npcId`), an entry node (`start`), and a
+  collection of nodes (`kind: 'line' | 'choice'`).
 - Lines specify speaker (`npc`, `player`, `narrator`), text, optional sound cue, and an optional
   `next` node pointer. The final line omits `next` and serves as the implicit terminal beat.
 - **Scene representation:** The live player scene records
@@ -35,7 +35,7 @@ Authored conversations reside in `src/content/dialogues.ts` (`DialogueDef`):
   4. The owning NPC is physically present in `p.currentZone`.
 - Returning or exiting navigates back to the owning NPC's topic menu when the NPC is present
   on-site.
-- Reopening a dialogue always restarts from `startNodeId`; conversations hold no partial progress.
+- Reopening a dialogue always restarts from `start`; conversations hold no partial progress.
 - Canonical sources & tests: `src/content/dialogues.ts`, `src/engine/story.ts`,
   `tests/dialogue_test.ts`.
 

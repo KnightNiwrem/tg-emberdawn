@@ -68,7 +68,8 @@ When the project transitions to `LIVE`, the following invariants become strictly
 
 When public launch is explicitly approved:
 
-1. Change the authoritative phase in root `AGENTS.md` from `PRE-LAUNCH` to `LIVE`.
+1. Change the authoritative phase in root `AGENTS.md` from `PRE-LAUNCH` to `LIVE` (supported by the
+   lifecycle guard in `tests/agent_docs_test.ts`).
 2. Record the first live commit hash and the baseline `CURRENT_STATE_VERSION` live saves are created
    with.
 3. Generate a baseline catalog manifest capturing every content-ID family persistable in a supported

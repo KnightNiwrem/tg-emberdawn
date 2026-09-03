@@ -23,8 +23,8 @@ All persistent game state is modeled by `PlayerState` (`src/engine/types.ts`):
   - `p.decisions`: Ledger recording choice identifiers and timestamp provenance.
   - `p.storyEvents`: Ordered, deduplicated log of recorded story events.
   - `p.questOutcomes`: Permanent resolution map (`'resolved' | 'failed' | 'locked'`).
-  - `p.storyReceipts`: Set of one-shot keys (`choice:...` and `line:...`) suppressing replayed story
-    mutations.
+  - `p.storyReceipts`: Array of one-shot keys (`string[]`, formatted as `choice:...` and `line:...`)
+    suppressing replayed story mutations.
 
 ## 2. Save Versioning (`stateVersion`)
 

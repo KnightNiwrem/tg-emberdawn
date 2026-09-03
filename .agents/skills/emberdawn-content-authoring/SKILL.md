@@ -13,13 +13,16 @@ dungeons, and quests.
 Always define IDs in their home content module before referencing them elsewhere:
 
 - **`e_*`**: Enemies (`src/content/enemies.ts`)
-- **`w_*`, `a_*`, `t_*`, `c_*`, `m_*`**: Items — weapon, armor, trinket, consumable, material
-  (`src/content/items.ts`)
-- **`q_*`, `sq_*`**: Quests — main campaign, side quests (`src/content/quests.ts`)
-- **`z_*`**: Zones (`src/content/zones.ts`)
+- **`w_*`, `a_*`, `t_*`, `c_*`, `m_*`, `q_*`**: Items — weapon, armor, trinket, consumable,
+  material, quest item (`src/content/items.ts`)
+- **`m<number>_*`, `sq_*`**: Quests — main campaign (`m1_embers` .. `m25_silence`), side quests
+  (`src/content/quests.ts`)
+- **Zones**: Lowercase snake_case without prefix (e.g. `emberdawn`, `whisperwood`,
+  `sunken_sanctuary`) (`src/content/zones.ts`)
 - **`d_*`**: Dungeons (`src/content/zones.ts`)
 - **`sk_*`**: Skills (`src/content/skills.ts`)
-- **`npc_*`**: Non-player characters (`src/content/quests.ts` / `src/content/dialogues.ts`)
+- **`npc_*`**: Non-player characters — concrete `NpcDef` records live in `ZONES[].npcs`
+  (`src/content/zones.ts`); quests and dialogues reference these physically placed IDs
 - **`dlg_*`**: Dialogues (`src/content/dialogues.ts`, `src/content/quest_dialogues.ts`)
 
 ## 2. Enemy Definitions & Scaling
@@ -81,8 +84,8 @@ When creating or modifying a quest:
 Before committing any content additions, ensure all content-integrity test suites pass:
 
 - `tests/engine_test.ts`: Verifies cross-module ID references, drop tables, shops, and zones.
-- `tests/progression_test.ts`: Runs the full campaign progression simulation across all classes to
-  prove reachability and completion.
+- `tests/progression_test.ts`: Runs full quest-graph and campaign progression simulations (using a
+  representative warrior hero) to prove quest graph reachability and completion.
 - `tests/quest_copy_test.ts`: Machine-checks prose conventions, system vocabulary restrictions, and
   declarative condition references.
 - `tests/dialogue_test.ts`: Verifies dialogue node connectivity, terminal nodes, speaker formats,

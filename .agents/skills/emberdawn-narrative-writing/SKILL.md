@@ -29,8 +29,11 @@ notices, or NPC voice lines, **read `docs/narrative-guide.md` in full**.
 3. **Mechanics vs. Flavor:** Mechanics summaries are generated programmatically via
    `src/engine/mechanics.ts`. Authored flavor prose (`flavor`, `desc`) must never quote raw stat
    numbers or make conflicting mechanical claims.
-4. **Canonical Rules Terms:** The pool is always **Shield** (never "ward"), durations are
-   **rounds**, turns are **actions**, and cleanses/dispels target **beneficial/harmful effects**.
+4. **Canonical Rules Vocabulary in Mechanical Text:** In generated rules summaries, system notices,
+   and mechanical feedback, the absorbable pool is always **Shield** (never "ward" in rules text),
+   durations are **rounds**, turns are **actions**, and cleanses/dispels target **beneficial/harmful
+   effects**. Creative names and atmospheric flavor (e.g. _Holy Ward_, "A dawn ward...", or in-world
+   lore) remain free to use evocative nonliteral language.
 5. **Editorial Review Boundary:** General narrative voice and tone evaluation remain matters of
    editorial judgment. Automated suites (`tests/quest_copy_test.ts`) strictly verify targeted
    factual invariants:
