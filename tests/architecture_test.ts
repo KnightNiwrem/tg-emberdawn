@@ -262,3 +262,15 @@ Deno.test('architecture: gameplay modules depend only on local gameplay code (co
     }
   }
 });
+
+Deno.test('architecture: gameplay modules never access Deno runtime APIs (#114)', () => {
+  for (const dir of GAMEPLAY_DIRS) {
+    for (const path of collectSources(dir)) {
+      const src = Deno.readTextFileSync(path);
+      assert(
+        !/\bDeno\./.test(src),
+        `${path}: gameplay code must not access Deno runtime APIs (Deno.*)`,
+      );
+    }
+  }
+});

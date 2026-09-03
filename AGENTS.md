@@ -47,10 +47,10 @@ checklist, see the `emberdawn-release` skill (`.agents/skills/emberdawn-release/
 
 All contributions must respect these cross-cutting invariants:
 
-1. **Engine purity.** `src/engine/` and `src/content/` must never import `grammy` or access network,
-   database, or Telegram APIs. Handlers call pure engine functions; rendering is a pure function of
-   `PlayerState`. Data flows strictly one way:
-   `handler (I/O) → engine mutation (pure) → render (pure) → persist (I/O)`.
+1. **Engine purity.** `src/engine/` and `src/content/` must never import `grammy`, call Deno runtime
+   APIs (`Deno.*`), or access network, database, filesystem, environment, or Telegram APIs. Handlers
+   call pure engine functions; rendering is a pure function of `PlayerState`. Data flows strictly
+   one way: `handler (I/O) → engine mutation (pure) → render (pure) → persist (I/O)`.
 2. **Ordered completion.** Telegram, network, and database operations are asynchronous I/O wrapped
    around a deterministic game core. Every resolution flow must be synchronously complete before
    rendering or persistence begins. Combat uses no event bus, listener queues, timers, microtask
@@ -108,16 +108,16 @@ All contributions must respect these cross-cutting invariants:
 Load only the specific standard Agent Skill(s) relevant to your current task. If your agentic
 harness does not automatically discover or load a skill, read its listed `SKILL.md` path directly:
 
-| When the task touches...                                                  | Use this standard Agent Skill                                                         |
-| :------------------------------------------------------------------------ | :------------------------------------------------------------------------------------ |
-| Engine boundaries, handlers, message lifecycle, callbacks, locking        | `emberdawn-architecture` (`.agents/skills/emberdawn-architecture/SKILL.md`)           |
-| Quests, NPC topics, dialogue, choices, StoryEffects, receipts/outcomes    | `emberdawn-story-and-quests` (`.agents/skills/emberdawn-story-and-quests/SKILL.md`)   |
-| Combat, effects, initiative, durations, death/revival, telemetry, balance | `emberdawn-combat` (`.agents/skills/emberdawn-combat/SKILL.md`)                       |
-| PlayerState/BattleState, stateVersion, stores, persisted IDs              | `emberdawn-persistence` (`.agents/skills/emberdawn-persistence/SKILL.md`)             |
-| Items, skills, enemies, zones, dungeons, drops, NPCs, quest definitions   | `emberdawn-content-authoring` (`.agents/skills/emberdawn-content-authoring/SKILL.md`) |
-| Authored player-facing prose, dialogue voices, motifs, editorial style    | `emberdawn-narrative-writing` (`.agents/skills/emberdawn-narrative-writing/SKILL.md`) |
-| Explicit public launch, durable IDs, save migrations                      | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
-| Intentional trade-offs, accepted linter findings, non-goals               | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
+| When the task touches...                                                       | Use this standard Agent Skill                                                         |
+| :----------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
+| Engine boundaries, handlers, message lifecycle, callbacks, locking             | `emberdawn-architecture` (`.agents/skills/emberdawn-architecture/SKILL.md`)           |
+| Quests, NPC topics, dialogue, choices, StoryEffects, receipts/outcomes         | `emberdawn-story-and-quests` (`.agents/skills/emberdawn-story-and-quests/SKILL.md`)   |
+| Combat, effects, initiative, durations, death/revival, telemetry, balance      | `emberdawn-combat` (`.agents/skills/emberdawn-combat/SKILL.md`)                       |
+| PlayerState/BattleState, stateVersion, stores, persisted IDs                   | `emberdawn-persistence` (`.agents/skills/emberdawn-persistence/SKILL.md`)             |
+| Items, skills, enemies, zones, dungeons, drops, NPCs, quest definitions        | `emberdawn-content-authoring` (`.agents/skills/emberdawn-content-authoring/SKILL.md`) |
+| Authored player-facing prose, dialogue voices, motifs, editorial style         | `emberdawn-narrative-writing` (`.agents/skills/emberdawn-narrative-writing/SKILL.md`) |
+| Explicit public launch, durable IDs, save migrations                           | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
+| Forge, equipment shops, dungeon flow, trophies, prologue disclosure, non-goals | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
 
 ## Repository layout
 

@@ -58,6 +58,10 @@ Always define IDs in their home content module before referencing them elsewhere
 - **Dungeon Recommended Level:** Every dungeon definition (`DungeonDef`) must provide
   `recommendedLevel`. Under-level boss warnings in the UI depend on this field, so omitting it lets
   under-level players bypass the intended confirmation dialog.
+- **Governed Gameplay Decisions:** Consult `emberdawn-design-decisions` when altering dungeon flow
+  (leaving to heal between floors is deliberate, valid play), equipment shop offerings (strictly
+  filtered by class and level), boss trophies (`t_12`–`t_18` protected as unique), or forge
+  tempering (applies to item-pattern catalog ID, not slot instances).
 
 ## 5. Skills & Class Design
 

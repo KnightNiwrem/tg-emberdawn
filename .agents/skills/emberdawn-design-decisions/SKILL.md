@@ -1,6 +1,6 @@
 ---
 name: emberdawn-design-decisions
-description: Use when reconsidering accepted Emberdawn trade-offs, intentional non-goals, or architectural rationale.
+description: Use when changing forge tempering, equipment shops, dungeon healing/flow, boss trophies, prologue disclosure, or reconsidering accepted architectural trade-offs and non-goals.
 ---
 
 # Design Decisions & Accepted Trade-offs — Emberdawn

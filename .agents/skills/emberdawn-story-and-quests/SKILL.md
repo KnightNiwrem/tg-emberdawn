@@ -203,3 +203,5 @@ completed.
   prerequisites (`QuestDef.prereq`), and dialogue choice availability.
 - Decisions made through irreversible choices are permanently recorded in `p.decisions` with choice
   identifiers and timestamp provenance.
+- **Prologue & Disclosure Constraints:** See `emberdawn-design-decisions` for rules governing guided
+  hero onboarding and progressive village hub disclosure.

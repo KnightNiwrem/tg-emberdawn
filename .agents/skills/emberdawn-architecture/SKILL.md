@@ -19,8 +19,8 @@ Handler (I/O) → Engine Mutation (pure) → Render (pure) → Persist (I/O)
 - **Handlers** (`src/handlers/`): Manage Telegram I/O, deserialize callbacks, acquire player locks,
   invoke engine mutations, call renderers, commit message edits, and persist state.
 - **Engine** (`src/engine/`): Pure TypeScript game logic. Mutates `PlayerState` deterministically
-  and returns structured completion results. Must never import `grammy` or access network, database,
-  or Telegram APIs.
+  and returns structured completion results. Must never import `grammy`, call Deno runtime APIs
+  (`Deno.*`), or access network, database, filesystem, environment, or Telegram APIs.
 - **Content** (`src/content/`): Pure static definitions (enemies, items, skills, quests, dialogues,
   zones). Depends only on engine contracts.
 - **Render** (`src/render/`): Pure transformations of `PlayerState` into `InputRichMessage`
@@ -31,8 +31,9 @@ Handler (I/O) → Engine Mutation (pure) → Render (pure) → Persist (I/O)
 ### Import Boundary
 
 Gameplay code (`src/engine/`, `src/content/`) depends strictly on local gameplay modules — never
-`grammy`, external packages (`npm:`, `jsr:`), handlers, or persistence. This boundary is enforced
-via the Deno compiler dependency graph (`deno info --json`) in `tests/architecture_test.ts`.
+`grammy`, external packages (`npm:`, `jsr:`), runtime `Deno.*` APIs, handlers, or persistence. This
+boundary is enforced via compiler dependency graph analysis (`deno info --json`) and Deno runtime
+API checks in `tests/architecture_test.ts`.
 
 ## 2. Ordered-Completion Gameplay Boundary
 

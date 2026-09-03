@@ -48,6 +48,17 @@ Deno.test('agent docs: root AGENTS.md declares supported authoritative lifecycle
       validPhases.join(', ')
     }`,
   );
+  if (phase === 'PRE-LAUNCH') {
+    assert(
+      content.includes('Active now: pre-launch rules'),
+      'AGENTS.md in PRE-LAUNCH phase must include "Active now: pre-launch rules"',
+    );
+  } else if (phase === 'LIVE') {
+    assert(
+      !content.includes('Active now: pre-launch rules'),
+      'AGENTS.md in LIVE phase must not retain residual "Active now: pre-launch rules"',
+    );
+  }
 });
 
 Deno.test('agent docs: task-to-skill routing table matches repository skills (#135)', () => {

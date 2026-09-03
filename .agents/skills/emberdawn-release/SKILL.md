@@ -68,8 +68,16 @@ When the project transitions to `LIVE`, the following invariants become strictly
 
 When public launch is explicitly approved:
 
-1. Change the authoritative phase in root `AGENTS.md` from `PRE-LAUNCH` to `LIVE` (supported by the
-   lifecycle guard in `tests/agent_docs_test.ts`).
+1. Change the authoritative phase in root `AGENTS.md` from `PRE-LAUNCH` to `LIVE`, and replace or
+   deactivate every pre-launch marker across all documentation:
+   - In root `AGENTS.md`: Replace `Active now: pre-launch rules` with active post-launch durable
+     save and versioned migration rules (removing disposable-save allowances and `/reset` refusal).
+   - In `.agents/skills/emberdawn-persistence/SKILL.md`: Replace
+     `Pre-Launch Policy (Currently Active)` with active versioned migrations.
+   - In `.agents/skills/emberdawn-release/SKILL.md`: Remove the `DEFERRED / INACTIVE` banner and
+     activate all durable-save invariants.
+   - The lifecycle guard in `tests/agent_docs_test.ts` enforces that `LIVE` phase rejects residual
+     `Active now: pre-launch rules` markers.
 2. Record the first live commit hash and the baseline `CURRENT_STATE_VERSION` live saves are created
    with.
 3. Generate a baseline catalog manifest capturing every content-ID family persistable in a supported
