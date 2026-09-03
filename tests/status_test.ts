@@ -28,6 +28,7 @@ import type { BattleOrigin, BattleState, ClassId, PlayerState } from '../src/eng
 import { skill } from '../src/content/skills.ts';
 import { enemy } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
+import { consumableEffectLines } from '../src/engine/mechanics.ts';
 import { chooseAction, POLICIES } from '../src/engine/balance.ts';
 import { injectMod, seeded } from './helpers.ts';
 import type { EffectSpec, EffectTag, StatKey } from '../src/content/types.ts';
@@ -795,6 +796,6 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
 });
 
 Deno.test('#92: Cleansing Tonic copy matches its real cleanse', () => {
-  const d = item('c_antidote')!.desc!;
+  const d = consumableEffectLines(item('c_antidote')!.effect!).join(' ');
   assert(d.includes('harmful'), 'the copy covers every removable harmful effect, not just sap');
 });

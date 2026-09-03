@@ -4,7 +4,9 @@
  *
  * Mechanics live entirely in ordered `effects` specs (#78) — the shared
  * combat vocabulary executed by the generic resolver. `type` is display
- * classification only. Every desc is validated against its effects. */
+ * classification only. Player-facing mechanical summaries are GENERATED
+ * from `effects` by engine/mechanics.ts (#120); `flavor` is optional,
+ * nonliteral prose and is never a rules source. */
 
 import type { EffectSpec, SkillDef } from './types.ts';
 import type { ClassId } from '../engine/types.ts';
@@ -41,7 +43,7 @@ const stun = (chance: number): EffectSpec => ({
   requireSurvivor: true,
 });
 /** MAG-scaled heal: effectiveMag * power * 2 + flat (#77: the flat 20 is
- * part of the contract and appears in the desc). */
+ * part of the contract and appears in the generated summary). */
 const mend = (power: number): EffectSpec => ({
   kind: 'restore',
   hpPower: power,
@@ -58,7 +60,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     type: 'phys',
     effects: [dmg('phys', 1.35)],
-    desc: 'A heavy diagonal cut. 135% ATK.',
+    flavor: 'A heavy diagonal cut.',
   }),
   S({
     id: 'sk_shield_bash',
@@ -69,7 +71,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 3,
     type: 'phys',
     effects: [dmg('phys', 1.0), stun(0.35)],
-    desc: '100% ATK, 35% chance to stun the enemy for a turn.',
+    flavor: 'A battering ram of a blow.',
   }),
   S({
     id: 'sk_bulwark',
@@ -79,10 +81,10 @@ export const SKILLS: readonly SkillDef[] = [
     mpCost: 8,
     cooldown: 3,
     type: 'buff',
-    // #81: DEF-scaled ward (#80 vocabulary) — scales off the stat the
+    // #81: DEF-scaled Shield (#80 vocabulary) — scales off the stat the
     // warrior actually has (#84 harness evidence in the commit).
     effects: [{ kind: 'shield', defPower: 0.9, amount: 10, duration: 3, timing: 'immediate' }],
-    desc: 'A steel bulwark absorbs 180% of DEF + 10 damage for 3 rounds.',
+    flavor: 'Steel planted between you and the dark.',
   }),
   S({
     id: 'sk_war_cry',
@@ -93,7 +95,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('atk', 0.35, 3)],
-    desc: '+35% ATK for 3 turns.',
+    flavor: 'A shout that stiffens the arm.',
   }),
   S({
     id: 'sk_whirlwind',
@@ -104,7 +106,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'phys',
     effects: [dmg('phys', 1.75)],
-    desc: 'Spinning strike. 175% ATK.',
+    flavor: 'A spinning strike.',
   }),
   S({
     id: 'sk_iron_wall',
@@ -115,7 +117,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('def', 0.6, 3)],
-    desc: '+60% DEF for 3 turns.',
+    flavor: 'Feet planted, shoulders set.',
   }),
   S({
     id: 'sk_sunder_armor',
@@ -138,7 +140,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['armor-break'],
       },
     ],
-    desc: '160% ATK and sunder: −30% enemy DEF for 3 turns.',
+    flavor: 'A blow that finds the seams in plate.',
   }),
   S({
     id: 'sk_executioner',
@@ -156,7 +158,7 @@ export const SKILLS: readonly SkillDef[] = [
       power: 2.4,
       execute: { belowPct: 0.35, bonusPct: 0.5 },
     }],
-    desc: 'A killing stroke. 240% ATK — +50% against wounds below 35% HP.',
+    flavor: 'A killing stroke.',
   }),
   S({
     id: 'sk_riposte',
@@ -168,7 +170,7 @@ export const SKILLS: readonly SkillDef[] = [
     type: 'phys',
     // #81: the retaliation stance, data-driven — counter now, brace after.
     effects: [dmg('phys', 1.2), buff('def', 0.4, 2)],
-    desc: 'Strike back for 120% ATK and brace: +40% DEF for 2 turns.',
+    flavor: 'Answer the blade, then brace.',
   }),
   S({
     id: 'sk_adrenaline',
@@ -189,7 +191,7 @@ export const SKILLS: readonly SkillDef[] = [
       },
       { ...buff('atk', 0.2, 2), stacking: 'stack', quiet: true },
     ],
-    desc: 'Heal 30% of max HP and gain +20% ATK for 2 turns.',
+    flavor: 'Pain becomes fuel.',
   }),
   S({
     id: 'sk_titans_fall',
@@ -214,7 +216,7 @@ export const SKILLS: readonly SkillDef[] = [
         requireSurvivor: true,
       },
     ],
-    desc: 'Bring the sky down. 310% ATK and crack the guard: −25% DEF for 2 turns.',
+    flavor: 'Bring the sky down.',
   }),
   S({
     id: 'sk_unbroken',
@@ -226,7 +228,7 @@ export const SKILLS: readonly SkillDef[] = [
     type: 'buff',
     preEmptive: true,
     // #81: the warrior's once-per-battle resilience — a battle-lifetime
-    // DEF-scaled ward that opens every fight (#80 opening pipeline).
+    // DEF-scaled Shield that opens every fight (#80 opening pipeline).
     effects: [{
       kind: 'shield',
       defPower: 1.1,
@@ -236,7 +238,7 @@ export const SKILLS: readonly SkillDef[] = [
       lifetime: 'battle',
       name: 'Unbroken',
     }],
-    desc: 'Battle open: an unbreakable ward absorbs 220% of DEF + 30 damage for the whole fight.',
+    flavor: 'The night hits you first. The night loses.',
   }),
 
   // ── Mage ────────────────────────────────────────────────────────────
@@ -249,7 +251,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     type: 'mag',
     effects: [dmg('mag', 1.4)],
-    desc: 'A dart of flame. 140% MAG.',
+    flavor: 'A dart of flame.',
   }),
   S({
     id: 'sk_frost_lance',
@@ -274,7 +276,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['slow'],
       },
     ],
-    desc: '155% MAG and freeze the air: −35% enemy SPD for 2 turns.',
+    flavor: 'Winter, aimed.',
   }),
   S({
     id: 'sk_scorch',
@@ -296,7 +298,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['burn'],
       },
     ],
-    desc: '130% MAG and set the foe ablaze: 12 burn damage for 3 turns.',
+    flavor: 'The ember that stays.',
   }),
   S({
     id: 'sk_barrier',
@@ -309,7 +311,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('def', 0.5, 3), buff('res', 0.5, 3)],
-    desc: '+50% DEF/RES for 3 turns.',
+    flavor: 'Layers of quiet force.',
   }),
   S({
     id: 'sk_arcane_surge',
@@ -320,7 +322,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'mag',
     effects: [dmg('mag', 2.1)],
-    desc: '210% MAG.',
+    flavor: 'Magic, uncorked.',
   }),
   S({
     id: 'sk_drain_life',
@@ -333,7 +335,7 @@ export const SKILLS: readonly SkillDef[] = [
     // #78: ordered damage → lifesteal derived from the dealt damage, no
     // id-specific branch.
     effects: [dmg('mag', 1.5), { kind: 'lifesteal', pct: 0.5 }],
-    desc: '150% MAG and heal half the damage dealt.',
+    flavor: 'What you take becomes yours.',
   }),
   S({
     id: 'sk_mana_shell',
@@ -344,7 +346,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [{ kind: 'shield', magPower: 1.0, amount: 25, duration: 3, timing: 'immediate' }],
-    desc: 'An arcane shell absorbs 200% of MAG + 25 damage for 3 rounds.',
+    flavor: 'Power folded into a shell.',
   }),
   S({
     id: 'sk_meteor',
@@ -355,7 +357,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 3,
     type: 'mag',
     effects: [dmg('mag', 3.0)],
-    desc: '300% MAG. The classic.',
+    flavor: 'A falling star with your name on it.',
   }),
   S({
     id: 'sk_spellbreak',
@@ -369,7 +371,7 @@ export const SKILLS: readonly SkillDef[] = [
       dmg('mag', 1.8),
       { kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 },
     ],
-    desc: '180% MAG and strip one enemy benefit.',
+    flavor: 'A counter-word that unravels spells.',
   }),
   S({
     id: 'sk_time_warp',
@@ -382,7 +384,7 @@ export const SKILLS: readonly SkillDef[] = [
     // #77 semantics, now data-driven: MAG defers (the cast round cannot use
     // it), SPD counts the cast round it defends.
     effects: [buff('mag', 0.4, 3), buff('spd', 0.4, 3)],
-    desc: '+40% MAG/SPD for 3 turns.',
+    flavor: 'Borrowed seconds, spent loudly.',
   }),
   S({
     id: 'sk_null_ray',
@@ -392,9 +394,9 @@ export const SKILLS: readonly SkillDef[] = [
     mpCost: 30,
     cooldown: 4,
     type: 'mag',
-    // #81: deliberate shield interaction (#79) — the ray ignores wards.
+    // #81: deliberate Shield interaction (#79) — the ray ignores Shields.
     effects: [{ kind: 'damage', attack: 'mag', power: 2.6, bypassShield: true }],
-    desc: '260% MAG that ignores wards entirely.',
+    flavor: 'Light that passes through wards like fog.',
   }),
   S({
     id: 'sk_cataclysm',
@@ -405,7 +407,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'mag',
     effects: [dmg('mag', 4.2)],
-    desc: '420% MAG. For endings.',
+    flavor: 'For endings.',
   }),
 
   // ── Rogue ───────────────────────────────────────────────────────────
@@ -418,7 +420,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     type: 'phys',
     effects: [dmg('phys', 1.25)],
-    desc: 'Fast cut. 125% ATK.',
+    flavor: 'Fast cut.',
   }),
   S({
     id: 'sk_backstab',
@@ -429,7 +431,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'phys',
     effects: [dmg('phys', 1.8)],
-    desc: "Where the light doesn't reach. 180% ATK.",
+    flavor: "Where the light doesn't reach.",
   }),
   S({
     id: 'sk_crippling_cut',
@@ -452,7 +454,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['slow'],
       },
     ],
-    desc: '120% ATK and cripple: −30% enemy SPD for 2 turns — its next two moves come slower.',
+    flavor: 'A cut across the stride.',
   }),
   S({
     id: 'sk_smoke_step',
@@ -463,7 +465,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('spd', 0.45, 3)],
-    desc: '+45% SPD for 3 turns — outpace the foe for its next three moves and slip its blows.',
+    flavor: 'Between one step and the next, you are elsewhere.',
   }),
   S({
     id: 'sk_expose_weakness',
@@ -483,10 +485,10 @@ export const SKILLS: readonly SkillDef[] = [
       timing: 'immediate',
       chance: 0.6,
       name: 'Exposed',
-      line: "🔎 You read the foe's stance — Exposed! It takes 25% more damage for 3 turns.",
+      line: "🔎 You read the foe's stance — Exposed! It takes 25% more damage for 3 rounds.",
       tags: ['vulnerable'],
     }],
-    desc: 'Battle open: 60% chance to Expose the foe — +25% damage taken for 3 turns.',
+    flavor: "You read the foe's stance.",
   }),
   S({
     id: 'sk_twin_strike',
@@ -497,7 +499,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'phys',
     effects: [dmg('phys', 2.0)],
-    desc: 'Two blades, one breath. 200% ATK.',
+    flavor: 'Two blades, one breath.',
   }),
   S({
     id: 'sk_venom_cut',
@@ -523,7 +525,7 @@ export const SKILLS: readonly SkillDef[] = [
         bypassShield: true,
       },
     ],
-    desc: '125% ATK and envenom: 16 poison damage for 3 turns, ignoring wards.',
+    flavor: 'The edge is only the introduction.',
   }),
   S({
     id: 'sk_shadow_dance',
@@ -534,7 +536,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 3,
     type: 'phys',
     effects: [dmg('phys', 2.6)],
-    desc: '260% ATK, delivered from three directions.',
+    flavor: 'Delivered from three directions.',
   }),
   S({
     id: 'sk_piercing_throw',
@@ -544,10 +546,10 @@ export const SKILLS: readonly SkillDef[] = [
     mpCost: 16,
     cooldown: 3,
     type: 'phys',
-    // #81: deliberate shield interaction (#79) — thrown where wards are
+    // #81: deliberate Shield interaction (#79) — thrown where wards are
     // useless.
     effects: [{ kind: 'damage', attack: 'phys', power: 2.0, bypassShield: true }],
-    desc: '200% ATK thrown where wards cannot follow.',
+    flavor: 'Thrown where wards cannot follow.',
   }),
   S({
     id: 'sk_assassinate',
@@ -558,7 +560,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'phys',
     effects: [dmg('phys', 3.2)],
-    desc: 'One target. One ending. 320% ATK.',
+    flavor: 'One target. One ending.',
   }),
   S({
     id: 'sk_ambush',
@@ -583,8 +585,7 @@ export const SKILLS: readonly SkillDef[] = [
       bypassShield: true,
       chance: 0.5,
     }],
-    desc:
-      'Battle open: 50% chance to envenom the foe — 20 poison damage for 3 turns, ignoring wards.',
+    flavor: 'The first the foe knows of you is the sting.',
   }),
   S({
     id: 'sk_death_mark',
@@ -614,8 +615,7 @@ export const SKILLS: readonly SkillDef[] = [
         execute: { belowPct: 0.3, bonusPct: 1.0 },
       },
     ],
-    desc:
-      'Mark the foe: +30% damage taken for 3 turns. The strike deals 180% ATK, doubled against wounds below 30% HP.',
+    flavor: 'A debt written in shadow.',
   }),
 
   // ── Cleric ──────────────────────────────────────────────────────────
@@ -628,7 +628,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     type: 'mag',
     effects: [dmg('mag', 1.3)],
-    desc: 'Holy light as a weapon. 130% MAG.',
+    flavor: 'Holy light as a weapon.',
   }),
   S({
     id: 'sk_mend',
@@ -639,7 +639,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 0,
     type: 'heal',
     effects: [mend(1.1)],
-    desc: 'Heal 220% of MAG + 20 HP.',
+    flavor: 'Light knits what is torn.',
   }),
   S({
     id: 'sk_renew',
@@ -659,7 +659,7 @@ export const SKILLS: readonly SkillDef[] = [
       tickPhase: 'roundEnd',
       name: 'Renew',
     }],
-    desc: 'Light knits the wounds: +14 HP at the end of each round for 3 turns.',
+    flavor: 'Light, remembered slowly.',
   }),
   S({
     id: 'sk_blessing',
@@ -671,7 +671,7 @@ export const SKILLS: readonly SkillDef[] = [
     type: 'buff',
     // #77: MAG/DEF — every Cleric damage action is MAG vs RES.
     effects: [buff('mag', 0.3, 3), buff('def', 0.3, 3)],
-    desc: '+30% MAG/DEF for 3 turns.',
+    flavor: 'A word of favor, carried into battle.',
   }),
   S({
     id: 'sk_radiant_burst',
@@ -682,7 +682,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'mag',
     effects: [dmg('mag', 1.85)],
-    desc: '185% MAG.',
+    flavor: 'A burst of gathered light.',
   }),
   S({
     id: 'sk_aegis',
@@ -692,9 +692,9 @@ export const SKILLS: readonly SkillDef[] = [
     mpCost: 14,
     cooldown: 3,
     type: 'buff',
-    // #79: a real ward — capacity scales like a heal (MAG * power * 2).
+    // #79: a real Shield — capacity scales like a heal (MAG * power * 2).
     effects: [{ kind: 'shield', magPower: 1.2, amount: 20, duration: 3, timing: 'immediate' }],
-    desc: 'A dawn ward absorbs 240% of MAG + 20 damage for 3 rounds.',
+    flavor: 'A dawn ward between you and the dark.',
   }),
   S({
     id: 'sk_holy_ward',
@@ -705,7 +705,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'buff',
     effects: [buff('res', 0.55, 3)],
-    desc: '+55% RES for 3 turns.',
+    flavor: 'Quiet consecration.',
   }),
   S({
     id: 'sk_divine_mending',
@@ -716,7 +716,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 2,
     type: 'heal',
     effects: [mend(1.9)],
-    desc: 'Heal 380% of MAG + 20 HP.',
+    flavor: 'Prayer, answered thoroughly.',
   }),
   S({
     id: 'sk_purify',
@@ -732,7 +732,7 @@ export const SKILLS: readonly SkillDef[] = [
       { kind: 'restore', hpPctOfMax: 0.25 },
       { kind: 'cleanse', tags: ['harmful'] },
     ],
-    desc: 'Heal 25% of max HP and cleanse harmful effects.',
+    flavor: 'Clean light scours.',
   }),
   S({
     id: 'sk_judgment',
@@ -743,7 +743,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 3,
     type: 'mag',
     effects: [dmg('mag', 2.9), stun(0.15)],
-    desc: '290% MAG, 15% chance to stun.',
+    flavor: 'Verdict, rendered.',
   }),
   S({
     id: 'sk_condemn',
@@ -768,7 +768,7 @@ export const SKILLS: readonly SkillDef[] = [
         tags: ['ward-break'],
       },
     ],
-    desc: '240% MAG and condemn: −35% enemy RES for 3 turns.',
+    flavor: 'Holy censure that cracks composure.',
   }),
   S({
     id: 'sk_miracle',
@@ -788,7 +788,7 @@ export const SKILLS: readonly SkillDef[] = [
       },
       { kind: 'cleanse', tags: ['harmful'], quiet: true },
     ],
-    desc: 'Fully restore HP and cleanse harmful effects.',
+    flavor: 'Dawn answers.',
   }),
 ];
 

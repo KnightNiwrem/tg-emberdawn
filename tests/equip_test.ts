@@ -347,21 +347,22 @@ Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () =
 Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => {
   const arrow = triggerDisclosure(item('t_7'));
   assertEquals(arrow, [
-    '⚡ Battle start: Expose the foe (+25% damage taken, 3 rounds). (45% chance)',
+    '⚡ Battle start: Increases the damage the foe takes by 25% for 3 rounds. (45% chance)',
   ]);
   const caldera = triggerDisclosure(item('t_16'))[0]!;
   assert(caldera.includes('50% chance'));
   assert(caldera.includes('at most once every 3 rounds'));
   assert(caldera.includes('up to 3×/battle'));
+  assert(caldera.includes('Inflicts Caldera Burn: 12 damage'));
   assert(
     triggerDisclosure(item('t_9'))[0]!.startsWith('⚡ When an enemy action damages you:'),
   );
   assertEquals(triggerDisclosure(item('t_19')), [
-    '⚡ On taking any HP loss: any HP loss answers with a small bleed (every other round). (up to 6×/battle · at most once every 2 rounds)',
+    '⚡ On taking any HP loss: Inflicts Grudge Bleed: 3 damage at the end of each round for 2 rounds. (up to 6×/battle · at most once every 2 rounds)',
   ]);
   assertEquals(
     triggerDisclosure(item('t_13')),
-    ['⚡ On guard: restore 8% of max MP. (up to 3×/battle)'],
+    ['⚡ On guard: Restores 8% of max MP. (up to 3×/battle)'],
   );
   assertEquals(triggerDisclosure(item('c_potion')), []);
 
@@ -586,7 +587,6 @@ function ungatedGrudge(run: (p: PlayerState) => void): void {
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: every HP loss answers',
   }];
   try {
     run(hero(700, 'warrior', 5, 't_19'));
@@ -743,7 +743,6 @@ Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () 
     name: 'Backlash',
     trigger: 'onHpDamage',
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
-    desc: 'test fixture: the proc itself wounds the wearer',
   }];
   try {
     const p = hero(707, 'warrior', 20, 't_19');
@@ -778,7 +777,6 @@ Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws
       name: 'Killing Blow',
       trigger: 'onHpDamage',
       effects: [{ kind: 'damage', attack: 'phys', power: 9999 }],
-      desc: 'test fixture: the first trigger fells the foe',
     },
     {
       name: 'Never Inspected',
@@ -793,7 +791,6 @@ Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws
         timing: 'immediate',
         name: 'Never Slow',
       }],
-      desc: 'test fixture: must never be evaluated after a terminal transition',
     },
   ];
   /** Full round under a counting RNG (same underlying seed per run, so the
@@ -867,7 +864,6 @@ Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
         timing: 'immediate',
         name: 'First Mark',
       }],
-      desc: 'test fixture: fires first in authored order',
     },
     {
       name: 'Second Bleed',
@@ -881,7 +877,6 @@ Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
         name: 'Second Bleed',
         tags: ['bleed', 'harmful'],
       }],
-      desc: 'test fixture: fires second in authored order',
     },
   ];
   try {
@@ -931,7 +926,6 @@ Deno.test('#109: player-authored self-damage wounds the wearer, never the foe', 
     name: 'Blood Toll',
     trigger: 'battleStart',
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
-    desc: 'test fixture: the bearer pays blood as the battle opens',
   }];
   try {
     const p = hero(800, 'warrior', 20, 't_19');
@@ -956,7 +950,6 @@ Deno.test('#109: player self-damage routes through the wearer’s own ward', () 
     name: 'Blood Toll',
     trigger: 'onGuard',
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
-    desc: 'test fixture: bracing costs blood',
   }];
   try {
     const p = hero(802, 'warrior', 20, 't_19');
@@ -1031,7 +1024,6 @@ Deno.test('#109: lethal player self-damage obeys the immediate-revival contract'
     trigger: 'onHpDamage',
     maxProcs: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 9999, target: 'self' }],
-    desc: 'test fixture: the first HP loss pays everything',
   }];
   try {
     // With the Cinder: the self-inflicted lethal blow intercepts — the same
@@ -1090,9 +1082,9 @@ Deno.test('#112: equipped details show full facts with NO bag-only controls', ()
 Deno.test('#112: triggered equipped gear discloses exact mechanics in its detail', () => {
   const p = hero(903, 'warrior', 28, 't_15'); // Rime Ward — battleStart shield
   const json = JSON.stringify(renderEquippedItemDetail(p, 'trinket'));
-  // The full ward sentence, derived from the trigger fields (#82 parity).
+  // The full GENERATED Shield sentence, derived from the trigger fields.
   assert(json.includes('⚡ Battle start'));
-  assert(json.includes('absorbing up to 35 damage'));
+  assert(json.includes('Grants Shield equal to 35 for 2 rounds.'));
   // Static stats and requirements are present too.
   assert(json.includes('RES'), 'static stats render');
   assert(json.includes('✨'), 'stat emoji block renders');
@@ -1356,7 +1348,6 @@ Deno.test('#115: player self-damage applies the wearer’s incoming modifier exa
     name: 'Heavy Toll',
     trigger: 'onGuard',
     effects: [{ kind: 'damage', attack: 'phys', power: 10, target: 'self' }],
-    desc: 'test fixture: bracing costs blood',
   }];
   try {
     const run = (mod: number | undefined, id: number) => {

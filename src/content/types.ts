@@ -227,19 +227,17 @@ export interface EquipTrigger {
   /** Proc chance (0..1); one injected-RNG draw per attempt. Unauthored =
    * always procs. */
   chance?: number;
-  /** Ordered typed effects (#78 vocabulary), applied caster-relative —
-   * the wearer is the caster, so `target: 'opponent'` specs hit the foe. */
-  effects: EffectSpec[];
   /** Successful procs allowed per battle (default: unlimited). */
   maxProcs?: number;
   /** Cooldown N (#89): N complete intervening rounds are unavailable — a
    * success on round R is eligible again on round R + N + 1 (0 = every
    * round). Default: none. */
   cooldown?: number;
-  /** Exact player-facing mechanics (item detail/shop/equipment disclosure
-   * — numbers here are derived in the UI from the fields above, never
-   * re-typed). */
-  desc: string;
+  /** Ordered typed effects (#78 vocabulary), applied caster-relative —
+   * the wearer is the caster, so `target: 'opponent'` specs hit the foe.
+   * The player-facing mechanics are GENERATED from these specs by
+   * engine/mechanics.ts (#120) — never authored prose here. */
+  effects: EffectSpec[];
 }
 
 export type ItemKind = 'weapon' | 'armor' | 'trinket' | 'consumable' | 'material' | 'quest';
@@ -278,7 +276,9 @@ export interface ItemDef {
   /** Typed combat triggers (#82) — declarative plain data, executed by
    * the shared resolver through the #80 opening and the reactive hooks. */
   triggers?: EquipTrigger[];
-  /** short flavor / description line */
+  /** Optional flavor prose (#120). May be nonliteral and in-world; it is
+   * NEVER a rules source — effect-bearing items generate their mechanical
+   * summary from structured data (engine/mechanics.ts). */
   desc?: string;
   /** Tier for shop/loot organization (1..8). 0 = special. */
   tier: number;
@@ -296,10 +296,13 @@ export interface SkillDef {
   learnLevel: number;
   mpCost: number;
   cooldown: number;
-  desc: string;
+  /** Optional flavor prose (#120) — the skill's personality. Creative,
+   * nonliteral, never a rules source: the player-facing mechanical
+   * summary is GENERATED from `effects` by engine/mechanics.ts. */
+  flavor?: string;
   /** Ordered combat effects executed by the generic resolver (#78) — the
-   * sole mechanical contract. Flavor lives in `desc`; the catalog test
-   * validates that desc and effects agree. */
+   * SOLE mechanical contract (#120): structured effect data is the only
+   * behavioral source of truth. */
   effects: EffectSpec[];
   /** UI classification (menu icons, balance reporting). Derived at author
    * time from effects; mechanics never read it. */

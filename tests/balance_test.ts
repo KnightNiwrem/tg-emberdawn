@@ -1065,7 +1065,6 @@ Deno.test('trace: opening entries, proc nesting and terminal land in resolution 
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: every HP loss answers',
   }];
   try {
     // A seed where the strike does NOT slip the double bite (starting-kit

@@ -119,7 +119,6 @@ function ungatedGrudge(run: (p: PlayerState) => void): void {
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: every HP loss answers',
   }];
   try {
     const p = hero(2, 'warrior', 5);
@@ -202,7 +201,6 @@ Deno.test('#104: periodic lethal tick — same terminal contract as a direct hit
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: every HP loss answers',
   }];
   try {
     const p = hero(3, 'warrior', 5);
@@ -321,7 +319,6 @@ Deno.test('#104: periodic lethal with the Cinder — direct/periodic parity', ()
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: every HP loss answers',
   }];
   try {
     addItem(p, 'c_phoenix_feather', 1);
@@ -374,7 +371,6 @@ Deno.test('#104: RNG parity — an unrevived lethal event draws nothing further'
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: a chance roll proves whether the scan ran',
   }];
   const run = (trinket: string | undefined, seed: number) => {
     const p = hero(6, 'warrior', 5);
@@ -429,7 +425,6 @@ Deno.test('#104: RNG parity — a revived survivor draws the reaction scan (peri
       name: 'Grudge Bleed',
       tags: ['bleed', 'harmful'],
     }],
-    desc: 'test fixture: a chance roll proves whether the scan ran',
   }];
   const run = (trinket: string | undefined, seed: number) => {
     const p = hero(7, 'warrior', 5);

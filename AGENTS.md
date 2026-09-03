@@ -108,10 +108,22 @@ When public launch is explicitly approved:
    process). Never mutate player state outside the lock; never hold the lock across user input.
 6. **callback_data budget.** 64 bytes max, built/parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Add new controls there, never inline raw strings in renderers/handlers.
-7. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
-   content modules. The integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce
-   this — keep them green when adding content.
-8. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
+ 7. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
+    content modules. The integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce
+    this — keep them green when adding content.
+ 8. **Flavor vs mechanics (#120).** A skill/item's NAME and FLAVOR (`SkillDef.flavor`,
+    `ItemDef.desc`) are creative and may be nonliteral — never a rules source. The player-facing
+    mechanical summary is GENERATED from the structured effect specs by `src/engine/mechanics.ts`
+    (`mechanicsText`/`mechanicsLines`/`consumableEffectLines`); equipment triggers disclose their
+    mechanics the same way (`triggerDisclosure` in `render/menus.ts`). Canonical rules vocabulary:
+    **Shield** (the absorbable pool), **DEF/RES**, **round** (duration/tick unit), **action** (one
+    actor's opportunity to act), **beneficial/harmful effect** (cleanse/dispel categories). Never
+    re-type numbers in authored prose, and never replace the generated summary with a second
+    hand-written description. Validation is STRUCTURAL: tests assert the renderer discloses every
+    field of an effect spec; they must not lexically scan names or flavor for words like "ward" or
+    "stun". Battle narration (`spec.line`, `defaultInstanceLine`) is distinct from the static rules
+    summary and may use in-world wording.
+ 9. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
    `{ type: 'italic', text }`). HTML tags like `<b>` render literally. Rows of `RichMessageButton`
    go through `src/render/rich.ts` helpers (`buttonsRow`, `cbBtn`, `disabledBtn`).
 

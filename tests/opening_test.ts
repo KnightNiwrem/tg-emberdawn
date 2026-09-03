@@ -275,7 +275,6 @@ Deno.test('#96: a lethal player opening wins immediately — later sources never
     name: 'Probe Lethal',
     trigger: 'battleStart',
     effects: [{ kind: 'damage', attack: 'phys', power: 9999 }],
-    desc: 'test fixture: a lethal battleStart strike',
   }];
   try {
     const p = roguePlayer(6100);

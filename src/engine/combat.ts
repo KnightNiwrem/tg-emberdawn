@@ -40,6 +40,7 @@ import {
 } from './effects.ts';
 import { chance, defaultRng, randInt, type Rng, variance } from './rng.ts';
 import { type CombatTraceEntry, type DamageCause, recordCombatEvent } from './telemetry.ts';
+import { mechanicsText } from './mechanics.ts';
 
 /** Applies a stat-modifier percentage to a base stat. The result floors
  * at 1 (#85): stacked breaks can shrink a stat to almost nothing but never
@@ -1738,12 +1739,13 @@ function applySkill(
   trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
-  // Buff-style skills announce ONCE with their full rules text (#67 copy,
-  // #78 mechanics): the statmods themselves stay quiet.
+  // Buff-style skills announce ONCE with their generated mechanical
+  // summary (#67 copy, #120): the statmods themselves stay quiet. The
+  // rules line derives from the effects — flavor never substitutes.
   const selfBuff = sk.effects.some((e) =>
     e.kind === 'statmod' && targetSideOf(e, 'player') === 'player' && !e.quiet
   );
-  if (selfBuff) lines.push(`🔆 ${sk.name}! ${sk.desc}`);
+  if (selfBuff) lines.push(`🔆 ${sk.name}! ${mechanicsText(sk.effects)}`);
   const ctx: ExecCtx = {
     p,
     battle,

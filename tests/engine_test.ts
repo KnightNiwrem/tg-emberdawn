@@ -40,6 +40,12 @@ import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import { SKILLS, skillsForClass } from '../src/content/skills.ts';
+import {
+  consumableEffectLines,
+  FOE_VOICE,
+  mechanicsLines,
+  mechanicsText,
+} from '../src/engine/mechanics.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
 import {
@@ -701,16 +707,17 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
   assertEquals(p.stats.bossesSlain, afterElite + 1, 'dungeon Warden counts as a boss slain');
 });
 
-Deno.test('damage-skill descriptions state their exact multiplier (#34, #78)', () => {
+Deno.test('damage-skill generated mechanics state their exact multiplier (#34, #78, #120)', () => {
   for (const sk of SKILLS) {
+    const text = mechanicsText(sk.effects);
     for (const e of sk.effects) {
       if (e.kind !== 'damage') continue;
-      const m = sk.desc.match(/(\d+)% (ATK|MAG)/);
-      if (!m) continue;
+      const m = text.match(/Deals (\d+)% (ATK|MAG) damage/);
+      assert(m, `${sk.id}: no damage sentence in "${text}"`);
       assertEquals(
         Number(m[1]) / 100,
         e.power,
-        `${sk.id}: desc says ${m[1]}% but power is ${e.power}`,
+        `${sk.id}: mechanics say ${m[1]}% but power is ${e.power}`,
       );
     }
   }
@@ -951,28 +958,41 @@ Deno.test('content integrity: enemies reference real drop items', () => {
   }
 });
 
-Deno.test('content integrity: every consumable effect flag is disclosed in its desc (#98)', () => {
-  // Every mechanical flag on a consumable must be advertised in its
-  // player-facing copy (#92/#98): no hidden cleanses, escapes, heals,
-  // resources or revives.
+Deno.test('content integrity: every consumable effect flag is disclosed by the generated mechanics (#98, #120)', () => {
+  // Every mechanical flag on a consumable must appear in the GENERATED
+  // player-facing rules text (#92/#98/#120): no hidden cleanses, escapes,
+  // heals, resources or revives. Flavor is never the disclosure channel.
   for (const it of ITEMS) {
     if (!it.effect) continue;
     const eff = it.effect;
-    const desc = it.desc ?? '';
+    const mech = consumableEffectLines(eff).join(' ');
+    assert(mech.length > 0, `${it.id}: the generated mechanics are empty`);
     if (eff.healHp !== undefined) {
-      assert(/hp/i.test(desc), `${it.id}: healHp is not disclosed ("${desc}")`);
+      assert(
+        mech.includes(`${eff.healHp} HP`),
+        `${it.id}: healHp is not disclosed ("${mech}")`,
+      );
     }
     if (eff.healMp !== undefined) {
-      assert(/mp/i.test(desc), `${it.id}: healMp is not disclosed ("${desc}")`);
+      assert(
+        mech.includes(`${eff.healMp} MP`),
+        `${it.id}: healMp is not disclosed ("${mech}")`,
+      );
     }
     if (eff.cureStatus) {
-      assert(/cleanse|cures/i.test(desc), `${it.id}: cureStatus is not disclosed ("${desc}")`);
+      assert(
+        /harmful effects/i.test(mech),
+        `${it.id}: cureStatus is not disclosed ("${mech}")`,
+      );
     }
     if (eff.flee) {
-      assert(/escape|flee/i.test(desc), `${it.id}: flee is not disclosed ("${desc}")`);
+      assert(/escape/i.test(mech), `${it.id}: flee is not disclosed ("${mech}")`);
     }
     if (eff.revivePct !== undefined) {
-      assert(/revive/i.test(desc), `${it.id}: revivePct is not disclosed ("${desc}")`);
+      assert(
+        mech.includes(`${eff.revivePct}% HP`),
+        `${it.id}: revivePct is not disclosed ("${mech}")`,
+      );
     }
   }
 });
@@ -1265,74 +1285,125 @@ Deno.test('skill cadence: each class demonstrates its role by level 2 (#71)', ()
   }
 });
 
-Deno.test('catalog: skill descriptions state the exact authored mechanics (#71, #78)', () => {
-  // Rules text cannot silently omit a structured mechanical component:
-  // EVERY effect spec must be quoted by the desc (#78).
+Deno.test('generated mechanics state every skill effect exactly (#120)', () => {
+  // The mechanical summary derives FROM the effect specs, so numbers
+  // cannot drift — but the generator must DISCLOSE each field. Every
+  // effect spec's key numbers must appear in its generated rules text.
   const pct = (n: number): string => `${Math.round(n * 100)}%`;
   for (const s of SKILLS) {
+    const text = mechanicsText(s.effects);
+    assert(text.length > 0, `${s.id} generated no mechanics`);
     for (const e of s.effects) {
       switch (e.kind) {
         case 'damage':
-          assert(s.desc.includes(pct(e.power)), `${s.id} must quote ${pct(e.power)}: ${s.desc}`);
+          assert(
+            text.includes(`${pct(e.power)} ATK`) || text.includes(`${pct(e.power)} MAG`),
+            `${s.id} must disclose ${pct(e.power)} damage: ${text}`,
+          );
+          if (e.execute) {
+            assert(
+              text.includes(
+                `(+${pct(e.execute.bonusPct)} against targets below ${pct(e.execute.belowPct)} HP)`,
+              ),
+              `${s.id} execute window must be disclosed: ${text}`,
+            );
+          }
+          if (e.bypassShield) {
+            assert(text.includes('Ignores Shield.'), `${s.id} bypass must be disclosed: ${text}`);
+          }
           break;
         case 'statmod':
           assert(
-            s.desc.includes(pct(Math.abs(e.pct))),
-            `${s.id}: ${e.stat} leg ${pct(e.pct)} must be quoted: ${s.desc}`,
+            text.includes(`${pct(Math.abs(e.pct))}`),
+            `${s.id}: ${e.stat} leg ${pct(e.pct)} must be disclosed: ${text}`,
+          );
+          assert(
+            text.includes(`for ${e.duration} rounds`),
+            `${s.id}: statmod duration must be disclosed: ${text}`,
           );
           break;
         case 'restore':
           if (e.hpFull) {
-            assert(s.desc.includes('Fully restore'), `${s.id}: ${s.desc}`);
+            assert(text.includes('Fully restores HP.'), `${s.id}: ${text}`);
           } else if (e.hpPctOfMax !== undefined) {
-            assert(s.desc.includes(`${pct(e.hpPctOfMax)} of max HP`), `${s.id}: ${s.desc}`);
+            assert(
+              text.includes(`Restores ${pct(e.hpPctOfMax)} of max HP`),
+              `${s.id}: ${text}`,
+            );
           } else if (e.hpPower !== undefined) {
             assert(
-              s.desc.includes(`${Math.round(e.hpPower * 200)}% of MAG`),
-              `${s.id}: ${s.desc}`,
-            );
-            assert(
-              s.desc.includes(`+ ${e.hpFlat ?? 0} HP`),
-              `${s.id}: flat heal component must be quoted (#77): ${s.desc}`,
+              text.includes(`Restores ${pct(e.hpPower * 2)} of MAG + ${e.hpFlat ?? 0} HP`),
+              `${s.id}: ${text}`,
             );
           }
           if (e.mpPctOfMax !== undefined) {
-            assert(s.desc.includes(pct(e.mpPctOfMax)), `${s.id}: ${s.desc}`);
+            assert(text.includes(pct(e.mpPctOfMax)), `${s.id}: ${text}`);
           }
           break;
         case 'lifesteal':
           assert(
-            s.desc.includes('heal half the damage') || s.desc.includes(pct(e.pct)),
-            `${s.id}: lifesteal must be quoted: ${s.desc}`,
+            text.includes(`Restores ${pct(e.pct)} of the damage dealt as HP.`),
+            `${s.id}: lifesteal must be disclosed: ${text}`,
           );
           break;
         case 'control':
           assert(
-            s.desc.includes(`${pct(e.chance ?? 1)} chance`),
-            `${s.id}: control chance must be quoted: ${s.desc}`,
+            text.includes(`${pct(e.chance ?? 1)} chance to stun`),
+            `${s.id}: control chance must be disclosed: ${text}`,
           );
           break;
-        case 'shield':
+        case 'shield': {
           if (e.magPower !== undefined) {
             assert(
-              s.desc.includes(`${Math.round(e.magPower * 200)}% of MAG`),
-              `${s.id}: ward MAG scaling must be quoted: ${s.desc}`,
-            );
-            assert(
-              s.desc.includes(`+ ${e.amount ?? 0} damage`),
-              `${s.id}: flat ward component must be quoted: ${s.desc}`,
-            );
-          } else {
-            assert(
-              s.desc.includes(`${e.amount ?? 0} damage`),
-              `${s.id}: ward capacity must be quoted: ${s.desc}`,
+              text.includes(`${pct(e.magPower * 2)} MAG`),
+              `${s.id}: Shield MAG scaling must be disclosed: ${text}`,
             );
           }
+          if (e.defPower !== undefined) {
+            assert(
+              text.includes(`${pct(e.defPower * 2)} DEF`),
+              `${s.id}: Shield DEF scaling must be disclosed: ${text}`,
+            );
+          }
+          assert(
+            text.includes(`+ ${e.amount ?? 0}`) || text.includes(`equal to ${e.amount ?? 0}`),
+            `${s.id}: flat Shield component must be disclosed: ${text}`,
+          );
+          assert(
+            e.lifetime === 'battle'
+              ? text.includes('for the rest of the battle')
+              : text.includes(`for ${e.duration} rounds`),
+            `${s.id}: Shield duration must be disclosed: ${text}`,
+          );
+          assert(text.includes('Shield'), `${s.id}: the pool must be named Shield: ${text}`);
           break;
+        }
         default:
-          // cleanse/dispel/resource copy is covered by behavior tests.
+          // cleanse/dispel/resource copy is covered by the shape tests in
+          // mechanics_test.ts and the behavior tests.
           break;
       }
+    }
+  }
+});
+
+Deno.test('generated mechanics use canonical vocabulary, never flavor synonyms (#120)', () => {
+  // Rules text standardizes on Shield / rounds / action / harmful /
+  // beneficial. Creative words such as "ward" live in names and flavor
+  // only — the generator's output must not use them, and this check does
+  // NOT scan flavor for vocabulary.
+  for (const s of SKILLS) {
+    const text = mechanicsText(s.effects);
+    assert(
+      !/\bward\b/i.test(text),
+      `${s.id}: generated rules text must say Shield, not "ward": ${text}`,
+    );
+    assert(!/\bturns\b/i.test(text), `${s.id}: durations are stated in rounds: ${text}`);
+  }
+  for (const it of ITEMS) {
+    for (const tg of it.triggers ?? []) {
+      const text = mechanicsLines(tg.effects, { opponent: FOE_VOICE }).join(' ');
+      assert(!/\bturns\b/i.test(text), `${it.id}: durations are stated in rounds: ${text}`);
     }
   }
 });

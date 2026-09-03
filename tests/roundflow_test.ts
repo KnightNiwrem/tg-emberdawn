@@ -502,7 +502,6 @@ function hasteGrudge(run: () => void): void {
       name: 'Second Wind',
       tags: ['beneficial'],
     }],
-    desc: 'test fixture: every HP loss hastens the wearer (2 turns)',
   }];
   try {
     run();

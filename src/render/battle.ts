@@ -13,6 +13,7 @@ import { statsOf } from '../engine/character.ts';
 import { consumables } from '../engine/inventory.ts';
 import { hasRemovableTagged, maxShield } from '../engine/effects.ts';
 import { skillsForClass } from '../content/skills.ts';
+import { mechanicsText } from '../engine/mechanics.ts';
 import { bar, buttonsRow, cbBtn, disabledBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
@@ -320,7 +321,9 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
     const cd = b.cooldowns[sk.id] ?? 0;
     const ready = cd === 0 && p.mp >= sk.mpCost; // invalid taps never cost a turn
     const label = `${sk.name} — ${sk.mpCost} MP${cd > 0 ? ` (CD ${cd})` : ''}`;
-    blocks.push(para([{ type: 'italic', text: sk.desc } as RichText]));
+    // #120: the in-battle picker shows the GENERATED mechanical block —
+    // exact rules only; flavor stays on the Skills screen.
+    blocks.push(para(mechanicsText(sk.effects)));
     blocks.push(
       buttonsRow([
         ready ? cbBtn(label, encodeCb({ v: 'battle', a: 'use', arg: sk.id })) : disabledBtn(label),
@@ -333,8 +336,9 @@ export function renderSkillMenu(p: PlayerState): InputRichMessage {
     if (!learned.has(sk.id) || !sk.preEmptive) continue;
     blocks.push(para([{
       type: 'italic',
-      text:
-        `⚡ ${sk.name} — automatic at battle open (once per battle; no MP or cooldown). ${sk.desc}`,
+      text: `⚡ ${sk.name} — automatic at battle open (once per battle; no MP or cooldown). ${
+        mechanicsText(sk.effects)
+      }`,
     } as RichText]));
   }
   if (usable.length === 0) {

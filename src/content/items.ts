@@ -194,6 +194,8 @@ const TRINKET_TIERS: { name: string; lvl: number; stats: ItemStats; desc: string
 const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
   // #82 class-relevance audit: Ember Sigil's MAG is offensively dead for
   // warrior/rogue — a retaliation burn makes it useful for every class.
+  // Mechanical disclosure is GENERATED from `effects` (#120); only battle
+  // narration (`line`) is authored here.
   t_3: [{
     name: 'Ember Backlash',
     trigger: 'onEnemyActionHpDamage',
@@ -209,7 +211,6 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tags: ['burn', 'harmful'],
       line: '🔥 The Ember Sigil flares — the attacker is burning (6 damage ×2 rounds)!',
     }],
-    desc: 'the attacker burns for 6×2 rounds.',
   }],
   // Glass Arrowhead's ATK is dead for mage/cleric — an opening Expose is
   // genuinely universal (everyone deals damage).
@@ -229,7 +230,6 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       line:
         '🎯 The Glass Arrowhead opens a fault line — the foe is Exposed (+25% damage taken, 3 rounds).',
     }],
-    desc: 'Expose the foe (+25% damage taken, 3 rounds).',
   }],
   // Thorn Ring: bounded retaliation (the issue's named example).
   t_9: [{
@@ -247,7 +247,6 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tags: ['bleed', 'harmful'],
       line: '🌵 The Thorn Ring brambles bite back — the attacker bleeds (4 damage ×2 rounds)!',
     }],
-    desc: 'the attacker bleeds for 4×2 rounds.',
   }],
   // Ember Locket's MAG is bait for warrior/rogue — an opening smolder.
   t_11: [{
@@ -264,7 +263,6 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tags: ['burn', 'harmful'],
       line: '🔥 The Ember Locket wakes — the foe is smoldering (8 damage ×2 rounds)!',
     }],
-    desc: 'set the foe smoldering (8×2 rounds).',
   }],
 };
 
@@ -274,7 +272,8 @@ interface ConsumableDef {
   lvl: number;
   price: number;
   effect: NonNullable<ItemDef['effect']>;
-  desc: string;
+  /** Optional flavor (#120) — mechanics are generated from `effect`. */
+  desc?: string;
 }
 
 const CONSUMABLES: ConsumableDef[] = [
@@ -284,7 +283,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 1,
     price: 30,
     effect: { healHp: 60 },
-    desc: 'Restores 60 HP.',
   },
   {
     id: 'c_potion',
@@ -292,7 +290,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 8,
     price: 90,
     effect: { healHp: 180 },
-    desc: 'Restores 180 HP.',
   },
   {
     id: 'c_greater_potion',
@@ -300,7 +297,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 18,
     price: 220,
     effect: { healHp: 450 },
-    desc: 'Restores 450 HP.',
   },
   {
     id: 'c_super_potion',
@@ -308,7 +304,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 28,
     price: 500,
     effect: { healHp: 1000 },
-    desc: 'Restores 1000 HP.',
   },
   {
     id: 'c_elixir',
@@ -316,7 +311,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 36,
     price: 1200,
     effect: { healHp: 9999 },
-    desc: 'Fully restores HP.',
   },
   {
     id: 'c_minor_ether',
@@ -324,7 +318,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 1,
     price: 40,
     effect: { healMp: 40 },
-    desc: 'Restores 40 MP.',
   },
   {
     id: 'c_ether',
@@ -332,7 +325,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 10,
     price: 120,
     effect: { healMp: 120 },
-    desc: 'Restores 120 MP.',
   },
   {
     id: 'c_greater_ether',
@@ -340,7 +332,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 22,
     price: 300,
     effect: { healMp: 300 },
-    desc: 'Restores 300 MP.',
   },
   {
     id: 'c_antidote',
@@ -348,7 +339,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 5,
     price: 60,
     effect: { cureStatus: true },
-    desc: 'Cleanses removable harmful effects.',
   },
   {
     id: 'c_smoke_bomb',
@@ -358,7 +348,6 @@ const CONSUMABLES: ConsumableDef[] = [
     // #98: a PURE escape item — the Cleansing Tonic owns the cleanse role,
     // and an undisclosed status wipe would be a hidden power boost.
     effect: { flee: true },
-    desc: 'Guaranteed escape from normal fights.',
   },
   {
     id: 'c_phoenix_feather',
@@ -366,7 +355,6 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 16,
     price: 900,
     effect: { revivePct: 50 },
-    desc: 'Auto-revives you at 50% HP when felled.',
   },
 ];
 
@@ -494,9 +482,7 @@ function buildItems(): ItemDef[] {
         line:
           '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to 25 damage (whole battle).',
       }],
-      desc: 'a ward absorbing up to 25 damage (whole battle).',
     }],
-    desc: 'Opens every battle with a 25-damage ward that lasts the whole fight.',
   });
   for (const c of CONSUMABLES) {
     out.push({
@@ -563,7 +549,6 @@ function buildItems(): ItemDef[] {
           name: 'Living Ward',
           line: '🌿 Living root weaves a ward around you, absorbing up to {n} damage.',
         }],
-        desc: 'a ward absorbing up to 160% of your DEF for 2 rounds.',
       }],
     },
     {
@@ -582,7 +567,6 @@ function buildItems(): ItemDef[] {
           target: 'self',
           mpPctOfMax: 0.08,
         }],
-        desc: 'restore 8% of max MP.',
       }],
     },
     {
@@ -607,7 +591,6 @@ function buildItems(): ItemDef[] {
           tags: ['slow', 'harmful'],
           line: '⏳ Sand falls upward — the foe is Slowed (−25% SPD, 2 rounds).',
         }],
-        desc: 'Slow the foe (−25% SPD, 2 rounds).',
       }],
     },
     {
@@ -629,7 +612,6 @@ function buildItems(): ItemDef[] {
           name: 'Rime Ward',
           line: '❄️ Rime crystals settle over you, absorbing up to {n} damage.',
         }],
-        desc: 'a ward absorbing up to 35 damage for 2 rounds.',
       }],
     },
     {
@@ -655,7 +637,6 @@ function buildItems(): ItemDef[] {
           tags: ['burn', 'harmful'],
           line: '🌋 The caldera answers — the attacker is burning (12 damage ×3 rounds)!',
         }],
-        desc: 'the attacker burns for 12×3 rounds.',
       }],
     },
     {
@@ -685,7 +666,6 @@ function buildItems(): ItemDef[] {
           tags: ['bleed', 'harmful'],
           line: '🩹 The grudge answers — the striker is bleeding (3 damage ×2 rounds)!',
         }],
-        desc: 'any HP loss answers with a small bleed (every other round).',
       }],
     },
     {
@@ -721,7 +701,6 @@ function buildItems(): ItemDef[] {
           tags: ['beneficial'],
           line: "🌅 Dawn's Insight settles into your mind (+10% MAG, whole battle).",
         }],
-        desc: '+10% ATK and +10% MAG for the whole battle — both offenses, whichever you wield.',
       }],
     },
     {
@@ -747,7 +726,6 @@ function buildItems(): ItemDef[] {
           line:
             '🕳️ The Lens finds the seam in reality — the foe is Voidmarked (+25% damage taken, 3 rounds).',
         }],
-        desc: 'Voidmark the foe (+25% damage taken, 3 rounds).',
       }],
     },
   ];

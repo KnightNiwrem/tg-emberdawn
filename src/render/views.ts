@@ -12,7 +12,7 @@ import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { currentStock } from '../engine/shops.ts';
-import { triggerDisclosure } from './menus.ts';
+import { itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
@@ -257,10 +257,12 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
           owned > 0 ? ` (own ${owned})` : ''
         }`,
       } as RichText,
-      { type: 'italic', text: def.desc ? `\n${def.desc}` : '' } as RichText,
     ]));
-    const trig = triggerDisclosure(def);
-    if (trig.length > 0) blocks.push(para(trig.join('\n')));
+    // #120: GENERATED mechanics (bag effect + triggers) then optional
+    // flavor — visibly separate blocks, numbers only in the mechanics.
+    const mech = itemMechanicsLines(def);
+    if (mech.length > 0) blocks.push(para(mech.join('\n')));
+    if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
     blocks.push(buttonsRow([
       afford
         ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: id }), 'success')

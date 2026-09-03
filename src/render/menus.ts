@@ -6,6 +6,12 @@ import type { ItemDef } from '../content/types.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { CLASSES, MAX_LEVEL } from '../engine/classes.ts';
+import {
+  consumableEffectLines,
+  FOE_VOICE,
+  mechanicsLines,
+  mechanicsText,
+} from '../engine/mechanics.ts';
 import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import { buttonsRow, cbBtn, heading, para } from './rich.ts';
 import { encodeCb } from '../codec.ts';
@@ -57,10 +63,11 @@ export function renderInventory(p: PlayerState, page: number): InputRichMessage 
   return { blocks };
 }
 
-/** Exact-mechanics disclosure lines for equipment triggers (#82). Derived
- * from the trigger data — chance, limits and cooldown come from the
- * fields; magnitude wording from the authored desc. Shared by the
- * inventory detail, equipment, shop and forge views. */
+/** Exact-mechanics disclosure lines for equipment triggers (#82, #120).
+ * Chance, limits and cooldown come from the trigger fields; the effect
+ * wording is GENERATED from the trigger's effect specs by the shared
+ * mechanical renderer — content never re-types its own numbers. Shared by
+ * the inventory detail, equipment, shop and forge views. */
 export function triggerDisclosure(def: ItemDef | undefined): string[] {
   if (!def?.triggers?.length) return [];
   return def.triggers.map((tg) => {
@@ -79,8 +86,19 @@ export function triggerDisclosure(def: ItemDef | undefined): string[] {
       : tg.trigger === 'onHpDamage'
       ? 'On taking any HP loss'
       : 'On guard';
-    return `⚡ ${when}: ${tg.desc}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
+    const mech = mechanicsLines(tg.effects, { opponent: FOE_VOICE }).join(' ');
+    return `⚡ ${when}: ${mech}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
   });
+}
+
+/** The complete mechanical disclosure for an item (#120): bag effect for
+ * consumables plus every equipment trigger — all generated from
+ * structured data. */
+export function itemMechanicsLines(def: ItemDef): string[] {
+  const lines: string[] = [];
+  if (def.effect) lines.push(...consumableEffectLines(def.effect));
+  if (def.triggers?.length) lines.push(...triggerDisclosure(def));
+  return lines;
 }
 
 /** Where a detail view was opened FROM (#112) — the Back button returns to
@@ -123,10 +141,12 @@ export function classRequirementText(def: ItemDef): string | null {
   return names.length === 1 ? `Class: ${names[0]}` : `Classes: ${names.join(', ')}`;
 }
 
-/** Shared static item facts (#112): stats, consumable effect, trigger
- * mechanics, flavor, requirement. Bag and equipped detail wrappers layer
- * their own headings and actions over this so the two detail pages cannot
- * drift. */
+/** Shared static item facts (#112, #120): stats, GENERATED mechanical
+ * disclosure (bag effect + triggers), then optional flavor prose,
+ * requirement. Bag and equipped detail wrappers layer their own headings
+ * and actions over this so the two detail pages cannot drift. Flavor and
+ * mechanics are visibly separate blocks; mechanics alone carry every
+ * number. */
 function itemFactBlocks(def: ItemDef): InputRichBlock[] {
   const blocks: InputRichBlock[] = [];
   if (def.stats) {
@@ -135,18 +155,8 @@ function itemFactBlocks(def: ItemDef): InputRichBlock[] {
       .join('\n');
     blocks.push(para(lines));
   }
-  if (def.effect) {
-    const e = def.effect;
-    const parts = [];
-    if (e.healHp) parts.push(`Restores ${e.healHp} HP`);
-    if (e.healMp) parts.push(`Restores ${e.healMp} MP`);
-    if (e.cureStatus) parts.push('Cures debuffs');
-    if (e.revivePct) parts.push(`Auto-revive at ${e.revivePct}% HP`);
-    blocks.push(para(parts.join(' · ')));
-  }
-  if (def.triggers?.length) {
-    blocks.push(para(triggerDisclosure(def).join('\n')));
-  }
+  const mech = itemMechanicsLines(def);
+  if (mech.length > 0) blocks.push(para(mech.join('\n')));
   if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
   // Requirements are item FACTS (#113), shown regardless of the viewer's own
   // eligibility — a missing Equip button must never be the only signal.
@@ -355,10 +365,11 @@ export function renderSkills(p: PlayerState): InputRichMessage {
       : `${have ? '✅' : `🔒 Lv ${sk.learnLevel}`} ${sk.name} — ${sk.mpCost} MP${
         sk.cooldown ? ` · CD ${sk.cooldown}` : ''
       }`;
-    blocks.push(para([
-      { type: 'bold', text: head } as RichText,
-      { type: 'italic', text: `\n${sk.desc}` } as RichText,
-    ]));
+    blocks.push(para([{ type: 'bold', text: head } as RichText]));
+    // #120: flavor first, then the GENERATED mechanical block — visibly
+    // separate; every number lives only in the mechanics.
+    if (sk.flavor) blocks.push(para([{ type: 'italic', text: sk.flavor } as RichText]));
+    blocks.push(para(mechanicsText(sk.effects)));
   }
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'skills', a: 'bk' }))]));
   return { blocks };
