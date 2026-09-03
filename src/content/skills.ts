@@ -407,7 +407,7 @@ export const SKILLS: readonly SkillDef[] = [
     cooldown: 4,
     type: 'mag',
     effects: [dmg('mag', 4.2)],
-    flavor: 'For endings.',
+    flavor: 'When the mage is done asking nicely.',
   }),
 
   // ── Rogue ───────────────────────────────────────────────────────────

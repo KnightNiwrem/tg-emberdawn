@@ -163,7 +163,14 @@ export function explore(
   now: number = Date.now(),
 ): ExploreOutcome {
   const z = zone(p.currentZone);
-  if (!z) return { kind: 'result', lines: ['You are nowhere. Somehow.'] };
+  // A broken zone reference is a system fault: state it plainly and give
+  // the player the working exit (#128 — system text is clear, never coy).
+  if (!z) {
+    return {
+      kind: 'result',
+      lines: ['You are far from any road. Send /start to rejoin the world.'],
+    };
+  }
   if (p.battle) return { kind: 'result', lines: ['⚔️ Finish the fight in front of you first.'] };
 
   // Safe havens never spawn battles — content tables should already be

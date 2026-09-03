@@ -38,7 +38,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you carry this for us?”',
         choices: [
           {
             id: 'accept',
@@ -87,7 +87,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Is the work done, then?”',
         choices: [
           {
             id: 'handover',
@@ -137,7 +137,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you carry this for us?”',
         choices: [
           {
             id: 'accept',
@@ -186,7 +186,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Is the work done, then?”',
         choices: [
           {
             id: 'handover',
@@ -236,7 +236,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Can I count on you?”',
         choices: [
           {
             id: 'accept',
@@ -286,7 +286,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Report: is it done?”',
         choices: [
           {
             id: 'handover',
@@ -329,7 +329,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'accept',
@@ -372,7 +372,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Done, then?”',
         choices: [
           {
             id: 'handover',
@@ -415,7 +415,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'accept',
@@ -451,7 +451,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Done, then?”',
         choices: [
           {
             id: 'handover',
@@ -494,7 +494,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'accept',
@@ -538,7 +538,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Done, then?”',
         choices: [
           {
             id: 'handover',
@@ -588,7 +588,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'accept',
@@ -631,7 +631,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -681,7 +681,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -731,7 +731,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -780,7 +780,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -816,7 +816,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -866,7 +866,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hear me out?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -920,7 +920,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -970,7 +970,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -1013,7 +1013,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -1063,7 +1063,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -1099,7 +1099,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -1148,7 +1148,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -1184,7 +1184,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -1227,7 +1227,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -1271,7 +1271,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -1321,7 +1321,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -1364,7 +1364,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Finished?”',
         choices: [
           {
             id: 'handover',
@@ -1414,7 +1414,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“You up for it?”',
         choices: [
           {
             id: 'accept',
@@ -1456,7 +1456,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Finished?”',
         choices: [
           {
             id: 'handover',
@@ -1492,7 +1492,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“You up for it?”',
         choices: [
           {
             id: 'accept',
@@ -1528,7 +1528,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Finished?”',
         choices: [
           {
             id: 'handover',
@@ -1578,7 +1578,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“You up for it?”',
         choices: [
           {
             id: 'accept',
@@ -1621,7 +1621,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -1671,7 +1671,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hear me out?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -1725,7 +1725,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -1775,7 +1775,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -1818,7 +1818,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -1854,7 +1854,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -1911,7 +1911,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -1961,7 +1961,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -2004,7 +2004,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall the record show it complete?”',
         choices: [
           {
             id: 'handover',
@@ -2054,7 +2054,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will the record show you willing?”',
         choices: [
           {
             id: 'accept',
@@ -2090,7 +2090,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall the record show it complete?”',
         choices: [
           {
             id: 'handover',
@@ -2140,7 +2140,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hear me out?”',
+        prompt: '“Will the record show you willing?”',
         choices: [
           {
             id: 'accept',
@@ -2201,7 +2201,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall the record show it complete?”',
         choices: [
           {
             id: 'handover',
@@ -2251,7 +2251,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will the record show you willing?”',
         choices: [
           {
             id: 'accept',
@@ -2287,7 +2287,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall the record show it complete?”',
         choices: [
           {
             id: 'handover',
@@ -2337,7 +2337,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you make the journey?”',
+        prompt: '“Will the record show you willing?”',
         choices: [
           {
             id: 'accept',
@@ -2380,7 +2380,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Can we call it done, hero?”',
         choices: [
           {
             id: 'handover',
@@ -2430,7 +2430,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you face what waits below?”',
+        prompt: '“Will you go where I cannot?”',
         choices: [
           {
             id: 'accept',
@@ -2466,7 +2466,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Can we call it done, hero?”',
         choices: [
           {
             id: 'handover',
@@ -2508,7 +2508,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you help me mend this?”',
         choices: [
           {
             id: 'accept',
@@ -2557,7 +2557,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“All handed over?”',
         choices: [
           {
             id: 'handover',
@@ -2606,7 +2606,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'accept',
@@ -2655,7 +2655,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Done, then?”',
         choices: [
           {
             id: 'handover',
@@ -2704,7 +2704,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you gather them?”',
+        prompt: '“Will you help me mend this?”',
         choices: [
           {
             id: 'accept',
@@ -2739,7 +2739,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“All handed over?”',
         choices: [
           {
             id: 'handover',
@@ -2788,7 +2788,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Coming, or not?”',
         choices: [
           {
             id: 'accept',
@@ -2824,7 +2824,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Done?”',
         choices: [
           {
             id: 'handover',
@@ -2866,7 +2866,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Can I count on you?”',
         choices: [
           {
             id: 'accept',
@@ -2908,7 +2908,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Report: is it done?”',
         choices: [
           {
             id: 'handover',
@@ -2957,7 +2957,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -3006,7 +3006,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -3055,7 +3055,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Do we cross together?”',
         choices: [
           {
             id: 'accept',
@@ -3090,7 +3090,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall we call it square?”',
         choices: [
           {
             id: 'handover',
@@ -3139,7 +3139,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -3181,7 +3181,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -3230,7 +3230,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Shall I enter you in the ledger?”',
         choices: [
           {
             id: 'accept',
@@ -3272,7 +3272,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall I close the ledger?”',
         choices: [
           {
             id: 'handover',
@@ -3321,7 +3321,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“You up for it?”',
         choices: [
           {
             id: 'accept',
@@ -3356,7 +3356,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Finished?”',
         choices: [
           {
             id: 'handover',
@@ -3405,7 +3405,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“You up for it?”',
         choices: [
           {
             id: 'accept',
@@ -3442,27 +3442,27 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'Diplomacy concluded,',
+        text: 'Four arguments,',
         next: 't3',
       },
       {
         id: 't3',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho says.',
+        text: 'Rho says, watching the snow settle.',
         next: 't4',
       },
       {
         id: 't4',
         kind: 'line',
         speaker: 'npc',
-        text: 'The paperwork was your fists.',
+        text: 'Yours carried more weight.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Finished?”',
         choices: [
           {
             id: 'handover',
@@ -3511,7 +3511,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -3546,7 +3546,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -3589,13 +3589,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o3',
         kind: 'line',
         speaker: 'npc',
-        text: 'Old instinct. Eight corrections should do.',
+        text: 'Old instinct, no malice in it. Break eight of the herds and the paths stay open.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you walk this road with me?”',
         choices: [
           {
             id: 'accept',
@@ -3644,7 +3644,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“May we call this mercy done?”',
         choices: [
           {
             id: 'handover',
@@ -3693,7 +3693,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will the record show you willing?”',
         choices: [
           {
             id: 'accept',
@@ -3728,7 +3728,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Shall the record show it complete?”',
         choices: [
           {
             id: 'handover',
@@ -3777,7 +3777,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you go where I cannot?”',
         choices: [
           {
             id: 'accept',
@@ -3812,7 +3812,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Can we call it done, hero?”',
         choices: [
           {
             id: 'handover',
@@ -3861,7 +3861,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you hunt them?”',
+        prompt: '“Will you go where I cannot?”',
         choices: [
           {
             id: 'accept',
@@ -3896,7 +3896,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it done?”',
+        prompt: '“Can we call it done, hero?”',
         choices: [
           {
             id: 'handover',
@@ -3939,7 +3939,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you carry it?”',
+        prompt: '“Will you carry this for us?”',
         choices: [
           {
             id: 'accept',
@@ -3998,7 +3998,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it delivered?”',
+        prompt: '“Do we have a bargain?”',
         choices: [
           {
             id: 'handover',

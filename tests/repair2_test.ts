@@ -1324,7 +1324,7 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
   assertEquals(levelLockedMain(mid), undefined, 'm22 stays hidden while m21 is live');
   const midLog = JSON.stringify(renderQuests(mid));
   assert(!midLog.includes('The Unlocked Door'), 'm22 is not named');
-  assert(midLog.includes('Loyalty, Corrected'), 'the live main stays the primary card');
+  assert(midLog.includes('Give Them Rest'), 'the live main stays the primary card');
 
   // Campaign complete: the log says so instead of dangling a fake target.
   const done = createPlayer(967, 'T', 'warrior');

@@ -126,7 +126,9 @@ When public launch is explicitly approved:
    dispels) still uses the canonical terms (#121): the pool is always "Shield" (never "ward"),
    durations are rounds, and removals name beneficial/harmful effects. The balance harness parses
    some of those generic lines (SHIELD_FADE/SHIELD_WASTE regexes in `src/engine/balance.ts`) — keep
-   them in sync if the copy changes.
+   them in sync if the copy changes. The editorial contract for authored prose —
+   narrator/UI/character voices, per-NPC voice sheets, motif use, punctuation — is
+   `docs/narrative-guide.md` (#128); no lexical style parser enforces it.
 9. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
    `{ type: 'italic', text }`). HTML tags like `<b>` render literally. Rows of `RichMessageButton`
    go through `src/render/rich.ts` helpers (`buttonsRow`, `cbBtn`, `disabledBtn`).

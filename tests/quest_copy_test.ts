@@ -81,6 +81,33 @@ Deno.test('quest copy: in-world fields do not leak game-system terms (#122)', ()
   }
 });
 
+Deno.test('quest copy: no administrative jargon in in-world labels (#128)', () => {
+  // Modern administrative vocabulary is out of world and out of every
+  // voice sheet (docs/narrative-guide.md §2). Narrow factual token check
+  // on quest NAME/SUMMARY labels — never a prose-style parser.
+  const admin = /paperwork|management|corrections|diplomacy/i;
+  for (const q of QUESTS) {
+    assert(!admin.test(q.name), `quest ${q.id} name carries admin jargon: ${q.name}`);
+    assert(!admin.test(q.summary), `quest ${q.id} summary carries admin jargon: ${q.summary}`);
+  }
+});
+
+Deno.test('gear copy: high-tier pieces never inherit the starter flavor (#128)', () => {
+  // Named, progression-sensitive gear carries its own flavor; the generic
+  // class line is the tiers-1..3 default only.
+  for (const def of ITEMS) {
+    const m = def.id.match(/^[wa]_([a-z]+)_(\d)$/);
+    if (!m) continue;
+    const tier = Number(m[2]);
+    if (tier < 4) continue;
+    const starter = item(def.id.replace(/_(\d)$/, '_1'))!;
+    assert(
+      def.desc !== starter.desc,
+      `${def.id} inherits the starter flavor "${starter.desc}"`,
+    );
+  }
+});
+
 Deno.test('quest copy: NPC display names are referenced consistently (#122)', () => {
   // The Echo NPC's canonical name is the zones catalog's; authored
   // dialogue text must not mint hyphenated variants of it.

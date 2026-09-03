@@ -15,7 +15,12 @@ const SELL_RATIO = 0.4;
 
 interface TierNames {
   names: string[];
+  /** Default flavor for tiers without a specific line (#128: high tiers
+   * never inherit the starter line — they are named, progression-sensitive
+   * pieces and carry their own). */
   desc: string;
+  /** Per-tier flavor overrides, keyed 1..8. */
+  descByTier?: Record<number, string>;
 }
 
 const WEAPONS: Record<ClassId, TierNames> = {
@@ -31,6 +36,13 @@ const WEAPONS: Record<ClassId, TierNames> = {
       'Crownslayer',
     ],
     desc: "A warrior's answer to most questions.",
+    descByTier: {
+      4: "A knight's blade, kept the way oaths are kept.",
+      5: 'Forged the night the Hollow burned clean. It remembers.',
+      6: 'Sunspire work: balance like a held breath, edge like noon.',
+      7: 'It does not chill the hand. It waits instead.',
+      8: 'Made to finish a king. Nothing else fits the grip now.',
+    },
   },
   mage: {
     names: [
@@ -44,6 +56,13 @@ const WEAPONS: Record<ClassId, TierNames> = {
       "Archmage's Cinderrod",
     ],
     desc: 'Channels raw magic better than bare hands.',
+    descByTier: {
+      4: "A sorcerer's rod: a bad day to be on the far end of it.",
+      5: 'Cut from the tree that survived the Hollow. It grew back angry.',
+      6: 'The scepter keeps its own hours, and they are all high noon.',
+      7: 'Winter, politely asked to live in a stick.',
+      8: 'The last staff the Archmage ever lit. It never fully cooled.',
+    },
   },
   rogue: {
     names: [
@@ -57,6 +76,13 @@ const WEAPONS: Record<ClassId, TierNames> = {
       'Whisper of Ends',
     ],
     desc: 'Small blade, big problems — for someone else.',
+    descByTier: {
+      4: "A fang you keep where light isn't.",
+      5: "The kiss comes before the apology, and there's never one.",
+      6: 'Sunspire steel, ground thin enough to argue with a lock.',
+      7: 'Bites cold, heals never. The sheath smells of frost.',
+      8: 'It makes no sound worth remembering. That is the point.',
+    },
   },
   cleric: {
     names: [
@@ -70,6 +96,13 @@ const WEAPONS: Record<ClassId, TierNames> = {
       'Radiant Judgment',
     ],
     desc: 'Faith, with a blunt instrument attached.',
+    descByTier: {
+      4: "A warden's flail, swung with the patience of a psalm.",
+      5: 'Its head holds a coal that has never once gone out.',
+      6: 'Dawnbreaker: sunrise, condensed to a single struck note.',
+      7: 'A crozier of blue ice that burns to holy light on contact.',
+      8: 'Verdict first, appeal never.',
+    },
   },
 };
 
@@ -93,6 +126,13 @@ const ARMORS: Record<ClassId, TierNames> = {
       'Bastion of Ends',
     ],
     desc: 'Heavy, dependable, unglamorous.',
+    descByTier: {
+      4: 'Plate the way knights meant it: boring to fight against.',
+      5: "Tempered in the Hollow's own heat. It came out stubborn.",
+      6: 'Sunspire alloy. Dents take days and apologies to form.',
+      7: 'Frost-set plates that shed both blades and weather.',
+      8: 'The last wall. On purpose.',
+    },
   },
   mage: {
     names: [
@@ -106,6 +146,13 @@ const ARMORS: Record<ClassId, TierNames> = {
       "Archmage's Weave",
     ],
     desc: 'Woven with protective sigils.',
+    descByTier: {
+      4: 'A vestment stitched for people who shout in libraries.',
+      5: "Woven from the Hollow's silk, out of spite for the Hollow.",
+      6: 'Regalia that reads the sun and stands in it all day.',
+      7: 'Sigils of frost, layered like slow deliberate breath.',
+      8: 'The weave remembers every spell it has survived.',
+    },
   },
   rogue: {
     names: [
@@ -119,6 +166,13 @@ const ARMORS: Record<ClassId, TierNames> = {
       "Night's Finale",
     ],
     desc: 'Light enough to run in.',
+    descByTier: {
+      4: 'Shadow weave: it arrives a half-second before you do.',
+      5: 'Cured over emberheat. Soft, warm, hard to catch.',
+      6: 'Silks from the Sunspire vaults. They weigh nothing, cost plenty.',
+      7: 'A veil of frost-fiber. Quiet as snowfall.',
+      8: 'Worn by rogues who were done being seen.',
+    },
   },
   cleric: {
     names: [
@@ -132,6 +186,13 @@ const ARMORS: Record<ClassId, TierNames> = {
       'Vesture of Dawn',
     ],
     desc: 'Blessed cloth that refuses to tear.',
+    descByTier: {
+      4: 'A cassock built for ward duty and long stands.',
+      5: 'Emberlight thread. It hums at the hem on cold mornings.',
+      6: 'A sunspire alb: laundered in light, folded in light.',
+      7: 'Glacier-wool, blessed twice. The cold respects it.',
+      8: 'Dawn wore this first. It was returned in better condition.',
+    },
   },
 };
 
@@ -425,7 +486,7 @@ function buildItems(): ItemDef[] {
         price: price(t),
         tier: t,
         stats: WEAPON_GEAR[cls](t),
-        desc: WEAPONS[cls].desc,
+        desc: WEAPONS[cls].descByTier?.[t] ?? WEAPONS[cls].desc,
       });
     });
     tiers.forEach((t, i) => {
@@ -439,7 +500,7 @@ function buildItems(): ItemDef[] {
         price: price(t),
         tier: t,
         stats: ARMOR_GEAR[cls](t),
-        desc: ARMORS[cls].desc,
+        desc: ARMORS[cls].descByTier?.[t] ?? ARMORS[cls].desc,
       });
     });
   }
