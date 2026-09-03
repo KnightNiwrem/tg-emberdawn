@@ -8,6 +8,7 @@ import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
 import { npc, npcInZone, quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
+import { dialogue, dialogueNode } from '../content/dialogues.ts';
 import { npcTopics } from '../engine/npc.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
@@ -609,7 +610,7 @@ export function renderNpcTopics(p: PlayerState): InputRichMessage {
     const topic = def.topics?.find((t) => t.id === p.scene.arg2!.slice('lore:'.length));
     blocks.push(heading(`🗣️ ${def.name}`, 4));
     blocks.push(...noticesBlocks(p));
-    if (topic) blocks.push(quote({ type: 'italic', text: topic.text }));
+    if (topic?.text) blocks.push(quote({ type: 'italic', text: topic.text }));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
     return { blocks };
   }
@@ -640,6 +641,51 @@ export function renderNpcTopics(p: PlayerState): InputRichMessage {
     );
   }
   blocks.push(buttonsRow([cbBtn('👋 Leave', encodeCb({ v: 'npc', a: 'bk' }))]));
+  return { blocks };
+}
+
+// ── Dialogue scene (#124) ────────────────────────────────────────────────
+
+/** Renders ONE dialogue beat in the live message (#124): the panel
+ * distinguishes NPC speech (quoted), authored player speech, and narrator
+ * stage direction; Continue advances exactly one node and edits this same
+ * message — no extra Telegram messages. Reopening a dialogue always
+ * restarts it from the start node (documented policy); /start and rerenders
+ * reproduce the CURRENT node because the scene persists (dialogue, node). */
+export function renderDialogue(p: PlayerState): InputRichMessage {
+  const d = dialogue(p.scene.arg ?? '');
+  const blocks: Block[] = [];
+  const npcDef = d ? npc(d.npcId) : undefined;
+  if (!d || !npcDef || !npcInZone(p.currentZone, d.npcId)) {
+    blocks.push(para('That conversation has moved on.'));
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'dlg', a: 'bk' }))]));
+    return { blocks };
+  }
+  const node = dialogueNode(d, p.scene.arg2 ?? '') ?? dialogueNode(d, d.start)!;
+  blocks.push(heading(`🗣️ ${npcDef.name}`, 4));
+  blocks.push(...noticesBlocks(p));
+  if (node.kind === 'line') {
+    if (node.speaker === 'narrator') {
+      blocks.push(para({ type: 'italic', text: node.text } as RichText));
+    } else if (node.speaker === 'player') {
+      blocks.push(quote(`You — “${node.text}”`));
+    } else {
+      blocks.push(quote(`“${node.text}”`));
+    }
+    const row = [];
+    if (node.next) {
+      row.push(
+        cbBtn('➡️ Continue', encodeCb({ v: 'dlg', a: 'nx', arg: node.next }), 'primary'),
+      );
+    }
+    row.push(
+      cbBtn(node.next ? '👋 Leave' : '👋 End conversation', encodeCb({ v: 'dlg', a: 'bk' })),
+    );
+    blocks.push(buttonsRow(row));
+  } else {
+    // End node: the conversation concluded — only the exit remains.
+    blocks.push(buttonsRow([cbBtn('👋 End conversation', encodeCb({ v: 'dlg', a: 'bk' }))]));
+  }
   return { blocks };
 }
 

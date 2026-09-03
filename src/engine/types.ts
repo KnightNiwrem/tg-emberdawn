@@ -184,6 +184,7 @@ export type ViewId =
   | 'travel'
   | 'zone'
   | 'npc'
+  | 'dialogue'
   | 'battle'
   | 'battleSkills'
   | 'battleItems'

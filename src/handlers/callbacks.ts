@@ -16,6 +16,7 @@ import {
 } from './session.ts';
 import {
   deathAction,
+  dialogueAction,
   forgeAction,
   metaAction,
   npcAction,
@@ -95,6 +96,10 @@ function dispatch(
       // The NPC topic menu (#123): navigation + revalidated topic
       // selection; no story mutation happens on merely opening it.
       return npcAction(player, cb);
+    case 'dlg':
+      // The dialogue scene (#124): linear node advance under the same
+      // staleness/revision and on-site-presence rules as every view.
+      return dialogueAction(player, cb);
     case 'battle':
       return battleAction(player, cb);
     case 'tut':

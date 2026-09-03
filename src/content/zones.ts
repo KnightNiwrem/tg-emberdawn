@@ -57,8 +57,8 @@ export const ZONES: readonly ZoneDef[] = [
         topics: [{
           id: 'maren_flame',
           label: 'Ask about the Great Flame',
-          text:
-            '"It is the oldest fire — the one every hearth in the valley is lit from. What is being lost is not wood or oil. It is the mornings we were promised. Keep that in mind, and you will know what is worth fighting for."',
+          text: '',
+          dialogue: 'dlg_maren_flame',
         }],
       },
       {
@@ -69,8 +69,8 @@ export const ZONES: readonly ZoneDef[] = [
         topics: [{
           id: 'bram_forge',
           label: 'Ask about the forge',
-          text:
-            '"Six generations of my family have kept this fire. Every edge that ever held the line out there was hammered here. Whatever comes, the forge keeps its promise: tomorrow needs tools, and tools need hands."',
+          text: '',
+          dialogue: 'dlg_bram_forge',
         }],
       },
       {

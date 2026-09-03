@@ -130,6 +130,18 @@ When public launch is explicitly approved:
 9. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
    `{ type: 'italic', text }`). HTML tags like `<b>` render literally. Rows of `RichMessageButton`
    go through `src/render/rich.ts` helpers (`buttonsRow`, `cbBtn`, `disabledBtn`).
+10. **Dialogue scenes (#124).** Authored conversations live in `src/content/dialogues.ts`
+    (`DialogueDef`: stable id, owning NPC, start node, linear nodes with explicit
+    npc/player/narrator speakers and `next` links). The scene persists
+    `(arg: dialogueId,
+   arg2: nodeId)` so rerenders and `/start` reproduce the exact current beat.
+    Continue (`dlg:nx:<targetNodeId>`) advances EXACTLY ONE node and edits the same live message —
+    never a second message; every tap revalidates scene view, dialogue identity, the current node's
+    next link, and the NPC's physical presence. Back/End returns to the owning NPC's topic menu when
+    they are still on-site. Reopening a dialogue always restarts it from the start node (linear
+    conversations carry no partial state); the final line omits `next` and is the implicit end
+    state. Content integrity (tests/dialogue_test.ts) covers id uniqueness, references,
+    reachability, terminals, topic wiring, and the callback budget.
 
 ## Commands
 

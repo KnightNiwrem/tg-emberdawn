@@ -374,14 +374,44 @@ export interface Objective {
   count?: number;
 }
 
+/** One beat of an authored conversation (#124): a single speech or
+ * narration line with an explicit speaker, or the end state. Linear only —
+ * choices arrive in #126. */
+export type DialogueNode =
+  | {
+    id: string;
+    kind: 'line';
+    speaker: 'npc' | 'player' | 'narrator';
+    /** The authored beat. Never empty. */
+    text: string;
+    /** Next node id; omit for the final line of a conversation. */
+    next?: string;
+  }
+  | { id: string; kind: 'end' };
+
+/** An authored multi-node conversation (#124): stable ids suitable for
+ * persisted scene state and callbacks; one beat per node; explicit
+ * speaker identity and next-node relationship. */
+export interface DialogueDef {
+  id: string;
+  /** The NPC who owns this conversation (content-integrity checked). */
+  npcId: string;
+  start: string;
+  nodes: DialogueNode[];
+}
+
 /** An authored ordinary conversation/lore topic (#123): stable compact id,
  * player-facing label, and the authored text. Lives with the NPC — never
  * fabricated in handlers. Quest topics are derived from quest state by the
- * pure resolver in engine/npc.ts, not authored here. */
+ * pure resolver in engine/npc.ts, not authored here. A topic may instead
+ * open a multi-node dialogue (#124). */
 export interface NpcTopicDef {
   id: string;
   label: string;
-  text: string;
+  /** Static single-beat text (when `dialogue` is not set). */
+  text?: string;
+  /** DialogueDef id to open instead of the static text (#124). */
+  dialogue?: string;
 }
 
 export interface NpcDef {

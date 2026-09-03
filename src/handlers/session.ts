@@ -27,6 +27,7 @@ import {
   renderCharacter,
   renderClassPicker,
   renderDeath,
+  renderDialogue,
   renderForge,
   renderHelp,
   renderNpcTopics,
@@ -77,6 +78,11 @@ function renderFor(p: PlayerState): InputRichMessage {
       // The NPC topic menu (#123): arg is the NPC id, arg2 an optional
       // sub-state ('lore:<topicId>' or 'q:<questId>').
       return renderNpcTopics(p);
+    case 'dialogue':
+      // The dialogue scene (#124): arg is the dialogue id, arg2 the
+      // current node id — both persist so rerenders and /start reproduce
+      // the exact same beat.
+      return renderDialogue(p);
     case 'shop':
       return p.scene.arg === 'sell'
         ? renderSell(p, Number(p.scene.arg2 ?? 0))

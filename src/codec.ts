@@ -19,6 +19,8 @@ export type Cb =
   | { v: 'npc'; a: 'op'; arg: string }
   | { v: 'npc'; a: 'q' | 'lore'; arg: string }
   | { v: 'npc'; a: 'bk' }
+  | { v: 'dlg'; a: 'nx'; arg: string }
+  | { v: 'dlg'; a: 'bk' }
   | { v: 'battle'; a: 'atk' | 'gd' | 'fl' | 'go' | 'sk' | 'it' }
   | { v: 'battle'; a: 'use'; arg: string }
   | { v: 'inventory'; a: 'p'; arg: number }
@@ -75,6 +77,11 @@ export function encodeCb(c: Cb): string {
       // #123 topic menu: open (by NPC id), quest-business/lore selection,
       // and leave. Revalidation of NPC/zone/state lives in the handler.
       return c.a === 'bk' ? 'npc:bk' : `npc:${c.a}:${c.arg}`;
+    case 'dlg':
+      // #124 dialogue scene: Continue carries the TARGET node id (the
+      // handler revalidates it against the live scene's current node);
+      // Back/End returns to the NPC topic menu.
+      return c.a === 'bk' ? 'dlg:bk' : `dlg:${c.a}:${c.arg}`;
     case 'battle':
       if (c.a === 'use') return `b:us:${c.arg}`;
       return `b:${c.a}`;
@@ -177,6 +184,12 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'bk') return { v: 'npc', a: 'bk' };
       const na = act(a, ['op', 'q', 'lore'] as const);
       return na ? { v: 'npc', a: na, arg } : undefined;
+    }
+    case 'dlg': {
+      // #124 dialogue scene controls.
+      if (a === 'bk') return { v: 'dlg', a: 'bk' };
+      const da = act(a, ['nx'] as const);
+      return da ? { v: 'dlg', a: da, arg } : undefined;
     }
     case 'h': {
       if (a === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };

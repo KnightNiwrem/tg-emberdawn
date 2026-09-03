@@ -25,6 +25,7 @@ import {
   turnInQuest,
 } from '../engine/quests.ts';
 import { npc, npcInZone, quest } from '../content/quests.ts';
+import { dialogue, dialogueNode } from '../content/dialogues.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
@@ -161,9 +162,19 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
       }
       const npcId = p.scene.arg;
       const def = npc(npcId);
-      if (!npcInZone(p.currentZone, npcId) || !def?.topics?.some((t) => t.id === cb.arg)) {
+      const topic = def?.topics?.find((t) => t.id === cb.arg);
+      if (!npcInZone(p.currentZone, npcId) || !topic) {
         return { toast: 'That topic has moved on.' };
       }
+      // A dialogue-backed topic (#124) opens the conversation scene at its
+      // start node; the static text renders the single-beat view.
+      if (topic.dialogue) {
+        const d = dialogue(topic.dialogue);
+        if (!d || d.npcId !== npcId) return { toast: 'That topic has moved on.' };
+        p.scene = { view: 'dialogue', arg: d.id, arg2: d.start };
+        return {};
+      }
+      if (!topic.text) return { toast: 'That topic has moved on.' };
       p.scene = { view: 'npc', arg: npcId, arg2: `lore:${cb.arg}` };
       return {};
     }
@@ -313,6 +324,31 @@ export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResu
   p.notices = res.lines;
   p.scene = { view: 'zone' }; // business concluded — back to the hub
   syncAvailability(p);
+  return {};
+}
+
+/** Dialogue scene actions (#124): linear multi-node conversations. Every
+ * Continue revalidates the live scene, the dialogue's NPC presence in the
+ * current zone, the current node, and the exact next-node target carried
+ * by the callback — forged, replayed (rev guard), wrong-node and
+ * wrong-dialogue taps are non-mutating. */
+export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
+  const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
+  if (cb.a === 'bk') {
+    // Back/End returns to the owning NPC's topic menu when they are still
+    // on-site; otherwise the zone.
+    p.scene = d && npcInZone(p.currentZone, d.npcId)
+      ? { view: 'npc', arg: d.npcId }
+      : { view: 'zone' };
+    return {};
+  }
+  if (!d) return { toast: 'That conversation has moved on.' };
+  if (!npcInZone(p.currentZone, d.npcId)) return { toast: 'Nobody there.' };
+  const cur = dialogueNode(d, p.scene.arg2 ?? '');
+  if (!cur || cur.kind !== 'line' || cur.next !== cb.arg) {
+    return { toast: 'That conversation has moved on.' };
+  }
+  p.scene = { view: 'dialogue', arg: d.id, arg2: cb.arg };
   return {};
 }
 
