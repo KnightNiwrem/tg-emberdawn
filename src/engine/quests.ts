@@ -13,6 +13,7 @@ import { enemyName } from '../content/enemies.ts';
 import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp, xpRewardLabel } from './character.ts';
 import { npc, npcInZone } from '../content/quests.ts';
+import { evalCondition } from './conditions.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
   let q = p.quests[id];
@@ -26,7 +27,18 @@ function progress(p: PlayerState, id: string): QuestProgress {
 function prereqsMet(p: PlayerState, q: QuestDef): boolean {
   if (q.prereqQuest && p.quests[q.prereqQuest]?.status !== 'done') return false;
   if (q.prereqFlags && !q.prereqFlags.some((f) => p.flags[f] !== undefined)) return false;
+  // Declarative prereq condition (#125): the shared condition language,
+  // evaluated when present. ANDed with the legacy fields above.
+  if (q.prereq && !evalCondition(p, q.prereq)) return false;
   return p.level >= q.level;
+}
+
+/** Permanent quest resolutions (#125): a locked or failed quest can never
+ * become available again — availability synchronization may not resurrect
+ * it, whatever its ordinary prerequisites say. */
+export function questExcluded(p: PlayerState, questId: string): boolean {
+  const kind = p.questOutcomes[questId]?.kind;
+  return kind === 'locked' || kind === 'failed';
 }
 
 /** Recomputes availability for every quest; returns ids newly available. */
@@ -34,7 +46,7 @@ export function syncAvailability(p: PlayerState): string[] {
   const newly: string[] = [];
   for (const q of QUESTS) {
     const cur = p.quests[q.id]?.status;
-    if (cur === undefined || cur === 'unavailable') {
+    if ((cur === undefined || cur === 'unavailable') && !questExcluded(p, q.id)) {
       if (prereqsMet(p, q)) {
         progress(p, q.id).status = 'available';
         newly.push(q.id);
@@ -146,7 +158,13 @@ function questComplete(p: PlayerState, id: string): boolean {
 /** Call after any kill/reach/event; flips completed active quests to turnIn. */
 /** Recomputes live progress; returns quests that just became turn-in-ready.
  * The single active→turnIn transition authority (#119): a quest appears in
- * the result exactly once — the flip that readied it — and never again. */
+ * the result exactly once — the flip that readied it — and never again.
+ * Exported for the story-effect layer (#125), which must reuse the SAME
+ * transition authority instead of reimplementing readiness. */
+export function refreshQuestProgress(p: PlayerState): string[] {
+  return refreshProgress(p);
+}
+
 function refreshProgress(p: PlayerState): string[] {
   const ready: string[] = [];
   for (const [id, qp] of Object.entries(p.quests)) {

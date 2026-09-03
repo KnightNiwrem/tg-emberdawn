@@ -31,6 +31,34 @@ export interface QuestProgress {
   counts: number[];
 }
 
+/** A recorded narrative decision (#125): WHO chose WHAT, WHERE, and WHEN.
+ * An irreversible player decision is never reduced to an unexplained
+ * boolean — the ledger carries provenance for later reactions and the
+ * future journal. Decision ids and choice ids are persisted content
+ * identities: freely renameable pre-launch; durable at the live-save
+ * baseline. */
+export interface DecisionRecord {
+  choiceId: string;
+  dialogueId: string;
+  nodeId: string;
+  chosenAt: number;
+}
+
+/** A quest's permanent resolution (#125): named completion outcomes,
+ * failures, and permanent lockouts live HERE — never inferred from the
+ * absence of flags. A locked/failed quest is excluded from availability
+ * resurrection (questExcluded). */
+export interface QuestOutcome {
+  kind: 'resolved' | 'failed' | 'locked';
+  /** Named completion outcome (resolved only). */
+  outcome?: string;
+  /** Why the quest is gone (reason/decision reference). */
+  reason?: string;
+  /** What caused it (decision/dialogue id). */
+  by?: string;
+  at: number;
+}
+
 export interface EnemyInstance {
   id: string;
   name: string;
@@ -242,6 +270,13 @@ export interface PlayerState {
   tutorial: TutorialStep;
   /** Generic story/flag storage (key -> numeric or string value). */
   flags: Record<string, number | string | boolean>;
+  /** Irreversible narrative decisions (#125), keyed by stable decision id. */
+  decisions: Record<string, DecisionRecord>;
+  /** Ordered, deduped story events (#125) — the durable record dialogue
+   * and future objective hooks consume (#127). */
+  storyEvents: string[];
+  /** Permanent quest resolutions (#125): outcomes, failures, lockouts. */
+  questOutcomes: Record<string, QuestOutcome>;
   skills: string[];
   scene: SceneState;
   battle?: BattleState;

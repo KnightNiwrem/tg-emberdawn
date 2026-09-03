@@ -8,9 +8,11 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { npc, quest, QUESTS } from '../src/content/quests.ts';
-import { item } from '../src/content/items.ts';
+import { item, ITEMS } from '../src/content/items.ts';
 import { npcInZone, zoneOfNpc } from '../src/content/quests.ts';
 import { ZONES } from '../src/content/zones.ts';
+import { conditionRefs } from '../src/engine/conditions.ts';
+import type { Condition } from '../src/content/types.ts';
 
 Deno.test('quest copy: the Sealed Letter is granted once and delivered to Bram (#122)', () => {
   // The letter enters the bag from exactly ONE quest reward (m1_embers,
@@ -110,5 +112,35 @@ Deno.test('quest copy: every quest contact still resolves on-site (#63 regressio
     const finisher = zoneOfNpc(q.finishNpc);
     assert(starter, `${q.id} startNpc ${q.startNpc} is not placed in any zone`);
     assert(finisher, `${q.id} finishNpc ${q.finishNpc} is not placed in any zone`);
+  }
+});
+
+Deno.test('quest copy: declarative conditions reference only real ids (#125)', () => {
+  // The shared condition language is data — its references must resolve
+  // like every other content reference (quests, items, zones).
+  const questIds = new Set(QUESTS.map((q) => q.id));
+  const zoneIds = new Set(ZONES.map((z) => z.id));
+  const itemIds = new Set(ITEMS.map((i) => i.id));
+  const check = (from: string, c: Condition): void => {
+    const refs = conditionRefs(c);
+    for (const qid of refs.quests) {
+      assert(questIds.has(qid), `${from}: condition references unknown quest ${qid}`);
+    }
+    for (const iid of refs.items) {
+      assert(itemIds.has(iid), `${from}: condition references unknown item ${iid}`);
+    }
+    for (const zid of refs.zones) {
+      assert(zoneIds.has(zid), `${from}: condition references unknown zone ${zid}`);
+    }
+  };
+  for (const z of ZONES) {
+    for (const n of z.npcs) {
+      for (const t of n.topics ?? []) {
+        if (t.when) check(`${n.id}:${t.id}`, t.when);
+      }
+    }
+  }
+  for (const q of QUESTS) {
+    if (q.prereq) check(q.id, q.prereq);
   }
 });

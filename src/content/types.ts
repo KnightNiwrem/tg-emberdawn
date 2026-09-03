@@ -400,6 +400,28 @@ export interface DialogueDef {
   nodes: DialogueNode[];
 }
 
+/** ── Declarative story conditions (#125) ────────────────────────────────
+ *
+ * One serializable condition language shared by NPC topic availability,
+ * dialogue choices/nodes (#126), quest eligibility, and later
+ * consequences. Plain data — evaluation lives in engine/conditions.ts and
+ * is pure. No content functions anywhere.
+ */
+
+/** JSON-safe flag values. */
+export type FlagValue = number | string | boolean;
+
+export type Condition =
+  | { all: Condition[] }
+  | { any: Condition[] }
+  | { not: Condition }
+  | { questStatus: { questId: string; is: string | string[] } }
+  | { decision: { id: string; choiceId?: string } }
+  | { flag: { id: string; equals?: FlagValue } }
+  | { levelAtLeast: number }
+  | { ownsItem: { itemId: string; count?: number } }
+  | { inZone: string };
+
 /** An authored ordinary conversation/lore topic (#123): stable compact id,
  * player-facing label, and the authored text. Lives with the NPC — never
  * fabricated in handlers. Quest topics are derived from quest state by the
@@ -412,6 +434,10 @@ export interface NpcTopicDef {
   text?: string;
   /** DialogueDef id to open instead of the static text (#124). */
   dialogue?: string;
+  /** Optional availability condition (#125) — the shared declarative
+   * language, evaluated pure against player state. Unauthored = always
+   * available. */
+  when?: Condition;
 }
 
 export interface NpcDef {
@@ -456,6 +482,9 @@ export interface QuestDef {
   /** NPC id whose dialogue accepts the turn-in — independent of the starter
    * so delivery flows (start with A, finish with B) are expressible (#63). */
   finishNpc: string;
+  /** Optional declarative prereq (#125): the shared condition language,
+   * ANDed with the legacy prereqQuest/prereqFlags fields. */
+  prereq?: Condition;
 }
 
 export type ExploreEvent =

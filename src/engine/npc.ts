@@ -11,6 +11,7 @@
 
 import type { PlayerState } from './types.ts';
 import { npc, QUESTS } from '../content/quests.ts';
+import { evalCondition } from './conditions.ts';
 
 export type NpcTopicKind = 'questTurnIn' | 'questOffer' | 'questActive' | 'lore';
 
@@ -53,6 +54,10 @@ export function npcTopics(p: PlayerState, npcId: string): NpcTopic[] {
     }
   }
   for (const t of npc(npcId)?.topics ?? []) {
+    // Authored availability conditions (#125): the shared declarative
+    // language, evaluated pure at enumeration time and revalidated at
+    // tap time by the handler.
+    if (t.when && !evalCondition(p, t.when)) continue;
     topics.push({ id: t.id, kind: 'lore', label: `❓ ${t.label}` });
   }
   return topics;
