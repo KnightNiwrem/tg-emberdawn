@@ -44,9 +44,7 @@ export interface EnemyInstance {
 export type BattlePhase = 'active' | 'won' | 'lost' | 'fled';
 
 /** Guided prologue state (#69): 'maren' → 'outskirts' → 'fight' → 'done'.
- * Fresh heroes start at 'maren'; migrated pre-launch saves are stamped
- * 'done' by an explicit migration step (they skip the prologue — completion
- * is never inferred from unrelated progress). */
+ * Fresh heroes start at 'maren'; 'done' marks a hero past the prologue. */
 export type TutorialStep = 'maren' | 'outskirts' | 'fight' | 'done';
 
 /** One completed combat round (#67): the round in which the player acted,
@@ -60,7 +58,7 @@ export interface BattleRound {
 /** Provenance of a live effect instance (#78): what applied it, for logs,
  * UI and cleanse/dispel source policy. */
 export interface EffectSource {
-  kind: 'skill' | 'enemyMove' | 'item' | 'encounter' | 'legacy';
+  kind: 'skill' | 'enemyMove' | 'item' | 'encounter';
   id: string;
   name: string;
 }
@@ -73,8 +71,8 @@ export interface EffectSource {
 export interface EffectInstance {
   /** Unique within the battle (allocated from `effectSeq`). */
   iid: string;
-  /** Authored effect identity: skill id, move name, item id — or a slot
-   * key for legacy-migrated state. Reapplication policies key on this. */
+  /** Authored effect identity: skill id, move name, item id — reapplication
+   * policies key on this. */
   defId: string;
   /** Display name ('Blessing', 'Sapped', 'Guard Stance'). */
   name: string;
@@ -138,11 +136,10 @@ export interface BattleState {
    * determinism across save/load). */
   effectSeq: number;
   /** Equipment proc bookkeeping (#82): key `${itemId}:${triggerIndex}` ->
-   * { count, round }. Battle-local and JSON-serializable; lazily created
-   * on the first reactive proc — absent in battles constructed before
-   * #82. `count` = successful procs, `round` = round of the last
-   * success (a cooldown-N trigger re-arms on that round + N + 1, #89);
-   * missed chance rolls update neither. */
+   * { count, round }. Battle-local and JSON-serializable; lazily created on
+   * the first reactive proc. `count` = successful procs, `round` = round of
+   * the last success (a cooldown-N trigger re-arms on that round + N + 1,
+   * #89); missed chance rolls update neither. */
   procs?: Record<string, { count: number; round: number }>;
   /** Resolved battle opening (#80): collected ONCE at construction —
    * never rerolled on save/load/rerender. Absent when no opening content
@@ -239,7 +236,7 @@ export interface PlayerState {
   /** Ordered ids of zones the player may travel to. */
   unlockedZones: string[];
   currentZone: string;
-  /** Guided prologue step (#69). Required since schema v5; see TutorialStep. */
+  /** Guided prologue step (#69). Required on every save; see TutorialStep. */
   tutorial: TutorialStep;
   /** Generic story/flag storage (key -> numeric or string value). */
   flags: Record<string, number | string | boolean>;
@@ -255,7 +252,7 @@ export interface PlayerState {
    * start at 0; every committed render advances it (#43). Only the class
    * picker — rendered before a player exists — sends rev-less callbacks. */
   uiRev: number;
-  /** Save-schema version; drives migrations at load time. Required — fresh
+  /** Save-schema version; gates compatibility at load time. Required — fresh
    * players receive CURRENT_STATE_VERSION; anything else fails clearly (#44). */
   stateVersion: number;
   /** Transient result lines rendered as a banner on the current view. */

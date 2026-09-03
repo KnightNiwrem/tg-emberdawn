@@ -145,13 +145,21 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   bounded per-pattern sink) and boost only that item's own base stats; the temper material is chosen
   by the item's tier, not the player's location.
 - **Save schema:** `stateVersion` is REQUIRED — fresh players are stamped `CURRENT_STATE_VERSION`.
-  Only the current development schema is supported (#44): unversioned or older saves throw
-  `SaveTooOldError` (refused with a pointer to /reset — never sniffed, rewritten or stamped
-  current); saves from NEWER binaries (`stateVersion > CURRENT_STATE_VERSION`) throw
-  `SaveTooNewError` and handlers refuse to read-mutate-write rather than downgrade. The
-  `migratePlayer()` entrypoint and its load-time call sites are retained so post-launch migrations
-  can be added as explicit `stateVersion` steps. Required battle fields (`phoenixUsed`,
-  `enemyGuardPct`, `enemyGuardTurns`) are initialized by `startBattle()`.
+  Only the current development schema is supported (#44, #116): the load-time
+  `assertSupportedSaveVersion()` gate is NON-MUTATING — unversioned or older saves throw
+  `SaveTooOldError` (refused with a pointer to /reset — never sniffed, rewritten, repaired or
+  stamped current; the stored JSON stays untouched); saves from NEWER binaries
+  (`stateVersion > CURRENT_STATE_VERSION`) throw `SaveTooNewError` and handlers refuse to
+  read-mutate-write rather than downgrade. There is no v3–v7 transformation path — the old migration
+  ladder was retired pre-launch (#116). Required battle fields (`phoenixUsed`, `effectInstances`,
+  `effectSeq`, `shield`, `history`) are initialized by `startBattle()`. Schema lifecycle policy:
+  - **Before launch:** after a persisted-shape change, advance the version as needed, update
+    constructors/types to emit the new authoritative shape, and RETIRE older dev formats rather than
+    accumulating migrations — playtesters /reset.
+  - **At launch:** record the first live schema baseline (the version live saves are born with).
+  - **After launch:** real saves are durable — add explicit ordered migrations from every supported
+    live version (`stateVersion` steps, never "state looks old" sniffing); never tell live players
+    to reset as a substitute for compatibility.
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
@@ -299,10 +307,15 @@ Three concepts stay separate (#114):
    engine also filters them); battles belong in the wilds players travel to.
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
    `unlockZone` reward — the zone-reachability test enforces this.
-8. `learnLevel: 1` skills are granted at creation; `migratePlayer` (called on every load) gates the
-   save schema. Pre-launch saves older than the current schema are DISPOSABLE — they fail with
-   `SaveTooOldError` and require /reset (#44). Once the game has live saves: bump
-   `CURRENT_STATE_VERSION` and add an explicit `< N` migration step; never sniff "state looks old".
+8. `learnLevel: 1` skills are granted at creation; `assertSupportedSaveVersion` (called on every
+   load) gates the save schema — it is non-mutating and accepts ONLY the current version. Before
+   launch: after a persisted-shape change, bump `CURRENT_STATE_VERSION`, update constructors/types
+   to emit the new authoritative shape, and retire older dev formats rather than adding migrations —
+   pre-launch saves are DISPOSABLE (#44, #116), they fail with `SaveTooOldError` and require /reset.
+   At launch, record the first live schema baseline. After launch, real saves are durable: bump
+   `CURRENT_STATE_VERSION` and add an explicit ordered migration from every supported live version;
+   never sniff "state looks old", and never tell live players to reset as a substitute for
+   compatibility.
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
    enough dungeon floor slots — `tests/progression_test.ts` enforces encounter capacity, and the
    full m1→m25 simulation walks the entire quest graph through the pure engine.

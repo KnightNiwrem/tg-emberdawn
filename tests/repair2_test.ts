@@ -1,5 +1,5 @@
-/** Repair-pass-2 regressions: /start neutrality, meta-callback safety, save
- * migration, engine authority checks, quest delivery invariants, pool
+/** Repair-pass-2 regressions: /start neutrality, meta-callback safety, the
+ * save-version gate, engine authority checks, quest delivery invariants, pool
  * clamping, shop boundaries, forage cooldown. */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
@@ -11,11 +11,11 @@ import { handleReset, handleStart } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
 import { battleAction, itemAction } from '../src/handlers/battle.ts';
 import {
+  assertSupportedSaveVersion,
   clampPools,
   createPlayer,
   CURRENT_STATE_VERSION,
   grantXp,
-  migratePlayer,
   SaveTooOldError,
   statsOf,
   xpToGoldAtCap,
@@ -186,9 +186,9 @@ Deno.test('the class picker stays revisionless (#43)', async () => {
   assertEquals(cur.uiRev >= 1, true, 'the first committed render stamped a revision');
 });
 
-// ── save migration (P0-3 / P0-4) ─────────────────────────────────────────
+// ── save-version gate (P0-3 / P0-4 / #116) ──────────────────────────────
 
-Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)', () => {
+Deno.test('save gate: unversioned saves fail instead of being repaired (#44)', () => {
   const p = createPlayer(901, 'T', 'warrior');
   const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
     player: p,
@@ -199,7 +199,7 @@ Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)
   // unversioned and throws (#44) — no sniffing, no stamping.
   const raw = p as unknown as Record<string, unknown>;
   delete raw.stateVersion;
-  assertThrows(() => migratePlayer(p), SaveTooOldError);
+  assertThrows(() => assertSupportedSaveVersion(p), SaveTooOldError);
   // The refused save is untouched — no stamping, no battle normalization.
   assertEquals(raw.stateVersion, undefined);
   assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
@@ -222,8 +222,69 @@ Deno.test('migratePlayer: unversioned saves fail instead of being repaired (#44)
 
 Deno.test('stateVersion stamps fresh saves', () => {
   const p = createPlayer(902, 'T', 'rogue');
-  migratePlayer(p);
+  assertSupportedSaveVersion(p);
   assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
+});
+
+Deno.test('incompatible pre-launch saves: /start and callbacks refuse without writing (#116)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(940, 'T', 'warrior');
+  p.gold = 555;
+  p.messageId = 700;
+  p.uiRev = 1;
+  p.stateVersion = CURRENT_STATE_VERSION - 1; // retired development format
+  await store.set(940, p);
+  const storedBefore = JSON.stringify(await store.get(940));
+
+  // /start explains the /reset path and never rewrites the save.
+  const start = fakeCtxCapture(940);
+  await handleStart(start.ctx, store);
+  assert(
+    start.sends.length + start.edits.length === 0,
+    '/start must not render the game for an unloadable save',
+  );
+  assert(
+    start.replies.some((r) => String(r).includes('/reset')),
+    '/start points the playtester at /reset',
+  );
+
+  // A gameplay callback on the old save is refused the same way — no
+  // mutation, no render, no persistence.
+  const tap = fakeCtxCapture(940, 700, withRev(1, 'z:sh'));
+  await handleCallback(tap.ctx, store);
+  assert(
+    tap.replies.some((r) => String(r).includes('/reset')),
+    'the refused callback explains the /reset path',
+  );
+  assertEquals(tap.edits.length + tap.sends.length, 0, 'no game render is committed');
+  const after = await store.get(940);
+  assertEquals(JSON.stringify(after), storedBefore, 'the stored save is untouched');
+  assertEquals(after!.gold, 555, 'no mutation ran');
+  assertEquals(after!.uiRev, 1, 'no render revision advanced');
+});
+
+Deno.test('/reset deletes an incompatible pre-launch save and presents the class picker (#116)', async () => {
+  const store = new MemoryStore();
+  const p = createPlayer(941, 'T', 'mage');
+  p.stateVersion = CURRENT_STATE_VERSION - 1; // unloadable dev save
+  await store.set(941, p);
+
+  // The explicit command is the exception (#44): no Yes/No staging is
+  // possible on an unloadable save — /reset drops it and offers the picker.
+  const reset = fakeCtxCapture(941);
+  await handleReset(reset.ctx, store);
+  assertEquals(await store.get(941), undefined, 'the unloadable save is deleted');
+  assert(
+    JSON.stringify(reset.sends[0]).includes('Choose who you will be'),
+    'the stateless class picker is delivered',
+  );
+
+  // A fresh hero can be picked through the normal no-player path.
+  await handleCallback(fakeCtx(941, 610, 'm:pk:cleric'), store);
+  const fresh = (await store.get(941))!;
+  assertEquals(fresh.classId, 'cleric');
+  assertEquals(fresh.stateVersion, CURRENT_STATE_VERSION, 'the new save is on the current schema');
+  assertEquals(fresh.tutorial, 'maren', 'the new hero enters the prologue');
 });
 
 // ── engine authority (P1-4 / P1-5 / P1-6) ────────────────────────────────

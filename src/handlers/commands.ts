@@ -5,7 +5,11 @@ import type { PlayerStore } from '../persistence/store.ts';
 import { commit } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
-import { migratePlayer, SaveTooNewError, SaveTooOldError } from '../engine/character.ts';
+import {
+  assertSupportedSaveVersion,
+  SaveTooNewError,
+  SaveTooOldError,
+} from '../engine/character.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
@@ -19,10 +23,10 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
   // gameplay action. Battles, gold, deaths and location are all preserved;
   // abandoning a fight is what /reset is for.
   try {
-    migratePlayer(existing); // versioned save migration runs here too
+    assertSupportedSaveVersion(existing); // the compatibility gate runs here too
   } catch (e) {
     if (e instanceof SaveTooOldError) {
-      // Pre-launch save with no migration path (#44): refuse and point at
+      // Incompatible pre-launch save (#44, #116): refuse and point at
       // /reset — never silently rewrite it.
       await ctx
         .reply(
@@ -68,11 +72,11 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
     return;
   }
   try {
-    migratePlayer(p);
+    assertSupportedSaveVersion(p);
   } catch (e) {
     if (e instanceof SaveTooOldError) {
       // The save cannot be loaded, so a confirmation cannot be staged. An
-      // explicit /reset is the documented escape hatch (#44): drop the
+      // explicit /reset is the documented escape hatch (#44, #116): drop the
       // unloadable save and offer the class picker.
       await store.delete(from.id);
       await ctx.replyWithRichMessage(renderClassPicker());

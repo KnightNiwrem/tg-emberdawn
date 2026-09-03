@@ -43,7 +43,7 @@ export function injectMod(
     defId: opts.defId ?? `test:${stat}`,
     name: opts.name ?? `Test ${stat.toUpperCase()}`,
     side,
-    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    source: { kind: 'skill', id: 'test', name: 'test fixture' },
     kind: 'statmod',
     stat,
     pct,
@@ -114,6 +114,7 @@ export function fakeCtx(userId: number, tapped?: number, data?: string): Context
       ? undefined
       : { data: data ?? 'q:bk', message: { message_id: tapped } },
     answerCallbackQuery: () => Promise.resolve(),
+    reply: () => Promise.resolve(),
     api: {
       editMessageText: () => Promise.resolve(),
       sendRichMessage: () => Promise.resolve({ message_id: 424242 }),
@@ -128,6 +129,7 @@ export function fakeCtx(userId: number, tapped?: number, data?: string): Context
 export function fakeCtxCapture(userId: number, tapped?: number, data?: string) {
   const edits: unknown[] = [];
   const sends: unknown[] = [];
+  const replies: unknown[] = [];
   const toasts: (string | undefined)[] = [];
   const ctx = {
     from: { id: userId, first_name: 'T' },
@@ -137,6 +139,10 @@ export function fakeCtxCapture(userId: number, tapped?: number, data?: string) {
       : { data: data ?? 'q:bk', message: { message_id: tapped } },
     answerCallbackQuery: (arg?: string | { text?: string }) => {
       toasts.push(typeof arg === 'string' ? arg : arg?.text);
+      return Promise.resolve();
+    },
+    reply: (msg: unknown) => {
+      replies.push(msg);
       return Promise.resolve();
     },
     api: {
@@ -154,5 +160,5 @@ export function fakeCtxCapture(userId: number, tapped?: number, data?: string) {
       return Promise.resolve({ message_id: 424242 });
     },
   } as unknown as Context;
-  return { ctx, edits, sends, toasts };
+  return { ctx, edits, sends, replies, toasts };
 }

@@ -4,16 +4,11 @@
  * already pin: different sources coexisting on one stat, explicit
  * same-source stacking policies, strongest-wins saps, tag-driven cleanse
  * respecting unremovable conditions, periodic ticking/expiry, control
- * consumption, the v5→v6 save migration, and #90's stable per-effect
- * identity plus atomic reapplication semantics. */
+ * consumption, and #90's stable per-effect identity plus atomic
+ * reapplication semantics. */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import {
-  createPlayer,
-  CURRENT_STATE_VERSION,
-  migratePlayer,
-  statsOf,
-} from '../src/engine/character.ts';
+import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { performAction, previewBattle, startBattle } from '../src/engine/combat.ts';
 import {
   applyInstance,
@@ -112,7 +107,7 @@ Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
       name: 'Sapped',
       kind: 'statmod',
       side: 'player',
-      source: { kind: 'legacy', id: 'test', name: 'test sap fixture' },
+      source: { kind: 'skill', id: 'test', name: 'test sap fixture' },
       stat: 'outgoing',
       pct: -pct,
       tags: ['harmful'],
@@ -165,7 +160,7 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
     defId: 'test:stun',
     name: 'Stunned',
     side: 'enemy',
-    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    source: { kind: 'skill', id: 'test', name: 'test fixture' },
     kind: 'control',
     control: 'stun',
     actions: 1,
@@ -232,7 +227,7 @@ Deno.test('effects: control instances consume the target\u2019s actions (#78)', 
     defId: 'test:stun',
     name: 'Stunned',
     side: 'player',
-    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    source: { kind: 'skill', id: 'test', name: 'test fixture' },
     kind: 'control',
     control: 'stun',
     actions: 2,
@@ -255,76 +250,6 @@ Deno.test('effects: control instances consume the target\u2019s actions (#78)', 
     0,
     'consumed and removed',
   );
-});
-
-Deno.test('migratePlayer: v5 in-flight battles map CombatBuffs to effect instances (#78)', () => {
-  const p = createPlayer(507, 'T', 'cleric');
-  p.stateVersion = 5;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
-    rng: seeded(63),
-  })!.battle;
-  // Simulate a v5 battle mid-fight: Blessing legs, a sap, a live enemy stun.
-  const rec = b as unknown as Record<string, unknown>;
-  rec.buffs = {
-    atkPct: 0,
-    defPct: 0.3,
-    resPct: 0,
-    magPct: 0.3,
-    spdPct: 0,
-    durations: { def: 2, mag: 3 },
-    weakenedPct: 0.15,
-    weakenTurns: 1,
-    enemyWeakenedPct: 0,
-    enemyWeakenTurns: 0,
-    stunnedTurns: 0,
-    stunnedEnemy: true,
-  };
-  rec.effects = [
-    {
-      key: 'mag',
-      id: 'sk_blessing',
-      name: 'Blessing',
-      side: 'player',
-      magnitude: '+30% MAG',
-      source: 'Blessing',
-      expiresRound: b.round + 2,
-    },
-    {
-      key: 'def',
-      id: 'sk_blessing',
-      name: 'Blessing',
-      side: 'player',
-      magnitude: '+30% DEF',
-      source: 'Blessing',
-      expiresRound: b.round + 1,
-    },
-  ];
-  const hpBefore = b.enemy.hp;
-  const cooldownsBefore = { ...b.cooldowns };
-  const historyBefore = b.history.length;
-  p.battle = b;
-  migratePlayer(p);
-  assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
-  // Aggregates became instances with magnitudes and remaining rounds intact.
-  assertEquals(statPct(b, 'player', 'mag'), 0.3);
-  assertEquals(statPct(b, 'player', 'def'), 0.3);
-  assertEquals(sapPct(b, 'player'), 0.15);
-  const enemyStun = b.effectInstances.find((i) => i.kind === 'control' && i.side === 'enemy');
-  assert(enemyStun, 'the stunned-enemy flag became a control instance');
-  assertEquals(enemyStun.actions, 1);
-  // Identity carried over from the old display entries.
-  assertEquals(modInstance(b, 'player', 'mag')!.name, 'Blessing');
-  // Legacy fields stripped; mechanics preserved.
-  assertEquals(rec.buffs, undefined);
-  assertEquals(rec.effects, undefined);
-  assertEquals(b.enemy.hp, hpBefore, 'enemy HP preserved');
-  assertEquals(b.cooldowns, cooldownsBefore, 'cooldowns preserved');
-  assertEquals(b.history.length, historyBefore, 'history preserved');
-  // The battle stays playable: the migrated stun is consumed by the next
-  // enemy phase like any other control instance.
-  const res = performAction(p, b, { kind: 'guard' }, seeded(64));
-  assert(res.lines.some((l) => l.includes('stunned and cannot act')), 'migrated stun fires once');
 });
 
 // ── #90: stable per-effect identity and atomic reapplication ──────────

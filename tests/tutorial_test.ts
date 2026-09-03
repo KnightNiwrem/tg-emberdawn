@@ -3,8 +3,7 @@
  * Covers the full tap flow through the real router for EVERY class — every
  * lesson beat (basic → skill → guard → item) shown AND acted upon before
  * victory, with no coach bypasses and no manual HP — plus the crit-seed
- * sweep, resume, replay rejection, reward idempotency and the v4→v5
- * migration decision. */
+ * sweep, resume, replay rejection and reward idempotency. */
 
 import { assert, assertEquals } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
@@ -14,12 +13,7 @@ import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleStart } from '../src/handlers/commands.ts';
 import { withRev } from '../src/codec.ts';
 import { fakeCtxCapture, seeded } from './helpers.ts';
-import {
-  createPlayer,
-  CURRENT_STATE_VERSION,
-  migratePlayer,
-  statsOf,
-} from '../src/engine/character.ts';
+import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import { createPostTutorialPlayer } from '../src/engine/tutorial.ts';
 import { grantTutorialReward } from '../src/handlers/tutorial.ts';
@@ -282,20 +276,10 @@ Deno.test('prologue: a fled fight returns to the re-face panel (#69)', async () 
 
 Deno.test('prologue: the ember reward is idempotent at the engine level (#69)', () => {
   const p = createPlayer(310, 'T', 'cleric');
+  assertEquals(p.tutorial, 'maren', 'fresh heroes start the prologue');
   const first = grantTutorialReward(p);
   assert(first.length > 0);
   assertEquals(p.level, 2, 'deterministic level-2 exit');
   assertEquals(grantTutorialReward(p), [], 'a second call is a no-op');
   assertEquals(p.level, 2);
-});
-
-Deno.test('prologue: pre-launch v4 saves skip it via explicit migration (#69)', () => {
-  const p = createPlayer(311, 'T', 'mage');
-  assertEquals(p.tutorial, 'maren', 'fresh heroes start the prologue');
-  const old = JSON.parse(JSON.stringify(p)) as PlayerState;
-  delete (old as { tutorial?: unknown }).tutorial;
-  old.stateVersion = 4;
-  migratePlayer(old);
-  assertEquals(old.stateVersion, CURRENT_STATE_VERSION);
-  assertEquals(old.tutorial, 'done', 'pre-launch heroes explicitly skip the prologue');
 });

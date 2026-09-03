@@ -6,10 +6,10 @@
 import { assert, assertEquals, assertGreater, assertThrows } from '@std/assert';
 import {
   applyDeath,
+  assertSupportedSaveVersion,
   createPlayer,
   CURRENT_STATE_VERSION,
   grantXp,
-  migratePlayer,
   SaveTooNewError,
   SaveTooOldError,
   statsOf,
@@ -808,66 +808,40 @@ Deno.test('derived stats aggregate equipped slots only — bag copies never coun
   assertEquals(statsOf(withExtra).atk, statsOf(plain).atk, 'bag copies never affect stats');
 });
 
-Deno.test('migratePlayer: current-version saves load unchanged', () => {
+Deno.test('save gate: current-version saves load unchanged', () => {
   const p = createPlayer(28, 'T', 'mage');
   const before = JSON.stringify(p);
-  migratePlayer(p);
+  assertSupportedSaveVersion(p);
   assertEquals(JSON.stringify(p), before, 'a current save is untouched');
 });
 
-Deno.test('migratePlayer: refuses to downgrade saves from a newer binary', () => {
+Deno.test('save gate: refuses to downgrade saves from a newer binary', () => {
   const p = createPlayer(25, 'T', 'rogue');
   p.stateVersion = CURRENT_STATE_VERSION + 1;
   p.gold = 12345;
-  assertThrows(() => migratePlayer(p), SaveTooNewError);
+  assertThrows(() => assertSupportedSaveVersion(p), SaveTooNewError);
   // The refusal must be total: no rewrite, no stamp-down, no loss.
   assertEquals(p.stateVersion, CURRENT_STATE_VERSION + 1);
   assertEquals(p.gold, 12345);
 });
 
-Deno.test('migratePlayer: unversioned and older saves fail clearly (#44)', () => {
+Deno.test('save gate: unversioned and older saves fail clearly, unmutated (#44, #116)', () => {
   // Pre-versioning save (no stateVersion): not a supported shape, never
   // silently stamped current — or interpreted as any numbered version.
   const p = createPlayer(26, 'T', 'warrior');
   const raw = p as unknown as Record<string, unknown>;
   delete raw.stateVersion;
-  assertThrows(() => migratePlayer(p), SaveTooOldError);
+  assertThrows(() => assertSupportedSaveVersion(p), SaveTooOldError);
   assertEquals(raw.stateVersion, undefined, 'no version was stamped');
 
-  // Versions below the earliest migration step have no path. The earliest
-  // step is v3 → v4 (#67, structured history); a v2-era save predates the
-  // versioned chain and is disposable (#44). (Later versions MIGRATE — the
-  // chain now runs v3→v4→v5.)
+  // Any version below the current schema is refused outright (#116): older
+  // development saves are disposable — no rewrite, no stamp-up.
   const p2 = createPlayer(27, 'T', 'warrior');
-  p2.stateVersion = 2;
+  p2.stateVersion = CURRENT_STATE_VERSION - 1;
   p2.gold = 999;
-  assertThrows(() => migratePlayer(p2), SaveTooOldError);
-  assertEquals(p2.stateVersion, 2, 'no rewrite, no stamp-down');
+  assertThrows(() => assertSupportedSaveVersion(p2), SaveTooOldError);
+  assertEquals(p2.stateVersion, CURRENT_STATE_VERSION - 1, 'no rewrite, no stamp-up');
   assertEquals(p2.gold, 999);
-});
-
-Deno.test('migratePlayer: in-flight v3 battles normalize to the structured history (#67)', () => {
-  const p = createPlayer(29, 'T', 'warrior');
-  // A REAL v3 save (the version #67 retired) — the chain now walks it
-  // v3→v4→v5, so the prologue stamp applies on the way through (#69).
-  p.stateVersion = 3;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
-    rng: seeded(29),
-  })!.battle;
-  p.battle = b;
-  // Simulate a pre-#67 save: an in-flight battle still carrying the flat log.
-  (p.battle as unknown as Record<string, unknown>).log = ['🐺 Wolf blocks your path!'];
-  const hpBefore = p.battle.enemy.hp;
-  migratePlayer(p);
-  assertEquals(p.stateVersion, CURRENT_STATE_VERSION, 'stamped current');
-  assertEquals(p.tutorial, 'done', 'chained through the #69 step');
-  const raw = p.battle as unknown as Record<string, unknown>;
-  assertEquals(raw['log'], undefined, 'the retired flat log is stripped from the save');
-  assertEquals(p.battle!.history, [], 'structured history starts empty');
-  assertEquals(p.battle!.effectInstances, [], 'live effect instances start empty (#78)');
-  assertEquals(p.battle!.enemy.hp, hpBefore, 'mechanics are preserved');
-  assertEquals(p.battle!.phase, 'active', 'the fight is still live');
 });
 
 Deno.test('world: every zone is reachable from the starting zones', () => {
@@ -1015,42 +989,27 @@ Deno.test('content integrity: skills are complete per class and learnable in ord
   assertEquals(SKILLS.length, 48);
 });
 
-Deno.test('migration v8: expanded rosters union into existing heroes exactly once (#81)', () => {
-  // A v7 hero at the cap must receive every #81 skill its level has
-  // crossed — exactly once, in ascending learn order.
+Deno.test('level-ups accumulate the full class roster in learn order (#81)', () => {
+  // Current-constructor coverage of the expanded rosters: a hero grown from
+  // creation to the cap through the real XP path ends knowing every class
+  // skill, exactly once, in ascending learn order.
   const p = createPlayer(1, 'T', 'warrior');
   let xp = 0;
-  for (let l = 1; l < 45; l++) xp += xpForNextLevel(l);
+  for (let l = 1; l < MAX_LEVEL; l++) xp += xpForNextLevel(l);
   grantXp(p, xp);
-  assertEquals(p.level, 45);
-  p.skills = [
-    'sk_cleave',
-    'sk_shield_bash',
-    'sk_war_cry',
-    'sk_whirlwind',
-    'sk_iron_wall',
-    'sk_executioner',
-    'sk_adrenaline',
-    'sk_titans_fall',
-  ]; // the v7 warrior kit — the #81 skills did not exist yet
-  p.stateVersion = 7;
-  migratePlayer(p);
-  assertEquals(p.stateVersion, 8);
+  assertEquals(p.level, MAX_LEVEL);
   assertEquals(
     p.skills,
     skillsForClass('warrior', MAX_LEVEL).map((s) => s.id),
-    'full ascending union, no duplicates',
+    'full ascending roster, no duplicates',
   );
 
-  // A mid-band v7 hero only gains what its level has crossed:
+  // A mid-band hero only knows what its level has crossed:
   const mid = createPlayer(2, 'T', 'mage');
   let xp2 = 0;
   for (let l = 1; l < 8; l++) xp2 += xpForNextLevel(l);
   grantXp(mid, xp2);
   assertEquals(mid.level, 8);
-  mid.skills = ['sk_firebolt', 'sk_frost_lance']; // v7: Scorch did not exist
-  mid.stateVersion = 7;
-  migratePlayer(mid);
   assertEquals(mid.skills, ['sk_firebolt', 'sk_frost_lance', 'sk_scorch']);
 });
 

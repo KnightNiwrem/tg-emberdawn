@@ -56,7 +56,7 @@ function periodicSeed(
     name: 'Test Rot',
     kind: 'periodic',
     side,
-    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    source: { kind: 'skill', id: 'test', name: 'test fixture' },
     perRound,
     tickPhase: phase,
     tags: perRound < 0 ? ['harmful'] : ['beneficial'],

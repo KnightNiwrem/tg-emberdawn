@@ -3,7 +3,7 @@
  * Pure functions over PlayerState + content lookups.
  */
 
-import type { BattleState, ClassId, DerivedStats, EffectInstance, PlayerState } from './types.ts';
+import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
@@ -91,7 +91,9 @@ export function clampPools(p: PlayerState): void {
   p.mp = Math.min(p.mp, s.maxMp);
 }
 
-/** Current save-schema version. Bump when a destructive migration is added. */
+/** Current save-schema version. Pre-launch this is the ONLY supported shape:
+ * bump it when the persisted PlayerState shape changes; older dev saves are
+ * retired, not migrated. After launch, bump it per explicit migration step. */
 export const CURRENT_STATE_VERSION = 8;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
@@ -103,268 +105,32 @@ export class SaveTooNewError extends Error {
   }
 }
 
-/** Thrown when a save predates the current schema and has NO migration path.
- * Pre-launch development saves are disposable: the player must /reset. */
+/** Thrown when a save predates the supported schema. Pre-launch development
+ * saves are disposable: the player must /reset (#44, #116). */
 export class SaveTooOldError extends Error {
   constructor(from: number | undefined) {
     super(
       from === undefined
         ? `Save carries no stateVersion (supported: ${CURRENT_STATE_VERSION})`
-        : `Save version ${from} has no migration path to ${CURRENT_STATE_VERSION}`,
+        : `Save version ${from} predates the supported schema ${CURRENT_STATE_VERSION}`,
     );
     this.name = 'SaveTooOldError';
   }
 }
 
-export function migratePlayer(p: PlayerState): void {
+/** Non-mutating save-compatibility gate (#116): runs on every load and accepts
+ * ONLY the current schema version. Pre-launch, older development saves have no
+ * upgrade path — they are refused untouched and the player is directed to
+ * /reset; never normalize, infer, repair, backfill or stamp a non-current save.
+ * Saves from newer binaries are refused too: never downgrade. */
+export function assertSupportedSaveVersion(p: PlayerState): void {
   const from = p.stateVersion;
-  if (typeof from !== 'number') {
-    // Unversioned development-era saves predate the versioning contract
-    // itself — there is nothing safe to infer. Fail clearly, require a
-    // reset; never sniff "state looks old" and rewrite (#44).
-    throw new SaveTooOldError(undefined);
+  if (typeof from !== 'number' || from < CURRENT_STATE_VERSION) {
+    throw new SaveTooOldError(typeof from === 'number' ? from : undefined);
   }
   if (from > CURRENT_STATE_VERSION) {
-    // Never downgrade: an older binary must not rewrite a newer save — it
-    // would drop fields it cannot understand on the next write.
     throw new SaveTooNewError(from);
   }
-  if (from === CURRENT_STATE_VERSION) return;
-  // Forward migrations, oldest first, gated by explicit `stateVersion`
-  // steps (never "state looks old" sniffing).
-  //
-  // v3 → v4 (#67): battle history became structured complete rounds and
-  // active effects became structured metadata. Mechanics are preserved —
-  // hp, round, buffs, cooldowns all carry over — but the old flat log
-  // cannot be round-split reliably, so an in-flight battle's history
-  // restarts empty and the retired field is stripped from the save.
-  if (p.stateVersion === 3) {
-    const battle = p.battle as (BattleState & { log?: unknown }) | undefined;
-    if (battle) {
-      delete battle.log;
-      battle.history = [];
-    }
-    p.stateVersion = 4;
-  }
-  // v4 → v5 (#69): the guided prologue. Pre-launch heroes have already
-  // played — they SKIP it via this explicit stamp ('done'); completion is
-  // never inferred from their progress, and the prologue never re-runs.
-  // Chain on the UPDATED version: a v3 save walks both steps (a v4 save
-  // lands directly here).
-  if (p.stateVersion === 4) {
-    p.tutorial = 'done';
-    p.stateVersion = 5;
-  }
-  // v5 → v6 (#78): combat effects became data-driven instances. The fixed
-  // CombatBuffs aggregate slots, the display-only ActiveEffect[] and the
-  // enemy guard fields are retired; every live mechanical effect is
-  // rebuilt as an authoritative instance from the persisted aggregates.
-  // HP, MP, enemy HP, cooldowns, history and origin carry over untouched.
-  // Documented approximation: deferred-key buffs (ATK/MAG) lost their
-  // transient "skip first tick" marker — freshBuffs was never persisted —
-  // so a migrated offensive buff expires one round earlier than it would
-  // have under the old engine. Magnitudes and remaining rounds map
-  // exactly; the degenerate same-slot overwrite is gone (instances keep
-  // independent identity), which is the #78 fix, not drift.
-  if (p.stateVersion === 5) {
-    const battle = p.battle as
-      | (BattleState & {
-        buffs?: {
-          atkPct: number;
-          defPct: number;
-          resPct: number;
-          magPct: number;
-          spdPct: number;
-          durations: Record<string, number>;
-          weakenedPct: number;
-          weakenTurns: number;
-          enemyWeakenedPct: number;
-          enemyWeakenTurns: number;
-          stunnedTurns: number;
-          stunnedEnemy: boolean;
-        };
-        effects?: Array<{
-          key: string;
-          id: string;
-          name: string;
-          side: string;
-          source: string;
-        }>;
-        enemyGuardPct?: number;
-        enemyGuardTurns?: number;
-      })
-      | undefined;
-    if (battle) {
-      const legacy = battle.buffs;
-      const oldEffects = battle.effects ?? [];
-      const round = battle.round;
-      const instances: EffectInstance[] = [];
-      const push = (i: Omit<EffectInstance, 'iid'>): void => {
-        instances.push({ iid: `mig${instances.length + 1}`, ...i });
-      };
-      const metaFor = (
-        key: string,
-        side: string,
-      ): { name: string; id: string; source: string } | undefined => {
-        const e = oldEffects.find((x) => x.key === key && x.side === side);
-        return e ? { name: e.name, id: e.id, source: e.source } : undefined;
-      };
-      if (legacy) {
-        for (const key of ['atk', 'def', 'res', 'mag', 'spd'] as const) {
-          const pct = legacy[`${key}Pct`];
-          const remaining = legacy.durations[key] ?? 0;
-          if (!pct || remaining <= 0) continue;
-          const meta = metaFor(key, 'player');
-          push({
-            defId: `legacy:${key}`,
-            name: meta?.name ?? key.toUpperCase(),
-            side: 'player',
-            source: {
-              kind: 'legacy',
-              id: meta?.id ?? key,
-              name: meta?.source ?? 'migrated save',
-            },
-            kind: 'statmod',
-            stat: key,
-            pct,
-            tags: ['beneficial'],
-            stacking: 'replace',
-            appliedRound: round,
-            remaining,
-            removable: true,
-            expiresRound: round + remaining - 1,
-          });
-        }
-        if (legacy.weakenedPct > 0 && legacy.weakenTurns > 0) {
-          push({
-            defId: 'sap',
-            name: 'Sapped',
-            side: 'player',
-            source: { kind: 'legacy', id: 'sap', name: 'migrated save' },
-            kind: 'statmod',
-            stat: 'outgoing',
-            pct: -legacy.weakenedPct,
-            tags: ['harmful'],
-            stacking: 'strongest',
-            appliedRound: round,
-            remaining: legacy.weakenTurns,
-            removable: true,
-            expiresRound: round + legacy.weakenTurns - 1,
-          });
-        }
-        if (legacy.enemyWeakenedPct > 0 && legacy.enemyWeakenTurns > 0) {
-          const meta = metaFor('enemyWeaken', 'enemy');
-          push({
-            defId: 'sap',
-            name: meta?.name ?? 'Sapped',
-            side: 'enemy',
-            source: {
-              kind: 'legacy',
-              id: meta?.id ?? 'sap',
-              name: meta?.source ?? 'migrated save',
-            },
-            kind: 'statmod',
-            stat: 'outgoing',
-            pct: -legacy.enemyWeakenedPct,
-            tags: ['harmful'],
-            stacking: 'strongest',
-            appliedRound: round,
-            remaining: legacy.enemyWeakenTurns,
-            removable: true,
-            expiresRound: round + legacy.enemyWeakenTurns - 1,
-          });
-        }
-        if (legacy.stunnedTurns > 0) {
-          push({
-            defId: 'legacy:stun',
-            name: 'Stunned',
-            side: 'player',
-            source: { kind: 'legacy', id: 'stun', name: 'migrated save' },
-            kind: 'control',
-            control: 'stun',
-            actions: legacy.stunnedTurns,
-            tags: ['harmful', 'control'],
-            stacking: 'replace',
-            appliedRound: round,
-            remaining: legacy.stunnedTurns,
-            removable: true,
-            expiresRound: round,
-          });
-        }
-        if (legacy.stunnedEnemy) {
-          push({
-            defId: 'legacy:stun',
-            name: 'Stunned',
-            side: 'enemy',
-            source: { kind: 'legacy', id: 'stun', name: 'migrated save' },
-            kind: 'control',
-            control: 'stun',
-            actions: 1,
-            tags: ['harmful', 'control'],
-            stacking: 'replace',
-            appliedRound: round,
-            remaining: 1,
-            removable: true,
-            expiresRound: round,
-          });
-        }
-      }
-      if ((battle.enemyGuardPct ?? 0) > 0 && (battle.enemyGuardTurns ?? 0) > 0) {
-        const meta = metaFor('guard', 'enemy');
-        push({
-          defId: 'legacy:guard',
-          name: meta?.name ?? 'Guard',
-          side: 'enemy',
-          source: {
-            kind: 'legacy',
-            id: meta?.id ?? 'guard',
-            name: meta?.source ?? 'migrated save',
-          },
-          kind: 'statmod',
-          stat: 'mitigation',
-          pct: battle.enemyGuardPct!,
-          tags: ['beneficial'],
-          stacking: 'replace',
-          appliedRound: round,
-          remaining: battle.enemyGuardTurns!,
-          removable: true,
-          expiresRound: round + battle.enemyGuardTurns! - 1,
-        });
-      }
-      battle.effectInstances = instances;
-      battle.effectSeq = instances.length;
-      const rec = battle as unknown as Record<string, unknown>;
-      delete rec.buffs;
-      delete rec.effects;
-      delete rec.enemyGuardPct;
-      delete rec.enemyGuardTurns;
-    }
-    p.stateVersion = 6;
-  }
-  if (p.stateVersion === 6) {
-    // v6→v7 (#79): battles carry the current-shield pool per side. Nothing
-    // pre-#79 could grant shields, so in-flight battles initialize at zero
-    // capacity on both sides; contributions are never synthesized.
-    if (p.battle) p.battle.shield ??= { player: 0, enemy: 0 };
-    p.stateVersion = 7;
-  }
-  if (p.stateVersion === 7) {
-    // v7→v8 (#81): the class rosters expanded. Existing heroes may have
-    // crossed a new skill's learnLevel before the skill existed. Union
-    // every class skill whose learnLevel the hero has reached (plus
-    // anything already known), in ascending learn order, dropping
-    // duplicates.
-    const roster = skillsForClass(p.classId, MAX_LEVEL);
-    const known = new Set(p.skills);
-    p.skills = roster
-      .filter((sk) => sk.learnLevel <= p.level || known.has(sk.id))
-      .map((sk) => sk.id);
-    p.stateVersion = 8;
-  }
-  if (p.stateVersion === CURRENT_STATE_VERSION) return;
-  // Pre-launch saves older than the earliest migration step are disposable:
-  // they fail clearly and require a /reset (#44).
-  throw new SaveTooOldError(from);
 }
 
 /** Grants XP and applies any level-ups. Returns messages describing what happened. */

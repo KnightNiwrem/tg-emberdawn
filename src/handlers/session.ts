@@ -9,7 +9,11 @@ import type { EquipSlot, PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import { withRev } from '../codec.ts';
 import { answerCallbackBestEffort } from './ack.ts';
-import { migratePlayer, SaveTooNewError, SaveTooOldError } from '../engine/character.ts';
+import {
+  assertSupportedSaveVersion,
+  SaveTooNewError,
+  SaveTooOldError,
+} from '../engine/character.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -207,11 +211,11 @@ export async function withLoadedPlayer(
 ): Promise<void> {
   if (!ctx.chat) return;
   try {
-    migratePlayer(p); // versioned save migration (destructive steps run once)
+    assertSupportedSaveVersion(p); // compatibility gate — refuses, never rewrites
   } catch (e) {
     if (e instanceof SaveTooOldError) {
-      // Pre-launch save with no migration path (#44): refuse to guess — the
-      // player must explicitly reset.
+      // Incompatible pre-launch save (#44, #116): refuse to guess — the
+      // player must explicitly reset. The stored JSON stays untouched.
       await answerCallbackBestEffort(ctx);
       await ctx
         .reply(

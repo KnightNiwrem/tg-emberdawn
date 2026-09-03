@@ -3,12 +3,7 @@
  * grant/damage/expire semantics plus resolver, UI and persistence paths. */
 
 import { assert, assertEquals } from '@std/assert';
-import {
-  createPlayer,
-  CURRENT_STATE_VERSION,
-  migratePlayer,
-  statsOf,
-} from '../src/engine/character.ts';
+import { assertSupportedSaveVersion, createPlayer, statsOf } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
 import {
   absorbShield,
@@ -71,7 +66,7 @@ function stunEnemy(b: BattleState): void {
     defId: 'test:stun',
     name: 'Stunned',
     side: 'enemy',
-    source: { kind: 'legacy', id: 'test', name: 'test fixture' },
+    source: { kind: 'skill', id: 'test', name: 'test fixture' },
     kind: 'control',
     control: 'stun',
     actions: 1,
@@ -435,24 +430,12 @@ Deno.test('shields: the battle screen renders, depletes and removes ward bars (#
   assert(!text().includes('Shield '), 'the bar is gone at zero capacity');
 });
 
-Deno.test('migratePlayer: v6 in-flight battles gain the shield pool (#79)', () => {
-  const p = createPlayer(880, 'T', 'warrior');
-  p.stateVersion = 6;
-  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(42) })!.battle;
-  p.battle = b;
-  const rec = b as unknown as Record<string, unknown>;
-  delete rec.shield; // simulate a pre-#79 in-flight battle
-  migratePlayer(p);
-  assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
-  assertEquals(b.shield, { player: 0, enemy: 0 });
-});
-
 Deno.test('shields: ward state survives a save/load round-trip (#79)', () => {
   const { p, b } = battleFor(890);
   grantShield(b, 'player', ward('w', 70));
   absorbShield(b, 'player', 20); // 50/70
   const loaded = structuredClone(p) as PlayerState;
-  migratePlayer(loaded); // the load path (no-op at the current version)
+  assertSupportedSaveVersion(loaded); // the load path (a no-op at the current version)
   assertEquals(loaded.battle!.shield, { player: 50, enemy: 0 });
   assertEquals(maxShield(loaded.battle!, 'player'), 70);
   assertEquals(loaded.battle!.effectInstances.filter((i) => i.kind === 'shield').length, 1);
