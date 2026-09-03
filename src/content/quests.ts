@@ -20,7 +20,7 @@ export const QUESTS: readonly QuestDef[] = [
     intro:
       'Maren looks to the fields. "Ember-rats have come down from the ash to gnaw at the hearth-roads. Thin them out, so the village keeps heart enough to hope. The Outskirts, just past the fields — and mind the boar."',
     outro:
-      '"You\'ve bought us quiet nights," Maren says. "Take this — and speak to Bram. The road you\'ll walk starts at his forge."',
+      '"You\'ve bought us quiet nights," Maren says, pressing a wax-sealed letter into your hands. "This goes to Bram. The road you\'ll walk starts at his forge."',
     objectives: [{ kind: 'kill', target: 'e_ember_rat', count: 4 }],
     rewards: { xp: 120, gold: 80, items: { q_sealed_letter: 1 } },
     startNpc: 'npc_maren',
@@ -35,7 +35,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm1_embers',
     summary: "Deliver Maren's sealed letter to Blacksmith Bram — the first clue toward the dawn.",
     intro:
-      '"Take this to Bram," Maren says, pressing a wax-sealed letter into your hands. "His forge was the last to touch the Great Flame. If tomorrow can be found, his fire knows where to look."',
+      '"Everything the letter says, I trust to your hands alone," Maren says. "Bram\'s forge was the last to touch the Great Flame. If tomorrow can be found, his fire knows where to look."',
     outro:
       'Bram breaks the seal, reads, and hope flickers across his face. "The Flame isn\'t just dying — its tomorrow was stolen and scattered. The Whisperwood roots still carry warmth. Follow it. Find where the light went."',
     objectives: [
@@ -93,11 +93,11 @@ export const QUESTS: readonly QuestDef[] = [
     level: 6,
     prereqQuest: 'm4_floors',
     summary:
-      "Bram wants real steel in your hands before the Hollow's heart — iron, and coin to temper it.",
+      "Bram wants real steel in your hands before the Hollow's heart — iron enough to work it.",
     intro:
-      'Bram weighs the chunks in his palm. "The Hollow\'s heart will not fall to a rusty edge. Mycelids carry good iron in their husks — bring me two chunks and coin enough, and I\'ll see you descend armed like a Dawncaller, not a dawdler."',
+      'Bram weighs the chunks in his palm. "The Hollow\'s heart will not fall to a rusty edge. Mycelids carry good iron in their husks — bring me two chunks, and I\'ll see you descend armed like a Dawncaller, not a dawdler."',
     outro:
-      'Bram sets the forge roaring. "There. Tier-two steel, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark."',
+      'Bram sets the forge roaring. "There. Steel worth the name, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark."',
     objectives: [{ kind: 'collect', target: 'm_iron_chunk', count: 2 }],
     rewards: { xp: 250, gold: 250, items: { c_potion: 2 } },
     startNpc: 'npc_bram',
@@ -131,9 +131,9 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm3_roots',
     summary: "Gather ember shards — seed-stock of the dawn — for Bram's forge.",
     intro:
-      'Bram says, "The wood bleeds ember-shards where the rot was cut. Bring me enough, and I\'ll forge you a blade that carries a promise: the light isn\'t gone, only scattered."',
+      'Bram says, "The wood bleeds ember-shards where the rot was cut. Bring me enough, and I\'ll hammer them into a keepsake that carries a promise: the light isn\'t gone, only scattered."',
     outro:
-      'Bram quenches the shard-steel with a hiss that sounds like relief. "Chapter one closed. The swamp east carries the same rot — and maybe another piece of the dawn. Go when you\'re ready."',
+      'Bram quenches the shard-steel with a hiss that sounds like relief, and presses the finished keepsake into your hand. "The swamp east carries the same rot — and maybe another piece of the dawn. Go when you\'re ready."',
     objectives: [{ kind: 'collect', target: 'm_ember_shard', count: 6 }],
     rewards: {
       xp: 350,
@@ -158,7 +158,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm4_blessing',
     summary: 'Travel to Hollowmere — beyond it, word of stolen light.',
     intro:
-      '"East of the wood the water turns dark and thoughtful," Bram says, handing over the blade he promised. "A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm."',
+      '"East of the wood the water turns dark and thoughtful," Bram says, nodding at the keepsake cooling on its cord. "A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm."',
     outro:
       'The Ferryman poles you across black water. "You\'re for the Shrine, then. Everybody who still believes in morning is, eventually."',
     objectives: [{ kind: 'reach', target: 'hollowmere' }],
@@ -282,7 +282,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqQuest: 'm11_toll',
     summary: 'Enter the Vault of Hours and end the Chronolich — give the stolen hours back.',
     intro:
-      "The Vault door drinks the key's light. Inside, every stolen hour ticks in the dark — futures, filed and abandoned.",
+      'Ombra turns the Sunspire Key over once and hands it back. "The Vault keeps its own ledger, and the door collects its due from a fight that is WON — not from one merely begun. Go down. End the hour that stole itself, and give the stolen hours back."',
     outro:
       'The Chronolich\'s hourglass shatters, and stolen time pours out — hours return to the Flame in a ribbon of light. Ombra nods once. "North. The flame\'s twin sleeps in Frostpeak. Wake it, and winter gets an ending too."',
     objectives: [{ kind: 'kill', target: 'e_chronolich', count: 1 }],
@@ -483,7 +483,7 @@ export const QUESTS: readonly QuestDef[] = [
     intro:
       '"The stair is clear and the hour is yours," the Archivist says, pen motionless for the first time. "Up there sits a man who decided a hundred years ago that morning was a rumor. Do not hate him — out-wait him. Crowns break where patience will not."',
     outro:
-      "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. You have cleared the story — but the Seam below the world is still open, and the future is worth guarding.",
+      "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. But the Seam below the world is still open, and the future is worth guarding.",
     objectives: [{ kind: 'kill', target: 'e_aldric', count: 1 }],
     rewards: {
       xp: 45000,
@@ -501,7 +501,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Postgame — The Abyss ═════════════════════════════════════════════
   Q({
     id: 'm24_below',
-    // Destination quest (#66): the Archivist sends you below; Echo-of-Maren
+    // Destination quest (#66): the Archivist sends you below; Echo of Maren
     // receives you in the Abyss.
     startNpc: 'npc_archivist',
     finishNpc: 'npc_echo',
@@ -514,7 +514,7 @@ export const QUESTS: readonly QuestDef[] = [
     intro:
       '"The sundering opened a seam beneath the world," the Archivist says, pen still at last. "Echoes drift down it — everyone who ever sought the crown, still climbing, still believing. One of them wears Maren\'s face. Go down and bear witness: the future is worth guarding, even from below."',
     outro:
-      'Echo-of-Maren smiles like sunrise through water. "Even I end up an echo here, it seems. Go on then, Dawncaller — the dark down there has never once met anyone like you."',
+      'Echo of Maren smiles like sunrise through water. "Even I end up an echo here, it seems. Go on then, Dawncaller — the dark down there has never once met anyone like you."',
     objectives: [{ kind: 'reach', target: 'abyss' }],
     rewards: { xp: 20000, gold: 5000 },
   }),
@@ -530,7 +530,7 @@ export const QUESTS: readonly QuestDef[] = [
     summary:
       'Face the Warden of the Void at the bottom of the Seam — and come back with the morning.',
     intro:
-      "The Warden doesn't threaten. It doesn't need to. The dark arranges itself, patient as arithmetic. Above you, faint but stubborn, the memory of dawn holds the rope you climbed down.",
+      '"The Warden doesn\'t threaten. It doesn\'t need to," Echo of Maren says. "The dark at the Seam\'s bottom arranges itself, patient as arithmetic. Rest, sharpen, and go down when you can carry the morning back up."',
     outro:
       "The silence, when it comes, is gentle. The Seam closes like a book finishing itself — not an ending; a period before the next sentence. Above, the world's flame burns steady, and this time, nobody is drinking it. You came looking for tomorrow. You're standing in it.",
     objectives: [{ kind: 'dungeon', target: 'd_seam' }],
@@ -545,7 +545,7 @@ export const QUESTS: readonly QuestDef[] = [
   // ══ Side quests ══════════════════════════════════════════════════════
   Q({
     id: 'sq_rats',
-    name: 'Six Less Rats',
+    name: 'Six Fewer Rats',
     main: false,
     chapter: 1,
     level: 1,
@@ -719,7 +719,7 @@ export const QUESTS: readonly QuestDef[] = [
     intro:
       '"Yetis respect two things," Rho says. "Size and consequences. You\'re not big. Be convincing."',
     outro:
-      'Rho watches the last yeti lumber off. "Diplomacy concluded," he says. "The paperwork was your fists."',
+      'The last yeti goes down — and the rest of the snowbank decides, loudly, to be elsewhere. "Diplomacy concluded," Rho says. "The paperwork was your fists."',
     objectives: [{ kind: 'kill', target: 'e_yeti', count: 4 }],
     rewards: { xp: 5500, gold: 1800, items: { t_3: 1 } },
   }),
@@ -765,7 +765,8 @@ export const QUESTS: readonly QuestDef[] = [
     level: 39,
     prereqFlags: ['zone_umbra'],
     summary: 'Dissolve the Umbral Shades.',
-    intro: '"Shades fear names," the Archivist says. "You have a sword. Same thing, down here."',
+    intro:
+      '"Shades fear names," the Archivist says. "Yours is spoken by whatever you wield. Same thing, down here."',
     outro: "Fifteen names, given by force. The Spire's dark recedes a polite distance.",
     objectives: [{ kind: 'kill', target: 'e_shade', count: 15 }],
     rewards: { xp: 18000, gold: 5000 },
@@ -781,7 +782,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqFlags: ['zone_abyss'],
     summary: 'Lay the Echoes of Heroes to rest.',
     intro:
-      '"Every echo was somebody," Echo-of-Maren says. "Ten honors, hero. Give them what they never got: an ending."',
+      '"Every echo was somebody," Echo of Maren says. "Ten honors, hero. Give them what they never got: an ending."',
     outro: 'Ten echoes, honored. The Abyss feels almost like a place where stories end well.',
     objectives: [{ kind: 'kill', target: 'e_echo', count: 10 }],
     rewards: { xp: 60000, gold: 15000, items: { t_7: 1 } },
@@ -797,7 +798,7 @@ export const QUESTS: readonly QuestDef[] = [
     prereqFlags: ['zone_abyss'],
     summary: 'Hunt the Null Hounds.',
     intro:
-      '"The hounds hunt echoes," Echo-of-Maren says. "Unfair, even down here. Quiet fifteen of them."',
+      '"The hounds hunt echoes," Echo of Maren says. "Unfair, even down here. Quiet fifteen of them."',
     outro: 'The hounds fall silent. The echoes get to keep their memories a while longer.',
     objectives: [{ kind: 'kill', target: 'e_nullhound', count: 15 }],
     rewards: { xp: 70000, gold: 18000, items: { c_elixir: 2 } },

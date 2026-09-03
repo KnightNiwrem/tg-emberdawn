@@ -168,8 +168,7 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_pell',
         name: 'Ranger Pell',
-        greeting:
-          '“You walk loud,” Pell mutters, not looking up. “The wood forgives it. Spiders don’t. Speak, or move on.”',
+        greeting: 'You walk loud. The wood forgives it — spiders don’t. Speak, or move on.',
       },
     ],
   },
@@ -505,7 +504,7 @@ export const ZONES: readonly ZoneDef[] = [
     chapter: 7,
     levels: [45, 45],
     desc:
-      'The seam beneath the world, exposed when the crown was sundered. Postgame hunting grounds — someone has to guard the morning.',
+      'The seam beneath the world, exposed when the crown was sundered. What fell through still climbs, and someone has to guard the morning.',
     safeHaven: false,
     explore: [
       { kind: 'battle', enemy: 'e_voidspawn', weight: 3 },
