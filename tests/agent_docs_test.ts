@@ -1,9 +1,21 @@
 import { assert, assertEquals } from '@std/assert';
+import { parse as parseYaml } from '@std/yaml';
 
 const AGENTS_MD_URL = new URL('../AGENTS.md', import.meta.url);
 const REPO_ROOT_URL = new URL('../', import.meta.url);
 const SKILLS_DIR_URL = new URL('../.agents/skills/', import.meta.url);
 const MAX_BYTES_CEILING = 12 * 1024; // 12 KiB
+
+const EXPECTED_SKILLS = new Set([
+  'emberdawn-architecture',
+  'emberdawn-combat',
+  'emberdawn-content-authoring',
+  'emberdawn-design-decisions',
+  'emberdawn-narrative-writing',
+  'emberdawn-persistence',
+  'emberdawn-release',
+  'emberdawn-story-and-quests',
+]);
 
 Deno.test('agent docs: root AGENTS.md size does not exceed 12 KiB ceiling (#135)', () => {
   const fileBytes = Deno.readFileSync(AGENTS_MD_URL);
@@ -58,9 +70,10 @@ Deno.test('agent docs: task-to-skill routing table matches repository skills (#1
   );
   const routedPaths = pathMatches.map((m) => m[1]);
 
-  assert(
-    routedPaths.length >= 7,
-    `Expected at least 7 skill references in routing table, found ${routedPaths.length}`,
+  assertEquals(
+    routedPaths.length,
+    EXPECTED_SKILLS.size,
+    `Expected exactly ${EXPECTED_SKILLS.size} skill references in routing table, found ${routedPaths.length}`,
   );
 
   // Check for duplicate routes
@@ -76,7 +89,7 @@ Deno.test('agent docs: task-to-skill routing table matches repository skills (#1
     const fileUrl = new URL(relPath, REPO_ROOT_URL);
     let stat: Deno.FileInfo;
     try {
-      stat = Deno.statSync(fileUrl);
+      stat = Deno.lstatSync(fileUrl);
     } catch {
       throw new Error(`Skill referenced in AGENTS.md routing table does not exist: ${relPath}`);
     }
@@ -98,8 +111,13 @@ Deno.test('agent docs: task-to-skill routing table matches repository skills (#1
 
   assertEquals(
     new Set(routedSkillNames),
+    EXPECTED_SKILLS,
+    'Set of routed skills in AGENTS.md does not match expected skills',
+  );
+  assertEquals(
     new Set(skillDirsOnDisk),
-    'Set of routed skills in AGENTS.md does not match skill directories on disk',
+    EXPECTED_SKILLS,
+    'Set of skill directories on disk does not match expected skills',
   );
 });
 
@@ -111,7 +129,7 @@ Deno.test('agent docs: each skill has valid metadata and matches directory (#135
 
     let stat: Deno.FileInfo;
     try {
-      stat = Deno.statSync(skillMdUrl);
+      stat = Deno.lstatSync(skillMdUrl);
     } catch {
       throw new Error(`Missing SKILL.md in skill directory: .agents/skills/${dirName}/`);
     }
@@ -124,27 +142,27 @@ Deno.test('agent docs: each skill has valid metadata and matches directory (#135
       `.agents/skills/${dirName}/SKILL.md is missing YAML frontmatter enclosed by "---"`,
     );
 
-    const frontmatter = frontmatterMatch[1];
-    const nameMatch = frontmatter.match(/^name:\s*([^\r\n]+)$/m);
+    const parsed = parseYaml(frontmatterMatch[1]);
     assert(
-      nameMatch !== null && nameMatch[1].trim().length > 0,
+      typeof parsed === 'object' && parsed !== null,
+      `.agents/skills/${dirName}/SKILL.md frontmatter failed to parse as a YAML object`,
+    );
+    const { name, description } = parsed as Record<string, unknown>;
+
+    assert(
+      typeof name === 'string' && name.trim().length > 0,
       `.agents/skills/${dirName}/SKILL.md has missing or empty "name" in frontmatter`,
     );
-
-    const name = nameMatch[1].trim();
     assertEquals(
       name,
       dirName,
       `Skill name "${name}" in frontmatter does not match directory name "${dirName}"`,
     );
 
-    const descMatch = frontmatter.match(/^description:\s*([^\r\n]+)$/m);
     assert(
-      descMatch !== null && descMatch[1].trim().length > 0,
+      typeof description === 'string' && description.trim().length > 0,
       `.agents/skills/${dirName}/SKILL.md has missing or empty "description" in frontmatter`,
     );
-
-    const description = descMatch[1].trim();
     assert(
       description.length >= 20,
       `.agents/skills/${dirName}/SKILL.md description is too short to clearly identify triggers (${description.length} chars)`,
@@ -156,7 +174,7 @@ Deno.test('agent docs: legacy docs/agent-guides directory does not exist (#135)'
   const legacyDirUrl = new URL('../docs/agent-guides/', import.meta.url);
   let exists = false;
   try {
-    Deno.statSync(legacyDirUrl);
+    Deno.lstatSync(legacyDirUrl);
     exists = true;
   } catch {
     exists = false;

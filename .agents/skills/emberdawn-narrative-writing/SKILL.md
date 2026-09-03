@@ -31,6 +31,14 @@ notices, or NPC voice lines, **read `docs/narrative-guide.md` in full**.
    numbers or make conflicting mechanical claims.
 4. **Canonical Rules Terms:** The pool is always **Shield** (never "ward"), durations are
    **rounds**, turns are **actions**, and cleanses/dispels target **beneficial/harmful effects**.
-5. **Editorial Review Boundary:** Narrative voice and tone adherence are evaluated by editorial
-   judgment. Automated tests enforce only structural invariants (no administrative jargon in quest
-   labels, high-tier gear differs from starter flavor), not lexical style rules.
+5. **Editorial Review Boundary:** General narrative voice and tone evaluation remain matters of
+   editorial judgment. Automated suites (`tests/quest_copy_test.ts`) strictly verify targeted
+   factual invariants:
+   - Rejecting meta terms ("chapter", "postgame") in in-world descriptions and greetings;
+   - Rejecting modern administrative jargon ("paperwork", "management", "corrections", "diplomacy")
+     in quest names and summaries;
+   - Rejecting non-canonical hyphenated NPC references (e.g. "Echo-of-Maren" instead of "Echo of
+     Maren");
+   - Rejecting embedded quotation marks (`"`, `“`, `”`) in NPC greetings (the renderer supplies
+     quotes);
+   - Requiring high-tier gear descriptions (tier 4+) to differ from starter gear descriptions.

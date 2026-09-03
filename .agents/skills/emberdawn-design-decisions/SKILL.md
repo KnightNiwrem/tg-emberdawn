@@ -13,9 +13,9 @@ non-goals.
 ### Fallow "Unlisted Dependencies"
 
 - `deno.json` is the authoritative project manifest for Deno runtime dependencies.
-- Static audit tools tailored for Node.js (`npx fallow`) report `grammy` and `grammy-testing` as
-  unlisted dependencies because they do not appear in a `package.json`. These findings are false
-  positives and are safely ignored.
+- Static audit tools tailored for Node.js (`npx --yes fallow@~3.20`) report `grammy` and
+  `grammy-testing` as unlisted dependencies because they do not appear in a `package.json`. These
+  findings are false positives and are safely ignored.
 
 ### Code Duplication in Shop Rows
 

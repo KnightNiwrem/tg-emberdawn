@@ -161,9 +161,9 @@ deno task test:pg:local   # Automatically spins up a temporary Docker Postgres, 
 
 ### Advisory tools
 
-- `npx fallow`: Runs dead code, duplication, and complexity audits. Findings are advisory; its
-  "unlisted dependencies" warnings for Deno packages (`grammy`, `grammy-testing`) are false
-  positives and should be ignored.
+- `npx --yes fallow@~3.20`: Runs dead code, duplication, and complexity audits. Findings are
+  advisory; its "unlisted dependencies" warnings for Deno packages (`grammy`, `grammy-testing`) are
+  false positives and should be ignored.
 
 ### Session workflow
 

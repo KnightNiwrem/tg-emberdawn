@@ -43,8 +43,9 @@ Authored conversations reside in `src/content/dialogues.ts` (`DialogueDef`):
 
 Interactive choices inside dialogues must be strictly authorized by the engine:
 
-- Wire callbacks (`dlg:ch:<choiceId>` and `dlg:cf:<choiceId>`) convey only the stable choice ID.
-  Consequence data is never sent over the wire; effects resolve purely server-side.
+- Wire callbacks (`dlg:<rev>:ch:<choiceId>` and `dlg:<rev>:cf:<choiceId>`) convey only the stamped
+  revision and the stable choice ID. Consequence data is never sent over the wire; effects resolve
+  purely server-side.
 - The central engine operation `applyDialogueChoice` (`src/engine/story.ts`) derives execution
   context from `p.scene`:
   - The active view must be `'dialogue'` (`p.scene.view === 'dialogue'`).
@@ -170,7 +171,8 @@ Quest lifecycle flows operate through authored dialogue:
 
 ### Single Turn-In Announcements
 
-- `refreshProgress()` is the sole transition authority from `active` to `turnIn`.
+- `refreshQuestProgress()` (`src/engine/quests.ts`) is the sole transition authority from `active`
+  to `turnIn`.
 - Quest readiness is announced exactly once by the system event that triggered it:
   - Combat victories collect readiness notices via `resolveVictory()`.
   - Zone transitions announce ready quests via arrival notices in `travel()`.

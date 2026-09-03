@@ -24,8 +24,8 @@ Always define IDs in their home content module before referencing them elsewhere
 
 ## 2. Enemy Definitions & Scaling
 
-- Always derive enemy stats using `mk(level, opts)` in `src/content/enemies.ts` with appropriate
-  multipliers — never hard-code raw base numbers.
+- Always derive enemy stats using `mk({ id, name, emoji, level, mul: { hp, atk, ... } })` in
+  `src/content/enemies.ts` with appropriate multipliers — never hard-code raw base numbers.
 - Bosses multiply HP, XP, and gold rewards, and define periodic special moves (`special.every = N`).
 - Damaging moves and power-0 status moves must be configured cleanly without unintended chip damage.
 
@@ -45,8 +45,13 @@ Always define IDs in their home content module before referencing them elsewhere
   completely battle-free. Combat belongs only in the wilds.
 - **Zone Reachability:** Every zone must be reachable either by being included in `STARTING_ZONES`
   or granted as an `unlockZone` reward on a quest or dungeon completion.
-- **Encounter Eligibility:** Overworld battle events define `minPlayerLevel` and `maxPlayerLevel` in
-  their event records to control level scaling cleanly through content.
+- **Encounter Eligibility:** Overworld battle events define `minPlayerLevel`. Keep `maxPlayerLevel`
+  optional for ordinary encounters; only specify `maxPlayerLevel` as an exception for intentionally
+  bounded content (e.g. starter/tutorial zones), ensuring high-level players can still encounter
+  hostiles when revisiting earlier regions.
+- **Dungeon Recommended Level:** Every dungeon definition (`DungeonDef`) must provide
+  `recommendedLevel`. Under-level boss warnings in the UI depend on this field, so omitting it lets
+  under-level players bypass the intended confirmation dialog.
 
 ## 5. Skills & Class Design
 

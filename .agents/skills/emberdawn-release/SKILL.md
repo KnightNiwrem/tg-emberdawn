@@ -42,7 +42,9 @@ When the project transitions to `LIVE`, the following invariants become strictly
   - Battle origin zone and dungeon IDs;
   - Scene arguments;
   - IDs encoded into persistent flags (e.g. `forge_i_<itemId>`);
-  - Decision identifiers and choice IDs.
+  - Decision identifiers and choice IDs;
+  - Story receipt key families (`line:<dialogueId>:<nodeId>` and
+    `choice:<dialogueId>:<nodeId>:<choiceId>` persisted in `p.storyReceipts`).
 - Presentation changes (display names, descriptions, flavor text) may change freely without
   violating persistence contracts.
 - Retired content may cease being dropped or sold, but must remain resolvable in catalog lookups for
@@ -70,7 +72,7 @@ When public launch is explicitly approved:
 2. Record the first live commit hash and the baseline `CURRENT_STATE_VERSION` live saves are created
    with.
 3. Generate a baseline catalog manifest capturing every content-ID family persistable in a supported
-   save.
+   save (including decision identifiers, choice IDs, and story receipt keys).
 4. Add a CI test verifying that future catalogs remain a superset of that live baseline manifest (or
    provide an explicit, tested migration). Introduce this test at launch, not before.
 5. Activate the deferred durable-save rules in this document.
