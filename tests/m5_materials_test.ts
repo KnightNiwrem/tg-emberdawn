@@ -10,7 +10,7 @@ import { applyDeath, clampPools, createPlayer, grantXp, statsOf } from '../src/e
 import { xpForNextLevel } from '../src/engine/classes.ts';
 import { performAction } from '../src/engine/combat.ts';
 import { countOf, removeItem } from '../src/engine/inventory.ts';
-import { acceptQuest, onTalk, syncAvailability, turnInQuest } from '../src/engine/quests.ts';
+import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from '../src/engine/quests.ts';
 import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
 import {
   diveDungeon,
@@ -87,7 +87,7 @@ Deno.test('m5_arms: the taught Iron Chunk route works for a real level-6 hero (#
     p.quests['m4_floors'] = { status: 'done', counts: [] };
     syncAvailability(p);
     goto(p, 'emberdawn');
-    onTalk(p, 'npc_bram');
+    onStoryEvent(p, 'heard_bram_reading');
     assert(acceptQuest(p, 'm5_arms', 'npc_bram').ok, `${cid}: accept m5_arms at Bram`);
 
     // The taught route: dive the Rootbound Hollow's NORMAL floors. Each
@@ -124,7 +124,7 @@ Deno.test('m5_arms: the taught Iron Chunk route works for a real level-6 hero (#
     // Turn in at Bram, on-site (#64) — travel to the finisher first.
     const goldBefore = p.gold;
     goto(p, 'emberdawn');
-    onTalk(p, 'npc_bram');
+    onStoryEvent(p, 'heard_bram_reading');
     assert(turnInQuest(p, 'm5_arms', 'npc_bram').ok, `${cid}: turn in Steel for the Descent`);
     assertEquals(p.quests['m5_arms']?.status, 'done', `${cid}: quest done`);
     assert(p.gold >= goldBefore + 250, `${cid}: Bram pays the promised coin`);
@@ -158,7 +158,7 @@ Deno.test('m5_arms: the taught Iron Chunk route works for a real level-6 hero (#
 
     // Meet Aranya at the readiness point: story gate active, boss floor open.
     syncAvailability(p);
-    onTalk(p, 'npc_bram');
+    onStoryEvent(p, 'heard_bram_reading');
     assert(acceptQuest(p, 'm3_roots', 'npc_bram').ok, `${cid}: accept Root of the Rot`);
     goto(p, 'whisperwood');
     const boss = diveDungeon(p, d, rng);

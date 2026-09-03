@@ -5,7 +5,7 @@ import { assert, assertEquals } from '@std/assert';
 import {
   acceptQuest,
   onItemGain,
-  onTalk,
+  onStoryEvent,
   syncAvailability,
   turnInQuest,
 } from '../src/engine/quests.ts';
@@ -153,8 +153,8 @@ Deno.test('campaign: quest graph m1→m25 is traversable (levels/pacing out of s
       const have = obj.kind === 'collect' ? countOf(p, obj.target) : (qp.counts[i] ?? 0);
       if (have >= (obj.count ?? 1)) continue;
       switch (obj.kind) {
-        case 'talk':
-          onTalk(p, obj.target);
+        case 'storyEvent':
+          onStoryEvent(p, obj.target);
           break;
         case 'reach':
           goto(p, obj.target); // onZoneEnter progress counts on arrival

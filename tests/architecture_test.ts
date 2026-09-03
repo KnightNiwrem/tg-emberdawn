@@ -30,7 +30,7 @@
  *    (`deno info --json`) — never regex over arbitrary TypeScript text.
  *
  * Deliberately NOT flagged: direct synchronous functions named onKill /
- * onTalk / onZoneEnter / runReactiveTriggers, content "exploration
+ * onStoryEvent / onZoneEnter / runReactiveTriggers, content "exploration
  * events" (data variants resolved by a switch), and plain trace entry
  * arrays — the words are fine; hidden ownership and fan-out are what the
  * contract forbids. */
@@ -60,7 +60,7 @@ import { applyDeath, createPlayer, grantXp } from '../src/engine/character.ts';
 import {
   acceptQuest,
   onKill,
-  onTalk,
+  onStoryEvent,
   onZoneEnter,
   syncAvailability,
   turnInQuest,
@@ -114,7 +114,7 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
     npcId: string,
   ) => { ok: boolean; msg: string; lines: string[] } = acceptQuest;
   const turnInContract: (p: PlayerState, id: string, npcId: string) => TurnInResult = turnInQuest;
-  const talkContract: (p: PlayerState, npcId: string) => string[] = onTalk;
+  const storyEventContract: (p: PlayerState, event: string) => string[] = onStoryEvent;
   const killContract: (p: PlayerState, enemyId: string) => string[] = onKill;
   const zoneContract: (p: PlayerState, zoneId: string) => string[] = onZoneEnter;
   const syncContract: (p: PlayerState) => string[] = syncAvailability;
@@ -128,7 +128,8 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
   assert(
     battleContract !== undefined && actionContract !== undefined && victoryContract !== undefined &&
       diveContract !== undefined && travelContract !== undefined && acceptContract !== undefined &&
-      turnInContract !== undefined && talkContract !== undefined && killContract !== undefined &&
+      turnInContract !== undefined && storyEventContract !== undefined &&
+      killContract !== undefined &&
       zoneContract !== undefined && syncContract !== undefined && xpContract !== undefined &&
       deathContract !== undefined && typeof exploreContract === 'function',
     'all gameplay entry points pinned to synchronous signatures',

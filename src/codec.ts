@@ -37,8 +37,6 @@ export type Cb =
   | { v: 'quests'; a: 'q'; arg: string }
   | { v: 'quests'; a: 'p'; arg: number }
   | { v: 'quests'; a: 'bk' }
-  | { v: 'npcq'; a: 'a' | 't'; arg: string }
-  | { v: 'npcq'; a: 'bk' }
   | { v: 'shop'; a: 'p'; arg: number }
   | { v: 'shop'; a: 'buy' | 'sell'; arg: string }
   | { v: 'shop'; a: 'bk' }
@@ -114,8 +112,6 @@ export function encodeCb(c: Cb): string {
       if (c.a === 'p') return `q:pg:${c.arg}`;
       if (c.a === 'bk') return 'q:bk';
       return `q:q:${c.arg}`;
-    case 'npcq':
-      return c.a === 'bk' ? 'n:bk' : `n:${c.a}:${c.arg}`;
     case 'shop':
       if (c.a === 'p') return `h:pg:${c.arg}`;
       if (c.a === 'bk') return 'h:bk';
@@ -176,13 +172,6 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'bk') return { v: 'quests', a: 'bk' };
       const qa = act(a, ['q'] as const);
       return qa ? { v: 'quests', a: qa, arg } : undefined;
-    }
-    case 'n': {
-      // NPC-interaction quest actions (#64): the authoritative accept/turn-in
-      // surface. Log navigation (q:*) can never mint these.
-      if (a === 'bk') return { v: 'npcq', a: 'bk' };
-      const na = act(a, ['a', 't'] as const);
-      return na ? { v: 'npcq', a: na, arg } : undefined;
     }
     case 'npc': {
       // #123 topic menu navigation. Every action revalidates the live

@@ -105,9 +105,19 @@ Deno.test('topics: generic NPC contact no longer completes talk objectives (#123
   // it ticks the talk objective and routes to the authoritative interaction.
   await handleCallback(fakeCtx(1103, 101, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(1103))!;
+  assertEquals(
+    cur.quests['m2_letter']?.status,
+    'active',
+    'the active topic opens the conversation',
+  );
+  assertEquals(cur.scene.view, 'dialogue');
+  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
+  // Reaching the reading node emits the event — readiness, exactly once.
+  await handleCallback(fakeCtx(1103, 101, withRev(cur.uiRev ?? 0, 'dlg:nx:c2')), store);
+  cur = (await store.get(1103))!;
   assertEquals(cur.quests['m2_letter']?.status, 'turnIn');
-  assertEquals(cur.scene.view, 'npcq');
-  assertEquals(cur.scene.arg2, 'npc_bram');
+  assertEquals(cur.scene.view, 'dialogue');
+  assertEquals(cur.scene.arg2, 'c2');
 });
 
 Deno.test('topics: stale, forged, and no-longer-valid selections are harmless (#123)', async () => {
@@ -149,7 +159,7 @@ Deno.test('topics: stale, forged, and no-longer-valid selections are harmless (#
     'done',
     'a finished quest cannot be re-opened',
   );
-  assert(cur.scene.view !== 'npcq' || cur.scene.arg !== 'm1_embers');
+  assertEquals(cur.scene.arg2, undefined);
 
   // Wrong zone: Maren's topics are unreachable from the Whisperwood.
   p.currentZone = 'whisperwood';
@@ -200,7 +210,7 @@ Deno.test('topics: an NPC with no quest business still exposes their conversatio
   assert(view.includes('You walk loud'), 'the authored greeting renders');
   assert(view.includes('Ask about the spiders'), 'the authored lore topic renders');
   assert(view.includes('npc:bk'), 'Leave is offered');
-  assert(!view.includes('npcq'), 'no quest interaction is reachable');
+  assert(!view.includes('dlg:'), 'no dialogue is reachable without business');
 });
 
 Deno.test('topics: every authored topic id fits the callback budget (#123)', () => {

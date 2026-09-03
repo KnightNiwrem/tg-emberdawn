@@ -27,7 +27,7 @@ import { type BattleState, CLASS_IDS, type ClassId } from '../src/engine/types.t
 import {
   acceptQuest,
   onKill,
-  onTalk,
+  onStoryEvent,
   questDropAllowed,
   syncAvailability,
   turnInQuest,
@@ -1069,9 +1069,9 @@ Deno.test('codec: roundtrip for every callback shape', () => {
     { v: 'quests', a: 'q', arg: 'm1_embers' },
     // q:a:/q:t: no longer EXIST in the codec (#65) — the log cannot express
     // lifecycle actions; those wires decode as malformed and are refused.
-    { v: 'npcq', a: 'a', arg: 'm1_embers' },
-    { v: 'npcq', a: 't', arg: 'm2_letter' },
-    { v: 'npcq', a: 'bk' },
+    { v: 'npc', a: 'q', arg: 'm1_embers' },
+    { v: 'dlg', a: 'ch', arg: 'accept' },
+    { v: 'npc', a: 'bk' },
     { v: 'shop', a: 'buy', arg: 'c_potion' },
     { v: 'shop', a: 'p', arg: -1 },
     { v: 'forge', a: 'w' },
@@ -1210,7 +1210,7 @@ Deno.test('m2: the sealed letter is granted by m1 and delivered to Bram', () => 
   assertEquals(countOf(p, 'q_sealed_letter'), 1, 'm1 hands over the letter');
   syncAvailability(p);
   assertEquals(acceptQuest(p, 'm2_letter', 'npc_maren').ok, true);
-  onTalk(p, 'npc_bram'); // the letter satisfies the collect half; Bram the rest
+  onStoryEvent(p, 'heard_bram_reading'); // the letter satisfies the collect half; Bram's reading the rest
   const t2 = turnInQuest(p, 'm2_letter', 'npc_bram');
   assertEquals(t2.ok, true);
   assertEquals(countOf(p, 'q_sealed_letter'), 0, 'letter handed to Bram');
@@ -1222,7 +1222,7 @@ Deno.test('m22: the Archivist handoff completes via talk objective', () => {
   p.unlockedZones.push('umbra');
   p.currentZone = 'umbra'; // the Archivist accepts on-site (#64)
   p.quests['m22_umbral_key'] = { status: 'active', counts: [0] };
-  onTalk(p, 'npc_archivist');
+  onStoryEvent(p, 'heard_archivists_counsel');
   assertEquals(p.quests['m22_umbral_key'].status, 'turnIn');
   assertEquals(turnInQuest(p, 'm22_umbral_key', 'npc_archivist').ok, true);
   assertEquals(p.quests['m22_umbral_key'].status, 'done');

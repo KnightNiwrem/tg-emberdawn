@@ -31,6 +31,7 @@ import {
   levelLockedMain,
   onItemGain,
   onKill,
+  onStoryEvent,
   syncAvailability,
   turnInQuest,
 } from '../src/engine/quests.ts';
@@ -533,7 +534,7 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
   assertEquals(cur.gold, goldBefore, 'no rewards from the log');
 
   // The REAL path: back to the zone, talk to Bram (the finisher), pick the
-  // ready quest's topic (#123), turn in.
+  // ready quest's topic (#123), walk the turn-in dialogue and hand over.
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'q:bk')), store);
   cur = (await store.get(920))!;
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'z:tk:1')), store); // Bram
@@ -541,10 +542,11 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
   assertEquals(cur.scene.view, 'npc', 'talk opens the topic menu');
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'npc:q:m3_roots')), store);
   cur = (await store.get(920))!;
-  assertEquals(cur.scene.view, 'npcq', 'the topic opens the NPC interaction');
-  assertEquals(cur.scene.arg, 'm3_roots');
-  assertEquals(cur.scene.arg2, 'npc_bram');
-  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'n:t:m3_roots')), store);
+  assertEquals(cur.scene.view, 'dialogue', 'the topic opens the turn-in dialogue');
+  assertEquals(cur.scene.arg, 'dlg_m3_roots_turnin');
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'dlg:nx:ta')), store);
+  cur = (await store.get(920))!;
+  await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'dlg:ch:handover')), store);
   cur = (await store.get(920))!;
   assertEquals(cur.quests['m3_roots'].status, 'done');
   assert(cur.gold >= 300, 'turn-in gold granted');
@@ -1564,10 +1566,11 @@ Deno.test("quest contacts are reachable at the quest's point in the progression 
   }
 });
 
-Deno.test('dialogue quests: accepting at the NPC counts as the talk — no double interaction (#66)', () => {
-  // m8_passage is offered BY the Ferryman and its objective is talking to
-  // the Ferryman. Physical acceptance made that a meaningless second tap;
-  // the acceptance conversation now counts as the talk itself.
+Deno.test('dialogue quests: acceptance is the talk — one event, no second interaction (#66, #127)', () => {
+  // m8_passage is offered BY the Ferryman and its objective is hearing the
+  // Ferryman out. Under the authored model the OFFER conversation IS that
+  // conversation: its accept choice deliberately emits the stable event,
+  // so one mutation accepts AND readies — never a second identical tap.
   const p = createPlayer(948, 'T', 'warrior');
   p.level = 13;
   p.unlockedZones.push('hollowmere');
@@ -1586,11 +1589,20 @@ Deno.test('dialogue quests: accepting at the NPC counts as the talk — no doubl
     p.quests[id] = { status: 'done', counts: [] };
   }
   syncAvailability(p);
+  // Bare acceptance no longer completes the conversation (#127).
   assert(acceptQuest(p, 'm8_passage', 'npc_ferryman').ok);
   assertEquals(
     p.quests['m8_passage']?.status,
+    'active',
+    'acceptance alone ticks nothing',
+  );
+  // The authored accept choice emits the event — readiness, exactly once.
+  const offered = onStoryEvent(p, 'heard_ferrymans_word');
+  assertEquals(offered, ['m8_passage']);
+  assertEquals(
+    p.quests['m8_passage']?.status,
     'turnIn',
-    'accepted at the Ferryman → ready at the Ferryman, no second Talk',
+    'the conversation event readies it at the Ferryman',
   );
 });
 
@@ -1606,9 +1618,12 @@ Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred fr
   assertEquals(fin.npc.name, 'Blacksmith Bram');
   assertEquals(start.zone.id, 'emberdawn');
   assertEquals(fin.zone.id, 'emberdawn');
-  // The final talk objective targets Bram, but the model did NOT derive the
-  // finisher from it — the finisher is the explicit field.
-  assert(q.objectives.some((o) => o.kind === 'talk' && o.target === 'npc_bram'));
+  // The conversation objective keys on Bram's reading event, but the model
+  // did NOT derive the finisher from it — the finisher is the explicit
+  // field (#127: talk objectives became stable story events).
+  assert(
+    q.objectives.some((o) => o.kind === 'storyEvent' && o.target === 'heard_bram_reading'),
+  );
   assertEquals(questFinisher('m2_letter')!.npc.id, q.finishNpc);
 });
 
@@ -1628,8 +1643,8 @@ Deno.test('NPC talk opens their authored quest (#31, #123)', () => {
   // authoritative interaction.
   assert(npcTopics(p, 'npc_bram').some((t) => t.id === 'm5_arms' && t.kind === 'questOffer'));
   npcAction(p, { v: 'npc', a: 'q', arg: 'm5_arms' });
-  assertEquals(p.scene.view, 'npcq', "the topic opens the giver's quest");
-  assertEquals(p.scene.arg, 'm5_arms');
+  assertEquals(p.scene.view, 'dialogue', "the topic opens the giver's offer dialogue");
+  assertEquals(p.scene.arg, 'dlg_m5_arms_offer');
 });
 
 Deno.test('actionless item details render no empty button rows (#39)', () => {

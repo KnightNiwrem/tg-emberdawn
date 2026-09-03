@@ -551,45 +551,6 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
   return { blocks };
 }
 
-/** NPC-interaction quest view (#64): the ONLY surface whose buttons can
- * accept or turn in a quest. Action callbacks carry the npcq view tag, and
- * BOTH the handler and the engine revalidate contact and location before
- * mutating — buttons here are an offer, never the authorization. */
-export function renderQuestInteraction(
-  p: PlayerState,
-  questId: string,
-  npcId: string,
-): InputRichMessage {
-  const q: QuestDef | undefined = quest(questId);
-  const blocks: Block[] = [];
-  if (!q) {
-    blocks.push(para('That quest is a mystery even to the Archivist.'));
-    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npcq', a: 'bk' }))]));
-    return { blocks };
-  }
-  const talker = npc(npcId);
-  blocks.push(heading(`${q.main ? '🏅' : '📜'} ${q.name}`, 4));
-  if (talker) {
-    blocks.push(quote({ type: 'italic', text: `You speak with ${talker.name}.` }));
-  }
-  blocks.push(quote({ type: 'italic', text: q.summary }));
-  blocks.push(...noticesBlocks(p));
-  blocks.push(para(questStatusLine(p, questId)));
-  const row = [];
-  const status = p.quests[questId]?.status ?? 'unavailable';
-  // Buttons render only when this conversation is with the configured
-  // contact, standing in this very zone — the engine re-checks anyway.
-  if (status === 'available' && npcId === q.startNpc && npcInZone(p.currentZone, q.startNpc)) {
-    row.push(cbBtn('🤝 Accept', encodeCb({ v: 'npcq', a: 'a', arg: questId }), 'success'));
-  }
-  if (status === 'turnIn' && npcId === q.finishNpc && npcInZone(p.currentZone, q.finishNpc)) {
-    row.push(cbBtn('🏁 Turn in', encodeCb({ v: 'npcq', a: 't', arg: questId }), 'success'));
-  }
-  row.push(cbBtn('⬅️ Back', encodeCb({ v: 'npcq', a: 'bk' })));
-  blocks.push(buttonsRow(row));
-  return { blocks };
-}
-
 // ── NPC topic menu (#123) ────────────────────────────────────────────────
 
 /** The NPC topic-selection scene (#123): every currently available topic —

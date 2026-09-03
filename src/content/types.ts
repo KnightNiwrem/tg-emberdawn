@@ -364,14 +364,19 @@ export interface EnemyDef {
   desc?: string;
 }
 
-export type ObjectiveKind = 'kill' | 'collect' | 'reach' | 'dungeon' | 'talk';
+export type ObjectiveKind = 'kill' | 'collect' | 'reach' | 'dungeon' | 'storyEvent';
 
 export interface Objective {
   kind: ObjectiveKind;
-  /** Enemy id, item id, zone id, or npc id depending on kind. */
+  /** Enemy id, item id, zone id, dungeon id, or story-event name depending
+   * on kind. (#127: the generic 'talk' kind is retired — conversations
+   * advance quests by emitting stable story events, never by bare NPC
+   * contact.) */
   target: string;
   /** Required count (kill/collect). */
   count?: number;
+  /** Display label override (storyEvent objectives name their beat). */
+  label?: string;
 }
 
 /** One authored player response on a choice node (#126). Conditionally
@@ -407,6 +412,11 @@ export type DialogueNode =
     text: string;
     /** Next node id; omit for the final line of a conversation. */
     next?: string;
+    /** Declarative effects applied when this node is REACHED — i.e. on the
+     * transition into it (#127), never on rerender (effects are
+     * idempotent, so replays stay harmless). Conversation-driven quest
+     * progress emits its story event here. */
+    effects?: StoryEffect[];
   }
   | {
     id: string;
@@ -450,7 +460,13 @@ export type StoryEffect =
   | { kind: 'lockQuest'; questId: string; reason?: string }
   | { kind: 'unlockZone'; zoneId: string }
   | { kind: 'grantItem'; itemId: string; qty?: number }
-  | { kind: 'removeItem'; itemId: string; qty?: number };
+  | { kind: 'removeItem'; itemId: string; qty?: number }
+  /** Quest lifecycle through the CENTRAL authorities (#127): acceptance
+   * and turn-in with the acting NPC's on-site contact authority
+   * revalidated inside the engine — dialogue never reimplements status,
+   * rewards or readiness. */
+  | { kind: 'acceptQuest'; questId: string }
+  | { kind: 'turnInQuest'; questId: string };
 
 /** ── Declarative story conditions (#125) ────────────────────────────────
  *
@@ -514,10 +530,20 @@ export interface QuestDef {
   /** Level requirement to pick up. */
   level: number;
   summary: string;
-  /** Intro text when accepting. */
-  intro: string;
-  /** Turn-in dialog. */
-  outro: string;
+  /** Authored offer/acceptance conversation (#127): the offer topic opens
+   * this dialogue; acceptance happens ONLY at its authored accept choice
+   * (a central `acceptQuest` story effect with the #63/#64 on-site
+   * authority). Mandatory for every quest — the legacy single-box
+   * `intro`/`outro` strings were migrated into dialogue nodes and retired. */
+  offerDialogue: string;
+  /** Authored completion conversation (#127): the ready-turn-in topic
+   * opens this dialogue; the hand-over happens ONLY at its authored turn-in
+   * choice (a central `turnInQuest` story effect). Mandatory. */
+  turnInDialogue: string;
+  /** Authored mid-quest conversation (#127): while the quest is ACTIVE and
+   * a storyEvent objective still awaits its event, the active-business
+   * topic opens this dialogue; reaching its event node advances the quest. */
+  conversationDialogue?: string;
   objectives: Objective[];
   rewards: {
     xp: number;

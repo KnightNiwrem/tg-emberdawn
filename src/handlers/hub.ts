@@ -17,17 +17,11 @@ import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell } from '../engine/shops.ts';
 import { temper } from '../engine/forge.ts';
-import {
-  acceptQuest,
-  onTalk,
-  questReadyLine,
-  syncAvailability,
-  turnInQuest,
-} from '../engine/quests.ts';
+import { syncAvailability } from '../engine/quests.ts';
 import { npc, npcInZone, quest } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
 import type { DialogueDef, DialogueNode } from '../content/types.ts';
-import { applyDialogueChoice } from '../engine/story.ts';
+import { applyDialogueChoice, applyStoryEffects, storyNoticeLines } from '../engine/story.ts';
 import { evalCondition } from '../engine/conditions.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
@@ -132,28 +126,38 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
       const q = quest(cb.arg);
       if (!q) return { toast: 'That business has moved on.' };
       const st = p.quests[q.id]?.status ?? 'unavailable';
-      // Accept/turn-in route to the AUTHORITATIVE interaction (#64); the
-      // engine revalidates contact and location again inside it.
+      // #127: acceptance and turn-in live in the quest's AUTHORED dialogue
+      // flows — the central acceptQuest/turnInQuest authorities run inside
+      // their choice effects, with contact + location revalidated by the
+      // engine. The offer/turn-in dialogues are content-integrity-mandatory.
       if (st === 'available' && q.startNpc === npcId) {
-        p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
+        const d = q.offerDialogue ? dialogue(q.offerDialogue) : undefined;
+        if (!d) return { toast: 'That business has moved on.' };
+        enterDialogueNode(p, d, d.start);
         return {};
       }
       if (st === 'turnIn' && q.finishNpc === npcId) {
-        p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
+        const d = q.turnInDialogue ? dialogue(q.turnInDialogue) : undefined;
+        if (!d) return { toast: 'That business has moved on.' };
+        enterDialogueNode(p, d, d.start);
         return {};
       }
       if (st === 'active' && (q.startNpc === npcId || q.finishNpc === npcId)) {
-        // Interim conversation beat (#123, replaced by authored dialogue
-        // events in #127): selecting an active quest's topic IS the
-        // conversation — the named NPC's talk objectives tick HERE, never
-        // on generic contact. Readiness is announced exactly once (#119).
-        const ready = onTalk(p, npcId);
-        if (ready.includes(q.id)) {
-          p.scene = { view: 'npcq', arg: q.id, arg2: npcId };
-          p.notices = ready.map(questReadyLine);
+        // Active business: a quest whose conversation objective has not yet
+        // fired opens its authored conversation dialogue (reaching its
+        // event node advances the quest); otherwise a pure progress
+        // reminder. Neither mutates by itself.
+        const pendingEvent = q.objectives.some((o) =>
+          o.kind === 'storyEvent' && !p.storyEvents.includes(o.target)
+        );
+        const conv = q.conversationDialogue && pendingEvent
+          ? dialogue(q.conversationDialogue)
+          : undefined;
+        if (conv) {
+          enterDialogueNode(p, conv, conv.start);
           return {};
         }
-        p.notices = ready.map(questReadyLine);
+        p.notices = [];
         p.scene = { view: 'npc', arg: npcId, arg2: `q:${q.id}` };
         return {};
       }
@@ -290,47 +294,25 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
   }
 }
 
-/** NPC-interaction quest actions (#64): the authoritative accept/turn-in
- * surface. The scene carries the interaction context (quest id + the NPC
- * talked to); the engine independently revalidates contact and location
- * before any mutation, the uiRev guard kills replays, and log navigation
- * can never mint n:* callbacks. */
-export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResult {
-  if (cb.a === 'bk') {
-    // Back goes to the same NPC's topic menu (#123) when the scene still
-    // names that NPC and they are physically here; otherwise to the zone.
-    const npcId = p.scene.view === 'npcq' ? p.scene.arg2 : undefined;
-    p.scene = npcId && npcInZone(p.currentZone, npcId)
-      ? { view: 'npc', arg: npcId }
-      : { view: 'zone' };
-    return {};
+/** Enters a dialogue node, applying its authored effects ONCE (#127) —
+ * the transition INTO a node, never a rerender. Conversation-driven quest
+ * progress emits its story event here, through the central story layer
+ * (atomic, idempotent, #119 readiness). */
+function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void {
+  const node = dialogueNode(d, nodeId);
+  if (node?.kind === 'line' && node.effects?.length) {
+    const result = applyStoryEffects(p, node.effects, {
+      dialogueId: d.id,
+      nodeId: node.id,
+      npcId: d.npcId,
+      now: Date.now(),
+    });
+    p.notices = [...p.notices, ...storyNoticeLines(result)];
   }
-  const questId = cb.arg;
-  if (p.scene.view !== 'npcq' || p.scene.arg !== questId) {
-    // A callback for an interaction that is no longer live.
-    return { toast: 'That conversation has moved on — talk to the NPC again.' };
-  }
-  const npcId = p.scene.arg2 ?? '';
-  if (cb.a === 'a') {
-    const res = acceptQuest(p, questId, npcId);
-    if (!res.ok) return { toast: res.msg };
-    const q = quest(questId);
-    // Acceptance line, the intro, then any immediate-readiness notice
-    // (#119: a quest can be complete the moment it is accepted).
-    p.notices = [res.msg, q?.intro ?? '', ...res.lines.slice(1)].filter(Boolean);
-    p.scene = { view: 'npcq', arg: questId, arg2: npcId };
-    return {};
-  }
-  // turn in
-  const res = turnInQuest(p, questId, npcId);
-  if (!res.ok) return { toast: res.lines[0] };
-  p.notices = res.lines;
-  p.scene = { view: 'zone' }; // business concluded — back to the hub
-  syncAvailability(p);
-  return {};
+  p.scene = { view: 'dialogue', arg: d.id, arg2: nodeId };
 }
 
-/** Dialogue scene actions (#124/#126): multi-node conversations and
+/** Dialogue scene actions (#124/#126/#127): multi-node conversations and
  * branching choices. Every control revalidates the live scene, the
  * dialogue's NPC presence in the current zone, the current node, and the
  * exact target carried by the callback — forged, replayed (rev guard),
@@ -360,7 +342,7 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
     if (!node || node.kind !== 'line' || node.next !== cb.arg) {
       return { toast: 'That conversation has moved on.' };
     }
-    p.scene = { view: 'dialogue', arg: d.id, arg2: cb.arg };
+    enterDialogueNode(p, d, cb.arg);
     return {};
   }
   if (cb.a === 'ch') {
@@ -411,7 +393,8 @@ function applyChoice(
   if (!result.ok) return { toast: result.refusal };
   p.notices = [...p.notices, ...result.lines];
   if (result.nextNodeId) {
-    p.scene = { view: 'dialogue', arg: d.id, arg2: result.nextNodeId };
+    // The transition into the next beat may itself carry effects (#127).
+    enterDialogueNode(p, d, result.nextNodeId);
   } else {
     // The conversation concluded on this choice — back to the topics.
     p.scene = npcInZone(p.currentZone, d.npcId) ? { view: 'npc', arg: d.npcId } : { view: 'zone' };

@@ -115,7 +115,7 @@ Deno.test('shop buy/sell flow updates gold and inventory', async () => {
   assertEquals(p2.gold, gold0 - 30 + 12);
 });
 
-Deno.test('quest accept via NPC talk — the authoritative interaction (#64)', async () => {
+Deno.test('quest accept via NPC talk — the authored offer flow (#64, #127)', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
@@ -125,10 +125,11 @@ Deno.test('quest accept via NPC talk — the authoritative interaction (#64)', a
   assertEquals(menu.scene.arg, 'npc_maren');
   await tap(store, user, 'npc:q:m1_embers'); // pick the quest business topic
   const opened = (await store.get(4242))!;
-  assertEquals(opened.scene.view, 'npcq', 'the topic routes to the NPC interaction');
-  assertEquals(opened.scene.arg, 'm1_embers');
-  assertEquals(opened.scene.arg2, 'npc_maren');
-  await tap(store, user, 'n:a:m1_embers'); // accept at the NPC
+  assertEquals(opened.scene.view, 'dialogue', 'the topic opens the offer conversation');
+  assertEquals(opened.scene.arg, 'dlg_m1_embers_offer');
+  await tap(store, user, 'dlg:nx:o2'); // beat 2
+  await tap(store, user, 'dlg:nx:oa'); // the accept choice node
+  await tap(store, user, 'dlg:ch:accept'); // the authored accept
   const p = (await store.get(4242))!;
   assertEquals(p.quests['m1_embers']?.status, 'active');
 

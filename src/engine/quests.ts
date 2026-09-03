@@ -117,12 +117,6 @@ export function acceptQuest(
     if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
       qp.counts[i] = 1;
     }
-    // The acceptance conversation IS the talk (#66): a dialogue quest
-    // accepted at the NPC its talk objective names needs no second
-    // identical interaction with the same person.
-    if (o.kind === 'talk' && o.target === npcId) {
-      qp.counts[i] = 1;
-    }
   });
   // Acceptance itself can complete the quest (#119): pre-owned goods, an
   // already-visited reach target, or the acceptance conversation counting
@@ -141,7 +135,8 @@ function objectiveProgress(
 ): number {
   if (obj.kind === 'collect') return Math.min(obj.count ?? 1, countOf(p, obj.target));
   if (
-    obj.kind === 'kill' || obj.kind === 'dungeon' || obj.kind === 'talk' || obj.kind === 'reach'
+    obj.kind === 'kill' || obj.kind === 'dungeon' || obj.kind === 'storyEvent' ||
+    obj.kind === 'reach'
   ) {
     return Math.min(obj.count ?? 1, qp.counts[index] ?? 0);
   }
@@ -241,8 +236,8 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
     case 'reach':
       label = `Travel to ${zoneDef(o.target)?.name ?? o.target}`;
       break;
-    case 'talk':
-      label = `Speak with ${npcName(o.target)}`;
+    case 'storyEvent':
+      label = o.label ?? `Follow the story: ${o.target}`;
       break;
     case 'dungeon':
       label = `Clear ${ZONES.find((z) => z.dungeon?.id === o.target)?.dungeon?.name ?? o.target}`;
@@ -251,9 +246,8 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
   return need > 1 ? `${label} — ${have}/${need}` : `${label}${have >= 1 ? ' ✓' : ''}`;
 }
 
-function npcName(id: string): string {
-  return npc(id)?.name ?? id;
-}
+/** The quest-status line for one objective (#127): storyEvent objectives
+ * carry their authored display label. */
 
 export function questStatusLine(p: PlayerState, id: string): string {
   const q = quest(id);
@@ -272,10 +266,31 @@ export interface TurnInResult {
   lines: string[];
 }
 
+/** The aggregated collect-goods check shared by turnInQuest and the story
+ * bundle pre-flight (#127): returns the shortfall line, or undefined when
+ * the turn-in could proceed. Central so the two paths cannot drift. */
+export function turnInGoodsShortfall(p: PlayerState, id: string): string | undefined {
+  const q = quest(id);
+  if (!q) return "That quest isn't ready to turn in.";
+  const required = new Map<string, number>();
+  for (const obj of q.objectives) {
+    if (obj.kind !== 'collect') continue;
+    required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
+  }
+  for (const [itemId, need] of required) {
+    if (countOf(p, itemId) < need) {
+      return `You no longer have enough ${itemName(itemId)} — the quest stays open.`;
+    }
+  }
+  return undefined;
+}
+
 /** Turns a ready quest in: grants rewards, sets flags, unlocks zones.
  * Physical authority (#64): only the quest's configured FINISHER, on-site
- * in the player's current zone, can accept the handover — a talk objective
- * is not completion metadata, and the Quest Log can never grant rewards. */
+ * in the player's current zone, can accept the handover — a conversation
+ * event is not completion metadata, and the Quest Log can never grant
+ * rewards. (#127: the outro is no longer echoed here — authored turn-in
+ * dialogues present the completion beats themselves.) */
 export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInResult {
   const q = quest(id);
   if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."] };
@@ -286,26 +301,19 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
     return { ok: false, lines: ["That quest isn't ready to turn in."] };
   }
   // Revalidate at the counter: goods may have been spent, forged away or
-  // dropped since the quest readied. Requirements are AGGREGATED per item
-  // first (#8) — two collect objectives on the same item must be covered by
-  // the TOTAL supply, never validated against the same copies twice. Check
-  // everything before consuming anything — turn-in is all-or-nothing.
+  // dropped since the quest readied — the SHARED aggregated check (#8).
+  const shortfall = turnInGoodsShortfall(p, id);
+  if (shortfall) {
+    qp.status = 'active';
+    return { ok: false, lines: [shortfall] };
+  }
   const required = new Map<string, number>();
   for (const obj of q.objectives) {
     if (obj.kind !== 'collect') continue;
     required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
   }
-  for (const [itemId, need] of required) {
-    if (countOf(p, itemId) < need) {
-      qp.status = 'active';
-      return {
-        ok: false,
-        lines: [`You no longer have enough ${itemName(itemId)} — the quest stays open.`],
-      };
-    }
-  }
   qp.status = 'done';
-  const lines: string[] = [q.outro];
+  const lines: string[] = [];
   // Collect objectives hand their goods over — samples, sigils and keys
   // leave the bag at turn-in instead of lingering as dead weight.
   for (const [itemId, qty] of required) {
@@ -362,7 +370,11 @@ export function onZoneEnter(p: PlayerState, zoneId: string): string[] {
   return progressObjective(p, 'reach', zoneId);
 }
 
-/** Talk-objective hook: called when the player speaks to an NPC. */
-export function onTalk(p: PlayerState, npcId: string): string[] {
-  return progressObjective(p, 'talk', npcId);
+/** Story-event hook (#127): called when an authored dialogue reaches the
+ * node (or choice) that emits the event. This is the ONE conversation
+ * progression path — opening menus, selecting topics and generic NPC
+ * contact never advance anything. Readiness flows back through the same
+ * exactly-once transition authority (#119). */
+export function onStoryEvent(p: PlayerState, event: string): string[] {
+  return progressObjective(p, 'storyEvent', event);
 }

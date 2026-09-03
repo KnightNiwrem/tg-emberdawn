@@ -12,13 +12,14 @@ import {
   grantItem,
   onItemGain,
   onKill,
-  onTalk,
+  onStoryEvent,
   questReadyLine,
   syncAvailability,
 } from '../src/engine/quests.ts';
 import { resolveVictory, travel } from '../src/engine/world.ts';
 import { battleAction, enterBattle } from '../src/handlers/battle.ts';
-import { npcqAction } from '../src/handlers/hub.ts';
+import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
+import { dialogue } from '../src/content/dialogues.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { withRev } from '../src/codec.ts';
@@ -115,18 +116,22 @@ Deno.test('ready notice: a dungeon objective completed by the boss clear surface
   assertEquals(readyHits(resolveVictory(p, rematch, seeded(46))), [], 'rematch stays silent');
 });
 
-Deno.test('ready notice: a talk objective reports readiness from onTalk, once', () => {
+Deno.test('ready notice: a story event reports readiness from the conversation, once (#127)', () => {
   const p = createPlayer(1205, 'T', 'warrior');
   p.level = 2;
   p.quests['m1_embers'] = { status: 'done', counts: [4] };
   grantItem(p, 'q_sealed_letter', 1); // m1's reward is in the bag
   syncAvailability(p);
   assert(acceptQuest(p, 'm2_letter', 'npc_maren').ok);
-  assertEquals(p.quests['m2_letter']!.status, 'active', 'the talk objective is still open');
+  assertEquals(p.quests['m2_letter']!.status, 'active', 'the conversation event is still open');
 
-  assertEquals(onTalk(p, 'npc_bram'), ['m2_letter'], 'the completing conversation reports it');
+  assertEquals(
+    onStoryEvent(p, 'heard_bram_reading'),
+    ['m2_letter'],
+    'the completing conversation reports it',
+  );
   assertEquals(p.quests['m2_letter']!.status, 'turnIn');
-  assertEquals(onTalk(p, 'npc_bram'), [], 'talking again never re-reports');
+  assertEquals(onStoryEvent(p, 'heard_bram_reading'), [], 're-firing never re-reports');
 });
 
 Deno.test('ready notice: multi-objective quests stay silent until ALL objectives are met', () => {
@@ -193,40 +198,49 @@ Deno.test('ready notice: one event completing multiple quests reports each once,
   assertEquals(p.quests['m5_arms']!.status, 'turnIn');
 });
 
-Deno.test('ready notice: accepting an immediately-complete quest reports acceptance AND readiness', () => {
+Deno.test('ready notice: the authored accept emits the event — acceptance AND readiness', () => {
   const p = createPlayer(1209, 'T', 'warrior');
   p.level = 13;
   p.unlockedZones.push('hollowmere');
   p.currentZone = 'hollowmere'; // the Ferryman stands here
-  // m8_passage's talk objective names the Ferryman — accepting AT him is the
-  // conversation itself, so the quest is complete the moment it is accepted.
+  // #127: accepting ALONE no longer completes a same-NPC conversation —
+  // the objective advances when the authored accept choice emits m8's
+  // story event. The one mutation reports BOTH transitions.
   p.quests['m8_passage'] = { status: 'available', counts: [] };
   const res = acceptQuest(p, 'm8_passage', 'npc_ferryman');
   assert(res.ok);
+  assertEquals(p.quests['m8_passage']!.status, 'active', 'acceptance alone ticks nothing');
+  assertEquals(readyHits(res.lines), [], 'no premature readiness');
+  const ready = onStoryEvent(p, 'heard_ferrymans_word');
   assertEquals(p.quests['m8_passage']!.status, 'turnIn');
-  assertEquals(
-    res.lines,
-    [`📜 Quest accepted: The Curator's Summons`, questReadyLine('m8_passage')],
-    'both the acceptance and the readiness are reported',
-  );
-  assert(res.lines[1]!.includes('The Curator'), 'the notice names the quest');
+  assertEquals(ready, ['m8_passage'], 'the conversation event readies the quest, once');
 });
 
-Deno.test('ready notice: the npcq accept surface carries both lines', () => {
+Deno.test('ready notice: the accept choice carries acceptance and immediate readiness', () => {
   const p = createPlayer(1210, 'T', 'warrior');
-  p.level = 13;
+  p.level = 13; // m8 requires 13
+  p.quests['m7_tyrant'] = { status: 'done', counts: [1] };
   p.unlockedZones.push('hollowmere');
   p.currentZone = 'hollowmere';
-  p.quests['m8_passage'] = { status: 'available', counts: [] };
-  p.scene = { view: 'npcq', arg: 'm8_passage', arg2: 'npc_ferryman' };
-  const res = npcqAction(p, { v: 'npcq', a: 'a', arg: 'm8_passage' });
-  assertEquals(res.toast, undefined);
+  syncAvailability(p);
+  p.scene = { view: 'npc', arg: 'npc_ferryman' };
+  npcAction(p, { v: 'npc', a: 'q', arg: 'm8_passage' });
+  const d = dialogue(p.scene.arg ?? '')!;
+  // Walk to the accept choice.
+  let node = d.nodes.find((n: { id: string; kind: string; next?: string }) =>
+    n.id === p.scene.arg2
+  )!;
+  while (node.kind === 'line' && node.next) {
+    dialogueAction(p, { v: 'dlg', a: 'nx', arg: node.next });
+    node = d.nodes.find((n) => n.id === p.scene.arg2)!;
+  }
+  assert(node.kind === 'choice');
+  dialogueAction(p, { v: 'dlg', a: 'ch', arg: 'accept' });
+  // Acceptance IS the conversation: the choice emits m8's event too, so
+  // the quest readies in the same mutation — both lines in the notices.
+  assertEquals(p.quests['m8_passage']?.status, 'turnIn');
+  assertEquals(readyHits(p.notices).length, 1, 'readiness announced once');
   assert(p.notices.some((l) => l.includes('Quest accepted')), 'acceptance is announced');
-  assertEquals(
-    readyHits(p.notices),
-    ["📜 “The Curator's Summons” is ready to turn in!"],
-    'immediate readiness is announced in the same interaction',
-  );
 });
 
 Deno.test('ready notice: talking to the NPC surfaces the notice through the full router', async () => {
@@ -240,9 +254,9 @@ Deno.test('ready notice: talking to the NPC surfaces the notice through the full
   p.messageId = 950;
   await store.set(1211, p);
 
-  // Bram is the second NPC of Emberdawn Village — selecting m2's business
-  // topic from his menu is the conversation: it completes m2's talk
-  // objective and opens the authoritative interaction.
+  // Bram is the second NPC of Emberdawn Village — the active business
+  // topic opens the authored conversation, and reaching the reading node
+  // emits the stable event that readies the delivery (#127).
   const cur0 = (await store.get(1211))!;
   let tap = fakeCtxCapture(1211, 950, withRev(cur0.uiRev ?? 0, 'z:tk:1'));
   await handleCallback(tap.ctx, store);
@@ -252,15 +266,21 @@ Deno.test('ready notice: talking to the NPC surfaces the notice through the full
   tap = fakeCtxCapture(1211, 950, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter'));
   await handleCallback(tap.ctx, store);
   cur = (await store.get(1211))!;
-  assertEquals(cur.scene.view, 'npcq');
-  assertEquals(cur.scene.arg, 'm2_letter');
-  assertEquals(cur.scene.arg2, 'npc_bram');
+  assertEquals(cur.scene.view, 'dialogue');
+  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
   // Notices drain on commit, so assert on what the player was actually shown.
-  assertEquals(tap.edits.length, 1, 'the interaction is delivered in place');
+  assertEquals(tap.edits.length, 1, 'the conversation opens in place');
+  // Continue into the reading node — the SAME live message carries the
+  // readiness notice.
+  tap = fakeCtxCapture(1211, 950, withRev(cur.uiRev ?? 0, 'dlg:nx:c2'));
+  await handleCallback(tap.ctx, store);
+  cur = (await store.get(1211))!;
+  assertEquals(cur.quests['m2_letter']?.status, 'turnIn');
+  assertEquals(tap.edits.length, 1, 'the beat is delivered in place');
   const delivered = JSON.stringify(tap.edits[0]);
   assert(
     delivered.includes('📜 “The Sealed Letter” is ready to turn in!'),
-    'the talk interaction itself carries the notice',
+    'the conversation beat itself carries the notice',
   );
   assertEquals(
     delivered.split('ready to turn in').length - 1,

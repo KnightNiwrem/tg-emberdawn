@@ -20,7 +20,6 @@ import {
   forgeAction,
   metaAction,
   npcAction,
-  npcqAction,
   pickClass,
   questsAction,
   shopAction,
@@ -88,10 +87,6 @@ function dispatch(
       return forgeAction(player, cb);
     case 'quests':
       return questsAction(player, cb);
-    case 'npcq':
-      // The authoritative quest interaction (#64): the ONLY route that can
-      // reach accept/turn-in mutations.
-      return npcqAction(player, cb);
     case 'npc':
       // The NPC topic menu (#123): navigation + revalidated topic
       // selection; no story mutation happens on merely opening it.

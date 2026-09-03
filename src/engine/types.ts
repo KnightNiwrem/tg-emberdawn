@@ -222,7 +222,6 @@ export type ViewId =
   | 'equippedItem'
   | 'skills'
   | 'quests'
-  | 'npcq'
   | 'shop'
   | 'forge'
   | 'death'

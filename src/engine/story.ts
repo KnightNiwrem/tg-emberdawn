@@ -21,7 +21,17 @@ import { dialogue as dialogueDef } from '../content/dialogues.ts';
 import { item as itemDef } from '../content/items.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { countOf, removeItem } from './inventory.ts';
-import { grantItem, questReadyLine, refreshQuestProgress, syncAvailability } from './quests.ts';
+import {
+  acceptQuest,
+  grantItem,
+  questExcluded,
+  questReadyLine,
+  refreshQuestProgress,
+  syncAvailability,
+  turnInGoodsShortfall,
+  turnInQuest,
+} from './quests.ts';
+import { onStoryEvent } from './quests.ts';
 import { evalCondition } from './conditions.ts';
 
 /** The central story-path authorities. (StoryEffect itself is content
@@ -120,6 +130,38 @@ export function validateStoryBundle(
         if (!questDef(e.questId)) return `Unknown quest ${e.questId}.`;
         break;
       }
+      case 'acceptQuest': {
+        const q = questDef(e.questId);
+        if (!q) return `Unknown quest ${e.questId}.`;
+        const st = questStatus[e.questId];
+        if (st === 'active' || st === 'turnIn' || st === 'done') break; // idempotent
+        // Central authority (#63/#64): acceptance runs through
+        // acceptQuest, which revalidates the configured STARTER on-site.
+        if (q.startNpc !== ctx.npcId || !npcInZone(p.currentZone, ctx.npcId)) {
+          return `${q.name} can only be accepted from ${q.startNpc}, on-site.`;
+        }
+        if (questExcluded(p, e.questId)) return `${q.name} is no longer reachable.`;
+        if (st !== 'available') return `${q.name} is not available right now.`;
+        questStatus[e.questId] = 'active';
+        break;
+      }
+      case 'turnInQuest': {
+        const q = questDef(e.questId);
+        if (!q) return `Unknown quest ${e.questId}.`;
+        const st = questStatus[e.questId];
+        if (st === 'done') break; // idempotent
+        // Central authority (#63/#64): the turn-in runs through
+        // turnInQuest, which revalidates the configured FINISHER on-site
+        // and the aggregated collect goods (all-or-nothing).
+        if (q.finishNpc !== ctx.npcId || !npcInZone(p.currentZone, ctx.npcId)) {
+          return `${q.name} can only be handed to ${q.finishNpc}, on-site.`;
+        }
+        if (st !== 'turnIn') return `${q.name} is not ready to turn in.`;
+        const shortfall = turnInGoodsShortfall(p, e.questId);
+        if (shortfall) return shortfall;
+        questStatus[e.questId] = 'done';
+        break;
+      }
       case 'grantItem':
       case 'removeItem': {
         if (!itemDef(e.itemId)) return `Unknown item ${e.itemId}.`;
@@ -174,6 +216,10 @@ export function applyStoryEffects(
       case 'storyEvent': {
         if (!p.storyEvents.includes(e.event)) p.storyEvents.push(e.event);
         result.events.push(e.event);
+        // The quest hook (#127): the emitted event advances every matching
+        // active storyEvent objective through the SAME transition
+        // authority (#119).
+        result.readyQuests.push(...onStoryEvent(p, e.event));
         break;
       }
       case 'startQuest': {
@@ -236,6 +282,28 @@ export function applyStoryEffects(
       }
       case 'removeItem': {
         removeItem(p, e.itemId, e.qty ?? 1);
+        break;
+      }
+      case 'acceptQuest': {
+        const st = p.quests[e.questId]?.status;
+        if (st === 'active' || st === 'turnIn' || st === 'done') break;
+        // Central authority (#63/#64/#119): acceptance lines and any
+        // immediate readiness flow back as result lines.
+        const res = acceptQuest(p, e.questId, ctx.npcId);
+        if (!res.ok) throw new Error(`story accept refused: ${res.msg}`);
+        result.lines.push(res.msg);
+        result.lines.push(...res.lines.slice(1));
+        result.startedQuests.push(e.questId);
+        break;
+      }
+      case 'turnInQuest': {
+        const st = p.quests[e.questId]?.status;
+        if (st === 'done') break;
+        // Central authority (#63/#64/#119): rewards, hand-over lines and
+        // cross-quest readiness flow back as result lines.
+        const res = turnInQuest(p, e.questId, ctx.npcId);
+        if (!res.ok) throw new Error(`story turn-in refused: ${res.lines[0]}`);
+        result.lines.push(...res.lines);
         break;
       }
     }

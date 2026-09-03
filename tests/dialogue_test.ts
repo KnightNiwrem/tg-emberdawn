@@ -118,11 +118,15 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
     // Terminals: every branch path terminates — on an explicit end node or
     // on a final line that omits `next`, or on a choice without next.
     assert(dWalkTerminates(d, d.start, new Set()), `${d.id}: every path terminates`);
-    // The owning NPC offers the dialogue through one of their topics.
+    // The dialogue is opened by an NPC topic OR by a quest flow
+    // (offer/turn-in/conversation) owned by the same NPC (#127).
     const offered = ZONES.flatMap((z) => z.npcs).some((n) =>
       n.id === d.npcId && (n.topics ?? []).some((t) => t.dialogue === d.id)
     );
-    assert(offered, `${d.id}: no NPC topic opens this dialogue`);
+    const questWired = QUESTS.some((q) =>
+      [q.offerDialogue, q.turnInDialogue, q.conversationDialogue].includes(d.id)
+    );
+    assert(offered || questWired, `${d.id}: nothing opens this dialogue`);
   }
 });
 

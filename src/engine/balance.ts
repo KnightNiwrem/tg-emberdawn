@@ -20,7 +20,7 @@ import { performAction, type PlayerAction, startBattle } from './combat.ts';
 import { resolveVictory } from './world.ts';
 import { buy, currentStock, shopTierForZone } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
-import { acceptQuest, onTalk, syncAvailability, turnInQuest } from './quests.ts';
+import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
 import {
   diveDungeon,
@@ -1911,7 +1911,11 @@ export function driveQuests(
       const zid = zoneOfNpc(q.finishNpc)?.id;
       if (!zid) continue;
       goto(zid);
-      onTalk(p, q.finishNpc);
+      // #127: conversation-driven objectives advance through story events
+      // — emit every event the quest's objectives await.
+      for (const obj of q.objectives) {
+        if (obj.kind === 'storyEvent') onStoryEvent(p, obj.target);
+      }
       if (p.quests[qid]?.status === 'turnIn' && turnInQuest(p, qid, q.finishNpc).ok) {
         beats.push({
           questId: qid,
@@ -1936,7 +1940,6 @@ export function driveQuests(
       const zid = zoneOfNpc(q.startNpc)?.id;
       if (!zid) continue;
       goto(zid);
-      onTalk(p, q.startNpc);
       if (p.quests[qid]?.status === 'available') acceptQuest(p, qid, q.startNpc);
     }
   };
@@ -1974,12 +1977,8 @@ export function driveQuests(
         progressed = diveZone ? clearBoss(diveZone) : farmKills(active, i, obj.target, need);
       } else if (obj.kind === 'collect') {
         progressed = farmCollect(obj.target, need);
-      } else if (obj.kind === 'talk') {
-        const zid = zoneOfNpc(obj.target)?.id;
-        if (zid) {
-          goto(zid);
-          onTalk(p, obj.target);
-        }
+      } else if (obj.kind === 'storyEvent') {
+        onStoryEvent(p, obj.target);
         progressed = questCount(active, i) >= need;
       } else if (obj.kind === 'reach') {
         travel(p, obj.target);

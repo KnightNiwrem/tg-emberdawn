@@ -1,14 +1,20 @@
 /**
- * Authored multi-node conversations (#124). Linear primitives only: one
- * beat per node, explicit speaker, explicit `next`, an end state. Choice
- * nodes and consequences arrive with #125/#126. The scene persists
- * (dialogueId, nodeId) and Continue advances exactly one node in the
- * existing live message — no extra Telegram messages, ever.
+ * Authored conversations (#124/#126/#127). Linear primitives plus choice
+ * nodes: one beat per node, explicit speaker, explicit `next`, an end
+ * state. The scene persists (dialogueId, nodeId) and Continue advances
+ * exactly one node in the existing live message — no extra Telegram
+ * messages, ever.
+ *
+ * Ambient (non-quest) conversations live here; the per-quest offer,
+ * conversation and turn-in dialogues live in quest_dialogues.ts. The
+ * combined registry is `DIALOGUES` below.
  */
 
 import type { DialogueDef, DialogueNode } from './types.ts';
+import { QUEST_DIALOGUES } from './quest_dialogues.ts';
 
 export const DIALOGUES: readonly DialogueDef[] = [
+  ...QUEST_DIALOGUES,
   {
     // The representative conversation (#124): NPC speech, narration, and
     // player speech across multiple Continue steps.

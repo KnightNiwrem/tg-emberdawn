@@ -11,6 +11,7 @@ import { npc, quest, QUESTS } from '../src/content/quests.ts';
 import { item, ITEMS } from '../src/content/items.ts';
 import { npcInZone, zoneOfNpc } from '../src/content/quests.ts';
 import { ZONES } from '../src/content/zones.ts';
+import { dialogue, DIALOGUES } from '../src/content/dialogues.ts';
 import { conditionRefs } from '../src/engine/conditions.ts';
 import type { Condition } from '../src/content/types.ts';
 
@@ -81,15 +82,82 @@ Deno.test('quest copy: in-world fields do not leak game-system terms (#122)', ()
 });
 
 Deno.test('quest copy: NPC display names are referenced consistently (#122)', () => {
-  // The Echo NPC's canonical name is the zones catalog's; quest text must
-  // not mint hyphenated variants of it.
+  // The Echo NPC's canonical name is the zones catalog's; authored
+  // dialogue text must not mint hyphenated variants of it.
   const echo = npc('npc_echo')!;
   assertEquals(echo.name, 'Echo of Maren');
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind === 'line') {
+        assert(
+          !n.text.includes('Echo-of-Maren'),
+          `${d.id}:${n.id} uses the hyphenated Echo name variant`,
+        );
+      }
+    }
+  }
+});
+
+Deno.test('quest copy: every quest dialogue flow is wired and authoritative (#127)', () => {
   for (const q of QUESTS) {
+    const offer = dialogue(q.offerDialogue);
+    const turnIn = dialogue(q.turnInDialogue);
+    assert(offer, `${q.id}: offerDialogue ${q.offerDialogue} is missing`);
+    assert(turnIn, `${q.id}: turnInDialogue ${q.turnInDialogue} is missing`);
+    assertEquals(offer.npcId, q.startNpc, `${q.id}: the offer belongs to the starter`);
+    assertEquals(turnIn.npcId, q.finishNpc, `${q.id}: the turn-in belongs to the finisher`);
+    // The offer's accept choice runs the central acceptQuest authority for
+    // exactly this quest; the turn-in's hand-over choice runs turnInQuest.
+    const accept = offer.nodes.flatMap((n) => n.kind === 'choice' ? n.choices : [])
+      .find((c) => c.id === 'accept');
+    const handover = turnIn.nodes.flatMap((n) => n.kind === 'choice' ? n.choices : [])
+      .find((c) => c.id === 'handover');
+    assert(accept, `${q.id}: the offer has no accept choice`);
+    assert(handover, `${q.id}: the turn-in has no hand-over choice`);
     assert(
-      !q.intro.includes('Echo-of-Maren') && !q.outro.includes('Echo-of-Maren'),
-      `${q.id} uses the hyphenated Echo name variant`,
+      (accept.effects ?? []).some((e) => e.kind === 'acceptQuest' && e.questId === q.id),
+      `${q.id}: the accept choice must invoke acceptQuest for ${q.id}`,
     );
+    assert(
+      (handover.effects ?? []).some((e) => e.kind === 'turnInQuest' && e.questId === q.id),
+      `${q.id}: the hand-over choice must invoke turnInQuest for ${q.id}`,
+    );
+    // A conversation dialogue (when authored) belongs to a contact of the
+    // quest and emits at least one stable event.
+    if (q.conversationDialogue) {
+      const conv = dialogue(q.conversationDialogue);
+      assert(conv, `${q.id}: conversationDialogue ${q.conversationDialogue} is missing`);
+      assert(
+        [q.startNpc, q.finishNpc].includes(conv!.npcId),
+        `${q.id}: the conversation belongs to a quest contact`,
+      );
+      const events = conv!.nodes.flatMap((n) => n.kind === 'line' ? n.effects ?? [] : [])
+        .filter((e) => e.kind === 'storyEvent');
+      assert(events.length > 0, `${q.id}: the conversation emits no story event`);
+    }
+  }
+  // Every storyEvent objective's event is emitted by its quest's dialogues.
+  for (const q of QUESTS) {
+    for (const o of q.objectives) {
+      if (o.kind !== 'storyEvent') continue;
+      const qd = [q.offerDialogue, q.turnInDialogue, q.conversationDialogue]
+        .filter((id): id is string => id !== undefined)
+        .map((id) => dialogue(id))
+        .flatMap((d) => d ? [d] : []);
+      const emitted = qd.flatMap((d) =>
+        d.nodes.flatMap((n) =>
+          n.kind === 'line'
+            ? n.effects ?? []
+            : n.kind === 'choice'
+            ? n.choices.flatMap((c) => c.effects ?? [])
+            : []
+        )
+      ).some((e) => e.kind === 'storyEvent' && e.event === o.target);
+      assert(
+        emitted,
+        `${q.id}: storyEvent ${o.target} is never emitted by its own dialogues`,
+      );
+    }
   }
 });
 
