@@ -144,19 +144,29 @@ When public launch is explicitly approved:
     conversations carry no partial state); the final line omits `next` and is the implicit end
     state. Content integrity (tests/dialogue_test.ts) covers id uniqueness, references,
     reachability, terminals, topic wiring, and the callback budget.
-11. **Choice authority (#126).** A choice node's responses resolve by stable dialogue/node/choice
-    identity — never by consequence data on the wire (`dlg:ch:`/`dlg:cf:` carry ids only; effects
-    resolve server-side). Availability (`when`) re-evaluates at TAP time (rendering is never
-    authority); an irreversible choice stages a `confirm:<choiceId>` panel (scene `arg3`) that
-    mutates NOTHING — Confirm is the only mutating control, Go back/Not now/Leave never touch story
-    state. Application goes through the ONE central op (`applyDialogueChoice` in engine/story.ts):
-    condition re-check → ledger conflict check (a recorded decision can never be overwritten) →
-    atomic `StoryEffect` bundle → next node or back to the topic menu. The rev guard (#43) kills
-    wire-level double taps and replays, and every committed application records a one-shot receipt
-    in `p.storyReceipts` (#129): replaying a receipted choice (`choice:<dlg>:<node>:<id>`) or
-    line-entry (`line:<dlg>:<node>`) application is a complete no-op — it can never double-grant,
-    double-start, re-lock, or re-notify. Shipped irreversible choices are sparing and
-    harmless-by-design; mutually exclusive content requires an explicit lockQuest effect.
+11. **Choice authority (#126, hardened #130).** A choice node's responses resolve by stable
+    dialogue/node/choice identity — never by consequence data on the wire (`dlg:ch:`/`dlg:cf:` carry
+    the choice id ONLY; effects resolve server-side). Application goes through the ONE central op
+    (`applyDialogueChoice` in engine/story.ts), which derives its context from the PLAYER'S LIVE
+    SCENE — never from caller assertions: the scene must be the dialogue view; the dialogue id and
+    current node id come from `p.scene`; the acting NPC is resolved from the dialogue DEFINITION
+    (`dialogue.npcId`) and must be physically present in the player's current zone; the choice must
+    belong to that current choice node; availability (`when`) re-evaluates at apply time (rendering
+    is never authority); an `irreversible: true` choice mutates only from its exact staged
+    `confirm:<choiceId>` panel (scene `arg3`) and an ordinary choice refuses while any confirmation
+    is staged; then the ledger conflict check (a recorded decision can never be overwritten) →
+    atomic `StoryEffect` bundle → next node or back to the topic menu. The handler layer
+    (`dialogueAction` in handlers/hub.ts) keeps only TRANSPORT/NAVIGATION checks — scene view, the
+    rendered node/choice target, and confirmation STAGING, which mutates no story state (Confirm is
+    the only mutating control; Go back/Not now/Leave never touch it) — and passes the engine exactly
+    the tapped choice id. Callback revision/message staleness is TRANSPORT-level authority, enforced
+    by the locked per-player router BEFORE any handler runs (#16/#43) and documented separately from
+    this story-level authority; the rev guard kills wire-level double taps and replays, and every
+    committed application records a one-shot receipt in `p.storyReceipts` (#129): replaying a
+    receipted choice (`choice:<dlg>:<node>:<id>`) or line-entry (`line:<dlg>:<node>`) application is
+    a complete no-op — it can never double-grant, double-start, re-lock, or re-notify. Shipped
+    irreversible choices are sparing and harmless-by-design; mutually exclusive content requires an
+    explicit lockQuest effect.
 
 ## Commands
 

@@ -101,20 +101,11 @@ Deno.test('choices: the decline branch records its own decision, same event', ()
   const a = ferryHero(1404);
   const b = ferryHero(1405);
   for (const p of [a, b]) openChoice(p);
-  applyDialogueChoice(a, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'decline',
-    npcId: FERRY,
-    now: 1,
-  });
-  applyDialogueChoice(b, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'promise',
-    npcId: FERRY,
-    now: 1,
-  });
+  // The central op derives dialogue/node/NPC from the live scene (#130);
+  // the irreversible promise needs its staged panel.
+  applyDialogueChoice(a, { choiceId: 'decline', now: 1 });
+  b.scene.arg3 = 'confirm:promise';
+  applyDialogueChoice(b, { choiceId: 'promise', now: 1 });
   assertEquals(a.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
   assertEquals(b.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(a.storyEvents, b.storyEvents, 'both choices share the parent-progress event');
@@ -123,33 +114,18 @@ Deno.test('choices: the decline branch records its own decision, same event', ()
 Deno.test('choices: incompatible re-choices and engine-level replays are refused', () => {
   const p = ferryHero(1406);
   openChoice(p);
-  applyDialogueChoice(p, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'promise',
-    npcId: FERRY,
-    now: 1,
-  });
+  p.scene.arg3 = 'confirm:promise';
+  applyDialogueChoice(p, { choiceId: 'promise', now: 1 });
   // Trying to re-decide the same dialogue choice with the other option is
   // refused by the central op (ledger wins), and the state is untouched.
+  // (The handler would have routed the scene on; restore the choice node.)
+  p.scene = { view: 'dialogue', arg: DIALOGUE, arg2: CHOICE_NODE };
   const before = JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents });
-  const r = applyDialogueChoice(p, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'decline',
-    npcId: FERRY,
-    now: 2,
-  });
+  const r = applyDialogueChoice(p, { choiceId: 'decline', now: 2 });
   assertEquals(r.ok, false);
   assertEquals(JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents }), before);
   // A forged choice id refuses.
-  const forged = applyDialogueChoice(p, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'nope',
-    npcId: FERRY,
-    now: 2,
-  });
+  const forged = applyDialogueChoice(p, { choiceId: 'nope', now: 2 });
   assertEquals(forged.ok, false);
 });
 
@@ -220,13 +196,7 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
     !JSON.stringify(renderDialogue(p)).includes('dlg:ch:vouch'),
     'an unmet condition hides the response',
   );
-  const refused = applyDialogueChoice(p, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'vouch',
-    npcId: FERRY,
-    now: 1,
-  });
+  const refused = applyDialogueChoice(p, { choiceId: 'vouch', now: 1 });
   assertEquals(refused.ok, false, 'tap-time reevaluation gates the effects');
   assertEquals(Object.keys(p.decisions).length, 0);
   // After the condition passes, the response renders and applies.
@@ -235,13 +205,7 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
     JSON.stringify(renderDialogue(p)).includes('dlg:ch:vouch'),
     'a met condition reveals the response',
   );
-  const ok = applyDialogueChoice(p, {
-    dialogueId: DIALOGUE,
-    nodeId: CHOICE_NODE,
-    choiceId: 'vouch',
-    npcId: FERRY,
-    now: 1,
-  });
+  const ok = applyDialogueChoice(p, { choiceId: 'vouch', now: 1 });
   assertEquals(ok.ok, true);
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'vouch');
   assertEquals(ok.nextNodeId, 'n6');

@@ -128,13 +128,15 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   p.currentZone = 'hollowmere';
   p.unlockedZones.push('hollowmere');
   p.flags['zone_hollowmere'] = true;
-  const args = {
-    dialogueId: 'dlg_ferry_promise',
-    nodeId: 'n3',
-    choiceId: 'promise',
-    npcId: 'npc_ferryman',
-    now: 1,
+  // The central op derives dialogue/node/NPC from the live scene (#130):
+  // the irreversible promise needs its exact staged panel.
+  p.scene = {
+    view: 'dialogue',
+    arg: 'dlg_ferry_promise',
+    arg2: 'n3',
+    arg3: 'confirm:promise',
   };
+  const args = { choiceId: 'promise', now: 1 };
   const r1 = applyDialogueChoice(p, args);
   assert(r1.ok);
   assertEquals(r1.decided, 'ferry_shrine_pledge');
@@ -158,10 +160,13 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   assertEquals(r3.lines, []);
   assertEquals(JSON.stringify(reloaded), before, 'the receipt survives persistence');
 
-  // A DIFFERENT choice on the same node is still refused by the ledger.
-  const r4 = applyDialogueChoice(p, { ...args, choiceId: 'decline' });
+  // A DIFFERENT choice on the same node is still refused by the ledger
+  // (the handler would have cleared the staged panel on routing).
+  p.scene.arg3 = undefined;
+  const before4 = JSON.stringify(p);
+  const r4 = applyDialogueChoice(p, { choiceId: 'decline', now: 4 });
   assertEquals(r4.ok, false);
-  assertEquals(JSON.stringify(p), before);
+  assertEquals(JSON.stringify(p), before4);
 });
 
 // ── terminal outcome monotonicity ────────────────────────────────────────

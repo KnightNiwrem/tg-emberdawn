@@ -20,7 +20,7 @@ import { temper } from '../engine/forge.ts';
 import { syncAvailability } from '../engine/quests.ts';
 import { npc, npcInZone, quest } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
-import type { DialogueDef, DialogueNode } from '../content/types.ts';
+import type { DialogueDef } from '../content/types.ts';
 import { applyDialogueChoice, applyStoryEffects, storyNoticeLines } from '../engine/story.ts';
 import { evalCondition } from '../engine/conditions.ts';
 import { applyDeath } from '../engine/character.ts';
@@ -312,13 +312,15 @@ function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void
   p.scene = { view: 'dialogue', arg: d.id, arg2: nodeId };
 }
 
-/** Dialogue scene actions (#124/#126/#127): multi-node conversations and
- * branching choices. Every control revalidates the live scene, the
- * dialogue's NPC presence in the current zone, the current node, and the
- * exact target carried by the callback — forged, replayed (rev guard),
- * wrong-node and wrong-dialogue taps are non-mutating. Irreversible
- * choices stage an explicit confirmation panel BEFORE any mutation;
- * opening, backing out of, or abandoning it changes no story state. */
+/** Dialogue scene actions (#124/#126/#127/#130): multi-node conversations
+ * and branching choices. This handler owns only TRANSPORT-level and
+ * NAVIGATION checks — the live scene view, the dialogue/node the callback
+ * was rendered from, and confirmation STAGING (a scene mutation, never
+ * story state). The STORY-level authority for applying a choice — scene,
+ * dialogue ownership, on-site NPC presence, availability, staged
+ * confirmation and the transaction itself — lives entirely in the central
+ * engine operation `applyDialogueChoice` (#130); this layer passes it only
+ * the tapped choice id, exactly as the wire carries it. */
 export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
   const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
   if (cb.a === 'bk') {
@@ -336,6 +338,9 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
     return {};
   }
   if (!d) return { toast: 'That conversation has moved on.' };
+  // Presence gates Continue too: advancing a line node can apply its
+  // authored line-entry effects (#127), a story mutation outside the
+  // choice authority (#130).
   if (!npcInZone(p.currentZone, d.npcId)) return { toast: 'Nobody there.' };
   const node = dialogueNode(d, p.scene.arg2 ?? '');
   if (cb.a === 'nx') {
@@ -345,51 +350,40 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
     enterDialogueNode(p, d, cb.arg);
     return {};
   }
-  if (cb.a === 'ch') {
-    if (!node || node.kind !== 'choice') {
-      return { toast: 'That conversation has moved on.' };
-    }
-    const choice = node.choices.find((c) => c.id === cb.arg);
-    if (!choice) return { toast: 'That response is not on the table.' };
-    // Availability is re-evaluated at tap time (rendering is not authority).
-    if (choice.when && !evalCondition(p, choice.when)) {
-      return { toast: 'That response is no longer available.' };
-    }
-    if (choice.irreversible) {
-      // Stage the confirmation — nothing is mutated merely by opening it.
-      p.scene = { view: 'dialogue', arg: d.id, arg2: node.id, arg3: `confirm:${choice.id}` };
-      return {};
-    }
-    return applyChoice(p, d, node, choice.id);
-  }
-  // 'cf': the CONFIRMED irreversible choice — the staged panel must match.
+  // 'ch' (tap a response) and 'cf' (tap Confirm on a staged panel) both
+  // resolve to the same central authority; the only handler-level
+  // difference is that 'ch' on an irreversible choice STAGES the panel.
+  // (Every other dlg action returned above, so cb.a is 'ch' | 'cf' here.)
   if (!node || node.kind !== 'choice') {
     return { toast: 'That conversation has moved on.' };
   }
-  if (p.scene.arg3 !== `confirm:${cb.arg}`) {
-    return { toast: 'Confirm the choice on its confirmation screen.' };
-  }
   const choice = node.choices.find((c) => c.id === cb.arg);
-  if (!choice?.irreversible) return { toast: 'That response is not on the table.' };
-  return applyChoice(p, d, node, choice.id);
+  if (!choice) return { toast: 'That response is not on the table.' };
+  if (cb.a === 'ch' && choice.irreversible) {
+    // Stage the confirmation — nothing is mutated merely by opening it.
+    // (Availability of a not-yet-available response is re-refused here so
+    // the panel cannot be staged for a response the player cannot take;
+    // the engine re-evaluates it again at application.)
+    if (choice.when && !evalCondition(p, choice.when)) {
+      return { toast: 'That response is no longer available.' };
+    }
+    p.scene = { view: 'dialogue', arg: d.id, arg2: node.id, arg3: `confirm:${choice.id}` };
+    return {};
+  }
+  return applyChoice(p, d, choice.id);
 }
 
-/** Applies a choice through the central engine operation and routes the
- * scene to the next beat (or back to the topic menu when the conversation
- * ends). Notice lines flow through the normal banner. */
+/** Applies a choice through the ONE central engine operation (#126/#130) —
+ * which revalidates the live scene, dialogue ownership, on-site presence,
+ * availability and confirmation staging itself — and routes the scene to
+ * the next beat (or back to the topic menu when the conversation ends).
+ * Notice lines flow through the normal banner. */
 function applyChoice(
   p: PlayerState,
   d: DialogueDef,
-  node: Extract<DialogueNode, { kind: 'choice' }>,
   choiceId: string,
 ): MutationResult {
-  const result = applyDialogueChoice(p, {
-    dialogueId: d.id,
-    nodeId: node.id,
-    choiceId,
-    npcId: d.npcId,
-    now: Date.now(),
-  });
+  const result = applyDialogueChoice(p, { choiceId, now: Date.now() });
   if (!result.ok) return { toast: result.refusal };
   p.notices = [...p.notices, ...result.lines];
   if (result.nextNodeId) {

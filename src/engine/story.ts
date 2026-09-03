@@ -347,13 +347,14 @@ export function storyNoticeLines(result: StoryResult): string[] {
   ];
 }
 
-// ── Branching choices (#126) ─────────────────────────────────────────────
+// ── Branching choices (#126, authority hardened #130) ────────────────────
 
+/** What a caller may assert. NOTHING else is accepted: the dialogue, node
+ * and acting NPC are derived from the player's live scene and the dialogue
+ * definition — never trusted from the caller (#130). The wire callbacks
+ * (`dlg:ch:`/`dlg:cf:`) already carry only the choice id. */
 export interface ChoiceApplyArgs {
-  dialogueId: string;
-  nodeId: string;
   choiceId: string;
-  npcId: string;
   now: number;
 }
 
@@ -370,27 +371,55 @@ export interface ChoiceApplyResult {
 }
 
 /** The ONE central operation that validates and applies a dialogue choice
- * (#126): re-evaluates availability, refuses incompatible prior decisions,
- * applies the declarative effects as one atomic transaction (#129), and
- * derives the next beat. A committed choice records a one-shot receipt, so
+ * (#126, authority hardened #130). The context is derived from the PLAYER'S
+ * LIVE SCENE, not from caller assertions:
+ *
+ * - the scene must be the dialogue view, and the dialogue id and current
+ *   node id come from `p.scene` — a caller cannot nominate another
+ *   conversation or node;
+ * - the acting NPC is resolved from the dialogue DEFINITION
+ *   (`dialogue.npcId`) and must be physically present in the player's
+ *   current zone — a forged caller-supplied NPC cannot provide authority;
+ * - the choice must be reachable from that current choice node;
+ * - availability (`when`) is re-evaluated at application time — rendering
+ *   was never authority;
+ * - an `irreversible: true` choice mutates only from its exact staged
+ *   panel (`scene.arg3 === 'confirm:<choiceId>'`); an ordinary choice
+ *   refuses while any confirmation is staged.
+ *
+ * Application then re-checks the decision ledger (a recorded decision can
+ * never be overwritten) and applies the declarative effects as one atomic
+ * transaction (#129). A committed choice records a one-shot receipt, so
  * replaying the same choice application is a complete no-op that still
  * routes to the authored next beat — it can never double-grant, re-lock or
- * overwrite a recorded decision. */
+ * overwrite a recorded decision.
+ *
+ * What is deliberately NOT here: callback revision / message staleness.
+ * That is TRANSPORT-level authority, enforced by the locked per-player
+ * router (handlers/callbacks.ts, #16/#43) before any handler runs; this
+ * operation owns the STORY-level authority. */
 export function applyDialogueChoice(
   p: PlayerState,
   args: ChoiceApplyArgs,
 ): ChoiceApplyResult {
-  const d = dialogueDef(args.dialogueId);
-  const node = d?.nodes.find((n) => n.id === args.nodeId);
-  if (!d || !node || node.kind !== 'choice') {
-    return { ok: false, refusal: 'That conversation has moved on.', lines: [] };
+  const movedOn = { ok: false as const, refusal: 'That conversation has moved on.', lines: [] };
+  // Scene authority: the player must be inside a dialogue, at a choice
+  // node — the dialogue and node ids are read from the live scene itself.
+  if (p.scene.view !== 'dialogue' || !p.scene.arg || !p.scene.arg2) return movedOn;
+  const d = dialogueDef(p.scene.arg);
+  const node = d?.nodes.find((n) => n.id === p.scene.arg2);
+  if (!d || !node || node.kind !== 'choice') return movedOn;
+  // Ownership + presence: the acting NPC is whoever owns this dialogue,
+  // and they must be standing in the player's current zone.
+  if (!npcInZone(p.currentZone, d.npcId)) {
+    return { ok: false, refusal: 'Nobody there.', lines: [] };
   }
   const choice = node.choices.find((c) => c.id === args.choiceId);
   if (!choice) return { ok: false, refusal: 'That response is not on the table.', lines: [] };
   const ctx: StoryContext = {
     dialogueId: d.id,
     nodeId: node.id,
-    npcId: args.npcId,
+    npcId: d.npcId,
     now: args.now,
     applicationId: `choice:${d.id}:${node.id}:${choice.id}`,
   };
@@ -398,6 +427,21 @@ export function applyDialogueChoice(
   // no notices, no mutation — that still routes to the authored next beat.
   if (p.storyReceipts.includes(ctx.applicationId!)) {
     return { ok: true, nextNodeId: choice.next, lines: [] };
+  }
+  // Confirmation authority (#126): an irreversible choice mutates only from
+  // its exact staged panel; a direct call from the choice list refuses.
+  if (choice.irreversible) {
+    if (p.scene.arg3 !== `confirm:${choice.id}`) {
+      return {
+        ok: false,
+        refusal: 'Confirm the choice on its confirmation screen.',
+        lines: [],
+      };
+    }
+  } else if (p.scene.arg3?.startsWith('confirm:')) {
+    // An ordinary choice cannot apply while an unrelated confirmation is
+    // staged — the staged panel is the live sub-state, not the list.
+    return movedOn;
   }
   // Availability is re-evaluated at tap time — rendering was never authority.
   if (choice.when && !evalCondition(p, choice.when)) {
