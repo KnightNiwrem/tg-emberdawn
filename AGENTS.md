@@ -10,6 +10,72 @@ Telegram message per player, built on **Bot API Rich Messages** (buttons live in
 never `reply_markup`). Runtime is **Deno** + **grammY**. One game message per player is edited in
 place on every action.
 
+## Release lifecycle — authoritative status
+
+Current phase: PRE-LAUNCH
+
+This section is the sole source of truth for whether public save-compatibility obligations are
+active. Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply
+launch. Change the phase to LIVE only through an explicit launch decision (see the checklist below).
+Every other lifecycle-dependent rule in this document refers back here instead of maintaining its
+own status declaration.
+
+- First live commit: not established
+- First live stateVersion: not established
+- Persisted-content ID baseline: not established
+
+### Active now: pre-launch rules
+
+- Development and playtest saves carry no permanent compatibility promise — they are DISPOSABLE
+  (#44, #116; e.g. #46 renamed `emberfall` → `emberdawn` without preserving old saves).
+- Content IDs may be added, renamed, or removed whenever the current content model requires it. A
+  deleted pre-launch zone, item, quest, skill, enemy, dungeon, or NPC ID requires NO runtime
+  recovery, alias, tombstone, or migration for an old development save — those saves may simply be
+  refused with the existing explicit `/reset` path.
+- Persisted-shape changes advance `stateVersion`; older development saves are refused by
+  `assertSupportedSaveVersion()` rather than migrated.
+- This does NOT authorize dangling references in current code: every ID emitted by constructors or
+  referenced by current content/engine paths must resolve. The current-catalog content-integrity and
+  progression tests remain mandatory. What is not frozen is history: no historical-ID baseline or
+  additive-only catalog test exists pre-launch, and none may be added — it would recreate the
+  strictness this distinction exists to avoid.
+- No runtime "guess a replacement" recovery for unknown persisted IDs: do not silently rewrite
+  corrupted or ambiguous saves, and do not invent fallback state for a deleted historical ID.
+
+### Deferred/KIV: activate at public release
+
+The rules below are recorded now so they are not forgotten, but they are NOT ACTIVE while the
+authoritative phase above is PRE-LAUNCH:
+
+- Once an ID can be persisted by a live release, it is part of the durable save contract. Persisted
+  content IDs must remain resolvable and must not be renamed, deleted, or reused casually.
+- Persistable IDs include more than `currentZone`: inventory/equipment items, quest keys, learned
+  skills, active-battle enemies and effect sources, battle origin zone/dungeon IDs, scene arguments,
+  and IDs encoded into durable flags.
+- Display names and other non-identity presentation may change freely.
+- Retiring content may stop future acquisition while retaining lookup compatibility.
+- Any intentional incompatible change requires an explicit versioned save migration (ordered
+  `stateVersion` steps, never "state looks old" sniffing) or another deliberate compatibility
+  design.
+- Live users must never be directed to `/reset` as a substitute for supported compatibility.
+- If an unknown ID nevertheless appears once these guarantees are active, it indicates corruption,
+  tampering, a broken migration, or a contract-violating release — let it be observable rather than
+  silently relocating the player or substituting unrelated content.
+
+### Launch-transition checklist
+
+When public launch is explicitly approved:
+
+1. Change the authoritative phase above from `PRE-LAUNCH` to `LIVE`.
+2. Record the first live commit and the `CURRENT_STATE_VERSION` live saves are born with.
+3. Capture a baseline manifest of every content-ID family that can appear in a supported save.
+4. Add a CI test proving future catalogs remain a superset of that live baseline, unless the same
+   change supplies and tests an explicit compatible migration. (Introduce this test at launch, not
+   before.)
+5. Activate the deferred post-release migration and durable-save rules above.
+6. Audit player-facing incompatible-save wording so it no longer describes live saves as disposable.
+7. Do not infer or automate this transition merely because a deployment or version tag exists.
+
 ## Non-negotiable architecture rules
 
 1. **Engine purity.** `src/engine/` and `src/content/` must never import `grammy` or touch
@@ -145,7 +211,8 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   bounded per-pattern sink) and boost only that item's own base stats; the temper material is chosen
   by the item's tier, not the player's location.
 - **Save schema:** `stateVersion` is REQUIRED — fresh players are stamped `CURRENT_STATE_VERSION`.
-  Only the current development schema is supported (#44, #116): the load-time
+  Which schema versions are supported depends on the authoritative release phase (see _Release
+  lifecycle — authoritative status_ above). While PRE-LAUNCH (#44, #116): the load-time
   `assertSupportedSaveVersion()` gate is NON-MUTATING — unversioned or older saves throw
   `SaveTooOldError` (refused with a pointer to /reset — never sniffed, rewritten, repaired or
   stamped current; the stored JSON stays untouched); saves from NEWER binaries
@@ -153,13 +220,14 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   read-mutate-write rather than downgrade. There is no v3–v7 transformation path — the old migration
   ladder was retired pre-launch (#116). Required battle fields (`phoenixUsed`, `effectInstances`,
   `effectSeq`, `shield`, `history`) are initialized by `startBattle()`. Schema lifecycle policy:
-  - **Before launch:** after a persisted-shape change, advance the version as needed, update
-    constructors/types to emit the new authoritative shape, and RETIRE older dev formats rather than
-    accumulating migrations — playtesters /reset.
-  - **At launch:** record the first live schema baseline (the version live saves are born with).
-  - **After launch:** real saves are durable — add explicit ordered migrations from every supported
-    live version (`stateVersion` steps, never "state looks old" sniffing); never tell live players
-    to reset as a substitute for compatibility.
+  - **Before launch (active now):** after a persisted-shape change, advance the version as needed,
+    update constructors/types to emit the new authoritative shape, and RETIRE older dev formats
+    rather than accumulating migrations — playtesters /reset.
+  - **At launch:** record the first live schema baseline (the version live saves are born with) in
+    the lifecycle section above.
+  - **After launch (deferred):** real saves are durable — add explicit ordered migrations from every
+    supported live version (`stateVersion` steps, never "state looks old" sniffing); never tell live
+    players to reset as a substitute for compatibility.
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
@@ -306,11 +374,14 @@ Three concepts stay separate (#114):
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
    `unlockZone` reward — the zone-reachability test enforces this.
 8. `learnLevel: 1` skills are granted at creation; `assertSupportedSaveVersion` (called on every
-   load) gates the save schema — it is non-mutating and accepts ONLY the current version. Before
-   launch: after a persisted-shape change, bump `CURRENT_STATE_VERSION`, update constructors/types
-   to emit the new authoritative shape, and retire older dev formats rather than adding migrations —
-   pre-launch saves are DISPOSABLE (#44, #116), they fail with `SaveTooOldError` and require /reset.
-   At launch, record the first live schema baseline. After launch, real saves are durable: bump
+   load) gates the save schema — it is non-mutating. Which versions are accepted follows the
+   authoritative release phase (see _Release lifecycle — authoritative status_). While PRE-LAUNCH:
+   only the current version is accepted; after a persisted-shape change, bump
+   `CURRENT_STATE_VERSION`, update constructors/types to emit the new authoritative shape, and
+   retire older dev formats rather than adding migrations — pre-launch saves are DISPOSABLE (#44,
+   #116), they fail with `SaveTooOldError` and require /reset. Content-ID rename/removal is equally
+   free pre-launch (no aliases, tombstones, or recovery shims). At launch, record the first live
+   schema baseline in the lifecycle section. After launch, real saves are durable: bump
    `CURRENT_STATE_VERSION` and add an explicit ordered migration from every supported live version;
    never sniff "state looks old", and never tell live players to reset as a substitute for
    compatibility.
