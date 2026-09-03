@@ -47,7 +47,6 @@ import {
 import { STARTING_ZONES } from '../src/content/zones.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import {
-  renderEquipment,
   renderEquippedItemDetail,
   renderInventory,
   renderItemDetail,
