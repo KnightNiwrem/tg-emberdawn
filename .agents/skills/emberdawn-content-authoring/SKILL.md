@@ -46,10 +46,12 @@ Always define IDs in their home content module before referencing them elsewhere
 - **Zone Reachability:** Every zone must be reachable either by being included in `STARTING_ZONES`
   or granted as an `unlockZone` reward on a quest or dungeon completion.
 - **Encounter Eligibility:** Overworld battle events may optionally define `minPlayerLevel` and
-  `maxPlayerLevel` in their event records to control level scaling when needed. By default, hostiles
-  should omit `maxPlayerLevel` so high-level players can still encounter hostiles when revisiting
-  earlier regions; reserve `maxPlayerLevel` for intentionally bounded early encounters (such as
-  starter/tutorial areas).
+  `maxPlayerLevel` in their event records to control encounter eligibility (`encounterEligible()` in
+  `src/engine/world.ts`) when needed. They gate which battle or elite events can roll for a player
+  at a given level, never enemy stats (which derive from `mk()` in `src/content/enemies.ts`). By
+  default, hostiles should omit `maxPlayerLevel` so high-level players can still encounter hostiles
+  when revisiting earlier regions; reserve `maxPlayerLevel` for intentionally bounded early
+  encounters (such as starter/tutorial areas).
 - **Dungeon Recommended Level:** Every dungeon definition (`DungeonDef`) must provide
   `recommendedLevel`. Under-level boss warnings in the UI depend on this field, so omitting it lets
   under-level players bypass the intended confirmation dialog.
