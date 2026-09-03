@@ -8,6 +8,7 @@ import { createBot } from '../src/bot.ts';
 import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleReset, handleStart } from '../src/handlers/commands.ts';
+import { INCOMPATIBLE_SAVE_REPLY } from '../src/handlers/session.ts';
 import { withRev } from '../src/codec.ts';
 import { battleAction, itemAction } from '../src/handlers/battle.ts';
 import {
@@ -244,8 +245,12 @@ Deno.test('incompatible pre-launch saves: /start and callbacks refuse without wr
     '/start must not render the game for an unloadable save',
   );
   assert(
-    start.replies.some((r) => String(r).includes('/reset')),
-    '/start points the playtester at /reset',
+    start.replies.some((r) => r === INCOMPATIBLE_SAVE_REPLY),
+    '/start points the playtester at /reset with accurate pre-launch wording',
+  );
+  assert(
+    INCOMPATIBLE_SAVE_REPLY.includes('pre-launch') && INCOMPATIBLE_SAVE_REPLY.includes('/reset'),
+    'the shared refusal states the pre-launch schema reason and the /reset path',
   );
 
   // A gameplay callback on the old save is refused the same way — no
@@ -253,8 +258,8 @@ Deno.test('incompatible pre-launch saves: /start and callbacks refuse without wr
   const tap = fakeCtxCapture(940, 700, withRev(1, 'z:sh'));
   await handleCallback(tap.ctx, store);
   assert(
-    tap.replies.some((r) => String(r).includes('/reset')),
-    'the refused callback explains the /reset path',
+    tap.replies.some((r) => r === INCOMPATIBLE_SAVE_REPLY),
+    'the refused callback explains the /reset path with the same wording',
   );
   assertEquals(tap.edits.length + tap.sends.length, 0, 'no game render is committed');
   const after = await store.get(940);

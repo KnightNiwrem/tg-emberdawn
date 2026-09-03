@@ -203,6 +203,11 @@ export interface MutationResult {
  * happens exactly once per tap: a second store.get() (Postgres) returns a
  * fresh deserialized object and would silently drop in-memory state such
  * as newer-message adoption. */
+/** Player-facing refusal for an incompatible pre-launch save (#44, #116).
+ * Shared by /start and the callback gate so the two paths cannot drift. */
+export const INCOMPATIBLE_SAVE_REPLY =
+  '⚠️ This pre-launch save uses an unsupported schema and cannot be loaded. Send /reset to start fresh.';
+
 export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,
@@ -217,11 +222,7 @@ export async function withLoadedPlayer(
       // Incompatible pre-launch save (#44, #116): refuse to guess — the
       // player must explicitly reset. The stored JSON stays untouched.
       await answerCallbackBestEffort(ctx);
-      await ctx
-        .reply(
-          '⚠️ This save predates the released game and cannot be loaded. Send /reset to start fresh.',
-        )
-        .catch(() => {});
+      await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
       return;
     }
     if (!(e instanceof SaveTooNewError)) throw e;

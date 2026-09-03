@@ -2,7 +2,7 @@
 
 import type { Context } from 'grammy';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit } from './session.ts';
+import { commit, INCOMPATIBLE_SAVE_REPLY } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
 import {
@@ -28,11 +28,7 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
     if (e instanceof SaveTooOldError) {
       // Incompatible pre-launch save (#44, #116): refuse and point at
       // /reset — never silently rewrite it.
-      await ctx
-        .reply(
-          '⚠️ This save predates the released game and cannot be loaded. Send /reset to start fresh.',
-        )
-        .catch(() => {});
+      await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
       return;
     }
     if (!(e instanceof SaveTooNewError)) throw e;

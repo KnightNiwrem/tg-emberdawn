@@ -188,8 +188,6 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
   the current step, tutorial handlers revalidate the step so replays are refused, the uiRev guard
   kills double-taps, and the reward is flag-idempotent. During the prologue the zone view renders
   ONLY the directed action (progressive disclosure — travel/explore/shop/NPC list withheld).
-  Migration v4→v5 stamps pre-launch heroes `'done'` (explicit skip — never inferred from progress);
-  the migration chain cascades on the UPDATED version (v3→v4→v5).
 - **Encounter eligibility (#73):** battle/elite explore events carry authored `minPlayerLevel` /
   `maxPlayerLevel`; explore() filters them before weighting, so low-level protection lives in
   CONTENT (authorable, testable), not ad-hoc engine checks. Ordinary enemies have no ceiling —
