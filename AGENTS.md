@@ -1,516 +1,131 @@
 # AGENTS.md — Emberdawn
 
-Operating manual for any fresh agentic session working on this repo. Read this before changing
-anything.
+Operating manual for agents working on this repository. Read this before changing anything.
 
 ## What this is
 
-**Emberdawn** — a turn-based RPG about seeking hope for a future, played entirely inside a single
-Telegram message per player, built on **Bot API Rich Messages** (buttons live in the message _body_,
-never `reply_markup`). Runtime is **Deno** + **grammY**. One game message per player is edited in
-place on every action.
+**Emberdawn** is a turn-based RPG about seeking hope for a future, played entirely inside Telegram.
+Runtime: **Deno** + **grammY**, built on Bot API Rich Messages — buttons live in the message body,
+never in `reply_markup`. Normal play happens in one live game message per player, edited in place on
+every action.
 
-## Release lifecycle — authoritative status
+## Release lifecycle — current status: PRE-LAUNCH
 
-Current phase: PRE-LAUNCH
+This section is the only source of truth for whether save-compatibility obligations are active.
+Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply launch.
 
-This section is the sole source of truth for whether public save-compatibility obligations are
-active. Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply
-launch. Change the phase to LIVE only through an explicit launch decision (see the checklist below).
-Every other lifecycle-dependent rule in this document refers back here instead of maintaining its
-own status declaration.
-
-- First live commit: not established
-- First live stateVersion: not established
-- Persisted-content ID baseline: not established
-
-### Active now: pre-launch rules
-
-- Development and playtest saves carry no permanent compatibility promise — they are DISPOSABLE
-  (#44, #116; e.g. #46 renamed `emberfall` → `emberdawn` without preserving old saves).
-- Content IDs may be added, renamed, or removed whenever the current content model requires it. A
-  deleted pre-launch zone, item, quest, skill, enemy, dungeon, or NPC ID requires NO runtime
-  recovery, alias, tombstone, or migration for an old development save — those saves may simply be
-  refused with the existing explicit `/reset` path.
+- Development and playtest saves are DISPOSABLE; they carry no compatibility promise.
 - Persisted-shape changes advance `stateVersion`; older development saves are refused by
-  `assertSupportedSaveVersion()` rather than migrated.
-- This does NOT authorize dangling references in current code: every ID emitted by constructors or
-  referenced by current content/engine paths must resolve. The current-catalog content-integrity and
-  progression tests remain mandatory. What is not frozen is history: no historical-ID baseline or
-  additive-only catalog test exists pre-launch, and none may be added — it would recreate the
-  strictness this distinction exists to avoid.
-- No runtime "guess a replacement" recovery for unknown persisted IDs: do not silently rewrite
-  corrupted or ambiguous saves, and do not invent fallback state for a deleted historical ID.
+  `assertSupportedSaveVersion()` rather than migrated. Do not build migrations while pre-launch.
+- Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
+  shims — but every ID referenced by current code and content must resolve.
+- Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
+  fallback state for one.
+- Public launch is an explicit decision only; never infer it from a deployment or version tag.
 
-### Deferred/KIV: activate at public release
+For an explicit launch decision or post-launch compatibility policy, load the `emberdawn-release`
+skill.
 
-The rules below are recorded now so they are not forgotten, but they are NOT ACTIVE while the
-authoritative phase above is PRE-LAUNCH:
+## Cross-cutting architecture invariants
 
-- Once an ID can be persisted by a live release, it is part of the durable save contract. Persisted
-  content IDs must remain resolvable and must not be renamed, deleted, or reused casually.
-- Persistable IDs include more than `currentZone`: inventory/equipment items, quest keys, learned
-  skills, active-battle enemies and effect sources, battle origin zone/dungeon IDs, scene arguments,
-  and IDs encoded into durable flags.
-- Display names and other non-identity presentation may change freely.
-- Retiring content may stop future acquisition while retaining lookup compatibility.
-- Any intentional incompatible change requires an explicit versioned save migration (ordered
-  `stateVersion` steps, never "state looks old" sniffing) or another deliberate compatibility
-  design.
-- Live users must never be directed to `/reset` as a substitute for supported compatibility.
-- If an unknown ID nevertheless appears once these guarantees are active, it indicates corruption,
-  tampering, a broken migration, or a contract-violating release — let it be observable rather than
-  silently relocating the player or substituting unrelated content.
+These apply to every change:
 
-### Launch-transition checklist
+1. **Engine purity.** `src/engine/` and `src/content/` never import grammy or Telegram/Deno-specific
+   APIs. Handlers call pure engine functions; rendering is a pure function of `PlayerState`. Data
+   flows one way: handler → engine mutation → render → persist.
+2. **Ordered completion.** Gameplay resolution is one deterministic, explicitly ordered flow that is
+   complete before rendering or persistence proceeds. No event bus, no detached state mutation, no
+   parallel mutation of the same fight. Async I/O belongs only at the Telegram/database boundary.
+   Pinned by `tests/architecture_test.ts`.
+3. **Single live message.** Each player has exactly one live game message. Every view change edits
+   it in place via `commit()` in `src/handlers/session.ts`; on edit failure it resends and
+   re-points. Never send extra button-bearing messages during normal play (the class picker and the
+   post-reset picker are the only exceptions).
+4. **Staleness and revision guard.** Every committed render stamps its buttons with the player's
+   `uiRev`; the router rejects stale messages and revision mismatches BEFORE any mutation, so
+   replays and double-taps are no-ops. Do not weaken this into "always process".
+5. **Cross-instance consistency.** Every update runs inside `PlayerStore.withLock(user)` around the
+   whole load → mutate → save flow. Never mutate player state outside the lock; never hold the lock
+   across user input.
+6. **callback_data budget.** 64 bytes maximum, built and parsed only via `src/codec.ts`
+   (`encodeCb`/`decodeCb`). Never inline raw callback strings in renderers or handlers.
+7. **Persisted state is plain JSON.** `PlayerState` must survive `JSON.stringify`: no class
+   instances, no Maps, no functions. Runtime-only state lives on `BattleState`.
+8. **Rich text, not HTML.** Rich messages use typed entities (`{ type: 'bold', text }`) and the
+   helpers in `src/render/rich.ts`. HTML tags render literally.
+9. **Flavor is not rules.** Item and skill names and flavor text are creative, never a rules source.
+   Player-facing mechanical summaries are generated from structured effect specs by
+   `src/engine/mechanics.ts`; never hand-write a second description. Canonical rules vocabulary:
+   Shield, DEF/RES, round, action, beneficial/harmful effect.
+10. **Secrets.** Never commit `.env`, tokens, or local database files.
 
-When public launch is explicitly approved:
+## Story-authority invariant
 
-1. Change the authoritative phase above from `PRE-LAUNCH` to `LIVE`.
-2. Record the first live commit and the `CURRENT_STATE_VERSION` live saves are born with.
-3. Capture a baseline manifest of every content-ID family that can appear in a supported save.
-4. Add a CI test proving future catalogs remain a superset of that live baseline, unless the same
-   change supplies and tests an explicit compatible migration. (Introduce this test at launch, not
-   before.)
-5. Activate the deferred post-release migration and durable-save rules above.
-6. Audit player-facing incompatible-save wording so it no longer describes live saves as disposable.
-7. Do not infer or automate this transition merely because a deployment or version tag exists.
+Story and quest mutations derive identity and authorization from live `PlayerState` and content
+definitions, never from callback data or caller assertions. Central engine operations revalidate
+scene, ownership, location, and conditions; story bundles commit transactionally; retries are
+suppressed by stable receipts; terminal quest outcomes are monotonic. Load
+`emberdawn-story-and-quests` before changing this subsystem.
 
-## Non-negotiable architecture rules
+## Conditional skills
 
-1. **Engine purity.** `src/engine/` and `src/content/` must never import `grammy` or touch
-   Telegram/Deno-specific APIs. Handlers call pure engine functions; rendering is a pure function of
-   `PlayerState`. This is what keeps the game testable and the engine reusable.
-   - Data flows one way: handler → engine mutation → render → persist.
-2. **Single live message.** Each player has exactly one live game message (`p.messageId`). Every
-   view change edits that message in place (`commit()` in `src/handlers/session.ts`); on edit
-   failure it resends and re-points. Never send extra button-bearing messages during normal play
-   (the class picker and post-reset message are the only exceptions).
-3. **Staleness guard.** Taps on older message copies are answered with a toast and ignored
-   (`isLiveMessage`, via `tapIsCurrent`). Newer-than-tracked ids are adopted — together with the
-   render revision that copy was stamped with. Do not weaken this into "always process" — stale taps
-   corrupt pacing. Additionally, every committed render stamps its buttons with the player's `uiRev`
-   (`commit()`, cycled 1..9999, embedded as `<view>:<rev>:<action>` in callback data) and the router
-   rejects revision mismatches BEFORE any mutation (#16): replays and double-taps on the same live
-   message are no-ops. Every gameplay callback MUST carry its stamped revision (#43) — rev-less
-   callbacks are rejected as stale. The ONLY exception is the class picker (`m:pk:<class>`), which
-   renders before a player exists and bypasses the staleness guard.
-4. **Persistence shape.** `PlayerState` (`src/engine/types.ts`) is plain JSON — no class instances,
-   no Maps, no functions. Anything you add must survive `JSON.stringify`. Runtime-only state (e.g.
-   battle buffs) lives on `BattleState`, not the player.
-5. **Cross-instance consistency (#18).** Every update runs inside `PlayerStore.withLock(user)`: the
-   bot's per-user promise chain serializes within a process, and `PgStore.withLock` holds a Postgres
-   TRANSACTION-scoped advisory lock on a dedicated connection around the WHOLE load→mutate→save —
-   which runs entirely on that same connection (#37): two bot instances can never interleave
-   read-modify-write for one player (no lost writes), concurrent distinct-user updates can never
-   starve the connection pool, and a failed section rolls back atomically (the lock releases with
-   the transaction — no explicit unlock to leak). `MemoryStore.withLock` is a passthrough (single
-   process). Never mutate player state outside the lock; never hold the lock across user input.
-6. **callback_data budget.** 64 bytes max, built/parsed only via `src/codec.ts`
-   (`encodeCb`/`decodeCb`). Add new controls there, never inline raw strings in renderers/handlers.
-7. **Content refers only to real ids.** Quests/zones/enemies/drops reference ids defined in other
-   content modules. The integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce
-   this — keep them green when adding content.
-8. **Flavor vs mechanics (#120).** A skill/item's NAME and FLAVOR (`SkillDef.flavor`,
-   `ItemDef.desc`) are creative and may be nonliteral — never a rules source. The player-facing
-   mechanical summary is GENERATED from the structured effect specs by `src/engine/mechanics.ts`
-   (`mechanicsText`/`mechanicsLines`/`consumableEffectLines`); equipment triggers disclose their
-   mechanics the same way (`triggerDisclosure` in `render/menus.ts`). Canonical rules vocabulary:
-   **Shield** (the absorbable pool), **DEF/RES**, **round** (duration/tick unit), **action** (one
-   actor's opportunity to act), **beneficial/harmful effect** (cleanse/dispel categories). Never
-   re-type numbers in authored prose, and never replace the generated summary with a second
-   hand-written description. Validation is STRUCTURAL: tests assert the renderer discloses every
-   field of an effect spec; they must not lexically scan names or flavor for words like "ward" or
-   "stun". Battle narration (`spec.line`, `defaultInstanceLine`) is distinct from the static rules
-   summary and may use in-world wording — but generic effect output (shield grants, capacity fades,
-   dispels) still uses the canonical terms (#121): the pool is always "Shield" (never "ward"),
-   durations are rounds, and removals name beneficial/harmful effects. The balance harness parses
-   some of those generic lines (SHIELD_FADE/SHIELD_WASTE regexes in `src/engine/balance.ts`) — keep
-   them in sync if the copy changes. The editorial contract for authored prose —
-   narrator/UI/character voices, per-NPC voice sheets, motif use, punctuation — is
-   `docs/narrative-guide.md` (#128); no lexical style parser enforces it.
-9. **Rich text, not HTML.** Rich message paragraphs take typed entities (`{ type: 'bold', text }`,
-   `{ type: 'italic', text }`). HTML tags like `<b>` render literally. Rows of `RichMessageButton`
-   go through `src/render/rich.ts` helpers (`buttonsRow`, `cbBtn`, `disabledBtn`).
-10. **Dialogue scenes (#124).** Authored conversations live in `src/content/dialogues.ts`
-    (`DialogueDef`: stable id, owning NPC, start node, linear nodes with explicit
-    npc/player/narrator speakers and `next` links). The scene persists
-    `(arg: dialogueId,
-   arg2: nodeId)` so rerenders and `/start` reproduce the exact current beat.
-    Continue (`dlg:nx:<targetNodeId>`) advances EXACTLY ONE node and edits the same live message —
-    never a second message; every tap revalidates scene view, dialogue identity, the current node's
-    next link, and the NPC's physical presence. Back/End returns to the owning NPC's topic menu when
-    they are still on-site. Reopening a dialogue always restarts it from the start node (linear
-    conversations carry no partial state); the final line omits `next` and is the implicit end
-    state. Content integrity (tests/dialogue_test.ts) covers id uniqueness, references,
-    reachability, terminals, topic wiring, and the callback budget.
-11. **Choice authority (#126, hardened #130).** A choice node's responses resolve by stable
-    dialogue/node/choice identity — never by consequence data on the wire (`dlg:ch:`/`dlg:cf:` carry
-    the choice id ONLY; effects resolve server-side). Application goes through the ONE central op
-    (`applyDialogueChoice` in engine/story.ts), which derives its context from the PLAYER'S LIVE
-    SCENE — never from caller assertions: the scene must be the dialogue view; the dialogue id and
-    current node id come from `p.scene`; the acting NPC is resolved from the dialogue DEFINITION
-    (`dialogue.npcId`) and must be physically present in the player's current zone; the choice must
-    belong to that current choice node; availability (`when`) re-evaluates at apply time (rendering
-    is never authority); an `irreversible: true` choice mutates only from its exact staged
-    `confirm:<choiceId>` panel (scene `arg3`) and an ordinary choice refuses while any confirmation
-    is staged; then the ledger conflict check (a recorded decision can never be overwritten) →
-    atomic `StoryEffect` bundle → next node or back to the topic menu. The handler layer
-    (`dialogueAction` in handlers/hub.ts) keeps only TRANSPORT/NAVIGATION checks — scene view, the
-    rendered node/choice target, and confirmation STAGING, which mutates no story state (Confirm is
-    the only mutating control; Go back/Not now/Leave never touch it) — and passes the engine exactly
-    the tapped choice id. Callback revision/message staleness is TRANSPORT-level authority, enforced
-    by the locked per-player router BEFORE any handler runs (#16/#43) and documented separately from
-    this story-level authority; the rev guard kills wire-level double taps and replays, and every
-    committed application records a one-shot receipt in `p.storyReceipts` (#129): replaying a
-    receipted choice (`choice:<dlg>:<node>:<id>`) or line-entry (`line:<dlg>:<node>`) application is
-    a complete no-op — it can never double-grant, double-start, re-lock, or re-notify. Shipped
-    irreversible choices are sparing and harmless-by-design; mutually exclusive content requires an
-    explicit lockQuest effect.
+Detailed, conditionally loaded guidance lives in standard Agent Skills under `.agents/skills/`. Load
+only the skill or skills relevant to the task — not every skill each session. If your harness does
+not auto-load a matching skill, read its `SKILL.md` file directly at the listed path.
 
-## Commands
+| When the task touches...                                                            | Read this skill                                                                       |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Engine boundaries, handlers, message lifecycle, callbacks, locking, reset, webhook  | `emberdawn-architecture` (`.agents/skills/emberdawn-architecture/SKILL.md`)           |
+| Quests, NPC topics, dialogue, choices, StoryEffects, receipts, outcomes             | `emberdawn-story-and-quests` (`.agents/skills/emberdawn-story-and-quests/SKILL.md`)   |
+| Combat, effects, initiative, durations, death/revival, telemetry, dungeons, balance | `emberdawn-combat` (`.agents/skills/emberdawn-combat/SKILL.md`)                       |
+| PlayerState/BattleState, stateVersion, stores, persisted IDs                        | `emberdawn-persistence` (`.agents/skills/emberdawn-persistence/SKILL.md`)             |
+| Items, skills, enemies, zones, dungeons, drops, NPCs, quest definitions, economy    | `emberdawn-content-authoring` (`.agents/skills/emberdawn-content-authoring/SKILL.md`) |
+| Authored player-facing prose                                                        | `emberdawn-narrative-writing` (`.agents/skills/emberdawn-narrative-writing/SKILL.md`) |
+| An explicit public launch                                                           | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
+| Intentional trade-offs and non-goals                                                | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
+
+## Theme and tone
+
+The game is about seeking hope for a future: the player is a Dawncaller, the Sundered King is
+despair hoarding tomorrow, and each chapter recovers a piece of the dawn. Keep new writing in this
+register: setbacks are real but framed as "not yet", never "never". The canonical editorial guide
+for player-facing prose is `docs/narrative-guide.md`, routed through the
+`emberdawn-narrative-writing` skill.
+
+Issue references (`#nnn`) throughout this file, the skills, and the tests point at GitHub issues in
+this repository and explain why a rule exists.
+
+## Verification
+
+CI (`.github/workflows/ci.yml`) runs these gates; all must pass before committing:
 
 ```bash
-deno task check   # typecheck everything (must pass before commit)
-deno task test    # engine + bot integration tests (must pass)
-deno task test:pg # Postgres round-trip (real DB; skipped unless TEST_PG_URL set)
-deno task test:pg:local # test:pg against a throwaway Docker Postgres (provisions + cleans up)
-deno task fmt     # deno fmt (run before commit)
-deno task lint    # deno lint (must pass)
-npx fallow        # dead code / duplication / complexity audit (advisory)
+deno task fmt:check
+deno task lint
+deno task check
+deno task test
 ```
 
-CI discipline: `check + test + lint` green is the commit gate. `fallow` findings are advisory —
-evaluate, don't auto-apply (its "unlisted dependencies" warnings are false positives here: this is a
-Deno project; dependencies live in `deno.json`, not `package.json`).
+Also run `deno task test:pg` (the Postgres round-trip) whenever persistence or schema behavior
+changes; `deno task test:pg:local` provisions a throwaway Docker Postgres. `npx fallow` is advisory
+only — its "unlisted dependencies" warnings are false positives here: this is a Deno project and
+dependencies live in `deno.json`, not `package.json`.
 
-## Where things live
+## Repository layout
 
-```
-src/
-├─ codec.ts            # callback_data encode/parse (64-byte budget)
-├─ bot.ts              # createBot(): per-user serialization + wiring
-├─ main.ts             # webhook (default) or polling (BOT_POLLING=1)
-├─ engine/             # PURE game logic — no grammy imports
-│  ├─ types.ts         #   PlayerState, BattleState (persisted shapes)
-│  ├─ classes.ts       #   class defs + XP curve (MAX_LEVEL = 45)
-│  ├─ character.ts     #   creation, xp/level, death
-│  ├─ combat.ts        #   turn engine, buffs, rewards
-│  ├─ quests.ts        #   quest state machine + objective hooks
-│  ├─ world.ts         #   travel, explore, dungeons
-│  ├─ shops.ts / forge.ts / inventory.ts / rng.ts
-├─ content/            # PURE data — the game's "database"
-│  ├─ types.ts         #   content contracts (strict shapes)
-│  ├─ items.ts enemies.ts skills.ts zones.ts quests.ts
-├─ render/             # PURE (PlayerState) → InputRichMessage
-│  ├─ rich.ts parts.ts views.ts battle.ts menus.ts
-├─ handlers/           # I/O boundary: ctx + store
-│  ├─ session.ts       #   load → mutate → render → commit → save
-│  ├─ callbacks.ts     #   central router (staleness guard here)
-│  ├─ hub.ts battle.ts commands.ts
-└─ persistence/store.ts # PlayerStore: PgStore (Postgres/JSONB) | MemoryStore (tests)
-tests/                 # deno test; engine tests are seeded/deterministic
-scripts/webhook.ts     # deno task webhook <set|info|delete>
-```
+- `src/engine/` — pure game logic
+- `src/content/` — pure content definitions
+- `src/render/` — pure rendering (`PlayerState` → rich message)
+- `src/handlers/` — Telegram/I/O boundary
+- `src/persistence/` — stores and schema handling
+- `tests/` — deterministic engine and integration tests
+- `.agents/skills/` — conditional agent guidance (standard Agent Skills)
+- `docs/` — human-facing reference (for example `docs/narrative-guide.md`)
 
-## Game-design facts (don't break casually)
+## Working on a change
 
-- **Progression:** 45 levels; `xpForNextLevel(l) = 45·l^2.35 + 20l` — deliberately grindy. Enemy
-  stats derive from level in `mk()` (`content/enemies.ts`); bosses multiply HP/xp/gold and have
-  scripted specials every N turns.
-- **Story & theme:** the game is about _seeking hope for a future_ — the player is a **Dawncaller**,
-  the Sundered King is despair hoarding tomorrow, and each chapter recovers a piece of the dawn. 28
-  main quests across 6 chapters + postgame Abyss. Chapter flags: `chapter1Done`…`chapter6Done`;
-  game-clear moment = defeating King Aldric (flag set via dungeon first-clear `crownRestored`). Keep
-  new writing in this register: setbacks are real but framed as "not yet", never "never".
-- **Quest state machine:** unavailable → available → active → turnIn → done. `syncAvailability` is
-  idempotent; call it after xp gains, zone entry and turn-ins. Kill/reach/dungeon objectives tick
-  via engine hooks (`onKill`, `onZoneEnter`, `onDungeonClear`); conversation progression is explicit
-  story events (see _Quest actions are physical_ below); collect objectives read the bag live. Every
-  hook RETURNS the quests its event just made turn-in-ready, and `refreshProgress()` is the single
-  active→turnIn transition authority (#119): readiness is announced exactly once, by the surface
-  that caused it — `resolveVictory` collects ready ids from drops, the kill, the availability
-  refresh, dungeon bookkeeping and first-clear rewards and appends one deduped `questReadyLine`
-  (`📜 "<name>" is ready to turn in!`, the ONE shared formatter) per quest after all of the
-  victory's mutations; `travel()` puts it in the arrival lines; the talk interaction and
-  `acceptQuest` (whose result carries `lines`, so an immediately-complete quest reports acceptance
-  AND readiness) put it in the interaction notices. It is never re-derived at render time and never
-  re-announced for an already-`turnIn` quest. Random quest-item drops are relevance-capped
-  (`questDropAllowed`): they flow only while an open (available/active) quest still needs them, and
-  stop permanently once it's done. Every quest carries explicit lifecycle contacts (#63): `startNpc`
-  offers it and `finishNpc` accepts the turn-in — usually the same NPC, but delivery flows hand them
-  to different people (m2_letter: Maren starts, Bram finishes; the finisher is NEVER inferred from a
-  talk objective). Talking to an NPC surfaces quests they are ready to finish first, then quests
-  they offer (talk discovery, #31). Both contacts must resolve to real NPCs placed in exactly one
-  zone — resolve them via the canonical helpers in content/quests.ts
-  (`questStarter`/`questFinisher`/`zoneOfNpc`/`npcInZone`; content-integrity tested). There is no
-  quest-log-only fallback: m23_aldric starts and ends with the Archivist's throne-room send-off, and
-  sq_locket belongs to Ranger Pell in the Whisperwood. Destination quests (#66) START in the
-  preceding region and FINISH with the destination contact — m5 Bram→Ferryman, m9 Ferryman→Ombra,
-  m13 Ombra→Rho, m16 Rho→Sorrel, m20 Sorrel→Archivist, m24 Archivist→Echo — so the journey stays the
-  point instead of an arrive-then-accept loop; intro/outro speak as the contact who hands the quest
-  over or receives it. Conversation objectives advance ONLY through explicit authored story events
-  (#127) — the legacy 'talk' objective kind and same-NPC acceptance auto-completion are retired; no
-  dialogue quest ever demands a second identical interaction. Contact zones must be reachable at the
-  quest's point in the progression (content-integrity tested).
-- **Quest actions are physical (#64, #127):** `acceptQuest`/`turnInQuest` take the acting NPC id and
-  REQUIRE it to be the quest's configured starter/finisher AND standing in the player's current zone
-  (`contactRefusal` inside the engine — quest status alone never authorizes, and no handler path can
-  bypass it). Talking to an NPC opens the #123 TOPIC MENU — pure navigation that performs NO story
-  mutation; every valid topic (ready turn-ins, offers, active business, authored lore) is enumerated
-  by the pure resolver `src/engine/npc.ts` and revalidated at tap time. Quest lifecycle flows live
-  in AUTHORED DIALOGUE (#127): every quest carries an `offerDialogue` and a `turnInDialogue`
-  (content-integrity mandatory) whose accept/hand-over CHOICES invoke the central
-  `acceptQuest`/`turnInQuest` authorities as story effects — with the dialogue's NPC as the acting
-  contact, revalidated on-site inside the engine. Conversation objectives are STABLE STORY EVENTS
-  (`Objective kind: 'storyEvent'`): reaching the authored node (or confirming the authored choice)
-  emits the event through `onStoryEvent` — opening menus, selecting topics, and generic NPC contact
-  never advance anything, and same-NPC acceptance auto-completing conversations is RETIRED. The old
-  `npcq` transaction view is gone; topics are bound to their OWNING NPC (#131): the resolver row is
-  the single authority for BOTH rendering and selection — each row carries the dialogue it opens
-  only when the selected NPC owns it (`dialogue.npcId === selected NPC`), and handlers re-resolve
-  the exact row (kind + id) from a FRESH `npcTopics(p, npcId)` at tap time, so stale, forged or
-  condition-hidden selections (a lore `when` is re-evaluated on selection) refuse without mutation.
-  Active-business policy: the row is LISTED at both contacts as a pointer, but the quest's
-  `conversationDialogue` opens ONLY at the NPC who owns it (while its event is pending); any other
-  contact's row is a pure non-mutating progress reminder — m2_letter can emit `heard_bram_reading`
-  only through Bram's own conversation, never from Maren's menu. The Quest Log is a READ-ONLY
-  journal (#65): it renders NO lifecycle buttons, the codec cannot even express `q:a:`/`q:t:`, and
-  it only NAMES the physical contact ("Start with X — Zone." / "Return to Y — Zone.") — log
-  navigation can never act on a quest. Backing out or traveling leaves the interaction (scene
-  resets, uiRev bumps), and the revision guard kills replays and duplicate rewards.
-- **Economy:** sell = 40% of price. Shop tier follows the PLAYER level clamped to the zone's band
-  (`shopTierFor`) — that governs consumables/materials, which are always usable, so it's pure zone
-  flavor. EQUIPMENT is filtered per shopper: only their class, only pieces they can actually equip
-  (`def.level ≤ player level`) — the old clamp-up baited low-level travelers with level-locked gear
-  (#22). The counter revalidates `isEquippable` before charging (defense in depth). Trinkets stock
-  only what the player can currently equip (`item.level ≤ player level`, #6). Forge tempers up to +5
-  are ITEM-PATTERN MASTERY (`forge_i_<itemId>` flags, #24 — documented design choice: every copy of
-  that catalog id carries the temper, replacement loot inherits your forge-work, and the forge is a
-  bounded per-pattern sink) and boost only that item's own base stats; the temper material is chosen
-  by the item's tier, not the player's location.
-- **Save schema:** `stateVersion` is REQUIRED — fresh players are stamped `CURRENT_STATE_VERSION`.
-  Which schema versions are supported depends on the authoritative release phase (see _Release
-  lifecycle — authoritative status_ above). While PRE-LAUNCH (#44, #116): the load-time
-  `assertSupportedSaveVersion()` gate is NON-MUTATING — unversioned or older saves throw
-  `SaveTooOldError` (refused with a pointer to /reset — never sniffed, rewritten, repaired or
-  stamped current; the stored JSON stays untouched); saves from NEWER binaries
-  (`stateVersion > CURRENT_STATE_VERSION`) throw `SaveTooNewError` and handlers refuse to
-  read-mutate-write rather than downgrade. There is no v3–v7 transformation path — the old migration
-  ladder was retired pre-launch (#116). Required battle fields (`phoenixUsed`, `effectInstances`,
-  `effectSeq`, `shield`, `history`) are initialized by `startBattle()`. Schema lifecycle policy:
-  - **Before launch (active now):** after a persisted-shape change, advance the version as needed,
-    update constructors/types to emit the new authoritative shape, and RETIRE older dev formats
-    rather than accumulating migrations — playtesters /reset.
-  - **At launch:** record the first live schema baseline (the version live saves are born with) in
-    the lifecycle section above.
-  - **After launch (deferred):** real saves are durable — add explicit ordered migrations from every
-    supported live version (`stateVersion` steps, never "state looks old" sniffing); never tell live
-    players to reset as a substitute for compatibility. v9 (#125) added the narrative state:
-    `decisions` (ledger with choice/provenance), `storyEvents` (ordered, deduped), and
-    `questOutcomes` (permanent resolutions) — all plain JSON; decision ids and choice ids are
-    persisted content identities. v10 (#129) added `storyReceipts` (one-shot story-application
-    receipts).
-- **Narrative state (#125):** one declarative condition language (`Condition` in content/types.ts,
-  evaluated pure in engine/conditions.ts) is shared by NPC topic availability (`NpcTopicDef.when`),
-  quest prereqs (`QuestDef.prereq`, ANDed with the legacy prereqQuest/prereqFlags), and dialogue
-  choices (#126). Irreversible choices are recorded in `p.decisions` with choice/provenance — never
-  reduced to unexplained booleans — and a locked/failed quest (`p.questOutcomes`, `questExcluded`)
-  is NEVER resurrected by `syncAvailability`. Story consequences are the bounded `StoryEffect`
-  vocabulary (engine/story.ts): bundles are TRANSACTIONAL (#129) — validation and application are
-  the SAME ordered run against a draft clone of the player (`validateStoryBundle` discards the
-  draft, `applyStoryEffects` commits it once), so every effect's preconditions see the projected
-  result of all earlier effects (grant → remove nets to zero; an impossible cumulative removal
-  refuses the whole bundle) and any refusal leaves the live player byte-for-byte unchanged with no
-  receipt recorded. Mutating helpers (`removeItem`, `acceptQuest`, `turnInQuest`) report failure,
-  and a failure refuses the bundle — never silently ignored. Terminal quest outcomes are monotonic:
-  a resolved/completed quest never becomes locked/failed, a locked/failed quest never starts or
-  resolves, and one terminal kind never overwrites another. Every quest start shares ONE
-  objective-reconciliation policy — `beginQuest` in engine/quests.ts, the same core `acceptQuest`
-  uses (ever-visited reach targets reconcile identically). `startQuest` honors the #63/#64 on-site
-  starter authority (a dialogue can only start a quest whose own contact is standing right there),
-  and readiness/rewards reuse the SAME central authorities as every other path (#119). Content
-  integrity validates condition references (tests/quest_copy_test.ts).
-- **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
-  safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
-  last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel
-  never refreshes it; the Vault boss floor consumes the Sunspire Key on the first VICTORIOUS entry
-  (its SOLE source is the m11_toll reward — the enemy key-drop entries were unreachable dead code
-  and are retired, #20); boss first-clears award boss trinkets `t_12`–`t_18` (never stocked;
-  `unique` — unsellable and un-droppable: earned trophies, #5).
-- **Death:** −10% gold, revive at 50% HP at the first safe haven (never where you fell). Phoenix
-  Cinder auto-revives ONCE per battle (`phoenixUsed`), only from the auto trigger — never by hand.
-- **Boss specials (#26):** `special.every = N` fires the special on the Nth ACTUAL enemy action (3,
-  6, 9… for every:3). Stunned turns advance the counter — time passes — but choose no move, so a
-  stun never fires a special.
-- **Enemy defensive moves (#25):** `guardPct`/`guardTurns` on an EnemyMove raise the enemy's own
-  mitigation for the next `guardTurns` rounds (the cast round doesn't consume one). Power-0 status
-  moves (Howl) deal NO implicit chip damage — they carry only their rider effect.
-- **Buff cast-round semantics (#27/#38):** a fresh battle buff defers its first decay when the cast
-  round cannot use it — ATK/MAG (future damage) and SPD (future Flee rolls only) deliver exactly
-  their advertised turns of useful actions; DEF/RES still tick on the cast round because they
-  mitigate that round's enemy response.
-- **Guided prologue (#69):** fresh heroes run a directed prologue before the real hub opens: Elder
-  Maren's ember brief → ONE controlled battle vs `e_cinder_mite` (a `tutorial`-flagged level-1
-  fixture; the balance harness proves NO class can lose it) with contextual coaching inside the live
-  battle (free action → starting skill/MP → Guard → Items when hurt) → a deterministic ember reward
-  that exits every hero at level 2 → release into the real hub (Maren's board = m1, Whisperwood,
-  flee/level advice). State is `p.tutorial` (`'maren'→'outskirts'→'fight'→'done'`): /start resumes
-  the current step, tutorial handlers revalidate the step so replays are refused, the uiRev guard
-  kills double-taps, and the reward is flag-idempotent. During the prologue the zone view renders
-  ONLY the directed action (progressive disclosure — travel/explore/shop/NPC list withheld).
-- **Encounter eligibility (#73):** battle/elite explore events carry authored `minPlayerLevel` /
-  `maxPlayerLevel`; explore() filters them before weighting, so low-level protection lives in
-  CONTENT (authorable, testable), not ad-hoc engine checks. Ordinary enemies have no ceiling —
-  returning to earlier areas must keep working end-game. Whisperwood hostiles start at 3 and its
-  elite (e_stag) at 5; the Emberdawn Outskirts (Lv 1–3) are the repeatable low-level wilds, and
-  Emberdawn Village stays a battle-free safe haven.
-- **Chapter-one curve (#73):** the bridge to Aranya is authored, not an unexplained grind: m1_embers
-  (4× Lv-1 ember-rats in the Outskirts) → m2_letter (delivery) → m3_wolves (3× Lv-4 wolves,
-  Whisperwood) → m4_floors (silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: iron chunks +
-  coin; the village band runs [1,7] so Bram's rack stocks tier 2) → m3_roots (Aranya, level 7) →
-  m4_blessing (shards, level 8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; the
-  zone view surfaces it, and diving into the BOSS floor under it demands an explicit confirmation
-  (`z:dgb`) — bosses cannot be fled, so entry must be informed.
-- **Skill cadence (#71):** each class demonstrates its identity by level 2 — the Cleric heals from
-  level 1 (Mend Wounds), not level 4. Ladders stay distinct rather than uniform: warrior's second
-  damage tier is 13 (Whirlwind) with Iron Wall moved to 16; cleric's offensive upgrade is 11
-  (Radiant Burst) with Holy Ward at 16, and Judgment strikes for 290% MAG so late-game cleric damage
-  isn't stranded. The class picker states the starting kit, tradeoff, and complexity, and marks
-  Warrior as the forgiving beginner pick. Skill descriptions are machine-checked against their
-  authored coefficients in the test suite.
-- **SPD avoidance (#72):** SPD's in-fight payoff is capped avoidance — enemy DAMAGING moves can be
-  slipped entirely: `dodgeChance = clamp(0.02 + (spd − enemySpd) × 0.002, 0.02, 0.20)`. Self-heals,
-  enemy guard stances, and zero-power status moves are NEVER dodged (the roll lives only in the
-  damaging branch of enemyAct; test-enforced). Dodges are a visible 💨 round line. Smoke Step (+45%
-  SPD) is a stay-and-fight defensive tool; Flee still uses SPD separately.
-- **SPD duration = initiative snapshots (#94):** initiative is snapshotted from effective SPD before
-  either actor's slot (#86), and an advertised N-turn SPD effect covers exactly N eligible
-  snapshots: a mid-round SPD application (any slot after the snapshot) defers its first decay — the
-  cast round spent no unit on a snapshot that already decided — while OPENING SPD applications
-  (enemy openings like the Chrono Anchor, pre-emptive skills) precede round 1's snapshot and count
-  it (`timing: immediate`, rounds 1..N). Dodge and Flee simply follow liveness while the instance is
-  up, so a faster caster still gets same-round value on top of its N snapshots. Refresh re-banks the
-  full count from the recast round.
-- **Reset (#19, #62):** `/reset` and the character menu's 🗑️ Delete hero only STAGE an explicit
-  Yes/No confirmation (`reset` view). The confirmed `resetYes` DELETES the save (`store.delete`) and
-  delivers the STATELESS class picker in place (resend fallback) — delivery is attempted FIRST, so a
-  failed delivery leaves the old save intact; nothing is persisted again until a class is picked
-  through the normal no-player path (`pickClass`, `syncAvailability` included). No/✋ resumes the
-  live scene (a pending fight stays a fight). A redelivered confirmation after deletion is a
-  harmless no-op; once a new hero exists, the staleness guard rejects old reset callbacks.
-- **Webhook auth (#29):** webhook mode FAILS CLOSED without `WEBHOOK_SECRET`; the
-  `X-Telegram-Bot-Api-Secret-Token` header is verified constant-time in `src/webhook-server.ts`
-  BEFORE grammY parses the update. Polling mode needs no secret. Rotate: new secret → update app env
-  → `deno task webhook set <url>` with the same value → restart.
-- **Dungeon design (#13):** floors are INDEPENDENT dives — leaving to heal at a safe haven between
-  floors is intended play, not an exploit. Attrition mechanics (run-reset on leaving, travel locks,
-  between-floor heal limits) are a deliberate non-goal; if future tuning wants endurance runs, make
-  that an explicit design change — and tune encounters assuming the player can realistically arrive
-  at full HP.
-- **Battles carry structured provenance** (`BattleOrigin`): `explore`/`elite`/`dungeon` with floor +
-  boss flags. Dungeon floors advance on VICTORY only; boss floors are story-gated via `bossGate`
-  (kill-quest bosses use `requireDone: false`). Victory bookkeeping routes through
-  `resolveVictory()` in world.ts — overworld kills never touch dungeon state.
-- **Encounter classification (#28):** boss semantics (no flee, Smoke Bomb refused, `bossesSlain`)
-  come from the ENCOUNTER — only a dungeon boss floor (`origin.boss`) is boss-classified. The Abyss
-  overworld Warden is a farmable ELITE: fleeable, smokeable, not counted.
-
-## The ordered-completion gameplay boundary (#102, corrected by #114)
-
-Telegram/network/database code is asynchronous I/O around a deterministic game core. The
-architectural invariant is **ordered completion** — one deterministic, explicitly ordered resolution
-flow that is COMPLETE before rendering/persistence proceeds — not a lexical ban on async vocabulary.
-It is regression-pinned by `tests/architecture_test.ts` (sync API signature contracts,
-no-pending-work-at-return, observable ordering, a compiler dependency-graph import check). Do not
-reinterpret "event", "reactive", "hook", "trace" or "emit" as a request for event-driven mechanics.
-
-Three concepts stay separate (#114):
-
-1. **Ordered resolution (required).** One authoritative coordinator owns combat phases and nested
-   sub-resolution; SPD determines the first actor; each action/effect fully resolves before the next
-   begins; terminal state is checked immediately after every potentially lethal transition; when HP
-   reaches 0 and no immediate revival succeeds, no later action, rider, reaction, or end-of-round
-   effect runs; regeneration never revives a terminal combatant and DoT never creates a post-victory
-   mutual KO.
-2. **Async syntax (neutral).** A Promise-returning function whose every step is awaited is still a
-   single ordered flow — async syntax is neither proof of order nor proof of disorder. Never scan
-   source for `async`/`await`/`Promise` tokens as an architecture test, and never hand-roll a
-   TypeScript lexer to do it. Today's engine entry points are synchronous and stay that way (the
-   test-suite signature pins are a compile-time contract for the CURRENT API shape, not proof
-   against event-driven design); converting them is out of scope.
-3. **Event-driven orchestration (unwanted for combat).** No listener-registration order, event bus,
-   timer, microtask queue, or detached/background callback drives combat resolution; no unawaited
-   state-mutating work; no `Promise.all` over mutations of the same fight. Traces stay caller-owned
-   plain data returned by the active resolution, never asynchronously published events.
-
-- **Async I/O sandwich.** Async code belongs ONLY at the boundary: receiving Telegram updates and
-  grammY middleware; serializing concurrent updates for the same user; Postgres/network I/O;
-  sending/editing Telegram messages; webhook lifecycle and scripts. The boundary LOADS state,
-  invokes the engine's ordered resolution, RENDERS/PERSISTS the completed result, and returns. It
-  never interleaves with resolution.
-- **Import boundary.** Gameplay modules (`src/engine`, `src/content`) depend only on local gameplay
-  code — never grammy, node:/npm:/jsr: packages, handlers, or persistence. This is enforced via the
-  Deno compiler's own dependency graph (`deno info --json`) in `tests/architecture_test.ts` — never
-  by regex over arbitrary source text.
-- **Terminology (all direct and ordered — none of these authorize a bus):**
-  - "reactive trigger" (equipment) = an immediate nested synchronous call (`runReactiveTriggers`);
-  - "quest hook" (`onKill`/`onZoneEnter`/`onDungeonClear`) = an ordinary directly invoked function;
-  - "exploration event" = a data VARIANT selected from content and resolved by a switch;
-  - "combat trace" (#101) = plain record entries appended by and returned from the active
-    synchronous resolution (`recordCombatEvent` — state changes first, then a plain-data push); no
-    listener registration, no dispatch, no async delivery exists anywhere in the engine. Applied-HP
-    contract (#106): `hpDamaged` carries `resolved` (post-mitigation, post-shield, pre-floor —
-    overkill included) and `hpLost` (the actual capped HP delta every damage family reports);
-    `hpRestored`/`revived` carry `attempted` + `applied`. HP-moved metrics (balance dealt/taken) sum
-    `hpLost`, never `resolved`; lifesteal telemetry and battle text report the applied heal.
-
-## Adding content (checklist)
-
-1. Define ids first (`e_*`, `w_/a_/t_/c_/m_/q_*`, `sq_*`), then reference.
-2. Enemy stats: use `mk()` with level + multipliers — never raw numbers.
-3. Wire drops ≤ sensible probabilities (bosses 0.4–1.0, field 0.1–0.6).
-4. Quest rewards should cover ~2–3 shop tiers of gear at that level.
-5. Run the content-integrity tests; they catch dangling ids.
-6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
-   engine also filters them); battles belong in the wilds players travel to.
-7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest/dungeon
-   `unlockZone` reward — the zone-reachability test enforces this.
-8. `learnLevel: 1` skills are granted at creation; `assertSupportedSaveVersion` (called on every
-   load) gates the save schema — it is non-mutating. Which versions are accepted follows the
-   authoritative release phase (see _Release lifecycle — authoritative status_). While PRE-LAUNCH:
-   only the current version is accepted; after a persisted-shape change, bump
-   `CURRENT_STATE_VERSION`, update constructors/types to emit the new authoritative shape, and
-   retire older dev formats rather than adding migrations — pre-launch saves are DISPOSABLE (#44,
-   #116), they fail with `SaveTooOldError` and require /reset. Content-ID rename/removal is equally
-   free pre-launch (no aliases, tombstones, or recovery shims). At launch, record the first live
-   schema baseline in the lifecycle section. After launch, real saves are durable: bump
-   `CURRENT_STATE_VERSION` and add an explicit ordered migration from every supported live version;
-   never sniff "state looks old", and never tell live players to reset as a substitute for
-   compatibility.
-9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
-   enough dungeon floor slots — `tests/progression_test.ts` enforces encounter capacity, and the
-   full m1→m25 simulation walks the entire quest graph through the pure engine.
-
-## Known trade-offs (evaluated fallow findings)
-
-- `deno.json` is the dependency manifest; fallow's "unlisted dependencies" (grammy, grammy-testing)
-  is a Node-only heuristic — ignore.
-- Boss first-clear trinkets (`t_12`–`t_18`) are EARNED TROPHIES, deliberately protected: they cannot
-  be sold or dropped (#5, one-time rewards), though `unique` here means "unrecoverable if lost" —
-  not a full collectible model.
-- Dungeon attrition is OPTIONAL by design: dungeon progress persists, travel is free and safe havens
-  fully heal, so clearing-floor-then-healing is legal play. Do not balance dungeon difficulty around
-  resource attrition unless a run-enforcement mechanic is added.
-- One residual ~12-line clone pair in `render/views.ts` (shop buy vs sell rows). The two rows differ
-  in label/action/semantics; a shared abstraction would be more indirect than the duplication.
-  Accepted.
-- Large dispatch switches (`callbacks.ts`, view renderers) are flat and exhaustive by design;
-  complexity lives in data, not control flow.
-
-## Session-start checklist
-
-1. `deno task check && deno task test && deno task lint` — all green?
-2. `git status` — clean tree expected; work on branches/commits per change.
-3. Never commit `.env`, tokens, or local database files (see `.gitignore`).
-4. BOT_TOKEN comes from the environment; never write it into the repo.
+1. Check `git status` before editing; start from a clean tree.
+2. Load the skill or skills that match your task from the table above.
+3. Run the relevant targeted tests while you work.
+4. Before finishing, run all CI gates above — plus the PostgreSQL test for persistence or schema
+   work.
