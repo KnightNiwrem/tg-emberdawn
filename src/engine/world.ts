@@ -15,9 +15,11 @@ import { MAX_LEVEL } from './classes.ts';
 import {
   grantItem,
   onDungeonClear,
+  onItemGain,
   onKill,
   onZoneEnter,
   questDropAllowed,
+  questReadyLine,
   syncAvailability,
 } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
@@ -41,7 +43,11 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
     // real-time recharge (see explore) governs when the faucet refills.
     lines.push('🔥 A safe haven. HP and MP fully restored.');
   }
-  onZoneEnter(p, zoneId);
+  for (const qid of onZoneEnter(p, zoneId)) {
+    // A reach objective completing on arrival is announced in the arrival
+    // result itself (#119) — the player sees it the moment they step in.
+    lines.push(questReadyLine(qid));
+  }
   return { ok: true, lines };
 }
 
@@ -84,28 +90,42 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   const lines = [
     `🏆 ${b.enemy.name} is defeated!`,
   ];
+  // Every readiness flip this victory causes is collected (#119) — from the
+  // drops, the kill, the availability refresh, the dungeon bookkeeping and
+  // the first-clear rewards — deduped by quest id and announced ONCE, after
+  // all of the victory's mutations have settled. A quest can only flip
+  // active→turnIn a single time (refreshProgress is the sole authority), so
+  // collection order is announcement order.
+  const ready: string[] = [];
   lines.push(...grantXp(p, rewards.xp));
   lines.push(...grantDropRewards(p, rewards.drops));
+  // An ordinary drop can complete a collect objective on the spot.
+  ready.push(...onItemGain(p));
   p.stats.kills++;
   p.stats.battlesWon++;
   if (b.enemy.isBoss) p.stats.bossesSlain++;
-  onKill(p, def.id);
+  ready.push(...onKill(p, def.id));
   syncAvailability(p);
+  // Safety net: if the availability refresh (or anything above) readied a
+  // quest no hook claimed, the notice still flows — never a duplicate, since
+  // refreshProgress reports each transition exactly once.
+  ready.push(...onItemGain(p));
   if (b.origin.kind === 'dungeon') {
     const z = zone(b.origin.zoneId);
     const d = z ? dungeonOf(z) : undefined;
     if (d && d.id === b.origin.dungeonId) {
       if (b.origin.boss) {
-        lines.push(...onDungeonVictory(p, d).lines);
+        lines.push(...onDungeonVictory(p, d, ready).lines);
         // Location-specific story objectives key on the dungeon clear, never
         // on the enemy id — an overworld echo of the boss can't substitute.
-        onDungeonClear(p, d.id);
+        ready.push(...onDungeonClear(p, d.id));
       } else {
-        lines.push(...onDungeonFloorVictory(p, d, b.origin.floor));
+        lines.push(...onDungeonFloorVictory(p, d, b.origin.floor, ready));
       }
     }
   }
   b.rewards = rewards;
+  for (const qid of [...new Set(ready)]) lines.push(questReadyLine(qid));
   return lines;
 }
 
@@ -225,9 +245,7 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
       }
       if (ev.item) {
         lines.push(`🎁 Found: ${itemName(ev.item)}`);
-        for (const qid of grantItem(p, ev.item, 1)) {
-          lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
-        }
+        for (const qid of grantItem(p, ev.item, 1)) lines.push(questReadyLine(qid));
       }
       return { kind: 'result', lines };
     }
@@ -371,8 +389,15 @@ export function diveDungeon(
 /**
  * Victory over a NORMAL dungeon floor: grants that floor's treasure (once)
  * and advances the floor pointer. Fleeing or dying never routes here.
+ * Readiness the cache item causes is COLLECTED into `ready` (#119) — the
+ * caller announces it once, after all of the victory's mutations settle.
  */
-function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: number): string[] {
+function onDungeonFloorVictory(
+  p: PlayerState,
+  d: DungeonDef,
+  floor: number,
+  ready: string[],
+): string[] {
   const lines: string[] = [];
   if (floor >= d.floors.length + 1) return lines; // boss victories route elsewhere
   if (nextFloor(p, d) !== floor) return lines; // floor already cleared
@@ -385,18 +410,18 @@ function onDungeonFloorVictory(p: PlayerState, d: DungeonDef, floor: number): st
     }
     if (t.item) {
       lines.push(`🎁 Floor cache: ${itemName(t.item)}`);
-      for (const qid of grantItem(p, t.item, 1)) {
-        lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
-      }
+      ready.push(...grantItem(p, t.item, 1));
     }
   }
   return lines;
 }
 
-/** Called after a DUNGEON BOSS battle victory; handles clear/first-clear bookkeeping. */
+/** Called after a DUNGEON BOSS battle victory; handles clear/first-clear
+ * bookkeeping. First-clear item readiness is COLLECTED into `ready` (#119). */
 function onDungeonVictory(
   p: PlayerState,
   d: DungeonDef,
+  ready: string[],
 ): { firstClear: boolean; lines: string[] } {
   const lines: string[] = [];
   const firstClear = !dungeonCleared(p, d);
@@ -420,9 +445,7 @@ function onDungeonVictory(
     lines.push(`💰 +${fc.gold} gold · ${xpLabel}`);
     if (fc.item) {
       lines.push(`🎁 Received: ${itemName(fc.item)}`);
-      for (const qid of grantItem(p, fc.item, 1)) {
-        lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
-      }
+      ready.push(...grantItem(p, fc.item, 1));
     }
     for (const f of fc.flags ?? []) p.flags[f] = true;
     if (fc.unlockZone && !p.unlockedZones.includes(fc.unlockZone)) {

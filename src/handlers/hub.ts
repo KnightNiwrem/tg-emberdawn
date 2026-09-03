@@ -20,6 +20,7 @@ import { temper } from '../engine/forge.ts';
 import {
   acceptQuest,
   onTalk,
+  questReadyLine,
   questStatusLine,
   syncAvailability,
   turnInQuest,
@@ -98,13 +99,15 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   const z = zoneDef(p.currentZone);
   const npc = z?.npcs[npcIndex];
   if (!npc) return { toast: 'Nobody there.' };
-  onTalk(p, npc.id);
+  // A talk objective completing here is announced in THIS interaction
+  // (#119) — whichever branch below owns the screen.
+  const readyLines = onTalk(p, npc.id).map(questReadyLine);
   const ready = QUESTS.find((q) => q.finishNpc === npc.id && p.quests[q.id]?.status === 'turnIn');
   if (ready) {
     // Open the AUTHORITATIVE NPC interaction (#64): only this view's buttons
     // can turn the quest in, and only while the player stands here.
     p.scene = { view: 'npcq', arg: ready.id, arg2: npc.id };
-    p.notices = [npc.greeting];
+    p.notices = [npc.greeting, ...readyLines];
     return {};
   }
   const offered = QUESTS.find((q) =>
@@ -112,18 +115,22 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   );
   if (offered) {
     p.scene = { view: 'npcq', arg: offered.id, arg2: npc.id };
-    p.notices = [npc.greeting];
+    p.notices = [npc.greeting, ...readyLines];
     return {};
   }
   const active = QUESTS.find((q) =>
     (q.startNpc === npc.id || q.finishNpc === npc.id) && p.quests[q.id]?.status === 'active'
   );
   if (active) {
-    p.notices = [npc.greeting, `📜 ${active.name}: ${questStatusLine(p, active.id)}`];
+    p.notices = [
+      npc.greeting,
+      ...readyLines,
+      `📜 ${active.name}: ${questStatusLine(p, active.id)}`,
+    ];
     p.scene = { view: 'zone' };
     return {};
   }
-  p.notices = [`🗣️ ${npc.name}: “${npc.greeting}”`];
+  p.notices = [`🗣️ ${npc.name}: “${npc.greeting}”`, ...readyLines];
   p.scene = { view: 'zone' };
   return {};
 }
@@ -255,7 +262,9 @@ export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResu
     const res = acceptQuest(p, questId, npcId);
     if (!res.ok) return { toast: res.msg };
     const q = quest(questId);
-    p.notices = [res.msg, q?.intro ?? ''].filter(Boolean);
+    // Acceptance line, the intro, then any immediate-readiness notice
+    // (#119: a quest can be complete the moment it is accepted).
+    p.notices = [res.msg, q?.intro ?? '', ...res.lines.slice(1)].filter(Boolean);
     p.scene = { view: 'npcq', arg: questId, arg2: npcId };
     return {};
   }

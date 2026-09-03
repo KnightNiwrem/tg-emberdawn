@@ -80,15 +80,18 @@ export function acceptQuest(
   p: PlayerState,
   id: string,
   npcId: string,
-): { ok: boolean; msg: string } {
+): { ok: boolean; msg: string; lines: string[] } {
   const q = quest(id);
-  if (!q) return { ok: false, msg: 'Unknown quest.' };
+  if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'] };
   // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
   // refused with guidance and never touches quest state.
   const refusal = contactRefusal(p.currentZone, npcId, q.startNpc);
-  if (refusal) return { ok: false, msg: refusal };
+  if (refusal) return { ok: false, msg: refusal, lines: [refusal] };
   const qp = progress(p, id);
-  if (qp.status !== 'available') return { ok: false, msg: "That quest isn't available right now." };
+  if (qp.status !== 'available') {
+    const msg = "That quest isn't available right now.";
+    return { ok: false, msg, lines: [msg] };
+  }
   qp.status = 'active';
   qp.counts = q.objectives.map(() => 0);
   // Collect objectives read the bag live — a player may already own
@@ -109,8 +112,12 @@ export function acceptQuest(
       qp.counts[i] = 1;
     }
   });
-  refreshProgress(p);
-  return { ok: true, msg: `📜 Quest accepted: ${q.name}` };
+  // Acceptance itself can complete the quest (#119): pre-owned goods, an
+  // already-visited reach target, or the acceptance conversation counting
+  // as the talk. Report BOTH the acceptance and the readiness.
+  const ready = refreshProgress(p);
+  const msg = `📜 Quest accepted: ${q.name}`;
+  return { ok: true, msg, lines: [msg, ...ready.map(questReadyLine)] };
 }
 
 /** Live progress of one objective (collect objectives read the bag). */
@@ -137,7 +144,9 @@ function questComplete(p: PlayerState, id: string): boolean {
 }
 
 /** Call after any kill/reach/event; flips completed active quests to turnIn. */
-/** Recomputes live progress; returns quests that just became turn-in-ready. */
+/** Recomputes live progress; returns quests that just became turn-in-ready.
+ * The single active→turnIn transition authority (#119): a quest appears in
+ * the result exactly once — the flip that readied it — and never again. */
 function refreshProgress(p: PlayerState): string[] {
   const ready: string[] = [];
   for (const [id, qp] of Object.entries(p.quests)) {
@@ -147,6 +156,13 @@ function refreshProgress(p: PlayerState): string[] {
     }
   }
   return ready;
+}
+
+/** The ONE "ready to turn in" announcement (#119): every surface that flips
+ * a quest to turnIn (drops, kills, travel, talk, caches, rewards, accept)
+ * reports it through this line, so name lookup and wording cannot drift. */
+export function questReadyLine(id: string): string {
+  return `📜 “${quest(id)?.name ?? id}” is ready to turn in!`;
 }
 
 /** Item-acquisition hook for paths outside battle (shops, treasure):
@@ -164,9 +180,6 @@ export function grantItem(p: PlayerState, itemId: string, qty = 1): string[] {
   return onItemGain(p);
 }
 
-/** Dungeon-objective hook: called when a dungeon's boss falls for the first
- * time. Location-specific story objectives key on THIS, never on enemy ids —
- * an overworld echo of a boss must not substitute for the real fight. */
 /** Whether a rolled enemy drop may enter the bag. Quest-kind items only
  * drop while an OPEN quest (available/active/turnIn) still needs them and
  * the bag holds fewer than the requirement — surplus keys/samples/emblems
@@ -187,8 +200,12 @@ export function questDropAllowed(p: PlayerState, itemId: string): boolean {
   return countOf(p, itemId) < cap;
 }
 
-export function onDungeonClear(p: PlayerState, dungeonId: string): void {
-  progressObjective(p, 'dungeon', dungeonId);
+/** Dungeon-objective hook: called when a dungeon's boss falls for the first
+ * time. Location-specific story objectives key on THIS, never on enemy ids —
+ * an overworld echo of a boss must not substitute for the real fight.
+ * Returns the quests this clear just made turn-in-ready (#119). */
+export function onDungeonClear(p: PlayerState, dungeonId: string): string[] {
+  return progressObjective(p, 'dungeon', dungeonId);
 }
 
 function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number): string {
@@ -288,10 +305,7 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
     lines.push(`🎁 Received: ${itemName(itemId)}${qty > 1 ? ` ×${qty}` : ''}`);
   }
   // Reward items can complete OTHER active collect quests on the spot.
-  for (const id of onItemGain(p)) {
-    const rq = quest(id);
-    if (rq) lines.push(`🏁 ${rq.name} is ready to turn in!`);
-  }
+  for (const id of onItemGain(p)) lines.push(questReadyLine(id));
   for (const f of r.flags ?? []) p.flags[f] = true;
   if (r.unlockZone && !p.unlockedZones.includes(r.unlockZone)) {
     p.unlockedZones.push(r.unlockZone);
@@ -302,9 +316,11 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
 
 /**
  * Progresses every active quest with an objective matching (kind, target).
- * +1 per event, capped at the objective's required count.
+ * +1 per event, capped at the objective's required count. Returns the quests
+ * this event just made turn-in-ready (#119) so the active surface can
+ * announce them — callers must not drop the result.
  */
-function progressObjective(p: PlayerState, kind: Objective['kind'], target: string): void {
+function progressObjective(p: PlayerState, kind: Objective['kind'], target: string): string[] {
   for (const q of QUESTS) {
     const qp = p.quests[q.id];
     if (!qp || qp.status !== 'active') continue;
@@ -314,21 +330,21 @@ function progressObjective(p: PlayerState, kind: Objective['kind'], target: stri
       }
     });
   }
-  refreshProgress(p);
+  return refreshProgress(p);
 }
 
 /** Kill-objective hook: called for every enemy the player defeats. */
-export function onKill(p: PlayerState, enemyId: string): void {
-  progressObjective(p, 'kill', enemyId);
+export function onKill(p: PlayerState, enemyId: string): string[] {
+  return progressObjective(p, 'kill', enemyId);
 }
 
 /** Reach-objective hook: called on zone entry. */
-export function onZoneEnter(p: PlayerState, zoneId: string): void {
+export function onZoneEnter(p: PlayerState, zoneId: string): string[] {
   p.flags[`zone_${zoneId}`] = true;
-  progressObjective(p, 'reach', zoneId);
+  return progressObjective(p, 'reach', zoneId);
 }
 
 /** Talk-objective hook: called when the player speaks to an NPC. */
-export function onTalk(p: PlayerState, npcId: string): void {
-  progressObjective(p, 'talk', npcId);
+export function onTalk(p: PlayerState, npcId: string): string[] {
+  return progressObjective(p, 'talk', npcId);
 }

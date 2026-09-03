@@ -105,16 +105,18 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
   const travelContract: (p: PlayerState, zoneId: string) => { ok: boolean; lines: string[] } =
     travel;
 
-  // Quest progress "hooks" — directly invoked synchronous functions.
+  // Quest progress "hooks" — directly invoked synchronous functions. The
+  // hooks RETURN the quests they just made turn-in-ready (#119): readiness
+  // is data the caller announces, never a side channel.
   const acceptContract: (
     p: PlayerState,
     id: string,
     npcId: string,
-  ) => { ok: boolean; msg: string } = acceptQuest;
+  ) => { ok: boolean; msg: string; lines: string[] } = acceptQuest;
   const turnInContract: (p: PlayerState, id: string, npcId: string) => TurnInResult = turnInQuest;
-  const talkContract: (p: PlayerState, npcId: string) => void = onTalk;
-  const killContract: (p: PlayerState, enemyId: string) => void = onKill;
-  const zoneContract: (p: PlayerState, zoneId: string) => void = onZoneEnter;
+  const talkContract: (p: PlayerState, npcId: string) => string[] = onTalk;
+  const killContract: (p: PlayerState, enemyId: string) => string[] = onKill;
+  const zoneContract: (p: PlayerState, zoneId: string) => string[] = onZoneEnter;
   const syncContract: (p: PlayerState) => string[] = syncAvailability;
 
   // Progression and death.

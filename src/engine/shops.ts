@@ -4,8 +4,7 @@ import type { PlayerState } from './types.ts';
 import type { ZoneDef } from '../content/types.ts';
 import { isEquippable, item, itemName, sellPrice, shopStock } from '../content/items.ts';
 import { removeItem } from './inventory.ts';
-import { grantItem } from './quests.ts';
-import { quest } from '../content/quests.ts';
+import { grantItem, questReadyLine } from './quests.ts';
 import { zone } from '../content/zones.ts';
 
 /** Shop gear tier follows the PLAYER's level, clamped to the zone's band,
@@ -61,9 +60,7 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
   if (p.gold < cost) return { ok: false, lines: ['💰 Not enough gold.'] };
   p.gold -= cost;
   const lines = [`🛒 Bought ${def.name}${qty > 1 ? ` ×${qty}` : ''} for ${cost} gold.`];
-  for (const qid of grantItem(p, itemId, qty)) {
-    lines.push(`📜 “${quest(qid)?.name ?? qid}” is ready to turn in!`);
-  }
+  for (const qid of grantItem(p, itemId, qty)) lines.push(questReadyLine(qid));
   return { ok: true, lines };
 }
 
