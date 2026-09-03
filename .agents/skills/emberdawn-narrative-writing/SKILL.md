@@ -37,8 +37,8 @@ notices, or NPC voice lines, **read `docs/narrative-guide.md` in full**.
    - Rejecting meta terms ("chapter", "postgame") in in-world descriptions and greetings;
    - Rejecting modern administrative jargon ("paperwork", "management", "corrections", "diplomacy")
      in quest names and summaries;
-   - Rejecting non-canonical hyphenated NPC references (e.g. "Echo-of-Maren" instead of "Echo of
-     Maren");
+   - Rejecting the literal hyphenated name variant `Echo-of-Maren` in dialogue lines (canonical is
+     `Echo of Maren`);
    - Rejecting embedded quotation marks (`"`, `“`, `”`) in NPC greetings (the renderer supplies
      quotes);
    - Requiring high-tier gear descriptions (tier 4+) to differ from starter gear descriptions.
