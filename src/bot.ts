@@ -27,7 +27,13 @@ export function createBot(opts: BotOptions): Bot<Context> {
   bot.use(async (ctx, next) => {
     const id = ctx.from?.id;
     const prev = chains.get(id ?? 0) ?? Promise.resolve();
-    const run = prev.then(() => (id === undefined ? next() : opts.store.withLock(id, next)));
+    // Overlap hardening (#117): an already-overlapping same-user update must
+    // still enter withLock even if its predecessor rejected — the predecessor's
+    // failure belongs to its own request, not to whatever queued behind it.
+    // The current run's own rejection still propagates to grammY's error path.
+    const run = prev
+      .catch(() => undefined)
+      .then(() => (id === undefined ? next() : opts.store.withLock(id, next)));
     chains.set(id ?? 0, run);
     try {
       await run;

@@ -5,6 +5,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
+import type { Update } from 'grammy/types';
 import { createBot } from '../src/bot.ts';
 import { withRev } from '../src/codec.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
@@ -217,4 +218,52 @@ Deno.test('death flow: felling the player routes through death view and revives'
     // Won or fled somehow — either way state must be consistent.
     assert(p.hp > 0);
   }
+});
+
+function msgUpdate(updateId: number, userId: number): Update {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: updateId,
+      date: 0,
+      chat: { id: userId, type: 'private', first_name: 'T' },
+      from: { id: userId, is_bot: false, first_name: 'T' },
+      text: 'ping',
+    },
+  } as Update;
+}
+
+Deno.test('overlap hardening (#117): a rejected update never skips a queued same-user update', async () => {
+  const store = new MemoryStore();
+  const bot = createBot({ token: '123456:TEST-TOKEN-FOR-TESTS', store });
+  await prepareBot(bot); // mock botInfo so handleUpdate works offline
+  // Test-only middleware downstream of the serializer: the first update blocks
+  // on a gate (guaranteeing a second update queues behind it inside the chain),
+  // then rejects. Later updates run normally.
+  let ran = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let entered!: () => void;
+  const firstEntered = new Promise<void>((r) => (entered = r));
+  bot.use(async () => {
+    ran++;
+    if (ran === 1) {
+      entered();
+      await gate;
+      throw new Error('forced failure for overlap test');
+    }
+  });
+  const uid = 9001;
+  const p1 = bot.handleUpdate(msgUpdate(1, uid)).catch((e) => e); // observe, don't crash
+  await firstEntered; // first update holds the critical section
+  const p2 = bot.handleUpdate(msgUpdate(2, uid));
+  await new Promise((r) => setTimeout(r, 20)); // let p2 chain behind p1
+  assertEquals(ran, 1, 'the queued update must wait for its predecessor');
+  release(); // first update rejects; the second must still run
+  const [r1] = await Promise.all([p1, p2]);
+  assert(r1 instanceof Error, 'the failing update still rejects observably');
+  assertEquals(ran, 2, 'queued update ran after the predecessor failed');
+  // No persistent poisoned queue: a later update starts fresh.
+  await bot.handleUpdate(msgUpdate(3, uid));
+  assertEquals(ran, 3);
 });
