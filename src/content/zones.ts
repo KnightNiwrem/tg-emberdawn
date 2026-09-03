@@ -273,6 +273,10 @@ export const ZONES: readonly ZoneDef[] = [
           label: 'Ask about the water',
           text:
             '"The poison is patient. It waits in the low places for the desperate. Boil what you drink, keep to the poles and paths, and the swamp will let you keep most of what you brought."',
+        }, {
+          id: 'ferry_promise',
+          label: 'Speak for you at the shrine',
+          dialogue: 'dlg_ferry_promise',
         }],
       },
     ],

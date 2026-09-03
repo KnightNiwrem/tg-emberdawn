@@ -26,6 +26,9 @@ import {
 } from '../engine/quests.ts';
 import { npc, npcInZone, quest } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
+import type { DialogueDef, DialogueNode } from '../content/types.ts';
+import { applyDialogueChoice } from '../engine/story.ts';
+import { evalCondition } from '../engine/conditions.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
@@ -327,28 +330,92 @@ export function npcqAction(p: PlayerState, cb: Cb & { v: 'npcq' }): MutationResu
   return {};
 }
 
-/** Dialogue scene actions (#124): linear multi-node conversations. Every
- * Continue revalidates the live scene, the dialogue's NPC presence in the
- * current zone, the current node, and the exact next-node target carried
- * by the callback — forged, replayed (rev guard), wrong-node and
- * wrong-dialogue taps are non-mutating. */
+/** Dialogue scene actions (#124/#126): multi-node conversations and
+ * branching choices. Every control revalidates the live scene, the
+ * dialogue's NPC presence in the current zone, the current node, and the
+ * exact target carried by the callback — forged, replayed (rev guard),
+ * wrong-node and wrong-dialogue taps are non-mutating. Irreversible
+ * choices stage an explicit confirmation panel BEFORE any mutation;
+ * opening, backing out of, or abandoning it changes no story state. */
 export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
   const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
   if (cb.a === 'bk') {
-    // Back/End returns to the owning NPC's topic menu when they are still
-    // on-site; otherwise the zone.
+    // Back/End/Not-now returns to the owning NPC's topic menu when they
+    // are still on-site; otherwise the zone. No story mutation.
     p.scene = d && npcInZone(p.currentZone, d.npcId)
       ? { view: 'npc', arg: d.npcId }
       : { view: 'zone' };
     return {};
   }
+  if (cb.a === 'cc') {
+    // Abandon the staged confirmation — back to the choice list, no
+    // mutation (the choice remains available).
+    if (p.scene.arg3?.startsWith('confirm:')) p.scene.arg3 = undefined;
+    return {};
+  }
   if (!d) return { toast: 'That conversation has moved on.' };
   if (!npcInZone(p.currentZone, d.npcId)) return { toast: 'Nobody there.' };
-  const cur = dialogueNode(d, p.scene.arg2 ?? '');
-  if (!cur || cur.kind !== 'line' || cur.next !== cb.arg) {
+  const node = dialogueNode(d, p.scene.arg2 ?? '');
+  if (cb.a === 'nx') {
+    if (!node || node.kind !== 'line' || node.next !== cb.arg) {
+      return { toast: 'That conversation has moved on.' };
+    }
+    p.scene = { view: 'dialogue', arg: d.id, arg2: cb.arg };
+    return {};
+  }
+  if (cb.a === 'ch') {
+    if (!node || node.kind !== 'choice') {
+      return { toast: 'That conversation has moved on.' };
+    }
+    const choice = node.choices.find((c) => c.id === cb.arg);
+    if (!choice) return { toast: 'That response is not on the table.' };
+    // Availability is re-evaluated at tap time (rendering is not authority).
+    if (choice.when && !evalCondition(p, choice.when)) {
+      return { toast: 'That response is no longer available.' };
+    }
+    if (choice.irreversible) {
+      // Stage the confirmation — nothing is mutated merely by opening it.
+      p.scene = { view: 'dialogue', arg: d.id, arg2: node.id, arg3: `confirm:${choice.id}` };
+      return {};
+    }
+    return applyChoice(p, d, node, choice.id);
+  }
+  // 'cf': the CONFIRMED irreversible choice — the staged panel must match.
+  if (!node || node.kind !== 'choice') {
     return { toast: 'That conversation has moved on.' };
   }
-  p.scene = { view: 'dialogue', arg: d.id, arg2: cb.arg };
+  if (p.scene.arg3 !== `confirm:${cb.arg}`) {
+    return { toast: 'Confirm the choice on its confirmation screen.' };
+  }
+  const choice = node.choices.find((c) => c.id === cb.arg);
+  if (!choice?.irreversible) return { toast: 'That response is not on the table.' };
+  return applyChoice(p, d, node, choice.id);
+}
+
+/** Applies a choice through the central engine operation and routes the
+ * scene to the next beat (or back to the topic menu when the conversation
+ * ends). Notice lines flow through the normal banner. */
+function applyChoice(
+  p: PlayerState,
+  d: DialogueDef,
+  node: Extract<DialogueNode, { kind: 'choice' }>,
+  choiceId: string,
+): MutationResult {
+  const result = applyDialogueChoice(p, {
+    dialogueId: d.id,
+    nodeId: node.id,
+    choiceId,
+    npcId: d.npcId,
+    now: Date.now(),
+  });
+  if (!result.ok) return { toast: result.refusal };
+  p.notices = [...p.notices, ...result.lines];
+  if (result.nextNodeId) {
+    p.scene = { view: 'dialogue', arg: d.id, arg2: result.nextNodeId };
+  } else {
+    // The conversation concluded on this choice — back to the topics.
+    p.scene = npcInZone(p.currentZone, d.npcId) ? { view: 'npc', arg: d.npcId } : { view: 'zone' };
+  }
   return {};
 }
 

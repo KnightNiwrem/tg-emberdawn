@@ -374,9 +374,30 @@ export interface Objective {
   count?: number;
 }
 
+/** One authored player response on a choice node (#126). Conditionally
+ * available, optionally consequential, optionally irreversible. Choice ids
+ * are stable compact identities (callback budget); consequences are
+ * declarative StoryEffects resolved server-side — never carried on the
+ * wire. */
+export interface DialogueChoice {
+  id: string;
+  label: string;
+  /** Availability condition (#125), re-evaluated at tap time. */
+  when?: Condition;
+  /** Node to render after the effects apply; omit to end the conversation
+   * and return to the NPC topic menu. */
+  next?: string;
+  /** Declarative consequences, applied atomically and exactly once. */
+  effects?: StoryEffect[];
+  /** Requires an explicit confirmation panel before any mutation (#126). */
+  irreversible?: boolean;
+  /** Concise non-spoiler hint of what confirming closes/commits. */
+  consequenceHint?: string;
+}
+
 /** One beat of an authored conversation (#124): a single speech or
- * narration line with an explicit speaker, or the end state. Linear only —
- * choices arrive in #126. */
+ * narration line with an explicit speaker, a branching prompt (#126), or
+ * the end state. */
 export type DialogueNode =
   | {
     id: string;
@@ -386,6 +407,16 @@ export type DialogueNode =
     text: string;
     /** Next node id; omit for the final line of a conversation. */
     next?: string;
+  }
+  | {
+    id: string;
+    kind: 'choice';
+    /** The NPC-side prompt the player is responding to. */
+    prompt: string;
+    choices: DialogueChoice[];
+    /** Deferral ("Not now") is offered unless explicitly disabled (#126):
+     * it returns to the topic menu with NO mutation. */
+    allowDeferral?: boolean;
   }
   | { id: string; kind: 'end' };
 
@@ -399,6 +430,27 @@ export interface DialogueDef {
   start: string;
   nodes: DialogueNode[];
 }
+
+/** ── Declarative story effects (#125) ───────────────────────────────────
+ *
+ * The bounded serializable vocabulary for dialogue/story consequences.
+ * Plain data — never content functions. Application lives in
+ * engine/story.ts: bundles pre-flight atomically, run in authored order,
+ * and are idempotent under replays; quest mutations reuse the central
+ * authorities (#63/#64/#119).
+ */
+export type StoryEffect =
+  | { kind: 'setFlag'; id: string; value?: FlagValue }
+  | { kind: 'clearFlag'; id: string }
+  | { kind: 'recordDecision'; id: string; choiceId: string }
+  | { kind: 'storyEvent'; event: string }
+  | { kind: 'startQuest'; questId: string }
+  | { kind: 'resolveQuest'; questId: string; outcome: string }
+  | { kind: 'failQuest'; questId: string; reason?: string }
+  | { kind: 'lockQuest'; questId: string; reason?: string }
+  | { kind: 'unlockZone'; zoneId: string }
+  | { kind: 'grantItem'; itemId: string; qty?: number }
+  | { kind: 'removeItem'; itemId: string; qty?: number };
 
 /** ── Declarative story conditions (#125) ────────────────────────────────
  *

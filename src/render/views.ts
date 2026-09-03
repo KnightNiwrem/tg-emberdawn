@@ -9,6 +9,7 @@ import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
 import { npc, npcInZone, quest, questFinisher, QUESTS, questStarter } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
+import { evalCondition } from '../engine/conditions.ts';
 import { npcTopics } from '../engine/npc.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
@@ -682,10 +683,53 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
       cbBtn(node.next ? '👋 Leave' : '👋 End conversation', encodeCb({ v: 'dlg', a: 'bk' })),
     );
     blocks.push(buttonsRow(row));
-  } else {
-    // End node: the conversation concluded — only the exit remains.
-    blocks.push(buttonsRow([cbBtn('👋 End conversation', encodeCb({ v: 'dlg', a: 'bk' }))]));
+    return { blocks };
   }
+  if (node.kind === 'choice') {
+    // Irreversible confirmation panel (#126): repeats the selection, states
+    // permanence, offers the consequence hint, mutates NOTHING — Confirm
+    // is the only mutating control, staged through arg3.
+    if (p.scene.arg3?.startsWith('confirm:')) {
+      const choice = node.choices.find((c) => c.id === p.scene.arg3!.slice('confirm:'.length));
+      if (choice) {
+        blocks.push(banner('⚠️ This decision cannot be changed'));
+        blocks.push(quote(`You — “${choice.label}”`));
+        blocks.push(para('Once confirmed, this choice is permanent. There is no undo.'));
+        if (choice.consequenceHint) {
+          blocks.push(para({ type: 'italic', text: choice.consequenceHint } as RichText));
+        }
+        blocks.push(
+          buttonsRow([
+            cbBtn(
+              `✅ Confirm: ${choice.label}`,
+              encodeCb({ v: 'dlg', a: 'cf', arg: choice.id }),
+              'danger',
+            ),
+            cbBtn('✋ Go back', encodeCb({ v: 'dlg', a: 'cc' })),
+          ]),
+        );
+        return { blocks };
+      }
+    }
+    // The choice list: the NPC prompt is visually separate from the
+    // player's responses; every response whose condition currently passes
+    // renders in authored order — no default selection (#126). Authored
+    // `when` gates HIDE a response (a secret route), by design; re-render
+    // is never authority — availability is revalidated at tap time.
+    blocks.push(quote(`“${node.prompt}”`));
+    for (const c of node.choices) {
+      if (c.when && !evalCondition(p, c.when)) continue;
+      blocks.push(
+        buttonsRow([cbBtn(c.label, encodeCb({ v: 'dlg', a: 'ch', arg: c.id }))], 'left'),
+      );
+    }
+    if (node.allowDeferral !== false) {
+      blocks.push(buttonsRow([cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' }))]));
+    }
+    return { blocks };
+  }
+  // End node: the conversation concluded — only the exit remains.
+  blocks.push(buttonsRow([cbBtn('👋 End conversation', encodeCb({ v: 'dlg', a: 'bk' }))]));
   return { blocks };
 }
 

@@ -236,8 +236,13 @@ export interface SceneState {
   arg?: string;
   /** Secondary parameter (e.g. page while in sell mode). For item details
    * (#112): the origin context — the inventory page it came from, or 'eq'
-   * when opened from the Equipment screen, so Back returns to the origin. */
+   * when opened from the Equipment screen, so Back returns to the origin.
+   * For dialogue scenes (#124/#126): the current NODE id. */
   arg2?: string;
+  /** Third parameter (#126): the dialogue's staged sub-state —
+   * `confirm:<choiceId>` while an irreversible confirmation panel is up.
+   * Absent on every other view. */
+  arg3?: string;
 }
 
 export interface PlayerStats {

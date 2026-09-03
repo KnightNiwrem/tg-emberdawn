@@ -20,6 +20,8 @@ export type Cb =
   | { v: 'npc'; a: 'q' | 'lore'; arg: string }
   | { v: 'npc'; a: 'bk' }
   | { v: 'dlg'; a: 'nx'; arg: string }
+  | { v: 'dlg'; a: 'ch' | 'cf'; arg: string }
+  | { v: 'dlg'; a: 'cc' }
   | { v: 'dlg'; a: 'bk' }
   | { v: 'battle'; a: 'atk' | 'gd' | 'fl' | 'go' | 'sk' | 'it' }
   | { v: 'battle'; a: 'use'; arg: string }
@@ -78,10 +80,14 @@ export function encodeCb(c: Cb): string {
       // and leave. Revalidation of NPC/zone/state lives in the handler.
       return c.a === 'bk' ? 'npc:bk' : `npc:${c.a}:${c.arg}`;
     case 'dlg':
-      // #124 dialogue scene: Continue carries the TARGET node id (the
+      // #124/#126 dialogue scene: Continue carries the TARGET node id (the
       // handler revalidates it against the live scene's current node);
-      // Back/End returns to the NPC topic menu.
-      return c.a === 'bk' ? 'dlg:bk' : `dlg:${c.a}:${c.arg}`;
+      // choice selection/confirmation carry the choice id — consequence
+      // data never rides the wire; cc cancels a staged confirmation; bk
+      // leaves for the NPC topic menu.
+      if (c.a === 'bk') return 'dlg:bk';
+      if (c.a === 'cc') return 'dlg:cc';
+      return `dlg:${c.a}:${c.arg}`;
     case 'battle':
       if (c.a === 'use') return `b:us:${c.arg}`;
       return `b:${c.a}`;
@@ -186,9 +192,10 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       return na ? { v: 'npc', a: na, arg } : undefined;
     }
     case 'dlg': {
-      // #124 dialogue scene controls.
+      // #124/#126 dialogue scene controls.
       if (a === 'bk') return { v: 'dlg', a: 'bk' };
-      const da = act(a, ['nx'] as const);
+      if (a === 'cc') return { v: 'dlg', a: 'cc' };
+      const da = act(a, ['nx', 'ch', 'cf'] as const);
       return da ? { v: 'dlg', a: da, arg } : undefined;
     }
     case 'h': {

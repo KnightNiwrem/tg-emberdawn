@@ -142,6 +142,17 @@ When public launch is explicitly approved:
     conversations carry no partial state); the final line omits `next` and is the implicit end
     state. Content integrity (tests/dialogue_test.ts) covers id uniqueness, references,
     reachability, terminals, topic wiring, and the callback budget.
+11. **Choice authority (#126).** A choice node's responses resolve by stable dialogue/node/choice
+    identity — never by consequence data on the wire (`dlg:ch:`/`dlg:cf:` carry ids only; effects
+    resolve server-side). Availability (`when`) re-evaluates at TAP time (rendering is never
+    authority); an irreversible choice stages a `confirm:<choiceId>` panel (scene `arg3`) that
+    mutates NOTHING — Confirm is the only mutating control, Go back/Not now/Leave never touch story
+    state. Application goes through the ONE central op (`applyDialogueChoice` in engine/story.ts):
+    condition re-check → ledger conflict check (a recorded decision can never be overwritten) →
+    atomic `StoryEffect` bundle → next node or back to the topic menu. The rev guard (#43) kills
+    double taps and replays; effects are idempotent, so no replay can double-grant, double-start, or
+    re-lock. Shipped irreversible choices are sparing and harmless-by-design; mutually exclusive
+    content requires an explicit lockQuest effect.
 
 ## Commands
 

@@ -85,6 +85,93 @@ export const DIALOGUES: readonly DialogueDef[] = [
       },
     ],
   },
+  {
+    // The representative branching conversation (#126): two conditionally
+    // presented responses, both emitting the same shared story event while
+    // recording distinct durable decisions; one is irreversible and stages
+    // an explicit confirmation; deferral ("Not now") is always available.
+    id: 'dlg_ferry_promise',
+    npcId: 'npc_ferryman',
+    start: 'n1',
+    nodes: [
+      {
+        id: 'n1',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'The shrine folk keep a ledger of who believes in the morning. Names, written down. Want yours in it?',
+        next: 'n2',
+      },
+      {
+        id: 'n2',
+        kind: 'line',
+        speaker: 'narrator',
+        text: 'He backs water and lets the ferry drift, waiting on your answer.',
+        next: 'n3',
+      },
+      {
+        id: 'n3',
+        kind: 'choice',
+        prompt: 'So — what do I tell them?',
+        choices: [
+          {
+            id: 'promise',
+            label: '“Put me down as a believer.”',
+            irreversible: true,
+            consequenceHint: 'The shrine will count on you from now on.',
+            effects: [
+              { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'promise' },
+              { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+              { kind: 'setFlag', id: 'shrine_pledge' },
+            ],
+            next: 'n4',
+          },
+          {
+            id: 'decline',
+            label: '“Keep my name off the ledger.”',
+            effects: [
+              { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'decline' },
+              { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+            ],
+            next: 'n5',
+          },
+          {
+            // Conditionally available response (#126): earned trust changes
+            // what the shrine will hear. Re-evaluated at tap time.
+            id: 'vouch',
+            label: '“Tell them the swamp already vouches for me.”',
+            when: { questStatus: { questId: 'm6_toxin', is: 'done' } },
+            effects: [
+              { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'vouch' },
+              { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+            ],
+            next: 'n6',
+          },
+        ],
+      },
+      {
+        id: 'n4',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'Then the ledger says so. Belief written down outlives belief merely felt — that is the whole trick of records. Hold yourself to it.',
+      },
+      {
+        id: 'n5',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'Fair enough. The water keeps no ledger either. The offer stands — the swamp is patient with believers and unbelievers alike.',
+      },
+      {
+        id: 'n6',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'That they do — you cleaned the runoff the Tyrant left. Names I write for folk like you are the ones the shrine trusts to stay written.',
+      },
+    ],
+  },
 ];
 
 const DIALOGUE_INDEX = new Map(DIALOGUES.map((d) => [d.id, d]));

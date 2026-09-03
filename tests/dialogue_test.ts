@@ -8,11 +8,14 @@
 import { assert, assertEquals } from '@std/assert';
 import { dialogue, dialogueNode, DIALOGUES } from '../src/content/dialogues.ts';
 import { npc } from '../src/content/quests.ts';
+import { QUESTS } from '../src/content/quests.ts';
 import { ZONES } from '../src/content/zones.ts';
+import { ITEMS } from '../src/content/items.ts';
 import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
 import { createPlayer } from '../src/engine/character.ts';
 import { syncAvailability } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
+import { storyEffectRefs } from './helpers_story.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
@@ -20,12 +23,18 @@ import { MemoryStore } from '../src/persistence/store.ts';
 import { fakeCtx } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
+const QUEST_IDS = QUESTS.map((q) => q.id);
+const ITEM_IDS = ITEMS.map((i) => i.id);
+
 // ── content integrity ────────────────────────────────────────────────────
 
-Deno.test('dialogue integrity: ids, references, reachability, terminals (#124)', () => {
+Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #126)', () => {
   const ids = new Set(DIALOGUES.map((d) => d.id));
   assertEquals(ids.size, DIALOGUES.length, 'dialogue ids are unique');
   const placedNpcs = new Set(ZONES.flatMap((z) => z.npcs.map((n) => n.id)));
+  const questIds = new Set(QUEST_IDS);
+  const zoneIds = new Set(ZONES.map((z) => z.id));
+  const itemIds = new Set(ITEM_IDS);
   for (const d of DIALOGUES) {
     assert(placedNpcs.has(d.npcId), `${d.id}: npc ${d.npcId} is not placed in any zone`);
     assert(d.nodes.length > 0, `${d.id}: no nodes`);
@@ -37,6 +46,44 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124)',
         assert(n.text.length > 0, `${d.id}:${n.id}: empty line node`);
         if (n.next !== undefined) {
           assert(nodeIds.has(n.next), `${d.id}:${n.id}: missing next target ${n.next}`);
+        }
+      } else if (n.kind === 'choice') {
+        assert(n.prompt.length > 0, `${d.id}:${n.id}: empty choice prompt`);
+        assert(n.choices.length >= 2, `${d.id}:${n.id}: a choice node offers a real branch`);
+        const choiceIds = new Set(n.choices.map((c) => c.id));
+        assertEquals(choiceIds.size, n.choices.length, `${d.id}:${n.id}: choice ids unique`);
+        for (const c of n.choices) {
+          assert(c.label.length > 0, `${d.id}:${n.id}:${c.id}: empty label`);
+          if (c.next !== undefined) {
+            assert(nodeIds.has(c.next), `${d.id}:${n.id}:${c.id}: missing next ${c.next}`);
+          }
+          // Effect references resolve (quests, items, zones) and decision
+          // ids never collide with incompatible option sets.
+          for (const e of c.effects ?? []) {
+            const r = storyEffectRefs(e);
+            for (const qid of r.quests) assert(questIds.has(qid), `${d.id}: unknown quest ${qid}`);
+            for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
+            for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
+          }
+          const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
+          if (dec && dec.kind === 'recordDecision') {
+            const prior = DECISION_CHOICES.get(dec.id);
+            if (prior) {
+              assert(
+                prior.choiceId !== dec.choiceId,
+                `${d.id}:${n.id}: decision ${dec.id} reused with duplicate option`,
+              );
+            }
+            DECISION_CHOICES.set(dec.id, { choiceId: dec.choiceId, from: `${d.id}:${c.id}` });
+          }
+          // Callback budget for choice selection + confirmation.
+          for (const action of ['ch', 'cf'] as const) {
+            const wire = withRev(9999, encodeCb({ v: 'dlg', a: action, arg: c.id }));
+            assert(
+              wire.length <= 64,
+              `${d.id}:${n.id}:${c.id} wire form too long (${wire.length})`,
+            );
+          }
         }
       } else {
         assertEquals(
@@ -57,16 +104,20 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124)',
     while (cursor && !seen.has(cursor)) {
       seen.add(cursor);
       const n = dialogueNode(d, cursor);
-      cursor = n && n.kind === 'line' ? n.next : undefined;
+      if (!n) break;
+      if (n.kind === 'line') cursor = n.next;
+      else if (n.kind === 'choice') {
+        // Follow every branch.
+        for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
+        cursor = undefined;
+      } else cursor = undefined;
     }
     for (const n of d.nodes) {
       assert(seen.has(n.id), `${d.id}:${n.id}: unreachable node`);
     }
-    // Terminals: the walk terminates — on an explicit end node or on a
-    // final line that omits `next` (the implicit end state).
-    const last = d.nodes[d.nodes.length - 1]!;
-    const terminates = last.kind === 'end' || (last.kind === 'line' && !last.next);
-    assert(terminates, `${d.id}: the walk must terminate`);
+    // Terminals: every branch path terminates — on an explicit end node or
+    // on a final line that omits `next`, or on a choice without next.
+    assert(dWalkTerminates(d, d.start, new Set()), `${d.id}: every path terminates`);
     // The owning NPC offers the dialogue through one of their topics.
     const offered = ZONES.flatMap((z) => z.npcs).some((n) =>
       n.id === d.npcId && (n.topics ?? []).some((t) => t.dialogue === d.id)
@@ -74,6 +125,39 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124)',
     assert(offered, `${d.id}: no NPC topic opens this dialogue`);
   }
 });
+
+const DECISION_CHOICES = new Map<string, { choiceId: string; from: string }>();
+
+function walkFrom(
+  d: NonNullable<ReturnType<typeof dialogue>>,
+  nodeId: string,
+  seen: Set<string>,
+): void {
+  let cursor: string | undefined = nodeId;
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const n = dialogueNode(d, cursor);
+    if (!n) break;
+    if (n.kind === 'line') cursor = n.next;
+    else if (n.kind === 'choice') {
+      for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
+      cursor = undefined;
+    } else cursor = undefined;
+  }
+}
+
+function dWalkTerminates(
+  d: NonNullable<ReturnType<typeof dialogue>>,
+  nodeId: string,
+  visiting: Set<string>,
+): boolean {
+  if (visiting.has(nodeId)) return false; // cycle
+  const n = dialogueNode(d, nodeId);
+  if (!n) return false;
+  if (n.kind === 'end') return true;
+  if (n.kind === 'line') return n.next === undefined || dWalkTerminates(d, n.next, visiting);
+  return n.choices.every((c) => c.next === undefined || dWalkTerminates(d, c.next, visiting));
+}
 
 Deno.test('dialogue integrity: topic shapes are complete (#124)', () => {
   for (const z of ZONES) {

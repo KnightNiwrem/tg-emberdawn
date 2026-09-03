@@ -15,24 +15,17 @@
  */
 
 import type { PlayerState } from './types.ts';
+import type { StoryEffect } from '../content/types.ts';
 import { npcInZone, quest as questDef } from '../content/quests.ts';
+import { dialogue as dialogueDef } from '../content/dialogues.ts';
 import { item as itemDef } from '../content/items.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { countOf, removeItem } from './inventory.ts';
 import { grantItem, questReadyLine, refreshQuestProgress, syncAvailability } from './quests.ts';
+import { evalCondition } from './conditions.ts';
 
-export type StoryEffect =
-  | { kind: 'setFlag'; id: string; value?: number | string | boolean }
-  | { kind: 'clearFlag'; id: string }
-  | { kind: 'recordDecision'; id: string; choiceId: string }
-  | { kind: 'storyEvent'; event: string }
-  | { kind: 'startQuest'; questId: string }
-  | { kind: 'resolveQuest'; questId: string; outcome: string }
-  | { kind: 'failQuest'; questId: string; reason?: string }
-  | { kind: 'lockQuest'; questId: string; reason?: string }
-  | { kind: 'unlockZone'; zoneId: string }
-  | { kind: 'grantItem'; itemId: string; qty?: number }
-  | { kind: 'removeItem'; itemId: string; qty?: number };
+/** The central story-path authorities. (StoryEffect itself is content
+ * data — see content/types.ts.) */
 
 /** Where a bundle is being applied from — provenance for decisions and
  * the on-site authority check for quest starts. */
@@ -272,4 +265,75 @@ export function storyNoticeLines(result: StoryResult): string[] {
     ...result.lines,
     ...result.readyQuests.map(questReadyLine),
   ];
+}
+
+// ── Branching choices (#126) ─────────────────────────────────────────────
+
+export interface ChoiceApplyArgs {
+  dialogueId: string;
+  nodeId: string;
+  choiceId: string;
+  npcId: string;
+  now: number;
+}
+
+export interface ChoiceApplyResult {
+  ok: boolean;
+  refusal?: string;
+  /** Node to render next; undefined → the conversation ends and the
+   * player returns to the NPC topic menu. */
+  nextNodeId?: string;
+  /** Notices for the next screen (lines + once-only readiness, #119). */
+  lines: string[];
+  /** True when the applied choice was recorded as this decision's winner. */
+  decided?: string;
+}
+
+/** The ONE central operation that validates and applies a dialogue choice
+ * (#126): re-evaluates availability, refuses incompatible prior decisions,
+ * applies the declarative effects atomically (validateStoryBundle), and
+ * derives the next beat. Effects themselves are idempotent, so a choice
+ * replay can never double-grant or overwrite a recorded decision. */
+export function applyDialogueChoice(
+  p: PlayerState,
+  args: ChoiceApplyArgs,
+): ChoiceApplyResult {
+  const d = dialogueDef(args.dialogueId);
+  const node = d?.nodes.find((n) => n.id === args.nodeId);
+  if (!d || !node || node.kind !== 'choice') {
+    return { ok: false, refusal: 'That conversation has moved on.', lines: [] };
+  }
+  const choice = node.choices.find((c) => c.id === args.choiceId);
+  if (!choice) return { ok: false, refusal: 'That response is not on the table.', lines: [] };
+  // Availability is re-evaluated at tap time — rendering was never authority.
+  if (choice.when && !evalCondition(p, choice.when)) {
+    return { ok: false, refusal: 'That response is no longer available.', lines: [] };
+  }
+  // An already-recorded decision cannot be overwritten by a different
+  // choice — the ledger wins over any replay or forged tap.
+  const decisionEffects = (choice.effects ?? []).filter((e) => e.kind === 'recordDecision');
+  for (const e of decisionEffects) {
+    if (e.kind === 'recordDecision') {
+      const prior = p.decisions[e.id];
+      if (prior && prior.choiceId !== e.choiceId) {
+        return { ok: false, refusal: 'That decision was already made.', lines: [] };
+      }
+    }
+  }
+  const ctx: StoryContext = {
+    dialogueId: d.id,
+    nodeId: node.id,
+    npcId: args.npcId,
+    now: args.now,
+  };
+  const effects = choice.effects ?? [];
+  const refusal = validateStoryBundle(p, effects, ctx);
+  if (refusal) return { ok: false, refusal, lines: [] };
+  const result = applyStoryEffects(p, effects, ctx);
+  return {
+    ok: true,
+    nextNodeId: choice.next,
+    lines: storyNoticeLines(result),
+    decided: result.decisions[0],
+  };
 }
