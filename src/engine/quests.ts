@@ -88,6 +88,28 @@ function contactRefusal(
   return `Speak to ${npc(contactId)?.name ?? contactId} to do that.`;
 }
 
+/** The ONE quest-start policy (#129): flip to active with fresh counters
+ * plus objective reconciliation — collect objectives read the bag live (a
+ * player may already own the goods) and reach objectives credit the target
+ * when the player stands in it or EVER visited it (the `zone_` flag
+ * onZoneEnter plants, #23). Shared by direct acceptance (acceptQuest) and
+ * the story-effect start path so every quest start reconciles identically.
+ * Returns the quests the start itself just made turn-in-ready (#119). */
+export function beginQuest(p: PlayerState, id: string): string[] {
+  const q = quest(id);
+  const qp = progress(p, id);
+  qp.status = 'active';
+  qp.counts = q?.objectives.map(() => 0) ?? [];
+  for (const [i, o] of (q?.objectives ?? []).entries()) {
+    if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
+      qp.counts[i] = 1;
+    }
+  }
+  // The start itself can complete the quest (#119): pre-owned goods or an
+  // already-visited reach target flip it ready on the spot.
+  return refreshProgress(p);
+}
+
 export function acceptQuest(
   p: PlayerState,
   id: string,
@@ -104,24 +126,10 @@ export function acceptQuest(
     const msg = "That quest isn't available right now.";
     return { ok: false, msg, lines: [msg] };
   }
-  qp.status = 'active';
-  qp.counts = q.objectives.map(() => 0);
-  // Collect objectives read the bag live — a player may already own
-  // the goods when accepting (e.g. m22 after m21's Crownsworn kills).
-  // Reach objectives (#23): zones unlock before their reach quests become
-  // available, so the player may already stand in — or have already
-  // visited — the target. "Reached" means EVER visited (the zone flag
-  // onZoneEnter plants) or currently there; reconcile at accept instead
-  // of demanding a pointless leave-and-return.
-  q.objectives.forEach((o, i) => {
-    if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
-      qp.counts[i] = 1;
-    }
-  });
-  // Acceptance itself can complete the quest (#119): pre-owned goods, an
-  // already-visited reach target, or the acceptance conversation counting
-  // as the talk. Report BOTH the acceptance and the readiness.
-  const ready = refreshProgress(p);
+  // Acceptance itself can complete the quest (#119): pre-owned goods or an
+  // already-visited reach target. Report BOTH the acceptance and the
+  // readiness.
+  const ready = beginQuest(p, id);
   const msg = `📜 Quest accepted: ${q.name}`;
   return { ok: true, msg, lines: [msg, ...ready.map(questReadyLine)] };
 }
@@ -266,9 +274,10 @@ export interface TurnInResult {
   lines: string[];
 }
 
-/** The aggregated collect-goods check shared by turnInQuest and the story
- * bundle pre-flight (#127): returns the shortfall line, or undefined when
- * the turn-in could proceed. Central so the two paths cannot drift. */
+/** The aggregated collect-goods check behind turnInQuest (#127): returns
+ * the shortfall line, or undefined when the turn-in could proceed. The
+ * story layer reaches it through the central turnInQuest authority, which
+ * runs it again on the transaction draft (#129). */
 export function turnInGoodsShortfall(p: PlayerState, id: string): string | undefined {
   const q = quest(id);
   if (!q) return "That quest isn't ready to turn in.";

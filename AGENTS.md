@@ -152,9 +152,11 @@ When public launch is explicitly approved:
     state. Application goes through the ONE central op (`applyDialogueChoice` in engine/story.ts):
     condition re-check → ledger conflict check (a recorded decision can never be overwritten) →
     atomic `StoryEffect` bundle → next node or back to the topic menu. The rev guard (#43) kills
-    double taps and replays; effects are idempotent, so no replay can double-grant, double-start, or
-    re-lock. Shipped irreversible choices are sparing and harmless-by-design; mutually exclusive
-    content requires an explicit lockQuest effect.
+    wire-level double taps and replays, and every committed application records a one-shot receipt
+    in `p.storyReceipts` (#129): replaying a receipted choice (`choice:<dlg>:<node>:<id>`) or
+    line-entry (`line:<dlg>:<node>`) application is a complete no-op — it can never double-grant,
+    double-start, re-lock, or re-notify. Shipped irreversible choices are sparing and
+    harmless-by-design; mutually exclusive content requires an explicit lockQuest effect.
 
 ## Commands
 
@@ -289,18 +291,28 @@ scripts/webhook.ts     # deno task webhook <set|info|delete>
     players to reset as a substitute for compatibility. v9 (#125) added the narrative state:
     `decisions` (ledger with choice/provenance), `storyEvents` (ordered, deduped), and
     `questOutcomes` (permanent resolutions) — all plain JSON; decision ids and choice ids are
-    persisted content identities.
+    persisted content identities. v10 (#129) added `storyReceipts` (one-shot story-application
+    receipts).
 - **Narrative state (#125):** one declarative condition language (`Condition` in content/types.ts,
   evaluated pure in engine/conditions.ts) is shared by NPC topic availability (`NpcTopicDef.when`),
   quest prereqs (`QuestDef.prereq`, ANDed with the legacy prereqQuest/prereqFlags), and dialogue
   choices (#126). Irreversible choices are recorded in `p.decisions` with choice/provenance — never
   reduced to unexplained booleans — and a locked/failed quest (`p.questOutcomes`, `questExcluded`)
   is NEVER resurrected by `syncAvailability`. Story consequences are the bounded `StoryEffect`
-  vocabulary (engine/story.ts): bundles are pre-flighted (`validateStoryBundle`) so they apply
-  all-or- nothing, run in authored order, and are idempotent under replays; `startQuest` honors the
-  #63/#64 on-site starter authority (a dialogue can only start a quest whose own contact is standing
-  right there), and readiness/rewards reuse the SAME central authorities as every other path (#119).
-  Content integrity validates condition references (tests/quest_copy_test.ts).
+  vocabulary (engine/story.ts): bundles are TRANSACTIONAL (#129) — validation and application are
+  the SAME ordered run against a draft clone of the player (`validateStoryBundle` discards the
+  draft, `applyStoryEffects` commits it once), so every effect's preconditions see the projected
+  result of all earlier effects (grant → remove nets to zero; an impossible cumulative removal
+  refuses the whole bundle) and any refusal leaves the live player byte-for-byte unchanged with no
+  receipt recorded. Mutating helpers (`removeItem`, `acceptQuest`, `turnInQuest`) report failure,
+  and a failure refuses the bundle — never silently ignored. Terminal quest outcomes are monotonic:
+  a resolved/completed quest never becomes locked/failed, a locked/failed quest never starts or
+  resolves, and one terminal kind never overwrites another. Every quest start shares ONE
+  objective-reconciliation policy — `beginQuest` in engine/quests.ts, the same core `acceptQuest`
+  uses (ever-visited reach targets reconcile identically). `startQuest` honors the #63/#64 on-site
+  starter authority (a dialogue can only start a quest whose own contact is standing right there),
+  and readiness/rewards reuse the SAME central authorities as every other path (#119). Content
+  integrity validates condition references (tests/quest_copy_test.ts).
 - **Endgame economy:** postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing;
   safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests) — free travel

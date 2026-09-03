@@ -36,6 +36,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     decisions: {},
     storyEvents: [],
     questOutcomes: {},
+    storyReceipts: [],
     skills: skillsForClass(classId, 1).map((sk) => sk.id),
     scene: { view: 'zone' },
     notices: [],
@@ -97,8 +98,9 @@ export function clampPools(p: PlayerState): void {
 /** Current save-schema version. Pre-launch this is the ONLY supported shape:
  * bump it when the persisted PlayerState shape changes; older dev saves are
  * retired, not migrated. After launch, bump it per explicit migration step.
- * v9 (#125): decisions ledger, story events, and permanent quest outcomes. */
-export const CURRENT_STATE_VERSION = 9;
+ * v9 (#125): decisions ledger, story events, and permanent quest outcomes.
+ * v10 (#129): one-shot story-application receipts (storyReceipts). */
+export const CURRENT_STATE_VERSION = 10;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */

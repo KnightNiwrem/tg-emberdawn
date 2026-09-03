@@ -281,6 +281,13 @@ export interface PlayerState {
   storyEvents: string[];
   /** Permanent quest resolutions (#125): outcomes, failures, lockouts. */
   questOutcomes: Record<string, QuestOutcome>;
+  /** One-shot story-application receipts (#129): every committed story
+   * bundle records its stable application identity here —
+   * `choice:<dialogue>:<node>:<choice>` for dialogue choices,
+   * `line:<dialogue>:<node>` for line-entry effects. Replaying a receipted
+   * application is a complete no-op, so callback/save retries can never
+   * duplicate items, rewards, events, quest starts, locks or notices. */
+  storyReceipts: string[];
   skills: string[];
   scene: SceneState;
   battle?: BattleState;
