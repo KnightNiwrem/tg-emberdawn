@@ -22,9 +22,11 @@ Deployment, playtesting, database contents, tags, and `stateVersion` numbers do 
 - Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
   shims — but every ID referenced by current code and content must resolve.
 - Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
-  fallback state for one. Every gameplay load runs the central identity gate
+  fallback state for one. Every gameplay load runs the current persisted-identity checks
   (`assertResolvablePersistedIds` in `src/engine/validate.ts`) after the version gate and before any
-  mutation or render; a same-version save with dangling IDs is refused with a pointer to /reset.
+  mutation or render. A detected unresolved ID is refused with a pointer to /reset — never repaired
+  or substituted. The checks cover the identity locations listed in `src/engine/validate.ts`; they
+  are not an exhaustive runtime schema validator.
 - Public launch is an explicit decision only; never infer it from a deployment or version tag.
 
 For an explicit launch decision or post-launch compatibility policy, load the `emberdawn-release`
@@ -42,9 +44,11 @@ These apply to every change:
    parallel mutation of the same fight. Async I/O belongs only at the Telegram/database boundary.
    Pinned by `tests/architecture_test.ts`.
 3. **Single live message.** Each player has exactly one live game message. Every view change edits
-   it in place via `commit()` in `src/handlers/session.ts`; on edit failure it resends and
-   re-points. Never send extra button-bearing messages during normal play (the class picker and the
-   post-reset picker are the only exceptions).
+   it in place via `commit()` in `src/handlers/session.ts`; `commit()` resends and re-points only
+   when Telegram reports the tracked message is missing or no longer editable — other edit failures
+   surface, and "message is not modified" succeeds without advancing the rendered revision. Never
+   send extra button-bearing messages during normal play (the class picker and the post-reset picker
+   are the only exceptions).
 4. **Staleness and revision guard.** Every committed render stamps its buttons with the player's
    `uiRev`; the router rejects stale messages and revision mismatches BEFORE any mutation, so
    replays and double-taps are no-ops. Do not weaken this into "always process".

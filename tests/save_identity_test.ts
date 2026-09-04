@@ -7,8 +7,10 @@
  *
  * These tests pin the central boundary (src/engine/validate.ts):
  *
- *  - every persisted identity family is validated (zones, items, skills,
- *    quests, flags, receipts, decisions, story events, scene args, battle);
+ *  - the persisted identity locations listed in src/engine/validate.ts are
+ *    checked (zones, items, skills, quests, flags, receipts, decisions,
+ *    story events, scene args, battle) — a targeted list of high-risk
+ *    locations, not an exhaustive runtime schema validation;
  *  - a fully valid current save passes untouched (byte-for-byte);
  *  - validation runs after the version gate and BEFORE mutation or render;
  *  - refusal leaves the stored JSON unchanged and points at /reset;

@@ -15,8 +15,10 @@ Authoritative code and tests: `src/handlers/session.ts`, `src/handlers/callbacks
 ## One live message per player
 
 - Each player has exactly one live game message (`p.messageId`). Every view change edits that
-  message in place through `commit()` in `src/handlers/session.ts`. If the edit fails, `commit()`
-  resends the message and re-points `p.messageId` at the new copy.
+  message in place through `commit()` in `src/handlers/session.ts`. `commit()` resends and re-points
+  `p.messageId` only when Telegram reports the tracked message is missing or no longer editable (the
+  `RESENDABLE` list). Other edit failures — including rate limits and oversized messages — surface
+  instead of resending. "Message is not modified" succeeds without advancing the rendered revision.
 - Never send extra button-bearing messages during normal play. The only exceptions are the class
   picker and the post-reset picker, which render before a player exists.
 - Backing out of an interaction or traveling resets the scene and bumps `uiRev`.

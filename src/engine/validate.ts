@@ -11,8 +11,11 @@
  * gameplay mutation or render. It never repairs, relocates, or substitutes:
  * an unresolved identity is reported, and the save is refused.
  *
- * The persisted identity families covered here (the authoritative
- * enumeration — extend it when a new ID-bearing field is added):
+ * The persisted identity locations covered here (the high-risk ones; extend
+ * the list when a new ID-bearing field is added). This module is not an
+ * exhaustive runtime schema validator — post-launch compatibility is
+ * enforced by the durable-ID policy, which requires every ID that can occur
+ * in supported live saves to stay resolvable:
  *
  *  - currentZone and every unlockedZones entry;
  *  - inventory and equipment item ids;
@@ -276,9 +279,10 @@ function validateScene(scene: SceneState, bad: Report): void {
 }
 
 /** Pure, non-mutating persisted-identity check (#141): returns every
- * unresolved content identity in the save. An empty result means the save's
- * identities all resolve against the CURRENT content catalog. Never repairs,
- * relocates, or substitutes — detection only. */
+ * unresolved content identity it finds among the locations listed in the
+ * module doc. An empty result means those identities all resolve against the
+ * CURRENT content catalog. Never repairs, relocates, or substitutes —
+ * detection only. */
 export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[] {
   const problems: SaveIdentityProblem[] = [];
   const bad: Report = (family, id, detail) => problems.push({ family, id, detail });
