@@ -82,6 +82,14 @@ function tagName(tag: string): string {
   }
 }
 
+/** Scope phrase and agreeing noun for cleanse/dispel rules text (#134):
+ * a cap of 1 is singular ("up to 1 … effect"); "all removable" (and any
+ * plural cap) takes "effects". */
+function cleanseScope(max: number | undefined): { scope: string; noun: string } {
+  if (max === undefined) return { scope: 'all removable ', noun: 'effects' };
+  return { scope: `up to ${max} `, noun: max === 1 ? 'effect' : 'effects' };
+}
+
 function tagList(tags: readonly string[]): string {
   return tags.map(tagName).join(' or ');
 }
@@ -230,15 +238,15 @@ export function mechanicsLines(specs: readonly EffectSpec[], opts?: MechOpts): s
         break;
       }
       case 'cleanse': {
-        const scope = spec.max !== undefined ? `up to ${spec.max} ` : 'all removable ';
-        lines.push(chance + `Removes ${scope}${tagList(spec.tags)} effects.`);
+        const s = cleanseScope(spec.max);
+        lines.push(chance + `Removes ${s.scope}${tagList(spec.tags)} ${s.noun}.`);
         break;
       }
       case 'dispel': {
-        const scope = spec.max !== undefined ? `up to ${spec.max} ` : 'all removable ';
+        const s = cleanseScope(spec.max);
         lines.push(
           chance +
-            `Removes ${scope}${tagList(spec.tags)} effects from ${
+            `Removes ${s.scope}${tagList(spec.tags)} ${s.noun} from ${
               spec.target === 'opponent' ? voices.opponent.obj : voices.self.obj
             }.`,
         );

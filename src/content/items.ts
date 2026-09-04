@@ -38,7 +38,7 @@ const WEAPONS: Record<ClassId, TierNames> = {
     desc: "A warrior's answer to most questions.",
     descByTier: {
       4: "A knight's blade, kept the way oaths are kept.",
-      5: 'Forged the night the Hollow burned clean. It remembers.',
+      5: 'Forged the night the Hollow burned clean, from the heat that cleanup left behind.',
       6: 'Sunspire work: balance like a held breath, edge like noon.',
       7: 'It does not chill the hand. It waits instead.',
       8: 'Made to finish a king. Nothing else fits the grip now.',
@@ -129,9 +129,9 @@ const ARMORS: Record<ClassId, TierNames> = {
     descByTier: {
       4: 'Plate the way knights meant it: boring to fight against.',
       5: "Tempered in the Hollow's own heat. It came out stubborn.",
-      6: 'Sunspire alloy. Dents take days and apologies to form.',
+      6: 'Sunspire alloy: dents take days and apologies to form.',
       7: 'Frost-set plates that shed both blades and weather.',
-      8: 'The last wall. On purpose.',
+      8: 'Built to be the last wall between its bearer and the end — and, so far, it has been.',
     },
   },
   mage: {

@@ -76,7 +76,7 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_lyra',
         name: 'Healer Lyra',
-        greeting: 'Drink, rest, mend. The Flame keeps its own — I just handle the paperwork.',
+        greeting: 'Drink, rest, mend. The Flame keeps its own — I just keep them walking.',
         topics: [{
           id: 'lyra_work',
           label: 'Ask about her work',
@@ -562,7 +562,7 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_archivist',
         name: 'The Archivist',
         greeting:
-          'I record what the flame remembers. It remembers you, a little. Keep making it worth remembering.',
+          'I keep the record of deeds done and dawns owed. Yours has grown into one of the longer entries. Keep it that way.',
         topics: [{
           id: 'archivist_record',
           label: 'Ask about the record',

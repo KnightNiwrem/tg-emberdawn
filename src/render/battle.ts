@@ -60,7 +60,12 @@ function describeMagnitude(i: EffectInstance): string {
     case 'periodic': {
       const per = i.perRound ?? Math.round((i.pctOfMaxPerRound ?? 0) * 100);
       const unit = i.pctOfMaxPerRound !== undefined ? '% HP/round' : ' HP/round';
-      return `${per >= 0 ? '+' : '−'}${Math.abs(per)}${unit}`;
+      // Generated mechanical disclosure (#134): a Shield-bypassing DoT
+      // states so in the row, from the instance's own data — never from
+      // authored narration.
+      return `${per >= 0 ? '+' : '−'}${Math.abs(per)}${unit}${
+        i.bypassShield ? ', ignores Shield' : ''
+      }`;
     }
     case 'shield':
       return `${i.shieldAmount ?? 0} absorb`;

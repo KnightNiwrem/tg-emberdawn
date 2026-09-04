@@ -30,6 +30,7 @@ import { enemy } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { consumableEffectLines } from '../src/engine/mechanics.ts';
 import { chooseAction, POLICIES } from '../src/engine/balance.ts';
+import { renderBattle } from '../src/render/battle.ts';
 import { injectMod, seeded } from './helpers.ts';
 import type { EffectSpec, EffectTag, StatKey } from '../src/content/types.ts';
 
@@ -129,7 +130,7 @@ Deno.test('#83: Burn routes through the ward like ordinary damage', () => {
     p.hp = 99999; // #86: a lethal hit stops its riders — survive to watch the burn land
     const b = fight('e_cinderhound', p, t);
     const res = round(p, b, t);
-    if (res.lines.some((l) => l.includes('Burning — 8 damage/round'))) {
+    if (res.lines.some((l) => l.includes('Burning'))) {
       s = t;
       break;
     }
@@ -798,4 +799,56 @@ Deno.test('#92: enemy AI refills a broken ward, skips a near-full one, recasts a
 Deno.test('#92: Cleansing Tonic copy matches its real cleanse', () => {
   const d = consumableEffectLines(item('c_antidote')!.effect!).join(' ');
   assert(d.includes('harmful'), 'the copy covers every removable harmful effect, not just sap');
+});
+
+Deno.test('#134: generic shield-break output uses the canonical term', () => {
+  // Generic factual system output states one canonical rendering —
+  // "Your Shield breaks." — not authored variants.
+  let s = -1;
+  let lines: string[] = [];
+  for (let t = 1; t <= 160; t++) {
+    const p = hero(600 + t, 'warrior', 6);
+    const b = fight('e_spider', p, t);
+    grantShield(b, 'player', wardOf(1)); // any strike drains it to zero
+    const res = round(p, b, t);
+    if (res.lines.some((l) => l.includes('Shield breaks'))) {
+      s = t;
+      lines = res.lines;
+      break;
+    }
+  }
+  assert(s > 0, 'a shield-breaking strike exists');
+  assert(
+    lines.some((l) => l.includes('🛡️ Your Shield breaks!')),
+    `canonical player-side copy: ${lines.filter((l) => l.includes('🛡️'))}`,
+  );
+  assert(
+    !lines.some((l) => l.toLowerCase().includes('shatters')),
+    'the retired "shatters" copy is gone',
+  );
+});
+
+Deno.test('#134: the battle row states a DoT\u2019s Shield bypass in generated copy', () => {
+  const p = hero(601, 'warrior', 6);
+  const b = fight('e_spider', p, 3);
+  applyInstance(b, {
+    defId: 'test_venom',
+    name: 'Poison',
+    kind: 'periodic',
+    side: 'player',
+    source: { kind: 'enemyMove', id: 'e_spider', name: 'Venom Bite' },
+    perRound: -4,
+    duration: 3,
+    tickPhase: 'roundEnd',
+    timing: 'immediate',
+    tags: ['poison', 'harmful'],
+    bypassShield: true,
+    stacking: 'replace',
+    removable: true,
+  });
+  const rendered = JSON.stringify(renderBattle(p));
+  assert(
+    rendered.includes('−4 HP/round, ignores Shield'),
+    'the row derives the bypass from the instance data',
+  );
 });

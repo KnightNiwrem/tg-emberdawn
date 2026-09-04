@@ -63,10 +63,10 @@ and must stay green.
 
 The bridge to Aranya is authored, not an unexplained grind: m1_embers (4× Lv-1 ember-rats in the
 Outskirts) → m2_letter (delivery) → m3_wolves (3× Lv-4 wolves, Whisperwood) → m4_floors
-(silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: iron chunks + coin; the village band
-runs [1,7] so Bram's rack stocks tier 2) → m3_roots (Aranya, level 7) → m4_blessing (shards, level
-8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; see `emberdawn-combat` for how it
-is surfaced.
+(silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: two Iron Chunks, no coin cost; the
+village band runs [1,7] so Bram's rack stocks tier 2) → m3_roots (Aranya, level 7) → m4_blessing
+(shards, level 8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; see
+`emberdawn-combat` for how it is surfaced.
 
 ## Skill cadence
 

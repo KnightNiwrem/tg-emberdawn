@@ -76,7 +76,9 @@ const POISON = (perRound: number, turns = 3): EffectSpec => ({
   name: 'Poison',
   tags: ['poison', 'harmful'],
   bypassShield: true,
-  line: `☠️ The venom bites in — Poison (${perRound} damage/round, ignores Shields)!`,
+  // Pure battle narration (#134): the mechanical facts (damage, timing,
+  // Shield bypass) live in the effect spec and the generated battle rows.
+  line: '☠️ The venom bites in — Poison!',
 });
 
 const SLOW = (pct = 0.25, turns = 2, name = 'Slowed', flavor?: string): EffectSpec => ({
@@ -88,7 +90,7 @@ const SLOW = (pct = 0.25, turns = 2, name = 'Slowed', flavor?: string): EffectSp
   timing: 'immediate',
   name,
   tags: ['slow', 'harmful'],
-  line: flavor ?? `🐌 ${name} — SPD −${Math.round(pct * 100)}% for ${turns} rounds!`,
+  line: flavor ?? `🐌 ${name}!`,
 });
 
 const BURN = (perRound: number, turns = 3): EffectSpec => ({
@@ -99,7 +101,7 @@ const BURN = (perRound: number, turns = 3): EffectSpec => ({
   tickPhase: 'roundEnd',
   name: 'Burn',
   tags: ['burn', 'harmful'],
-  line: `🔥 Burning — ${perRound} damage/round for ${turns} rounds!`,
+  line: '🔥 The flesh blisters — Burning!',
 });
 
 const WARD_BREAK = (pct = 0.25, turns = 2): EffectSpec => ({
@@ -111,7 +113,7 @@ const WARD_BREAK = (pct = 0.25, turns = 2): EffectSpec => ({
   timing: 'immediate',
   name: 'Ward Break',
   tags: ['ward-break', 'harmful'],
-  line: `💔 Ward Break — RES −${Math.round(pct * 100)}% for ${turns} rounds!`,
+  line: '💔 The ward cracks — Ward Break!',
 });
 
 const BITE = (n = 'Bite'): EnemyMove => hit(n, 1.0, 'phys', 3);
@@ -499,7 +501,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         duration: 2,
         timing: 'immediate',
         name: 'Chrono Anchor',
-        line: '⏳ The wisp anchors you outside time — SPD −20% for 2 rounds.',
+        line: '⏳ The wisp anchors you outside time.',
         tags: ['slow'],
       }],
     },

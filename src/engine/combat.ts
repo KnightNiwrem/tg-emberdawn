@@ -1048,7 +1048,7 @@ function applyPeriodicTick(
     lines.push(
       `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
     );
-    if (broke) lines.push('🛡️ Your shield shatters!');
+    if (broke) lines.push('🛡️ Your Shield breaks!');
     resolvePlayerHpLoss(p, battle, rng, {
       resolved: hpDmg,
       hpLost: hpBefore - p.hp,
@@ -1094,7 +1094,7 @@ function applyPeriodicTick(
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
       }`,
     );
-    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
+    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s Shield breaks!`);
     if (wouldFell && floor === 1) {
       lines.push(
         `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
@@ -1597,7 +1597,7 @@ function applyDamageEffect(
       ? `${ctx.displayName} ${verb} ${battle.enemy.name} for ${hpDmg}${critSuffix}!`
       : `💥 ${battle.enemy.name} turns ${ctx.displayName} on itself — ${hpDmg} damage!`;
     lines.push(absorbed > 0 ? `${body} (🛡️ ${absorbed} absorbed)` : body);
-    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s shield shatters!`);
+    if (broke) lines.push(`🛡️ ${battle.enemy.name}'s Shield breaks!`);
     if (wouldFell && floor === 1) {
       lines.push(
         `🕯️ ${battle.enemy.name} staggers but holds on — this fight isn't finished teaching.`,
@@ -1623,7 +1623,7 @@ function applyDamageEffect(
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
       }`,
   );
-  if (broke) lines.push('🛡️ Your shield shatters!');
+  if (broke) lines.push('🛡️ Your Shield breaks!');
   // #104: the direct family runs the ONE shared player-targeted HP-loss
   // transition. #97: the authoritative HP-loss event dispatches the
   // wearer's triggers SYNCHRONOUSLY, once per actual HP loss — a two-hit

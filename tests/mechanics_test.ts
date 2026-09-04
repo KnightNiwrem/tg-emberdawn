@@ -195,13 +195,18 @@ Deno.test('mechanics: cleanse and dispel use the canonical effect categories', (
     txt([{ kind: 'cleanse', tags: ['harmful'] }]),
     'Removes all removable harmful effects.',
   );
+  // Singular agreement (#134): a cap of 1 takes the singular noun.
   assertEquals(
     txt([{ kind: 'cleanse', tags: ['harmful'], max: 1 }]),
-    'Removes up to 1 harmful effects.',
+    'Removes up to 1 harmful effect.',
+  );
+  assertEquals(
+    txt([{ kind: 'cleanse', tags: ['harmful'], max: 3 }]),
+    'Removes up to 3 harmful effects.',
   );
   assertEquals(
     txt([{ kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 }]),
-    'Removes up to 1 beneficial effects from the target.',
+    'Removes up to 1 beneficial effect from the target.',
   );
   assertEquals(
     mechanicsText([{ kind: 'dispel', target: 'opponent', tags: ['beneficial'] }], {
