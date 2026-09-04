@@ -13,9 +13,12 @@ model, or AI detector backs it — the machine-checkable facts stay in the test 
   the requirement is a deliberate review against the guide, with traceable scope and dispositions,
   not a particular species of reviewer. An authorized AI implementor/reviewer exercises editorial
   judgment and signs this record; honest provenance is kept rather than relabeled.
-- **Reviewed state:** commit `4bd86be` — the post-#133 dialogue structure, with the #147 Ferryman
-  parent/aftermath rework and the #148 m5_arms staging rework applied. No authored prose has landed
-  since (the #150/#152 work touches engine validation and governance documentation only).
+- **Reviewed state:** full corpus at commit `4bd86be` — the post-#133 dialogue structure, with the
+  #147 Ferryman parent/aftermath rework and the #148 m5_arms staging rework applied — plus a focused
+  Category 4 re-review of the #153 authored battle-narration diff (`4bd86be..cb10ff1`, signed
+  2026-09-04 by the Kilo agent session; recorded in Category 4 below). Categories 1–3, 5, and 6 have
+  no authored-prose changes since `4bd86be` (the #150/#152 work touches engine validation and
+  governance documentation only).
 - **Disposition:** **COMPLETE.** All six categories below are judged with per-category dispositions;
   the sign-off checklist at the bottom is filled from that evidence. Independent review — by another
   AI agent or a human contributor — is OPTIONAL: useful, but not a hidden launch requirement unless
@@ -45,7 +48,9 @@ re-review follows the same procedure — it is role-neutral by design (#152).
 ## Inventory and disposition
 
 Reviewer for all categories: Claude (AI agent session), an authorized AI reviewer per #152. Date:
-2026-09-04, against commit `4bd86be`.
+2026-09-04, against commit `4bd86be`. Category 4 supplemental re-review (the #153 authored-line
+diff): Kilo (AI agent session), also an authorized AI reviewer per #152. Date: 2026-09-04, against
+the `4bd86be..cb10ff1` diff range.
 
 ### 1. Quest summaries and dialogue
 
@@ -113,6 +118,15 @@ not authored prose.
   narration is qualitative, `{n}` reports only resolver-supplied values, and a narrowly scoped
   integrity check (`tests/battle_lines_test.ts`) rejects duplicated mechanical numbers. The exact
   figures surface once through the generated summaries and live effect rows.
+- **Supplemental re-review (Kilo, AI agent session, 2026-09-04, `4bd86be..cb10ff1`):** the #153
+  rewrites of authored `EffectSpec.line` prose in `src/content/enemies.ts` (enemy move lines),
+  `src/content/items.ts` (equipment-trigger lines), and `src/content/skills.ts` (skill lines) were
+  read as a diff against the guide. The replacement lines are qualitative and in-world ("🕸️ The
+  webbing binds your legs — Webbed!", "⏳ Sand falls upward — the foe is Slowed."), keep the
+  canonical status names, carry no copied amounts or durations, and use `{n}` only where the value
+  is resolver-supplied (the Wardstone ward absorb, Bloodsurge's healed HP). Binding figures now
+  surface once through the generated summaries and live effect rows. Disposition: **retained** — the
+  fix holds the flavor/rules boundary (guide §4); no new prose defects found.
 
 ### 5. Item and skill names/flavor
 
@@ -151,23 +165,29 @@ handler toasts in `src/handlers/`.
 - `e72ade6` / #134: mechanical-copy determinism + targeted NPC/weapon/armor corrections.
 - `c5247f6` / #147: new pledge-parent quest copy and reworked Ferryman pledge/aftermath prose.
 - `4bd86be` / #148: m5_arms offer/turn-in re-staging.
+- `cb10ff1` / #153: qualitative battle-narration rewrites (enemy move lines, equipment-trigger
+  lines, skill lines); duplicated numeric mechanics removed and re-reviewed in Category 4 above.
 
-All four carry render/flow tests for their machine-checkable facts; none introduced a lexical
+All five carry render/flow tests for their machine-checkable facts; none introduced a lexical
 acceptance gate.
 
 ## Editorial sign-off (completed #152)
 
 Signed by the authorized AI implementor/reviewer per the owner clarification in #152 (Emberdawn is
-AI-owned end to end). Provenance is recorded honestly: the reviewer is the Claude agent session
-named above — no human participation is implied or invented. Independent review by another agent or
-a human remains optional.
+AI-owned end to end). Provenance is recorded honestly: the full-corpus reviewer is the Claude agent
+session named above; the #153 supplemental Category 4 re-review was signed by the Kilo agent session
+recorded in Category 4. No human participation is implied or invented. Independent review by another
+agent or a human remains optional.
 
-- [x] Reviewer: Claude (AI agent session), authorized editorial reviewer (#152)
-- [x] Review date and commit SHA: 2026-09-04, `4bd86be`
+- [x] Reviewer: Claude (AI agent session), authorized editorial reviewer (#152); #153 supplemental
+      re-review by the Kilo agent session, also authorized (#152)
+- [x] Review date and commit SHA: 2026-09-04, `4bd86be`; Category 4 supplement 2026-09-04,
+      `4bd86be..cb10ff1`
 - [x] Category 1 — quest summaries/dialogue: retained (#147 prose reviewed against the voice sheet)
 - [x] Category 2 — NPC greetings/topics/recurring dialogue: retained (quoting asymmetry decided)
 - [x] Category 3 — world/exploration/dungeon narration: retained
-- [x] Category 4 — enemy and battle narration: retained; duplicated-numbers defect filed as #153
+- [x] Category 4 — enemy and battle narration: retained; duplicated-numbers defect fixed and
+      reviewed under #153 (supplemental diff review above)
 - [x] Category 5 — item and skill flavor (creatively unrestricted): intentionally retained
 - [x] Category 6 — UI/system/error copy: retained
 - [x] Recurring NPC voice sheets checked against their shipped corpus
