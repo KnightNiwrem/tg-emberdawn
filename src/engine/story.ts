@@ -33,15 +33,21 @@
  * resolve, and one terminal kind never overwrites another.
  *
  * Quest lifecycle output is reconciled in a fixed priority (#145) before
- * anything player-facing is formatted: silent availability promotion;
- * explicit exclusion (lock/fail), which cancels an already-STARTED quest
- * with exactly one canonical notice — and closes an unaccepted quest
- * silently; objective progress for surviving active quests; then final
- * readiness. Helpers report readiness as structured ids, never sentences,
- * so "ready to turn in" is a final derived conclusion. A bundle that
- * starts/accepts AND locks/fails the same quest is contradictory content
- * and refuses atomically (in either order); starting route A while locking
- * a DIFFERENT route B stays valid.
+ * anything player-facing is formatted. This priority governs what the
+ * RESULT may claim — it is NOT a pipeline of execution phases: effects
+ * still run in authored order against the draft, and the single
+ * active→turnIn authority (#119) still flips a quest the moment a causal
+ * effect completes it (a later turnInQuest in the same bundle depends on
+ * seeing that projected readiness). The reconciliation guarantees:
+ * availability promotion is silent; explicit exclusion (lock/fail) beats
+ * readiness — it cancels an already-STARTED quest with exactly one
+ * canonical notice, closes an unaccepted quest silently, and clears stale
+ * progress; readiness is announced only for quests still turnIn in the
+ * final draft. Helpers report readiness as structured ids, never
+ * sentences, so "ready to turn in" is a final derived conclusion. A bundle
+ * that starts/accepts AND locks/fails the same quest is contradictory
+ * content and refuses atomically (in either order); starting route A while
+ * locking a DIFFERENT route B stays valid.
  *
  * Story effects never bypass the physical-contact authority (#63/#64):
  * startQuest/acceptQuest/turnInQuest only ever act on a quest whose

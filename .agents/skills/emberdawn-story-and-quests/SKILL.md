@@ -124,14 +124,19 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   returned `StoryResult` describes the final committed draft: `readyQuests` is deduplicated and
   reconciled to quests still `turnIn` at commit, while `startedQuests` is a transition log (a later
   effect may have locked or resolved a listed quest — read `p.quests` for final state).
-- Lifecycle reconciliation priority (#145): silent availability promotion; then explicit exclusion
-  (lock/fail), which cancels an already-STARTED quest (active/turnIn at transaction entry) with
-  exactly one canonical `questCancelledLine` notice, clears its stale progress, and closes an
-  unaccepted quest silently; then objective progress for surviving active quests; then final
-  readiness. `acceptQuest`/`turnInQuest` report readiness as structured ids (`ready`), never
-  sentences — "ready to turn in" is formatted only from the reconciled result. A bundle that
-  starts/accepts AND locks/fails the same quest refuses atomically as contradictory content (in
-  either order); starting route A while locking a different route B stays valid.
+- Lifecycle reconciliation priority (#145): this is a RESULT-reconciliation priority, not a pipeline
+  of execution phases. Effects still run in authored order against the draft (#129), and the single
+  `active → turnIn` authority (`refreshProgress`, #119) still flips quests the moment a causal
+  effect completes them — a later `turnInQuest` in the same bundle depends on seeing that projected
+  readiness. What the priority governs is what the COMMITTED RESULT may claim: exclusion beats
+  readiness (an explicit lock/fail of an already-STARTED quest — active/turnIn at transaction entry
+  — cancels it with exactly one canonical `questCancelledLine` notice and clears its stale progress;
+  an unaccepted quest closes silently), availability promotion is silent, and readiness is announced
+  only for quests still `turnIn` in the final draft. `acceptQuest`/`turnInQuest` report readiness as
+  structured ids (`ready`), never sentences — "ready to turn in" is formatted only from the
+  reconciled result. A bundle that starts/accepts AND locks/fails the same quest refuses atomically
+  as contradictory content (in either order); starting route A while locking a different route B
+  stays valid.
 - Mutating helpers (`removeItem`, `acceptQuest`, `turnInQuest`) report failure, and a failure
   refuses the bundle — never silently ignored.
 
