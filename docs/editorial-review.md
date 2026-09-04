@@ -106,8 +106,9 @@ not authored prose.
 ### 4. Enemy and battle narration
 
 **Files:** `src/content/enemies.ts` (56 enemies: names, emoji, `desc`, move names, authored effect
-`line`s, opening lines), plus authored `spec.line` battle narration on equipment triggers in
-`src/content/items.ts`.
+`line`s, opening lines), authored `spec.line` battle narration on equipment triggers in
+`src/content/items.ts`, and authored skill `EffectSpec.line` battle narration in
+`src/content/skills.ts`.
 
 **Disposition: retained, with the one recorded defect fixed (#153).**
 
@@ -124,9 +125,9 @@ not authored prose.
   read as a diff against the guide. The replacement lines are qualitative and in-world ("🕸️ The
   webbing binds your legs — Webbed!", "⏳ Sand falls upward — the foe is Slowed."), keep the
   canonical status names, carry no copied amounts or durations, and use `{n}` only where the value
-  is resolver-supplied (the Wardstone ward absorb, Bloodsurge's healed HP). Binding figures now
-  surface once through the generated summaries and live effect rows. Disposition: **retained** — the
-  fix holds the flavor/rules boundary (guide §4); no new prose defects found.
+  is resolver-supplied (the Wardstone ward absorb, Adrenaline Surge's healed HP). Binding figures
+  now surface once through the generated summaries and live effect rows. Disposition: **retained** —
+  the fix holds the flavor/rules boundary (guide §4); no new prose defects found.
 
 ### 5. Item and skill names/flavor
 
