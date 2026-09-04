@@ -22,7 +22,7 @@ import type { StoryContext } from '../src/engine/story.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
-import { fakeCtx } from './helpers.ts';
+import { fakeCtx, namedOutcome } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 const FERRY = 'npc_ferryman';
@@ -248,7 +248,7 @@ Deno.test('branch: keeping the light resolves the named outcome and forgoes the 
   applyStoryEffects(p, [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }], ctx);
   assertEquals(p.quests['sq_shrine_pact']?.status, 'done');
   assertEquals(p.questOutcomes['sq_shrine_pact']?.kind, 'resolved');
-  assertEquals(p.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  assertEquals(namedOutcome(p.questOutcomes['sq_shrine_pact']), 'kept');
   assertEquals(p.gold, gold, 'no reward — the light was kept, not given');
   // The named outcome is queryable and composes through all/any/not (#132).
   assert(evalCondition(p, {

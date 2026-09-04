@@ -121,18 +121,24 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   only `resolveQuest` persists a named outcome, and the RUNTIME refuses any named resolution the
   target quest does not declare (#146): a quest with no `outcomes` list accepts no named resolution
   at all, a value outside the list is refused, and the persisted-identity gate refuses a
-  same-version save whose resolved record names an outcome the quest does not declare. The shipped
-  exemplar is the Ferryman's shrine-pledge branch (#147): a pledge PARENT quest (`sq_shrine_pledge`)
-  is accepted from the Ferryman BEFORE the pledge exists, and the committing responses in
-  `dlg_ferry_promise` (each gated on that parent being active) record distinct decisions, emit the
-  same shared event — advancing the already-active parent objective — start one route quest
-  (`sq_shrine_pact`/`sq_ledger_debt`), and lock the other. Route quests never carry a retroactively
-  filled duplicate objective to stand in for parent progress. `beginQuest` still credits an
-  already-fired story event to a starting quest's storyEvent objective (the reach ever-visited
-  policy's counterpart) for any content that relies on it.
+  same-version save whose resolved record names an outcome the quest does not declare. A named
+  outcome exists ONLY on a `resolved` record (#150): failed/locked records never carry one, a save
+  that does is refused, and an outcome condition matches resolved records even when it omits `kind`.
+  The shipped exemplar is the Ferryman's shrine-pledge branch (#147): a pledge PARENT quest
+  (`sq_shrine_pledge`) is accepted from the Ferryman BEFORE the pledge exists, and the committing
+  responses in `dlg_ferry_promise` (each gated on that parent being active) record distinct
+  decisions, emit the same shared event — advancing the already-active parent objective — start one
+  route quest (`sq_shrine_pact`/`sq_ledger_debt`), and lock the other. Route quests never carry a
+  retroactively filled duplicate objective to stand in for parent progress. `beginQuest` still
+  credits an already-fired story event to a starting quest's storyEvent objective (the reach
+  ever-visited policy's counterpart) for any content that relies on it.
 - Irreversible choices are recorded in `p.decisions` with choice and provenance — never reduced to
-  unexplained booleans. A locked or failed quest (`p.questOutcomes`, `questExcluded`) is never
-  resurrected by `syncAvailability`.
+  unexplained booleans. Provenance is validated EXACTLY (#150): the persisted-identity gate accepts
+  a decision only when its `(dialogue, node, choice)` tuple is one that authored a matching
+  `recordDecision` for that id — individually resolvable components are not enough — and
+  `recordDecision` is authored only on choice nodes (content integrity rejects line-node
+  authorship). A locked or failed quest (`p.questOutcomes`, `questExcluded`) is never resurrected by
+  `syncAvailability`.
 - Terminal quest outcomes are monotonic: a resolved/completed quest never becomes locked/failed, a
   locked/failed quest never starts or resolves, and one terminal kind never overwrites another.
 - Story consequences use the bounded `StoryEffect` vocabulary (`src/engine/story.ts`). Bundles are

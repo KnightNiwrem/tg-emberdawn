@@ -21,10 +21,12 @@
  *  - inventory and equipment item ids;
  *  - learned skill ids;
  *  - quest map keys and questOutcomes entries (a resolved record's named
- *    outcome must resolve against that quest's outcomes declaration, #146);
+ *    outcome must resolve against that quest's outcomes declaration, #146,
+ *    and only a resolved record may carry one at all, #150);
  *  - ID-bearing flags (`forge_i_<itemId>`);
  *  - storyReceipts (`choice:<dlg>:<node>:<choice>` / `line:<dlg>:<node>`);
- *  - decisions (authored decision id + dialogue/node/choice provenance);
+ *  - decisions (authored decision id plus the EXACT dialogue/node/choice
+ *    tuple an authored recordDecision effect can produce, #150);
  *  - storyEvents (must be an event current content emits or consumes);
  *  - the scene: view id, plus identity-bearing args (item, quest, NPC,
  *    topic, dialogue, node, staged confirmation choice, equip slot);
@@ -95,10 +97,29 @@ const STORY_EVENT_NAMES: ReadonlySet<string> = new Set([
   ...DIALOGUE_EFFECTS.flatMap((e) => (e.kind === 'storyEvent' ? [e.event] : [])),
 ]);
 
-/** Authored decision ids (recordDecision effects in dialogue content). */
-const DECISION_IDS: ReadonlySet<string> = new Set(
-  DIALOGUE_EFFECTS.flatMap((e) => (e.kind === 'recordDecision' ? [e.id] : [])),
-);
+/** Authored decision provenance (#150): decision id -> the exact
+ * `(dialogueId:nodeId:choiceId)` tuples whose authored recordDecision effect
+ * can persist it. Only choice-node effects are sources: a recordDecision on
+ * a line node is rejected by content integrity, so a persisted decision is
+ * legitimate only when THIS exact tuple authored it — each component id
+ * resolving independently is not enough. */
+const DECISION_PROVENANCE: ReadonlyMap<string, ReadonlySet<string>> = (() => {
+  const map = new Map<string, Set<string>>();
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind !== 'choice') continue;
+      for (const c of n.choices) {
+        for (const e of c.effects ?? []) {
+          if (e.kind !== 'recordDecision') continue;
+          const tuples = map.get(e.id) ?? new Set<string>();
+          tuples.add(`${d.id}:${n.id}:${c.id}`);
+          map.set(e.id, tuples);
+        }
+      }
+    }
+  }
+  return map;
+})();
 
 /** Compile-time-exhaustive view set: adding a ViewId obliges an entry. */
 const KNOWN_VIEWS: Record<ViewId, true> = {
@@ -309,19 +330,24 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
       bad('questOutcomes', id, 'unknown quest id');
       continue;
     }
-    // A named resolved outcome (#132) is declared content identity: a saved
-    // value the quest does not declare — a typo, an undeclared quest, or a
-    // cross-quest value — is recognizable by no authored condition. It is
-    // reported, never repaired or substituted (#146).
-    if (
-      o.kind === 'resolved' &&
-      (o.outcome === undefined || !quest(id)!.outcomes?.includes(o.outcome))
-    ) {
-      bad(
-        'questOutcomes',
-        o.outcome ?? id,
-        `${id} does not declare resolved outcome "${o.outcome ?? ''}"`,
-      );
+    if (o.kind === 'resolved') {
+      // A named resolved outcome (#132) is declared content identity: a saved
+      // value the quest does not declare — a typo, an undeclared quest, or a
+      // cross-quest value — is recognizable by no authored condition. It is
+      // reported, never repaired or substituted (#146).
+      if (!quest(id)!.outcomes?.includes(o.outcome)) {
+        bad(
+          'questOutcomes',
+          o.outcome,
+          `${id} does not declare resolved outcome "${o.outcome}"`,
+        );
+      }
+    } else if ((o as { outcome?: unknown }).outcome !== undefined) {
+      // `outcome` is a resolved-only field (#150): a failed/locked record
+      // carrying one is a malformed combination the runtime can never have
+      // produced — and an outcome condition would otherwise match it as
+      // though the resolution had happened. Refused, never repaired.
+      bad('questOutcomes', id, `${id} carries a named outcome on a ${o.kind} record`);
     }
   }
   for (const key of Object.keys(p.flags)) {
@@ -331,19 +357,22 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
   }
   for (const receipt of p.storyReceipts) validateReceipt(receipt, bad);
   for (const [id, d] of Object.entries(p.decisions)) {
-    if (!DECISION_IDS.has(id)) bad('decisions', id, 'unknown decision id');
-    const dlg = dialogue(d.dialogueId);
-    if (!dlg) {
-      bad('decisions', d.dialogueId, 'unknown dialogue id');
+    // Provenance, not component resolvability (#150): the decision id must
+    // be authored, and the exact (dialogue, node, choice) tuple it persisted
+    // must be the one whose recordDecision effect can produce it. Mixing a
+    // valid decision id with an unrelated valid dialogue choice is refused
+    // — every component can resolve while the combination is impossible.
+    const authored = DECISION_PROVENANCE.get(id);
+    if (!authored) {
+      bad('decisions', id, 'unknown decision id');
       continue;
     }
-    const node = dialogueNode(dlg, d.nodeId);
-    if (!node) {
-      bad('decisions', d.nodeId, 'unknown dialogue node');
-      continue;
-    }
-    if (node.kind !== 'choice' || !node.choices.some((c) => c.id === d.choiceId)) {
-      bad('decisions', d.choiceId, 'unknown choice id');
+    if (!authored.has(`${d.dialogueId}:${d.nodeId}:${d.choiceId}`)) {
+      bad(
+        'decisions',
+        id,
+        `no authored recordDecision matches ${d.dialogueId}:${d.nodeId}:${d.choiceId}`,
+      );
     }
   }
   for (const event of p.storyEvents) {

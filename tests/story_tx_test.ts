@@ -9,6 +9,7 @@
  * shares the receipt so a replay validates exactly like it applies. */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
+import { namedOutcome } from './helpers.ts';
 import type { StoryEffect } from '../src/content/types.ts';
 import {
   applyDialogueChoice,
@@ -251,14 +252,14 @@ Deno.test('tx: a resolved quest can never become locked or failed — same bundl
     assertEquals(JSON.stringify(p), snapshot, 'terminal outcome is never overwritten');
   }
   assertEquals(p.quests['sq_shrine_pact']?.status, 'done');
-  assertEquals(p.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  assertEquals(namedOutcome(p.questOutcomes['sq_shrine_pact']), 'kept');
   // The SAME resolve replays idempotently.
   applyStoryEffects(
     p,
     [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
     ctxAt('n9'),
   );
-  assertEquals(p.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  assertEquals(namedOutcome(p.questOutcomes['sq_shrine_pact']), 'kept');
 });
 
 Deno.test('tx: a locked or failed quest can never start or resolve', () => {

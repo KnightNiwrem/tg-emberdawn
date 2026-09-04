@@ -253,11 +253,17 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125, #13
       if ('questOutcome' in cond) {
         const q = questOf(cond.questOutcome.questId);
         assert(q, `${from}: outcome query names unknown quest ${cond.questOutcome.questId}`);
-        const { outcome } = cond.questOutcome;
+        const { outcome, kind } = cond.questOutcome;
         if (outcome !== undefined) {
           assert(
             q?.outcomes?.includes(outcome),
             `${from}: ${cond.questOutcome.questId} does not declare outcome "${outcome}"`,
+          );
+          // A named outcome matches resolved records only (#150): pairing it
+          // with any other kind is statically impossible content.
+          assert(
+            kind === undefined || kind === 'resolved',
+            `${from}: outcome "${outcome}" paired with kind ${kind} can never match`,
           );
         }
       }
@@ -297,23 +303,22 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125, #13
   }
 });
 
-/** Decision ids some dialogue's recordDecision effect actually records —
- * the legal id set decision conditions may query (#132) — each mapped to
+/** Decision ids some CHOICE's recordDecision effect actually records (#150 —
+ * line nodes are rejected below, so a choice is the only provenance surface)
+ * — the legal id set decision conditions may query (#132), each mapped to
  * the choice ids that decision is recorded WITH, so a condition naming a
  * choice value names a value the ledger can legally hold (#146). */
 const recordedDecisions = new Map<string, Set<string>>();
 for (const d of DIALOGUES) {
   for (const n of d.nodes) {
-    const effects = n.kind === 'line'
-      ? n.effects ?? []
-      : n.kind === 'choice'
-      ? n.choices.flatMap((c) => c.effects ?? [])
-      : [];
-    for (const e of effects) {
-      if (e.kind !== 'recordDecision') continue;
-      const choices = recordedDecisions.get(e.id) ?? new Set<string>();
-      choices.add(e.choiceId);
-      recordedDecisions.set(e.id, choices);
+    if (n.kind !== 'choice') continue;
+    for (const c of n.choices) {
+      for (const e of c.effects ?? []) {
+        if (e.kind !== 'recordDecision') continue;
+        const choices = recordedDecisions.get(e.id) ?? new Set<string>();
+        choices.add(e.choiceId);
+        recordedDecisions.set(e.id, choices);
+      }
     }
   }
 }
@@ -337,6 +342,25 @@ Deno.test('quest copy: a choice can only record its own decision value (#146)', 
           );
         }
       }
+    }
+  }
+});
+
+Deno.test('quest copy: recordDecision is authored only on choices (#150)', () => {
+  // A decision records a CHOSEN response: the persisted provenance is an
+  // exact (dialogue, node, choice) tuple. A line node has no chosen
+  // response to name, so a recordDecision authored there would persist a
+  // decision the save format cannot represent faithfully. Authored on the
+  // wrong provenance surface is content corruption, rejected statically.
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind !== 'line') continue;
+      const offenders = (n.effects ?? []).filter((e) => e.kind === 'recordDecision');
+      assertEquals(
+        offenders,
+        [],
+        `${d.id}:${n.id}: recordDecision on a line node has no chosen response`,
+      );
     }
   }
 });

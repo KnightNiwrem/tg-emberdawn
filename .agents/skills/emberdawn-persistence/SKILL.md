@@ -28,7 +28,9 @@ changes.
 - Narrative state on `PlayerState`: `decisions` (ledger with choice and provenance), `storyEvents`
   (ordered, deduped), `questOutcomes` (permanent resolutions), and `storyReceipts` (one-shot
   story-application receipts). All plain JSON; decision ids and choice ids are persisted content
-  identities.
+  identities. `QuestOutcome` is a discriminated union (#150): `outcome` is a resolved-only field,
+  and the identity gate also refuses a persisted decision whose `(dialogue, node, choice)` tuple no
+  authored `recordDecision` produced.
 - Persistable content IDs include more than `currentZone`: inventory and equipment items, quest
   keys, learned skills, active-battle enemies and effect sources, battle origin zone/dungeon IDs,
   scene arguments, and IDs encoded into durable flags.

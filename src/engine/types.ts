@@ -47,17 +47,16 @@ export interface DecisionRecord {
 /** A quest's permanent resolution (#125): named completion outcomes,
  * failures, and permanent lockouts live HERE — never inferred from the
  * absence of flags. A locked/failed quest is excluded from availability
- * resurrection (questExcluded). */
-export interface QuestOutcome {
-  kind: 'resolved' | 'failed' | 'locked';
-  /** Named completion outcome (resolved only). */
-  outcome?: string;
-  /** Why the quest is gone (reason/decision reference). */
-  reason?: string;
-  /** What caused it (decision/dialogue id). */
-  by?: string;
-  at: number;
-}
+ * resurrection (questExcluded).
+ *
+ * Discriminated (#150): a named `outcome` exists ONLY on a `resolved`
+ * record — failed/locked records can never carry one. The persisted-identity
+ * gate refuses a malformed combination and outcome conditions match resolved
+ * records only; a `locked` save posing as "kept" can never satisfy a named
+ * outcome query. */
+export type QuestOutcome =
+  | { kind: 'resolved'; outcome: string; at: number }
+  | { kind: 'failed' | 'locked'; reason?: string; by?: string; at: number };
 
 export interface EnemyInstance {
   id: string;

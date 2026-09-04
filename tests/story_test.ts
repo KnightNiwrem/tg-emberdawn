@@ -5,6 +5,7 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
+import { namedOutcome } from './helpers.ts';
 import type { Condition } from '../src/content/types.ts';
 import { evalCondition } from '../src/engine/conditions.ts';
 import {
@@ -174,13 +175,13 @@ Deno.test('outcomes: named resolutions require their quest to declare them (#146
     { ...real, nodeId: 'n1' },
   );
   assertEquals(declared.quests['sq_shrine_pact']?.status, 'done');
-  assertEquals(declared.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  assertEquals(namedOutcome(declared.questOutcomes['sq_shrine_pact']), 'kept');
   applyStoryEffects(
     declared,
     [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
     { ...real, nodeId: 'n2' },
   );
-  assertEquals(declared.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  assertEquals(namedOutcome(declared.questOutcomes['sq_shrine_pact']), 'kept');
 
   // The valid declared outcome survives a JSON/save round-trip, keeps
   // satisfying questOutcome conditions, and passes the persisted-identity

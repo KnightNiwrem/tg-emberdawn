@@ -32,6 +32,7 @@ import {
   SaveUnresolvableError,
 } from '../src/engine/validate.ts';
 import { startBattle } from '../src/engine/combat.ts';
+import { evalCondition } from '../src/engine/conditions.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleReset, handleStart } from '../src/handlers/commands.ts';
@@ -55,6 +56,24 @@ function someChoice() {
     }
   }
   throw new Error('no authored choice node found');
+}
+
+/** First authored recordDecision provenance tuple (#150): the exact
+ * (decision, dialogue, node, choice) application current content produces. */
+function someDecision() {
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind !== 'choice') continue;
+      for (const c of n.choices) {
+        for (const e of c.effects ?? []) {
+          if (e.kind === 'recordDecision') {
+            return { decisionId: e.id, dialogueId: d.id, nodeId: n.id, choiceId: c.id };
+          }
+        }
+      }
+    }
+  }
+  throw new Error('no authored recordDecision found');
 }
 
 /** First authored line node, for line-receipt fixtures. */
@@ -95,12 +114,18 @@ Deno.test('identity gate: a fully valid current save passes byte-for-byte (#141)
   // Exercise every family with REAL content ids so the valid case is rich:
   const { dialogueId, nodeId, choiceId } = someChoice();
   const line = someLine();
+  const decision = someDecision();
   p.quests[QUESTS[0].id] = { status: 'active', counts: [0] };
   p.questOutcomes[QUESTS[1].id] = { kind: 'locked', at: 1 };
   p.flags['forge_i_w_warrior_1'] = 2;
   p.storyReceipts.push(`choice:${dialogueId}:${nodeId}:${choiceId}`);
   p.storyReceipts.push(`line:${line.dialogueId}:${line.nodeId}`);
-  p.decisions['ferry_shrine_pledge'] = { choiceId, dialogueId, nodeId, chosenAt: 1 };
+  p.decisions[decision.decisionId] = {
+    choiceId: decision.choiceId,
+    dialogueId: decision.dialogueId,
+    nodeId: decision.nodeId,
+    chosenAt: 1,
+  };
   p.storyEvents.push(someStoryEvent());
   p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
     player: p,
@@ -143,7 +168,7 @@ Deno.test('identity gate: item, skill and quest families (#141)', () => {
   expectProblems(qu, 'quests');
 
   const qo = createPlayer(967, 'T', 'warrior');
-  qo.questOutcomes[GONE] = { kind: 'resolved', at: 1 };
+  qo.questOutcomes[GONE] = { kind: 'resolved', outcome: 'gone', at: 1 };
   expectProblems(qo, 'questOutcomes');
 });
 
@@ -172,6 +197,34 @@ Deno.test('identity gate: flags and narrative records (#141)', () => {
   const dc2 = createPlayer(973, 'T', 'warrior');
   dc2.decisions['ferry_shrine_pledge'] = { choiceId: GONE, dialogueId, nodeId, chosenAt: 1 };
   expectProblems(dc2, 'decisions');
+});
+
+Deno.test('identity gate: a decision is valid only against its exact authored provenance (#150)', () => {
+  // The authored tuple itself is legitimate: the recorded decision id with
+  // the exact dialogue/node/choice that can produce it.
+  const decision = someDecision();
+  const ok = createPlayer(994, 'T', 'warrior');
+  ok.decisions[decision.decisionId] = {
+    choiceId: decision.choiceId,
+    dialogueId: decision.dialogueId,
+    nodeId: decision.nodeId,
+    chosenAt: 1,
+  };
+  assertEquals(findUnresolvedPersistedIds(ok), []);
+
+  // Finding 2 (#150): every component id can resolve while the COMBINATION
+  // is impossible — the same valid decision id persisted under an unrelated
+  // but individually valid dialogue choice is refused, not matched.
+  const { dialogueId, nodeId, choiceId } = someChoice();
+  if (
+    dialogueId === decision.dialogueId && nodeId === decision.nodeId &&
+    choiceId === decision.choiceId
+  ) {
+    throw new Error('fixture choice collides with the authored decision tuple');
+  }
+  const forged = createPlayer(995, 'T', 'warrior');
+  forged.decisions[decision.decisionId] = { choiceId, dialogueId, nodeId, chosenAt: 1 };
+  expectProblems(forged, 'decisions');
 });
 
 Deno.test('identity gate: scene identity arguments (#141)', () => {
@@ -293,15 +346,86 @@ Deno.test('identity gate: named resolved outcomes must resolve against their que
   cross.questOutcomes['sq_ledger_debt'] = { kind: 'resolved', outcome: 'kept', at: 1 };
   expectProblems(cross, 'questOutcomes');
 
-  // A resolved record naming NO outcome is malformed the same way.
+  // A resolved record naming NO outcome is malformed the same way — the
+  // discriminated union makes it unrepresentable in source, but a JSON save
+  // can still carry one, so the runtime gate keeps catching it (#150).
   const empty = createPlayer(992, 'T', 'warrior');
-  empty.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', at: 1 };
+  empty.questOutcomes['sq_shrine_pact'] = {
+    kind: 'resolved',
+    at: 1,
+  } as unknown as PlayerState['questOutcomes'][string];
   expectProblems(empty, 'questOutcomes');
 
   // Failed/locked records carry no named outcome and stay valid.
   const terminal = createPlayer(993, 'T', 'warrior');
   terminal.questOutcomes['m2_letter'] = { kind: 'locked', at: 1 };
   assertEquals(findUnresolvedPersistedIds(terminal), []);
+});
+
+Deno.test('identity gate: a named outcome on a failed/locked record is refused (#150)', () => {
+  // Finding 1 (#150): a locked save carrying a named outcome would
+  // otherwise satisfy outcome conditions as though the resolution happened.
+  // The gate refuses it — never repairs, never substitutes.
+  const locked = createPlayer(996, 'T', 'warrior');
+  locked.questOutcomes['sq_shrine_pact'] = {
+    kind: 'locked',
+    outcome: 'kept',
+    at: 1,
+  } as unknown as PlayerState['questOutcomes'][string];
+  expectProblems(locked, 'questOutcomes');
+
+  const failed = createPlayer(997, 'T', 'warrior');
+  failed.questOutcomes['sq_shrine_pact'] = {
+    kind: 'failed',
+    outcome: 'kept',
+    at: 1,
+  } as unknown as PlayerState['questOutcomes'][string];
+  expectProblems(failed, 'questOutcomes');
+
+  // The engine-produced shapes (failQuest/lockQuest with reason/by) stay
+  // legitimate — the invariant is about `outcome`, not the extra fields.
+  const authored = createPlayer(998, 'T', 'warrior');
+  authored.questOutcomes['m2_letter'] = {
+    kind: 'locked',
+    reason: 'shrine_route',
+    by: 'dlg_ferry_promise',
+    at: 1,
+  };
+  assertEquals(findUnresolvedPersistedIds(authored), []);
+});
+
+Deno.test('conditions: an outcome query matches resolved records only (#150)', () => {
+  const p = createPlayer(999, 'T', 'warrior');
+  // The legitimate resolution matches — with or without an explicit kind.
+  p.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'kept', at: 1 };
+  assert(evalCondition(p, { questOutcome: { questId: 'sq_shrine_pact', outcome: 'kept' } }));
+  assert(
+    evalCondition(p, {
+      questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
+    }),
+  );
+
+  // Finding 1 (#150): a malformed locked record posing as "kept" satisfies
+  // no outcome query — the resolution never happened.
+  const locked = JSON.parse(
+    JSON.stringify(p),
+  ) as PlayerState;
+  locked.questOutcomes['sq_shrine_pact'] = {
+    kind: 'locked',
+    outcome: 'kept',
+    at: 1,
+  } as unknown as PlayerState['questOutcomes'][string];
+  assert(
+    !evalCondition(locked, { questOutcome: { questId: 'sq_shrine_pact', outcome: 'kept' } }),
+    'a locked record never matches an outcome query',
+  );
+  assert(
+    !evalCondition(locked, {
+      questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
+    }),
+  );
+  // Kind-only queries behave exactly as before.
+  assert(evalCondition(locked, { questOutcome: { questId: 'sq_shrine_pact', kind: 'locked' } }));
 });
 
 Deno.test('identity gate: handlers refuse before mutation, render, or save (#141)', async () => {

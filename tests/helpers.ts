@@ -1,7 +1,13 @@
 import type { Context } from 'grammy';
-import type { EffectInstance } from '../src/engine/types.ts';
+import type { EffectInstance, QuestOutcome } from '../src/engine/types.ts';
 import type { SkillDef, StatKey } from '../src/content/types.ts';
 import { type EffectArena, statPct } from '../src/engine/effects.ts';
+
+/** A resolved record's named outcome (#150): undefined for anything that is
+ * not a resolution — `outcome` is a resolved-only field on QuestOutcome. */
+export function namedOutcome(o: QuestOutcome | undefined): string | undefined {
+  return o?.kind === 'resolved' ? o.outcome : undefined;
+}
 
 /** Structural slice for effect fixtures (#99): a live battle or the
  * unplayable BattlePreview container both satisfy it. */

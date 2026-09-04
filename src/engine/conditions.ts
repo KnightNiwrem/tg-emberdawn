@@ -41,7 +41,15 @@ export function evalCondition(p: PlayerState, c: Condition): boolean {
     const o = p.questOutcomes[c.questOutcome.questId];
     if (!o) return false;
     if (c.questOutcome.kind !== undefined && o.kind !== c.questOutcome.kind) return false;
-    if (c.questOutcome.outcome !== undefined && o.outcome !== c.questOutcome.outcome) return false;
+    // A named outcome is a resolved-only concept (#150): a failed/locked
+    // record never matches an outcome query — even when the condition omits
+    // `kind` — because such a record can never have carried one.
+    if (
+      c.questOutcome.outcome !== undefined &&
+      (o.kind !== 'resolved' || o.outcome !== c.questOutcome.outcome)
+    ) {
+      return false;
+    }
     return true;
   }
   return false;
