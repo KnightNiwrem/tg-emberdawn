@@ -7,7 +7,7 @@
 import { assert, assertEquals } from '@std/assert';
 import { withRev } from '../src/codec.ts';
 import { createPlayer } from '../src/engine/character.ts';
-import { syncAvailability } from '../src/engine/quests.ts';
+import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
 import { applyDialogueChoice } from '../src/engine/story.ts';
 import { evalCondition } from '../src/engine/conditions.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
@@ -23,10 +23,13 @@ const CHOICE_NODE = 'n3';
 
 function ferryHero(id: number): PlayerState {
   const p = createPlayer(id, 'T', 'warrior');
-  syncAvailability(p);
   p.currentZone = 'hollowmere';
   p.unlockedZones.push('hollowmere');
   p.flags['zone_hollowmere'] = true;
+  syncAvailability(p);
+  // The pledge parent (#147): the shared question is active before any
+  // committing response exists to advance it.
+  assert(acceptQuest(p, 'sq_shrine_pledge', FERRY).ok);
   return p;
 }
 
@@ -97,10 +100,14 @@ Deno.test('choices: confirmation applies effects exactly once, atomically (#126,
   dialogueAction(p, { v: 'dlg', a: 'cf', arg: 'promise' }); // confirm
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(p.storyEvents, ['shrine_allegiance_chosen'], 'shared parent progress emitted');
-  // The route consequence (#132): the believer route started and opened
-  // with the parent event credited; the incompatible route locked.
+  // The shared parent (#147): the event advanced the already-active parent
+  // objective; the parent is turn-in-ready.
+  assertEquals(p.quests['sq_shrine_pledge']?.status, 'turnIn');
+  assertEquals(p.quests['sq_shrine_pledge']?.counts, [1]);
+  // The route consequence (#132): the believer route started (carrying
+  // only its own route objective); the incompatible route locked.
   assertEquals(p.quests['sq_shrine_pact']?.status, 'active');
-  assertEquals(p.quests['sq_shrine_pact']?.counts, [1, 0], 'the parent objective is credited');
+  assertEquals(p.quests['sq_shrine_pact']?.counts, [0]);
   assertEquals(p.questOutcomes['sq_ledger_debt']?.kind, 'locked');
   assertEquals(p.scene.arg2, 'n4', 'the choice advanced to its authored next node');
   assertEquals(p.scene.arg3, undefined, 'the staged panel cleared');

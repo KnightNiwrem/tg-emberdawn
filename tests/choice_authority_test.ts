@@ -10,20 +10,22 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
-import { syncAvailability } from '../src/engine/quests.ts';
+import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
 import { applyDialogueChoice } from '../src/engine/story.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 const DIALOGUE = 'dlg_ferry_promise';
 const CHOICE_NODE = 'n3';
 
-/** A hero standing at the Ferryman's dock in Hollowmere. */
+/** A hero standing at the Ferryman's dock in Hollowmere, carrying the
+ * active pledge parent (#147). */
 function ferryHero(id: number): PlayerState {
   const p = createPlayer(id, 'T', 'warrior');
-  syncAvailability(p);
   p.currentZone = 'hollowmere';
   p.unlockedZones.push('hollowmere');
   p.flags['zone_hollowmere'] = true;
+  syncAvailability(p);
+  assert(acceptQuest(p, 'sq_shrine_pledge', 'npc_ferryman').ok);
   return p;
 }
 
@@ -153,10 +155,14 @@ Deno.test('authority: correct scene, owner, presence and staged panel apply exac
   assertEquals(r.nextNodeId, 'n4');
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(p.storyEvents, ['shrine_allegiance_chosen']);
-  // The route consequence (#132): the chosen route starts (with the parent
-  // event already credited), the incompatible route locks permanently.
+  // The shared parent (#147): the event advanced the already-active parent
+  // objective. The route consequence (#132): the chosen route starts
+  // (carrying only its own route objective), the incompatible route locks
+  // permanently.
+  assertEquals(p.quests['sq_shrine_pledge']?.status, 'turnIn');
+  assertEquals(p.quests['sq_shrine_pledge']?.counts, [1]);
   assertEquals(p.quests['sq_shrine_pact']?.status, 'active');
-  assertEquals(p.quests['sq_shrine_pact']?.counts, [1, 0]);
+  assertEquals(p.quests['sq_shrine_pact']?.counts, [0]);
   assertEquals(p.questOutcomes['sq_ledger_debt']?.kind, 'locked');
   assertEquals(p.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:promise`]);
 });

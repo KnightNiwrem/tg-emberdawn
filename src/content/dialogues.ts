@@ -92,12 +92,16 @@ export const DIALOGUES: readonly DialogueDef[] = [
     ],
   },
   {
-    // The consequential branch (#132): both committing responses record
-    // distinct durable decisions, emit the SAME shared parent event, start
-    // a different follow-up quest, and permanently lock the incompatible
-    // route. Both are irreversible (each stages an explicit confirmation
-    // panel whose hint names the permanent exclusion); deferral ("Not now")
-    // stays non-mutating and leaves both routes open. Availability of the
+    // The consequential branch (#132, #147): both committing responses
+    // record distinct durable decisions, emit the SAME shared parent event
+    // — advancing the pledge parent quest the player already carries —
+    // start a different follow-up quest, and permanently lock the
+    // incompatible route. Each response is gated on that parent being
+    // ACTIVE (#147): the pledge question exists only while the player
+    // carries it, re-evaluated at tap time. Both responses are irreversible
+    // (each stages an explicit confirmation panel whose hint names the
+    // permanent exclusion); deferral ("Not now") stays non-mutating and
+    // leaves the parent pending with both routes open. Availability of the
     // route quests is gated by the recorded decision itself (their prereq
     // conditions) — the ledger is the single source of truth, with the
     // explicit locks as the permanent exclusion record.
@@ -128,6 +132,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'promise',
             label: 'Put me down as a believer',
+            when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
             consequenceHint:
               'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
@@ -142,6 +147,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'decline',
             label: 'Keep my name off the ledger',
+            when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
             consequenceHint:
               'The debt goes on the books all the same — and the road of the beacon closes for good.',
@@ -158,7 +164,12 @@ export const DIALOGUES: readonly DialogueDef[] = [
             // what the shrine will hear. Re-evaluated at tap time.
             id: 'vouch',
             label: 'Tell them the swamp already vouches for me',
-            when: { questStatus: { questId: 'm6_toxin', is: 'done' } },
+            when: {
+              all: [
+                { questStatus: { questId: 'm6_toxin', is: 'done' } },
+                { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
+              ],
+            },
             irreversible: true,
             consequenceHint:
               'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
@@ -196,11 +207,13 @@ export const DIALOGUES: readonly DialogueDef[] = [
     ],
   },
   {
-    // The ledger's aftermath (#132): opened only once the pledge decision
-    // exists, it reacts to the recorded decision and — through the
-    // questOutcome condition — to the named resolution of the beacon route.
-    // Every response is conditionally gated; "Not now" defers, mutates
-    // nothing.
+    // The ledger's aftermath (#132, #147): opened only once the pledge
+    // decision exists, it reacts to the recorded decision AND to each
+    // route's current or terminal state — active routes get their guidance,
+    // ordinarily completed routes get acknowledgment instead of stale
+    // instructions, and the beacon's named "kept" resolution gets the
+    // kept-light response without contradictory relighting guidance. Every
+    // response is conditionally gated; "Not now" defers, mutates nothing.
     id: 'dlg_ferry_aftermath',
     npcId: 'npc_ferryman',
     start: 'a1',
@@ -214,18 +227,34 @@ export const DIALOGUES: readonly DialogueDef[] = [
             id: 'beacon',
             label: 'How do I relight the beacon?',
             when: {
-              any: [
-                { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } },
-                { decision: { id: 'ferry_shrine_pledge', choiceId: 'vouch' } },
+              all: [
+                {
+                  any: [
+                    { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } },
+                    { decision: { id: 'ferry_shrine_pledge', choiceId: 'vouch' } },
+                  ],
+                },
+                { questStatus: { questId: 'sq_shrine_pact', is: ['active', 'turnIn'] } },
               ],
             },
             next: 'a2',
           },
           {
-            id: 'debt',
-            label: 'What does the shrine expect of me?',
-            when: { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
-            next: 'a3',
+            id: 'lit',
+            label: 'How stands the beacon now?',
+            when: {
+              all: [
+                {
+                  any: [
+                    { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } },
+                    { decision: { id: 'ferry_shrine_pledge', choiceId: 'vouch' } },
+                  ],
+                },
+                { questStatus: { questId: 'sq_shrine_pact', is: 'done' } },
+                { not: { questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved' } } },
+              ],
+            },
+            next: 'a5',
           },
           {
             id: 'keptlight',
@@ -234,6 +263,28 @@ export const DIALOGUES: readonly DialogueDef[] = [
               questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
             },
             next: 'a4',
+          },
+          {
+            id: 'debt',
+            label: 'What does the shrine expect of me?',
+            when: {
+              all: [
+                { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
+                { questStatus: { questId: 'sq_ledger_debt', is: ['active', 'turnIn'] } },
+              ],
+            },
+            next: 'a3',
+          },
+          {
+            id: 'paid',
+            label: 'How do the books read now?',
+            when: {
+              all: [
+                { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
+                { questStatus: { questId: 'sq_ledger_debt', is: 'done' } },
+              ],
+            },
+            next: 'a6',
           },
         ],
       },
@@ -257,6 +308,20 @@ export const DIALOGUES: readonly DialogueDef[] = [
         speaker: 'npc',
         text:
           'It writes: light retained, debt forgiven. The beacon waits for a kinder hand. Walk warm, Dawncaller — the ledger does not begrudge you the glow.',
+      },
+      {
+        id: 'a5',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'It reads clean. The beacon took the wisp-light for its first breath, and the shrine writes you as the one who fed it. That page dries warm.',
+      },
+      {
+        id: 'a6',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'Even. The leeches are out of the seep and the books read even. No name was ever written, but the shrine marks the debt paid all the same.',
       },
     ],
   },

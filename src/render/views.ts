@@ -478,9 +478,9 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
   const liveSides = sides.filter((q) =>
     ['available', 'active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
   );
-  // Pagination (#21): 16 side quests exist and a completionist save can have
-  // 9+ live at once — the old slice(0, 8) stranded every later quest behind
-  // a page that never rendered.
+  // Pagination (#21): a completionist save can hold 18 live side quests at
+  // once — the old slice(0, 8) stranded every later quest behind a page
+  // that never rendered.
   const pages = Math.max(1, Math.ceil(liveSides.length / QUESTS_PAGE_SIZE));
   const pg = Math.min(Math.max(0, page), pages - 1);
   const start = pg * QUESTS_PAGE_SIZE;

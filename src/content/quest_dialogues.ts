@@ -2719,14 +2719,71 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       },
     ],
   },
-  // ══ The shrine-pledge routes (#132) ═════════════════════════════════
-  // sq_shrine_pact and sq_ledger_debt start directly from the Ferryman's
-  // ledger conversation (dlg_ferry_promise) — they are never offered as
-  // menu topics. These offer dialogues exist as the lifecycle wiring every
-  // quest carries; the turn-in dialogues are the real completion beats.
-  // sq_shrine_pact's turn-in carries the game's authored alternate
-  // resolution: the player may keep the wisp-light, resolving the quest
-  // with the named outcome "kept" (no reward) instead of turning it in.
+  // ══ The shrine-pledge branch (#132, #147) ═══════════════════════════
+  // The pledge parent (sq_shrine_pledge) is the real shared progress: the
+  // Ferryman asks it before any commitment exists, and both committing
+  // responses in dlg_ferry_promise advance its pending storyEvent
+  // objective. sq_shrine_pact and sq_ledger_debt start directly from that
+  // ledger conversation — they are never offered as menu topics. These
+  // offer dialogues exist as the lifecycle wiring every quest carries; the
+  // turn-in dialogues are the real completion beats. sq_shrine_pact's
+  // turn-in carries the game's authored alternate resolution: the player
+  // may keep the wisp-light, resolving the quest with the named outcome
+  // "kept" (no reward) instead of turning it in.
+  {
+    id: 'dlg_sq_shrine_pledge_offer',
+    npcId: 'npc_ferryman',
+    start: 'o1',
+    nodes: [
+      {
+        id: 'o1',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'The shrine across the water keeps a ledger of who still believes in the morning. It has one question left in it, and I am the one who carries it. Will you hear it?',
+        next: 'oa',
+      },
+      {
+        id: 'oa',
+        kind: 'choice',
+        prompt: 'Will you carry the question?',
+        choices: [
+          {
+            id: 'accept',
+            label: '🤝 Accept',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_shrine_pledge' }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'dlg_sq_shrine_pledge_turnin',
+    npcId: 'npc_ferryman',
+    start: 't1',
+    nodes: [
+      {
+        id: 't1',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'The ledger holds your answer now, written the way you gave it. The shrine pays whoever answers — belief and refusal both keep a ledger busy.',
+        next: 'ta',
+      },
+      {
+        id: 'ta',
+        kind: 'choice',
+        prompt: 'Is the question closed, then?',
+        choices: [
+          {
+            id: 'handover',
+            label: '📜 Say the answer stands',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_shrine_pledge' }],
+          },
+        ],
+      },
+    ],
+  },
   {
     id: 'dlg_sq_shrine_pact_offer',
     npcId: 'npc_ferryman',

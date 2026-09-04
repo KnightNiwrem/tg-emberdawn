@@ -277,10 +277,17 @@ export const ZONES: readonly ZoneDef[] = [
           id: 'ferry_promise',
           label: 'Speak for you at the shrine',
           dialogue: 'dlg_ferry_promise',
-          // The pledge exists only until it is made (#132): once the
-          // decision is in the ledger the topic hides, and the aftermath
-          // topic below takes over.
-          when: { not: { decision: { id: 'ferry_shrine_pledge' } } },
+          // The pledge exists only while it is carried and unanswered
+          // (#132, #147): the topic requires the pledge parent quest ACTIVE
+          // (the shared question the player accepted from the Ferryman)
+          // and hides the moment the decision is in the ledger — the
+          // aftermath topic below takes over.
+          when: {
+            all: [
+              { not: { decision: { id: 'ferry_shrine_pledge' } } },
+              { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
+            ],
+          },
         }, {
           id: 'ferry_ledger',
           label: 'Ask about the shrine ledger',

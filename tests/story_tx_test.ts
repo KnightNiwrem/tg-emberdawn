@@ -127,10 +127,13 @@ Deno.test('tx: line-entry identity is dialogue + node — distinct beats apply d
 
 Deno.test('tx: a choice replay routes to the next beat with zero notices, even across save reloads', async () => {
   const p = hero(1507);
-  syncAvailability(p);
   p.currentZone = 'hollowmere';
   p.unlockedZones.push('hollowmere');
   p.flags['zone_hollowmere'] = true;
+  syncAvailability(p);
+  // The pledge parent (#147) is active — the committing responses are
+  // gated on the shared question being carried.
+  assert(acceptQuest(p, 'sq_shrine_pledge', 'npc_ferryman').ok);
   // The central op derives dialogue/node/NPC from the live scene (#130):
   // the irreversible promise needs its exact staged panel.
   p.scene = {
