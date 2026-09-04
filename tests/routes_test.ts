@@ -289,6 +289,21 @@ Deno.test('content integrity: variant ids are unique within their route', () => 
   }
 });
 
+Deno.test('content integrity: risk descriptors use the authored vocabulary (#164)', () => {
+  const KNOWN = new Set(['sheltered', 'mild', 'wild', 'perilous']);
+  for (const r of ROUTES) {
+    if (r.risk !== undefined) assert(KNOWN.has(r.risk), `route ${r.id}: unknown risk ${r.risk}`);
+    for (const v of r.variants ?? []) {
+      if (v.risk !== undefined) assert(KNOWN.has(v.risk), `variant ${v.id}: unknown risk`);
+    }
+  }
+  // Every nonzero-event road carries a risk descriptor: the travel view
+  // never shows a bare count without its authored characterization.
+  for (const r of ROUTES) {
+    if (r.eventCount > 0) assert(r.risk !== undefined, `route ${r.id} lacks risk metadata`);
+  }
+});
+
 Deno.test('content integrity: starter-region routes carry zero forced events', () => {
   for (const r of ROUTES) {
     if (STARTING_ZONES.includes(r.from) && STARTING_ZONES.includes(r.to)) {

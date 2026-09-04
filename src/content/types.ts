@@ -722,7 +722,15 @@ export interface RouteVariant {
   /** Optional player-facing override for the transformed road. */
   name?: string;
   desc?: string;
+  /** Optional risk override for the transformed road (#164). */
+  risk?: RouteRisk;
 }
+
+/** The authored qualitative risk descriptor (#164): what the crossing is
+ * LIKE, rendered verbatim in the travel view. Content vocabulary, never
+ * derived from the roll count — a two-roll road can be milder than a
+ * one-roll one if its table says so. */
+export type RouteRisk = 'sheltered' | 'mild' | 'wild' | 'perilous';
 
 /** An authored DIRECTED travel edge (#158): one adjacency between two
  * zone nodes. Model directions explicitly — reciprocal roads may share
@@ -738,6 +746,8 @@ export interface RouteDef {
   name?: string;
   /** What the crossing is like — creative flavor, never a rules source. */
   desc?: string;
+  /** The road's authored risk descriptor (#164). */
+  risk?: RouteRisk;
   /** Availability gate for the whole edge. Unauthored = always usable. */
   when?: Condition;
   /** Exact number of forced random travel-event rolls. 0 = a safe,

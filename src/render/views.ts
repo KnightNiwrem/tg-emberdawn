@@ -18,8 +18,10 @@ import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
 import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
 import { itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
+import { routesFrom } from '../content/routes.ts';
+import { forgeInZone, shopInZone } from '../content/facilities.ts';
 import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
-import { resolveRoute, usableRoutesFrom } from '../engine/routes.ts';
+import { resolveRoute, resolveRouteById, usableRoutesFrom } from '../engine/routes.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
@@ -51,7 +53,13 @@ export function renderZone(p: PlayerState): InputRichMessage {
       }\n💰 ${p.gold} gold`,
     ]),
   ];
-  if (z.safeHaven) blocks.push(para('🔥 Safe haven — full rest on arrival.'));
+  if (z.safeHaven) {
+    blocks.push(para('🔥 Safe haven — no battles, and full rest on arrival.'));
+  } else {
+    // Dangerous zones read differently (#164) — without implying that
+    // every action out here is a fight.
+    blocks.push(para('🌫️ Dangerous wilds — battles can find you; flee is always an option.'));
+  }
   if (d) {
     // Authored readiness surfaced (#73): the recommended level rides the
     // dungeon line so the boss's tune point is never a hidden dependency.
@@ -197,29 +205,104 @@ export function renderTutorial(p: PlayerState): InputRichMessage {
 
 // ── Travel ────────────────────────────────────────────────────────────────
 
+/** Authored risk vocabulary → player-facing descriptor (#164). The counts
+ * are rolls, not battles — the wording never promises a fight. */
+const RISK_TEXT: Record<string, string> = {
+  sheltered: 'sheltered — a calm, welcoming stretch',
+  mild: 'mild — mostly quiet, occasionally lively',
+  wild: 'wild — expect trouble more often than not',
+  perilous: 'perilous — an expedition; go restored',
+};
+
 export function renderTravel(p: PlayerState): InputRichMessage {
+  // A hazardous-departure confirmation (#164): the staged panel replaces
+  // the route list until confirmed or dismissed.
+  const staged = p.scene.arg ?? '';
+  if (staged.startsWith('go:')) {
+    const edgeId = staged.slice('go:'.length);
+    const plan = resolveRouteById(p, edgeId);
+    const dest = plan ? zone(plan.to) : undefined;
+    if (plan && dest) {
+      const blocks: Block[] = [
+        heading(`⚠️ ${plan.name ?? 'The road ahead'}`, 3),
+        ...noticesBlocks(p),
+        para(
+          `${dest.emoji} ${dest.name} — Lv ${dest.levels[0]}-${dest.levels[1]}\n` +
+            `${plan.eventCount} road event${plan.eventCount === 1 ? '' : 's'} · ${
+              RISK_TEXT[plan.risk ?? 'wild'] ?? 'unrated'
+            }`,
+        ),
+      ];
+      if (plan.desc) blocks.push(para({ type: 'italic', text: plan.desc } as RichText));
+      blocks.push(
+        para(
+          'Road events are rolled as you walk: some are hostile fights you can flee, others are quiet stretches, caches or shelter. Retreat returns you here, to the origin.',
+        ),
+      );
+      blocks.push(
+        buttonsRow([
+          cbBtn(
+            `🥾 Depart for ${dest.name}`,
+            encodeCb({ v: 'travel', a: 'go', arg: edgeId }),
+            'primary',
+          ),
+          cbBtn('✋ Not yet', encodeCb({ v: 'travel', a: 'bk' })),
+        ]),
+      );
+      return { blocks };
+    }
+  }
   const blocks: Block[] = [
     heading('🧭 Travel', 3),
     ...noticesBlocks(p),
     para(
-      'Every road leads somewhere specific. Events on the road may be hostile, quiet, or helpful — a count is rolls, not battles.',
+      'Every road leads somewhere specific. Road events are rolled as you walk — they may be hostile, quiet, or helpful. A count is rolls, never promised battles.',
     ),
   ];
   const routes = usableRoutesFrom(p);
+  // Adjacent roads that are NOT currently usable get a clear line — the
+  // map teaches adjacency, and a locked road names why. An edge hidden by
+  // its author renders nothing at all (authored policy).
+  for (const r of routesFrom(p.currentZone)) {
+    if (routes.some((u) => u.id === r.id)) continue;
+    const dest = zone(r.to);
+    if (!dest) continue;
+    const locked = !p.unlockedZones.includes(r.to);
+    blocks.push(
+      para(
+        `🔒 ${r.name ?? 'A road'} → ${dest.emoji} ${dest.name} — ${
+          locked ? 'not yours to walk yet' : 'closed for now'
+        }.`,
+      ),
+    );
+  }
   if (routes.length === 0) {
-    blocks.push(para('No road leads out of here yet.'));
+    blocks.push(para('No open road leads out of here yet.'));
   }
   for (const r of routes) {
     const plan = resolveRoute(p, r);
     const dest = zone(plan.to)!;
     const rolls = plan.eventCount === 0
-      ? 'safe crossing'
+      ? 'no road events — a safe crossing'
       : `${plan.eventCount} road event${plan.eventCount > 1 ? 's' : ''}`;
+    const risk = RISK_TEXT[plan.risk ?? 'mild'] ?? 'unrated';
     blocks.push(para([
       { type: 'bold', text: `${plan.name ?? 'The road'} → ${dest.emoji} ${dest.name}` } as RichText,
-      `\nLv ${dest.levels[0]}-${dest.levels[1]} · ${rolls}`,
+      `\nLv ${dest.levels[0]}-${dest.levels[1]} · ${rolls}\n${risk}`,
     ]));
     if (plan.desc) blocks.push(para({ type: 'italic', text: plan.desc } as RichText));
+    // The active secured/worsened variant is named when it differs (#164):
+    // the road's current state is visible, never silent.
+    if (plan.variantId !== 'base') {
+      blocks.push(para(`✨ Current state: ${plan.name ?? plan.variantId}`));
+    }
+    // Destination services preview, when the destination authors them:
+    // planning a supply run is part of reading the map.
+    const services: string[] = [];
+    if (dest.safeHaven) services.push('🔥 full rest');
+    if (shopInZone(plan.to)) services.push('🏪 shop');
+    if (forgeInZone(plan.to)) services.push('⚒️ forge');
+    if (services.length > 0) blocks.push(para(`Known there: ${services.join(' · ')}`));
     blocks.push(
       buttonsRow(
         [cbBtn(`Take the road to ${dest.name}`, encodeCb({ v: 'travel', a: 'go', arg: r.id }))],
@@ -807,11 +890,12 @@ export function renderHelp(): InputRichMessage {
       para(
         'A turn-based RPG living inside this message.\n\n' +
           '🧭 Explore — seek battles, treasure and rest in the wilds.\n' +
-          '🛖 Towns are safe havens: no battles, and arriving fully heals you.\n' +
+          '🛖 Safe havens — no battles, and arriving fully heals you. Not every haven offers services.\n' +
+          '🏪 ⚒️ Shops and forges live where they are built — each with its own stock and craft. Better gear means reaching the region that sells it.\n' +
           '⚔️ Battles — your free action, Skills, Items, Guard, Flee. Free actions are class-typed: Warrior/Rogue attack with ATK, Mage/Cleric with MAG. SPD pays off: outspeeding a foe slips its damaging blows aside (baseline 2%, hard cap 20%).\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
-          '⚒️ Forge — temper gear to +5 for permanent stat boosts.\n' +
-          '🚶 Travel — safe havens fully restore you.\n\n' +
+          '⚒️ Forges — temper gear to +5 at a forge that can; mastery binds to the pattern.\n' +
+          '🚶 Travel — you walk ADJACENT roads, one edge at a time. Starter roads are safe and immediate; farther roads roll road events as you walk — hostile, quiet, or helpful. Fleeing or retreating returns you to the road\u2019s origin, and arriving at a haven restores you fully.\n\n' +
           'Everything happens in this one message — /start re-centers it if it ever gets lost.',
       ),
       buttonsRow([cbBtn('⬅️ Back to the game', encodeCb({ v: 'zone', a: 'hm' }), 'primary')]),

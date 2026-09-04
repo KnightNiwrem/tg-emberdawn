@@ -26,6 +26,7 @@ export interface ResolvedRoute {
   events: readonly TravelEvent[];
   name?: string;
   desc?: string;
+  risk?: import('../content/types.ts').RouteRisk;
 }
 
 /** First-match variant selection in AUTHORED order; the base plan is
@@ -42,6 +43,7 @@ export function resolveRoute(p: PlayerState, r: RouteDef): ResolvedRoute {
       events: r.events ?? [],
       ...(r.name !== undefined ? { name: r.name } : {}),
       ...(r.desc !== undefined ? { desc: r.desc } : {}),
+      ...(r.risk !== undefined ? { risk: r.risk } : {}),
     };
   }
   return {
@@ -60,6 +62,11 @@ export function resolveRoute(p: PlayerState, r: RouteDef): ResolvedRoute {
       ? { desc: variant.desc }
       : r.desc !== undefined
       ? { desc: r.desc }
+      : {}),
+    ...(variant.risk !== undefined
+      ? { risk: variant.risk }
+      : r.risk !== undefined
+      ? { risk: r.risk }
       : {}),
   };
 }

@@ -91,13 +91,15 @@ export function grantTutorialReward(p: PlayerState): string[] {
 
 /** Release into the real hub: the next contact, the next destination, and
  * the two survival lessons the controlled fight couldn't teach — reading
- * enemy levels, and fleeing ordinary exploration. */
+ * enemy levels, and fleeing ordinary exploration. (#164: travel copy
+ * teaches adjacency and road events; starter roads are safe by authoring.) */
 export function tutorialRelease(): string[] {
   return [
     '🌅 Your first fight is yours. Maren will want to hear of it.',
     "📜 Elder Maren's board has work — talk to her when you're ready.",
     '🧭 The Emberdawn Outskirts are safe enough for a fresh blade (Lv 1–3); the Whisperwood beyond runs deeper (Lv 3–9). Weigh enemy levels before you engage — and 🏃 Flee is always an option, though it can fail.',
-    '🔥 Return to a safe haven to heal for free — travel costs nothing.',
+    '🛣️ The hearth-roads out of the village are safe and immediate. Farther roads roll road events as you walk — hostile, quiet, or helpful. Fleeing or retreating returns you to the road\u2019s origin.',
+    '🔥 Arriving at a safe haven fully restores you; shops and forges wait where they were built.',
   ];
 }
 
