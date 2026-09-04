@@ -22,19 +22,16 @@ import { buy, resolveStock } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
-import {
-  diveDungeon,
-  dungeonOf,
-  encounterEligible,
-  explore,
-  nextDungeonFloor,
-  travelDirect,
-} from './world.ts';
+import { diveDungeon, dungeonOf, encounterEligible, explore, nextDungeonFloor } from './world.ts';
+import { advanceJourney, startJourney } from './journey.ts';
+import { completeTravelBattleEvent } from './journey.ts';
+import { resolveRouteById as resolveRouteForSim, usableRoutesFrom } from './routes.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
 import { shopInZone } from '../content/facilities.ts';
 import { quest, QUESTS, zoneOfNpc } from '../content/quests.ts';
+import { route as routeDef } from '../content/routes.ts';
 import { skill as skillDef, SKILLS } from '../content/skills.ts';
 import {
   isDamageSkill,
@@ -1457,6 +1454,32 @@ export interface StallDiagnostic {
   failures: Record<string, number>;
 }
 
+/** #162: route-level travel metrics, collected from the REAL journeys the
+ * campaign sim walks — no teleport or economy bypass exists to hide
+ * compound attrition. */
+export interface TravelMetrics {
+  /** Departures per edge id. */
+  edgeAttempts: Record<string, number>;
+  /** Successful final arrivals per edge id. */
+  edgeArrivals: Record<string, number>;
+  /** Resolved event outcomes by authored kind (flavor/rest/treasure/
+   * battle) across every road the sim walked. */
+  eventOutcomes: Record<string, number>;
+  /** Road fights and the rounds they took. */
+  travelBattles: number;
+  travelRounds: number;
+  /** Deaths and successful flee-escapes on roads. */
+  roadDeaths: number;
+  roadFlees: number;
+  /** Contextual (non-enemy-table) item finds granted on roads (#158). */
+  contextualDrops: number;
+  /** Mean HP fraction on final arrival, over `arrivalSamples`. */
+  hpPctOnArrival: number;
+  arrivalSamples: number;
+  /** Every forced road event the main story required. */
+  totalRoadEvents: number;
+}
+
 export interface ProgressionReport {
   classId: ClassId;
   seed: number;
@@ -1474,6 +1497,8 @@ export interface ProgressionReport {
   /** Every explore roll, including the non-battle outcomes. */
   totalEncounterAttempts: number;
   totalItemsUsed: number;
+  /** #162: the journey the hero actually walked. */
+  travel: TravelMetrics;
   chapter1Done: boolean;
   /** #88: the FULL main questline (m1→m25) completed — only the campaign
    * driver can set this; chapter-one runs report false. */
@@ -1548,12 +1573,15 @@ function formatStallReport(stall: StallDiagnostic): string {
  * completion (#88: generalized from the chapter-one driver). Exported for
  * diagnostics testing (#111): a list whose stop quest is unreachable
  * forces a deterministic stall whose report can be asserted field by
- * field. */
+ * field. `onTurnIn` (#162) observes the real player state the moment a
+ * tracked quest turns in — the progression-aware graph validation rides
+ * these snapshots; it must not mutate the state it receives. */
 export function driveQuests(
   classId: ClassId,
   seed: number,
   quests: readonly string[],
   stopQuest: string,
+  onTurnIn?: (p: PlayerState, questId: string) => void,
 ): ProgressionReport {
   const rng: Rng = seededRng(seed);
   // #74: ONE canonical post-tutorial constructor — the fresh class kit at
@@ -1583,17 +1611,280 @@ export function driveQuests(
     totalGrindFights: 0,
     totalEncounterAttempts: 0,
     totalItemsUsed: 0,
+    travel: {
+      edgeAttempts: {},
+      edgeArrivals: {},
+      eventOutcomes: {},
+      travelBattles: 0,
+      travelRounds: 0,
+      roadDeaths: 0,
+      roadFlees: 0,
+      contextualDrops: 0,
+      hpPctOnArrival: 0,
+      arrivalSamples: 0,
+      totalRoadEvents: 0,
+    },
     chapter1Done: false,
     campaignDone: false,
     aranyaLevel: 0,
     aranyaGearTier: 0,
     aranyaDeathsBefore: 0,
   };
+  // #162: route-level travel metrics — collected from the REAL journeys
+  // the sim walks; no simulation-only travel or economy bypass exists.
+  const travel: TravelMetrics = {
+    edgeAttempts: {},
+    edgeArrivals: {},
+    eventOutcomes: {},
+    travelBattles: 0,
+    travelRounds: 0,
+    roadDeaths: 0,
+    roadFlees: 0,
+    contextualDrops: 0,
+    hpPctOnArrival: 0,
+    arrivalSamples: 0,
+    totalRoadEvents: 0,
+  };
+  /** Classifies a burst's resolved events by matching its lines against
+   * the road's authored table (the coordinator reports exactly the burst's
+   * events, once, in either the paused report or the arrival lines). */
+  const countEvents = (edgeId: string, lines: readonly string[]): void => {
+    const r = routeDef(edgeId);
+    if (!r) return;
+    const table = [...(r.events ?? [])];
+    for (const v of r.variants ?? []) table.push(...(v.events ?? []));
+    for (const line of lines) {
+      if (line.includes('bars the way')) {
+        travel.eventOutcomes.battle = (travel.eventOutcomes.battle ?? 0) + 1;
+        travel.totalRoadEvents++;
+        continue;
+      }
+      const ev = table.find((e) => 'text' in e && line.includes(e.text));
+      if (ev && ev.kind !== 'battle') {
+        travel.eventOutcomes[ev.kind] = (travel.eventOutcomes[ev.kind] ?? 0) + 1;
+        travel.totalRoadEvents++;
+      }
+      // Contextual drops ride the found-item lines (#158): counted when a
+      // material/consumable the enemy table doesn't carry shows up.
+      if (line.startsWith('🎁') && !table.some((e) => 'text' in e && line.includes(e.text))) {
+        travel.contextualDrops++;
+      }
+    }
+  };
+  /** BFS over currently usable edges — adjacency, unlocks and conditions
+   * all honored. Returns the edge-id path, or undefined when disconnected. */
+  const findPath = (toZone: string): string[] | undefined => {
+    if (p.currentZone === toZone) return [];
+    const prev = new Map<string, { from: string; edgeId: string }>();
+    const queue = [p.currentZone];
+    const seen = new Set([p.currentZone]);
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const here = { ...p, currentZone: cur } as PlayerState;
+      for (const r of usableRoutesFrom(here)) {
+        if (seen.has(r.to)) continue;
+        seen.add(r.to);
+        prev.set(r.to, { from: cur, edgeId: r.id });
+        if (r.to === toZone) {
+          const path: string[] = [];
+          let at = toZone;
+          while (at !== p.currentZone) {
+            const step = prev.get(at)!;
+            path.unshift(step.edgeId);
+            at = step.from;
+          }
+          return path;
+        }
+        queue.push(r.to);
+      }
+    }
+    return undefined;
+  };
+  /** #162: a determined traveler walks RESTED and STOCKED. Before roads
+   * that roll events, the hero heals at the nearest safe haven (arrival
+   * is the one authority — walking there IS the rest), tops up potions at
+   * the nearest counter, and walks BACK to the departure point. The whole
+   * prep runs under the inPrep flag: its own roads never re-prep. */
+  const prepForRoad = (): void => {
+    const s = statsOf(p);
+    const origin = p.currentZone;
+    const needsPrep = p.hp < s.maxHp * 0.9 || countOf(p, 'c_minor_potion') < 2;
+    if (!needsPrep) return;
+    // BFS to the nearest safe haven; arrival heals through the engine.
+    const queue: { zone: string; path: string[] }[] = [{ zone: p.currentZone, path: [] }];
+    const seen = new Set([p.currentZone]);
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const z = zoneDef(cur.zone);
+      if (z?.safeHaven && cur.path.length > 0) {
+        walkPath(cur.path);
+        break;
+      }
+      if (cur.path.length > 8) continue; // prep never crosses the world
+      const here = { ...p, currentZone: cur.zone } as PlayerState;
+      for (const r of usableRoutesFrom(here)) {
+        if (seen.has(r.to)) continue;
+        seen.add(r.to);
+        queue.push({ zone: r.to, path: [...cur.path, r.id] });
+      }
+    }
+    if (shopInZone(p.currentZone)) shopHere();
+    // Supplies: a haven without a counter sends the hero to the nearest
+    // one that stocks heal potions (still under inPrep — no nested prep).
+    if (HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) < 3) restock();
+    // Return to the departure point — still under inPrep (no nested prep).
+    const back = findPath(origin);
+    if (back) walkPath(back);
+  };
+  /** Prep never preps its own walk: the flag keeps haven-bound roads from
+   * recursing (the walk IS synchronous, single-threaded). */
+  let inPrep = false;
+  /** Crosses ONE authored edge through the REAL journey engine: every
+   * event roll resolves through the live coordinator, road fights run the
+   * combat policy (with the flee policy), and arrival is the one
+   * authority. False = the crossing aborted (death/flee); the caller
+   * recovers through the same flow a player would. */
+  const crossEdge = (edgeId: string): boolean => {
+    travel.edgeAttempts[edgeId] = (travel.edgeAttempts[edgeId] ?? 0) + 1;
+    const start = startJourney(p, edgeId, rng);
+    if (!start.ok) return false;
+    let step = start.step;
+    let guard = 0;
+    while (guard++ < 60) {
+      if (step.kind === 'arrived') {
+        travel.edgeArrivals[edgeId] = (travel.edgeArrivals[edgeId] ?? 0) + 1;
+        // Arrival condition sampling: HP/MP when the road ends (#162).
+        const s = statsOf(p);
+        travel.hpPctOnArrival += s.maxHp > 0 ? p.hp / s.maxHp : 0;
+        travel.arrivalSamples++;
+        countEvents(edgeId, step.lines);
+        return true;
+      }
+      if (step.kind === 'progress') {
+        step = advanceJourney(p, rng);
+        continue;
+      }
+      const outcome = fight(step.battle, 'road');
+      if (outcome === 'win') {
+        step = advanceJourney(p, rng);
+        continue;
+      }
+      return false;
+    }
+    return false;
+  };
+  /** Walks a path of edges in order. False = aborted (death/flee); the
+   * death flow has already relocated the hero to the respawn haven. */
+  const walkPath = (path: readonly string[]): boolean => {
+    // A careful traveler does not barrel edge after edge at low HP: after
+    // each crossing, a spent hero turns back to the nearest haven, rests,
+    // re-arms, and returns to this exact spot before the next road
+    // (#162 — bounded, so a hot stretch aborts instead of thrashing).
+    let rePreps = 0;
+    for (let i = 0; i < path.length; i++) {
+      const edgeId = path[i]!;
+      if (!crossEdge(edgeId)) return false;
+      const here = routeDef(edgeId)?.to;
+      if (
+        !inPrep && rePreps < 3 && here !== undefined && p.currentZone === here &&
+        p.hp < statsOf(p).maxHp * 0.55
+      ) {
+        rePreps++;
+        inPrep = true;
+        try {
+          prepForRoad();
+        } finally {
+          inPrep = false;
+        }
+        // Prep may have relocated the hero (death on the way back): the
+        // remaining edges no longer start here — abort; the caller's next
+        // walkTo re-plans from wherever the hero now stands.
+        if (p.currentZone !== here) return false;
+      }
+    }
+    return true;
+  };
+  /** One bounded attempt to walk the real graph to `zoneId` through
+   * usable edges — no retries, no recursion. Eventful paths prep first
+   * (heal + restock at a haven, then back to the departure point). */
+  const walkTo = (zoneId: string): boolean => {
+    if (p.currentZone === zoneId) return true;
+    const path = findPath(zoneId);
+    if (!path || path.length === 0) return false; // disconnected: never pretend
+    const eventful = path.some((id) => {
+      const plan = resolveRouteForSim(p, id);
+      return plan !== undefined && plan.eventCount > 0;
+    });
+    if (eventful && !inPrep) {
+      inPrep = true;
+      try {
+        prepForRoad();
+      } finally {
+        inPrep = false;
+      }
+      // Re-plan: prep may have relocated the hero (death on the way back).
+      if (p.currentZone === zoneId) return true;
+      const replanned = findPath(zoneId);
+      if (!replanned) return false;
+      return walkPath(replanned);
+    }
+    return walkPath(path);
+  };
+  /** The sim's movement primitive: walk to `zoneId`, recovering from
+   * deaths and aborted crossings by resting at the nearest shop — the
+   * same loop a determined player runs. The sim can no longer teleport. */
+  const goto = (zoneId: string): void => {
+    let guard = 0;
+    while (p.currentZone !== zoneId && guard++ < 25) {
+      if (walkTo(zoneId)) return;
+      restock();
+    }
+  };
+  /** Death recovery, graph-aware and NON-recursive: walk (bounded) to the
+   * NEAREST unlocked shop — havens passed on the way heal on arrival —
+   * then shop at the physical counter. */
+  const restock = (): void => {
+    let guard = 0;
+    // Recovery targets a counter that actually stocks HEAL potions — an
+    // antidote-only shelf cannot sustain a road walk.
+    const short = (): boolean => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) < 3;
+    while (short() && guard++ < 12) {
+      if (shopInZone(p.currentZone)) {
+        shop(); // a counter right here may already stock the shelf
+        if (!short()) break;
+      }
+      // BFS by hops over usable edges to the closest potion-stocking shop.
+      const queue: { zone: string; path: string[] }[] = [
+        { zone: p.currentZone, path: [] },
+      ];
+      const seen = new Set([p.currentZone]);
+      let walked = false;
+      while (queue.length > 0 && !walked) {
+        const cur = queue.shift()!;
+        if (cur.path.length > 0) {
+          const stock = resolveStock({ ...p, currentZone: cur.zone } as PlayerState);
+          if (stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId))) {
+            walked = walkPath(cur.path);
+            break;
+          }
+        }
+        const here = { ...p, currentZone: cur.zone } as PlayerState;
+        for (const r of usableRoutesFrom(here)) {
+          if (seen.has(r.to)) continue;
+          seen.add(r.to);
+          queue.push({ zone: r.to, path: [...cur.path, r.id] });
+        }
+      }
+      if (!walked) return; // nowhere to recover — keep playing honestly
+    }
+    if (shopInZone(p.currentZone)) shop();
+  };
   /** One real fight. 'death' applies the real death flow (revive at the
    * safe haven, −10% gold); 'retreat' is a timeout — heal up, no death.
-   * `kind` separates quest-driven fights from pure level grinding (#74):
-   * the report names both, because conflating them hid a 300-fight
-   * collection jump behind a small "grind" number. */
+   * `kind` separates quest-driven fights from pure level grinding (#74)
+   * and from ROAD fights (#162): a road fight runs a flee policy when the
+   * hero is nearly spent, and its victory completes the pending journey
+   * event at the one owned point. */
   const originLabel = (b: BattleState): string => {
     const o = b.origin;
     if (o.kind === 'dungeon') {
@@ -1612,14 +1903,51 @@ export function driveQuests(
   let lastFoughtEnemy = '';
   let failureStreak = 0;
   const failures: Record<string, number> = {};
-  const fight = (b: BattleState, kind: 'objective' | 'grind'): 'win' | 'death' | 'retreat' => {
+  const fight = (
+    b: BattleState,
+    kind: 'objective' | 'grind' | 'road',
+  ): 'win' | 'death' | 'retreat' | 'fled' => {
     fights++;
     if (kind === 'objective') objective++;
-    else grind++;
+    else if (kind === 'grind') grind++;
+    else travel.travelBattles++;
     let rounds = 0;
     let lastWasGuard = false;
-    let result: 'win' | 'death' | 'retreat' = 'retreat';
+    let result: 'win' | 'death' | 'retreat' | 'fled' = 'retreat';
     while (b.phase === 'active' && rounds < 200) {
+      // #162 road-fight flee policy: a nearly spent hero with NO heal left
+      // in the bag tries the way out of an ordinary road fight (a failed
+      // flee just costs the round, exactly like live play).
+      if (
+        kind === 'road' && rounds > 1 && p.hp < statsOf(p).maxHp * 0.2 &&
+        HEAL_ITEMS.every((id) => countOf(p, id) === 0)
+      ) {
+        const flee = performAction(p, b, { kind: 'flee' }, rng);
+        if (flee.outcome === 'fled') {
+          travel.roadFlees++;
+          p.battle = undefined;
+          p.journey = undefined;
+          result = 'fled';
+          break;
+        }
+        if (flee.outcome === 'victory') {
+          resolveVictory(p, b, rng);
+          result = 'win';
+          break;
+        }
+        if (flee.outcome === 'defeat') {
+          applyDeath(p);
+          // Mirror the live death flow (hub deathAction): defeat ends the
+          // crossing and drops the battle.
+          p.battle = undefined;
+          p.journey = undefined;
+          deaths++;
+          result = 'death';
+          break;
+        }
+        rounds++;
+        continue;
+      }
       const action = chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
       lastWasGuard = action.kind === 'guard';
       const res = performAction(p, b, action, rng);
@@ -1631,22 +1959,34 @@ export function driveQuests(
       // #86: the engine's explicit terminal adjudication.
       if (res.outcome === 'victory') {
         resolveVictory(p, b, rng);
+        // A road victory completes its pending journey event at the ONE
+        // owned point (#160), then the crossing resumes.
+        if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
         result = 'win';
         break;
       }
       if (res.outcome === 'defeat') {
         applyDeath(p);
+        // Mirror the live death flow (hub deathAction): defeat drops the
+        // battle AND ends any open crossing.
+        p.battle = undefined;
+        p.journey = undefined;
         deaths++;
+        if (kind === 'road') travel.roadDeaths++;
         result = 'death';
         break;
       }
     }
+    if (kind === 'road') travel.travelRounds += rounds;
+    // Road fights attach their battle (the coordinator does); every exit
+    // path clears it like the live Continue/flee/death flow does.
+    if (kind === 'road') p.battle = undefined;
     // #111: record the attempt AFTER resolution — the diagnostic observes
     // the completed fight only.
     lastAttempt = {
       enemy: b.enemy.id,
       origin: originLabel(b),
-      outcome: result,
+      outcome: result === 'fled' ? 'retreat' : result,
       rounds,
     };
     if (result === 'win') {
@@ -1657,22 +1997,6 @@ export function driveQuests(
     }
     lastFoughtEnemy = b.enemy.id;
     return result;
-  };
-
-  const goto = (zoneId: string): void => {
-    if (p.currentZone !== zoneId) travelDirect(p, zoneId);
-  };
-
-  /** Death recovery: re-entering the safe haven fully heals (free travel,
-   * by design); then shop while there. */
-  const restock = (): void => {
-    if (p.currentZone !== 'emberdawn') {
-      travelDirect(p, 'emberdawn');
-    } else {
-      travelDirect(p, 'whisperwood');
-      travelDirect(p, 'emberdawn');
-    }
-    shop();
   };
 
   const equipFromBag = (id: string): void => {
@@ -1710,23 +2034,77 @@ export function driveQuests(
     if (trinket && statWeight(trinket) > statWeight(p.equipment.trinket ?? '')) {
       equipFromBag(trinket);
     }
-    const potion = 'c_minor_potion';
-    while (countOf(p, potion) < 3) {
-      if (!buy(p, potion).ok) break;
+    // Supplies before steel: top the heal shelf up to 6 with whatever the
+    // counter stocks (cheapest first), then chase gear upgrades.
+    const stocked = (): number => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0);
+    for (const id of ['c_minor_potion', 'c_potion', 'c_greater_potion', 'c_super_potion']) {
+      while (stocked() < 6 && buy(p, id).ok) { /* the shelf carries it */ }
     }
   }
 
-  /** Shops every unlocked LOCAL shop (#161): the hero physically visits
-   * each authored counter — the starter stall stays beginner-tier, so
-   * regional steel comes from regional shops. Ends wherever the better
-   * rack was. */
+  /** #162: the shop trip is a REAL trip — the hero walks to the closest
+   * counter that genuinely stocks an affordable upgrade (regional steel
+   * lives at regional counters), shops there, and never accesses a remote
+   * shelf. */
   function shop(): void {
-    shopHere();
+    if (shopInZone(p.currentZone)) shopHere();
+    /** Trip to the nearest counter stocking heal potions when the shelf
+     * runs low — supplies are survival, independent of gear upgrades. */
+    const potionTrip = (): boolean => {
+      if (HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) >= 6) return true;
+      let pot: { zoneId: string; dist: number } | undefined;
+      for (const z of ZONES) {
+        if (!p.unlockedZones.includes(z.id) || !shopInZone(z.id)) continue;
+        const stock = resolveStock({ ...p, currentZone: z.id } as PlayerState);
+        if (!stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId))) continue;
+        const path = findPath(z.id);
+        if (!path) continue;
+        if (!pot || path.length < pot.dist) pot = { zoneId: z.id, dist: path.length };
+      }
+      if (!pot) return false;
+      let guard = 0;
+      while (p.currentZone !== pot.zoneId && guard++ < 6) {
+        if (walkTo(pot.zoneId)) break;
+        return false; // aborted mid-walk; the next shop() call retries
+      }
+      if (p.currentZone === pot.zoneId) shopHere();
+      return HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) >= 6;
+    };
+    potionTrip();
+    // Best (nearest) shop offering a strictly better, affordable piece.
+    let best: { zoneId: string; gain: number; dist: number } | undefined;
     for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id) || p.currentZone === z.id) continue;
-      if (!shopInZone(z.id)) continue;
-      travelDirect(p, z.id);
-      shopHere();
+      if (!p.unlockedZones.includes(z.id) || !shopInZone(z.id)) continue;
+      const probe = { ...p, currentZone: z.id } as PlayerState;
+      const stock = resolveStock(probe);
+      let gain = 0;
+      for (const kind of ['weapon', 'armor'] as const) {
+        const curW = statWeight(p.equipment[kind] ?? '');
+        const better = stock
+          .filter((o) => {
+            const id = o.itemId;
+            return (kind === 'weapon' ? id.startsWith('w_') : id.startsWith('a_')) &&
+              isEquippable(id, p.classId, p.level).ok &&
+              statWeight(id) > curW && o.price <= p.gold - 30;
+          })
+          .sort((a, b) => statWeight(b.itemId) - statWeight(a.itemId))[0];
+        if (better) gain += statWeight(better.itemId) - curW;
+      }
+      if (gain <= 0) continue;
+      const path = findPath(z.id);
+      if (!path) continue;
+      if (!best || path.length < best.dist) best = { zoneId: z.id, gain, dist: path.length };
+    }
+    if (best) {
+      // A REAL trip: bounded walk to the regional counter, then shop.
+      let guard = 0;
+      while (p.currentZone !== best.zoneId && guard++ < 6) {
+        if (walkTo(best.zoneId)) break;
+        // Aborted mid-walk (death/flee): the death flow relocated us; the
+        // next shop attempt happens on the caller's next shop() call.
+        return;
+      }
+      if (p.currentZone === best.zoneId) shopHere();
     }
   }
 
@@ -1744,10 +2122,27 @@ export function driveQuests(
         p.unlockedZones.includes(z.id) && zoneHostilePool(z.id, p.level).length > 0
       )?.id ?? 'outskirts';
     let n = 0;
+    let sinceWalk = 0;
     while (p.level === start && n < 300) {
       n++;
       explores++;
-      goto(farmZone);
+      if (p.currentZone !== farmZone) {
+        // Farm the live pool right here a bounded number of fights between
+        // walk attempts — the hero grows into a fair crossing instead of
+        // re-walking the same hot road every iteration. At the cap XP
+        // buys no levels, so the walk re-attempts on variance alone.
+        const poolLive = zoneHostilePool(p.currentZone, p.level).length > 0;
+        if (!poolLive || sinceWalk >= 12) {
+          sinceWalk = 0;
+          walkTo(farmZone);
+          continue;
+        }
+        sinceWalk++;
+      }
+      if (zoneHostilePool(p.currentZone, p.level).length === 0) {
+        restock(); // heal and re-arm at the nearest counter, then retry
+        continue;
+      }
       const out = explore(p, rng, 0);
       if (out.kind === 'battle' && fight(out.battle, 'grind') !== 'win') restock();
     }
@@ -1779,10 +2174,29 @@ export function driveQuests(
     const zid = zoneOfEnemy(enemyId);
     if (!zid) return false;
     let local = 0;
+    let sinceWalk = 0;
     while (questCount(qid, objIdx) < need) {
       if (++local > 400) return false;
+      if (p.currentZone === zid) {
+        explores++;
+        const out = explore(p, rng, 0);
+        if (out.kind === 'battle') {
+          if (fight(out.battle, 'objective') !== 'win') restock();
+        }
+        continue;
+      }
+      // The enemy spawns only in its own zone: progress REQUIRES the walk.
+      // Between attempts, a live local pool farms bounded fights — the
+      // hero grows into a fair crossing instead of face-planting into the
+      // same road forever.
+      const poolLive = zoneHostilePool(p.currentZone, p.level).length > 0;
+      if (!poolLive || sinceWalk >= 12) {
+        sinceWalk = 0;
+        walkTo(zid);
+        continue;
+      }
+      sinceWalk++;
       explores++;
-      goto(zid);
       const out = explore(p, rng, 0);
       if (out.kind === 'battle') {
         if (fight(out.battle, 'objective') !== 'win') restock();
@@ -1929,6 +2343,7 @@ export function driveQuests(
           grindFights: grind,
           itemsUsed,
         });
+        onTurnIn?.(p, qid);
         shop(); // #74: gear beats land right after quest rewards
       }
     }
@@ -1984,8 +2399,10 @@ export function driveQuests(
         onStoryEvent(p, obj.target);
         progressed = questCount(active, i) >= need;
       } else if (obj.kind === 'reach') {
-        travelDirect(p, obj.target);
-        progressed = true;
+        // #162: the reach objective is a REAL journey — the road IS the
+        // objective, rolled and fought through the live engine.
+        goto(obj.target);
+        progressed = p.currentZone === obj.target;
       } else if (obj.kind === 'dungeon') {
         // #88: later chapters gate story beats behind dungeon dives —
         // clear the named dungeon's boss with real fights.
@@ -2062,6 +2479,7 @@ export function driveQuests(
   report.totalGrindFights = grind;
   report.totalEncounterAttempts = explores;
   report.totalItemsUsed = itemsUsed;
+  report.travel = travel;
   return report;
 }
 

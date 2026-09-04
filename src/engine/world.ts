@@ -206,13 +206,13 @@ export function explore(
   // level band — ONE pure rule, so the game and the report can never drift.
   pool = pool.filter((e) => encounterEligible(e, p.level));
   // Safe-haven foraging is finite per REAL-TIME cooldown: a few picks and
-  // the caches dry up for hours — free travel can no longer refresh the
-  // faucet, so the Emberdawn loop is a 6-hour wait, not four taps.
+  // the caches dry up for hours — leaving and returning can no longer
+  // refresh the faucet, so the Emberdawn loop is a 6-hour wait, not four taps.
   const forageKey = `forage_${z.id}`;
   let foraged = typeof p.flags[forageKey] === 'number' ? p.flags[forageKey]! : 0;
   if (z.safeHaven) {
-    // The faucet recharges on a REAL-TIME cooldown — free travel never
-    // refreshes it. `now` is injected so the engine stays deterministic (#3).
+    // The faucet recharges on a REAL-TIME cooldown — walking away and
+    // back never refreshes it. `now` is injected so the engine stays deterministic (#3).
     if (foraged >= MAX_FORAGE_CHARGES) {
       const resetAt = p.flags['forageResetAt'];
       if (typeof resetAt === 'number' && now >= resetAt) {
