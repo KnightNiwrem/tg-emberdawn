@@ -217,7 +217,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram weighs the chunks in his palm.',
+        text: 'Bram tips an empty ore bin toward you with his boot.',
         next: 'o2',
       },
       {
@@ -251,15 +251,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram sets the forge roaring.',
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          'There. Steel worth the name, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark.',
+        text: 'Bram holds out both scarred hands.',
         next: 'ta',
       },
       {
@@ -271,8 +263,23 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
             id: 'handover',
             label: '⚒️ Hand over the iron',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm5_arms' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'narrator',
+        text: 'Bram sets the forge roaring.',
+        next: 't3',
+      },
+      {
+        id: 't3',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'There. Steel worth the name, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark.',
       },
     ],
   },

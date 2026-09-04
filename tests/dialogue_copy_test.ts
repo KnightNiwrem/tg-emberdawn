@@ -12,8 +12,10 @@ import { dialogue, dialogueNode, DIALOGUES } from '../src/content/dialogues.ts';
 import { QUESTS } from '../src/content/quests.ts';
 import { zoneOfNpc } from '../src/content/quests.ts';
 import { createPlayer } from '../src/engine/character.ts';
+import { addItem, countOf } from '../src/engine/inventory.ts';
 import { syncAvailability } from '../src/engine/quests.ts';
 import { applyDialogueChoice } from '../src/engine/story.ts';
+import { dialogueAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
@@ -218,4 +220,80 @@ Deno.test('copy: the m1 letter is offered before, handed after the commit (#133)
   p.scene = { view: 'dialogue', arg: d.id, arg2: 't3' };
   const after = JSON.stringify(renderDialogue(p));
   assert(after.includes('into your hands'), 'the handover is narrated only post-commit');
+});
+
+Deno.test('copy: m5_arms requests the iron before the commit and forges only after it (#148)', () => {
+  // The pre-transaction contradiction this flow carried: the offer opened
+  // with Bram weighing chunks the player did not own, and the turn-in
+  // started the forge and announced steel on the rack before the hand-over
+  // choice. With zero inventory the flow must REQUEST the goods and stage
+  // nothing it has not received; receipt/use/completion narration is
+  // reachable only after the committing choice applies.
+  const q = QUESTS.find((x) => x.id === 'm5_arms')!;
+  const offer = dialogue(q.offerDialogue)!;
+  const turnIn = dialogue(q.turnInDialogue)!;
+
+  // Zero-chunk hero opens the offer: the staging shows the EMPTY bin —
+  // Bram holds nothing of the player's — and the request beat stays
+  // concrete (two chunks, no coin).
+  const p = heroAt(offer, 'o1');
+  assertEquals(countOf(p, 'm_iron_chunk'), 0, 'fixture: zero iron in the bag');
+  const offerView = JSON.stringify(renderDialogue(p));
+  assert(offerView.includes('empty ore bin'), 'the staging shows an empty bin, not held goods');
+  assert(
+    !offerView.includes('weighs the chunks'),
+    'Bram never narrates holding the player\u2019s iron',
+  );
+  p.scene = { view: 'dialogue', arg: offer.id, arg2: 'o2' };
+  const request = JSON.stringify(renderDialogue(p));
+  assert(request.includes('bring me two chunks'), 'the offer asks for exactly two chunks');
+  // Deferring from the offer mutates nothing.
+  const before = JSON.stringify({ q: p.quests, i: p.inventory });
+  dialogueAction(p, { v: 'dlg', a: 'bk' });
+  assertEquals(p.scene.view, 'npc', 'the deferral leaves to the topic menu');
+  assertEquals(JSON.stringify({ q: p.quests, i: p.inventory }), before);
+
+  // Turn-in: only the request is staged; the forge and the steel exist
+  // only after the hand-over commits.
+  const p2 = heroAt(turnIn, 't1');
+  p2.quests['m5_arms'] = { status: 'turnIn', counts: [2] };
+  addItem(p2, 'm_iron_chunk', 2);
+  const staged = JSON.stringify(renderDialogue(p2));
+  assert(staged.includes('holds out both scarred hands'), 'the iron is requested, not received');
+  assert(
+    !staged.includes('forge roaring') && !staged.includes('on my rack'),
+    'no receipt, use or completion narration before the commit',
+  );
+  // Deferring from the turn-in preserves the quest status and both chunks.
+  const held = JSON.stringify({ q: p2.quests, i: p2.inventory });
+  dialogueAction(p2, { v: 'dlg', a: 'bk' });
+  assertEquals(JSON.stringify({ q: p2.quests, i: p2.inventory }), held);
+  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 'ta' };
+
+  // Confirming consumes exactly two chunks through the central authority.
+  const r = applyDialogueChoice(p2, { choiceId: 'handover', now: 1 });
+  assert(r.ok);
+  assertEquals(p2.quests['m5_arms']?.status, 'done');
+  assertEquals(countOf(p2, 'm_iron_chunk'), 0, 'exactly the two chunks are consumed');
+  assertEquals(r.nextNodeId, 't2', 'the receipt narration hangs off the committing choice');
+
+  // The post-commit beats survive rerender and a save/reload round-trip,
+  // and the recorded receipt makes a replayed hand-over a reward-free no-op.
+  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 't2' };
+  const forge = JSON.stringify(renderDialogue(p2));
+  assert(forge.includes('forge roaring'), 'the forge work is narrated only post-commit');
+  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 't3' };
+  const steel = JSON.stringify(renderDialogue(p2));
+  assert(steel.includes('on my rack'), 'the steel is announced only post-commit');
+  const reloaded = JSON.parse(JSON.stringify(p2)) as PlayerState;
+  assertEquals(
+    JSON.stringify(renderDialogue(reloaded)),
+    steel,
+    'rerender/reload stability',
+  );
+  const gold = p2.gold;
+  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 'ta' };
+  const replay = applyDialogueChoice(p2, { choiceId: 'handover', now: 2 });
+  assertEquals(replay.ok, true, 'the replay routes cleanly…');
+  assertEquals(p2.gold, gold, '…and grants nothing twice');
 });
