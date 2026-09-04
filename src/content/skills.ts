@@ -187,7 +187,7 @@ export const SKILLS: readonly SkillDef[] = [
       {
         kind: 'restore',
         hpPctOfMax: 0.3,
-        line: '🩹 You recover {n} HP and feel the rush (+20% ATK).',
+        line: '🩹 You recover {n} HP and feel the rush.',
       },
       { ...buff('atk', 0.2, 2), stacking: 'stack', quiet: true },
     ],
@@ -485,7 +485,7 @@ export const SKILLS: readonly SkillDef[] = [
       timing: 'immediate',
       chance: 0.6,
       name: 'Exposed',
-      line: "🔎 You read the foe's stance — Exposed! It takes 25% more damage for 3 rounds.",
+      line: "🔎 You read the foe's stance — Exposed!",
       tags: ['vulnerable'],
     }],
     flavor: "You read the foe's stance.",

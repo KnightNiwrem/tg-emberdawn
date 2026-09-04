@@ -104,15 +104,15 @@ not authored prose.
 `line`s, opening lines), plus authored `spec.line` battle narration on equipment triggers in
 `src/content/items.ts`.
 
-**Disposition: retained, with one defect moved to a focused engineering issue.**
+**Disposition: retained, with the one recorded defect fixed (#153).**
 
 - Periodic/status battle narration uses canonical terms with `{n}` interpolation where supported;
   the generated rules summary (`src/engine/mechanics.ts`) remains the sole binding explanation.
-- Concrete defect, not a prose-judgment question: several equipment trigger `line`s hardcode amounts
-  and durations in prose (e.g. "burning (6 damage ×2 rounds)") that duplicate their structured spec
-  fields and can drift stale. This is a deterministic single-source-of-truth violation of the
-  flavor/rules invariant, tracked with its own acceptance criteria in **#153** — not left under a
-  generic future sign-off.
+- The concrete defect recorded at review time — equipment trigger `line`s hardcoding amounts and
+  durations that duplicate their structured spec fields — was fixed under **#153**: authored battle
+  narration is qualitative, `{n}` reports only resolver-supplied values, and a narrowly scoped
+  integrity check (`tests/battle_lines_test.ts`) rejects duplicated mechanical numbers. The exact
+  figures surface once through the generated summaries and live effect rows.
 
 ### 5. Item and skill names/flavor
 
@@ -141,7 +141,7 @@ handler toasts in `src/handlers/`.
 - **Pell's silence** — "Pell doesn't say thank you. Rangers never do." A voice-sheet-driven
   departure from warmth; earned by character, kept.
 - **Battle narration adjacent to mechanics** — `spec.line`s are in-world and deliberately distinct
-  from the generated rules block; kept, with the duplicated-number drift risk filed as #153.
+  from the generated rules block; kept, with the duplicated-number drift risk fixed under #153.
 - **Static topic quoting asymmetry** — noted above; deliberately kept after review: greetings are
   renderer-framed speech, lore topics are in-world excerpts whose quotes belong to the text.
 

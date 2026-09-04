@@ -270,7 +270,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tickPhase: 'roundEnd',
       name: 'Ember Burn',
       tags: ['burn', 'harmful'],
-      line: '🔥 The Ember Sigil flares — the attacker is burning (6 damage ×2 rounds)!',
+      line: '🔥 The Ember Sigil flares — the attacker is burning!',
     }],
   }],
   // Glass Arrowhead's ATK is dead for mage/cleric — an opening Expose is
@@ -288,8 +288,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       timing: 'immediate',
       name: 'Exposed',
       tags: ['vulnerable', 'harmful'],
-      line:
-        '🎯 The Glass Arrowhead opens a fault line — the foe is Exposed (+25% damage taken, 3 rounds).',
+      line: '🎯 The Glass Arrowhead opens a fault line — the foe is Exposed.',
     }],
   }],
   // Thorn Ring: bounded retaliation (the issue's named example).
@@ -306,7 +305,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tickPhase: 'roundEnd',
       name: 'Bramble Bleed',
       tags: ['bleed', 'harmful'],
-      line: '🌵 The Thorn Ring brambles bite back — the attacker bleeds (4 damage ×2 rounds)!',
+      line: '🌵 The Thorn Ring brambles bite back — the attacker bleeds!',
     }],
   }],
   // Ember Locket's MAG is bait for warrior/rogue — an opening smolder.
@@ -322,7 +321,7 @@ const TRINKET_TRIGGERS: Record<string, EquipTrigger[]> = {
       tickPhase: 'roundEnd',
       name: 'Smolder',
       tags: ['burn', 'harmful'],
-      line: '🔥 The Ember Locket wakes — the foe is smoldering (8 damage ×2 rounds)!',
+      line: '🔥 The Ember Locket wakes — the foe is smoldering!',
     }],
   }],
 };
@@ -540,8 +539,7 @@ function buildItems(): ItemDef[] {
         timing: 'immediate',
         lifetime: 'battle',
         name: 'Wardstone Ward',
-        line:
-          '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to 25 damage (whole battle).',
+        line: '🪨 The Wardstone hums awake — a ward settles over you, absorbing up to {n} damage.',
       }],
     }],
   });
@@ -650,7 +648,7 @@ function buildItems(): ItemDef[] {
           timing: 'immediate',
           name: 'Slowed',
           tags: ['slow', 'harmful'],
-          line: '⏳ Sand falls upward — the foe is Slowed (−25% SPD, 2 rounds).',
+          line: '⏳ Sand falls upward — the foe is Slowed.',
         }],
       }],
     },
@@ -696,7 +694,7 @@ function buildItems(): ItemDef[] {
           tickPhase: 'roundEnd',
           name: 'Caldera Burn',
           tags: ['burn', 'harmful'],
-          line: '🌋 The caldera answers — the attacker is burning (12 damage ×3 rounds)!',
+          line: '🌋 The caldera answers — the attacker is burning!',
         }],
       }],
     },
@@ -725,7 +723,7 @@ function buildItems(): ItemDef[] {
           tickPhase: 'roundEnd',
           name: 'Grudge Bleed',
           tags: ['bleed', 'harmful'],
-          line: '🩹 The grudge answers — the striker is bleeding (3 damage ×2 rounds)!',
+          line: '🩹 The grudge answers — the striker is bleeding!',
         }],
       }],
     },
@@ -749,7 +747,7 @@ function buildItems(): ItemDef[] {
           lifetime: 'battle',
           name: "Dawn's Might",
           tags: ['beneficial'],
-          line: "🌅 Dawn's Might settles into your arms (+10% ATK, whole battle).",
+          line: "🌅 Dawn's Might settles into your arms.",
         }, {
           kind: 'statmod',
           target: 'self',
@@ -760,7 +758,7 @@ function buildItems(): ItemDef[] {
           lifetime: 'battle',
           name: "Dawn's Insight",
           tags: ['beneficial'],
-          line: "🌅 Dawn's Insight settles into your mind (+10% MAG, whole battle).",
+          line: "🌅 Dawn's Insight settles into your mind.",
         }],
       }],
     },
@@ -784,8 +782,7 @@ function buildItems(): ItemDef[] {
           timing: 'immediate',
           name: 'Voidmarked',
           tags: ['vulnerable', 'mark', 'harmful'],
-          line:
-            '🕳️ The Lens finds the seam in reality — the foe is Voidmarked (+25% damage taken, 3 rounds).',
+          line: '🕳️ The Lens finds the seam in reality — the foe is Voidmarked.',
         }],
       }],
     },
