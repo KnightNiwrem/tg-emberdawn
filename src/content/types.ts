@@ -653,4 +653,106 @@ export interface ZoneDef {
   /** Friendly rest point: full heal on entering zone. */
   safeHaven: boolean;
   npcs: NpcDef[];
+  /** Contextual loot table id (#158) — the zone's own resource/drop
+   * identity, rolled IN ADDITION to ordinary enemy rewards. Enemy-global
+   * base drops stay authoritative; quest-kind drops remain subject to the
+   * central relevance filter at every grant site. */
+  lootTable?: string;
+}
+
+/** ── World-route graph (#158) ────────────────────────────────────────────
+ *
+ * Zones are real graph nodes; routes are authored DIRECTED edges between
+ * adjacent zones. A route independently describes how many random travel
+ * events occur (`eventCount`) and which weighted table supplies them
+ * (`events`). Both together define a route's practical danger and reward —
+ * an event count is a number of rolls, NEVER a guaranteed number of
+ * battles. Travel-event tables and zone exploration tables are distinct
+ * contexts: staying somewhere and crossing between places never share a
+ * table by inheritance.
+ */
+
+/** One weighted entry of a route's travel-event table (#158). Every event
+ * is structured data resolved by the pure journey engine — never a
+ * callback. Battle events are ORDINARY fleeable fights; random
+ * inescapable bosses or elites must never hide inside an ordinary route
+ * table (content integrity rejects boss enemies and elite kinds here). */
+export type TravelEvent =
+  | { kind: 'flavor'; weight: number; text: string }
+  | {
+    kind: 'battle';
+    enemy: string;
+    weight: number;
+    /** Authored encounter eligibility (#73 semantics): the event only
+     * rolls for players at/above this level. Unauthored = always
+     * eligible. */
+    minPlayerLevel?: number;
+    /** Symmetric ceiling — author sparingly. */
+    maxPlayerLevel?: number;
+  }
+  | {
+    kind: 'treasure';
+    gold?: number;
+    item?: string;
+    /** Contextual loot table id (#158), rolled in ADDITION to gold/item —
+     * route-specific resources without cloning enemies. */
+    dropTable?: string;
+    weight: number;
+    text: string;
+  }
+  | { kind: 'rest'; healPct: number; weight: number; text: string };
+
+/** A condition-dependent rewrite of a route's crossing plan (#158):
+ * quests, flags, decisions or outcomes can secure, worsen, replace or
+ * otherwise transform a road through the shared declarative condition
+ * language — never a hard-coded route-ID branch in the engine. */
+export interface RouteVariant {
+  id: string;
+  /** Selection condition. Unauthored = always selected. */
+  when?: Condition;
+  /** Replaces the base event count for the whole crossing. */
+  eventCount: number;
+  /** Replaces the base event table when authored. */
+  events?: TravelEvent[];
+  /** Optional player-facing override for the transformed road. */
+  name?: string;
+  desc?: string;
+}
+
+/** An authored DIRECTED travel edge (#158): one adjacency between two
+ * zone nodes. Model directions explicitly — reciprocal roads may share
+ * authoring helpers or tables, but asymmetric difficulty and one-way
+ * travel are first-class. */
+export interface RouteDef {
+  id: string;
+  /** Origin zone node. */
+  from: string;
+  /** Destination zone node. */
+  to: string;
+  /** Player-facing route identity (the road's name). */
+  name?: string;
+  /** What the crossing is like — creative flavor, never a rules source. */
+  desc?: string;
+  /** Availability gate for the whole edge. Unauthored = always usable. */
+  when?: Condition;
+  /** Exact number of forced random travel-event rolls. 0 = a safe,
+   * immediate crossing (starter roads). Finite, non-negative. */
+  eventCount: number;
+  /** Weighted travel-event table; required when `eventCount` > 0. */
+  events?: TravelEvent[];
+  /** Condition-dependent variants (#158), selected in AUTHORED ORDER —
+   * the first passing condition wins; the base plan is always the
+   * fallback. A chosen journey snapshots the resolved plan (#159), so a
+   * mid-crossing condition change never rewrites the crossing in
+   * progress. */
+  variants?: RouteVariant[];
+}
+
+/** A contextual loot table (#158): independent chance rolls granted in
+ * ADDITION to ordinary enemy rewards. Gives zones and routes their own
+ * resource identity without cloning complete enemy definitions. */
+export interface DropTableDef {
+  id: string;
+  /** Independent rolls: each entry is granted with its own chance. */
+  entries: { item: string; chance: number; qty?: number }[];
 }

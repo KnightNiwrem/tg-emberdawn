@@ -95,6 +95,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'Hearth-roads and stubble fields where ember-rats and rootlings gnaw. Farmers speak of a tusked boar that took the bridge path.',
     safeHaven: false,
+    lootTable: 'dt_ember_fields',
     explore: [
       { kind: 'battle', enemy: 'e_ember_rat', weight: 3, minPlayerLevel: 1 },
       { kind: 'battle', enemy: 'e_rootling', weight: 2, minPlayerLevel: 1 },
@@ -121,6 +122,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       "An ancient forest whose roots still carry the Flame's warmth. The whispers have turned sour — but roots remember.",
     safeHaven: false,
+    lootTable: 'dt_whisper_roots',
     explore: [
       // Authored eligibility (#73): Whisperwood runs Lv 3–9 — a level-1 or
       // 2 player finds no hostiles here at all, and the elite is locked
@@ -211,6 +213,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'A drowned lowland where the water burns cold with toxin. Something crowned itself here — but crowns come off.',
     safeHaven: false,
+    lootTable: 'dt_mire_roads',
     explore: [
       { kind: 'battle', enemy: 'e_boglin', weight: 3 },
       { kind: 'battle', enemy: 'e_leech', weight: 3 },
@@ -308,6 +311,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'A desert city of solar clockwork, abandoned by its people and inherited by a cult. The gears still turn. So will tomorrow.',
     safeHaven: false,
+    lootTable: 'dt_sun_flats',
     explore: [
       { kind: 'battle', enemy: 'e_scarab', weight: 3 },
       { kind: 'battle', enemy: 'e_sentinel', weight: 2 },
@@ -372,6 +376,7 @@ export const ZONES: readonly ZoneDef[] = [
     levels: [23, 31],
     desc: "A frozen mountain pass where the Flame's twin — the Frostfire — sleeps in the ice.",
     safeHaven: false,
+    lootTable: 'dt_high_pass',
     explore: [
       { kind: 'battle', enemy: 'e_icebat', weight: 3 },
       { kind: 'battle', enemy: 'e_bristlehorn', weight: 2 },
@@ -441,6 +446,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       "Ash dunes around a dying caldera. The Flame's greatest child hides here, starving — and a heart that starves is a heart that hasn't stopped.",
     safeHaven: false,
+    lootTable: 'dt_ash_road',
     explore: [
       { kind: 'battle', enemy: 'e_magmaslime', weight: 3 },
       { kind: 'battle', enemy: 'e_emberimp', weight: 3 },
@@ -516,6 +522,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'A tower standing in the space between flame and shadow, where the Sundered King waits — and where the seam lets in one thin, stubborn light.',
     safeHaven: false,
+    lootTable: 'dt_night_roads',
     explore: [
       { kind: 'battle', enemy: 'e_shade', weight: 3 },
       { kind: 'battle', enemy: 'e_watcher', weight: 2 },
@@ -588,6 +595,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'The seam beneath the world, exposed when the crown was sundered. What fell through still climbs, and someone has to guard the morning.',
     safeHaven: false,
+    lootTable: 'dt_night_roads',
     explore: [
       { kind: 'battle', enemy: 'e_voidspawn', weight: 3 },
       { kind: 'battle', enemy: 'e_nullhound', weight: 3 },
