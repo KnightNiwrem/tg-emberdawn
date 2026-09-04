@@ -7,11 +7,20 @@
  * per-pattern sink, and replacement loot inherits your forge-work.
  * Material tier derives from the ITEM's tier — no more tempering endgame
  * gear with cheap chapter-1 shards after a quick trip back to the village.
+ *
+ * Facility authority (#161): tempering happens AT a forge — the current
+ * zone must author one, its capability (slots, temper ceiling, upgrades)
+ * is resolved from live state, and everything revalidates at mutation
+ * time. Local capability bounds WHERE work can be done, never what the
+ * work is worth.
  */
 
 import type { PlayerState } from './types.ts';
+import type { ForgeDef } from '../content/types.ts';
+import { forgeInZone } from '../content/facilities.ts';
 import { removeItem } from './inventory.ts';
 import { item, itemName } from '../content/items.ts';
+import { evalCondition } from './conditions.ts';
 
 export const MAX_TEMPER = 5;
 
@@ -49,20 +58,68 @@ export function temperBonusOf(p: PlayerState, itemId: string | undefined): numbe
   return temperLevelOf(p, itemId) * TEMPER_PCT;
 }
 
+/** The forge authored at the player's current zone, if any. */
+export function forgeAt(p: PlayerState): ForgeDef | undefined {
+  return forgeInZone(p.currentZone);
+}
+
+/** Resolved capability of the CURRENT forge for THIS player: base limits
+ * with every passing upgrade applied in authored order (#161). */
+export function forgeCapability(
+  p: PlayerState,
+  at?: ForgeDef,
+): { slots: Set<'weapon' | 'armor'>; maxTemper: number } | undefined {
+  const def = at ?? forgeAt(p);
+  if (!def) return undefined;
+  const caps = def.capabilities;
+  const slots = new Set(caps.slots);
+  let maxTemper = caps.maxTemper;
+  for (const up of caps.upgrades ?? []) {
+    if (!evalCondition(p, up.when)) continue;
+    if (up.slots) { for (const s of up.slots) slots.add(s); }
+    if (up.maxTemper !== undefined) maxTemper = Math.max(maxTemper, up.maxTemper);
+  }
+  return { slots, maxTemper: Math.min(MAX_TEMPER, maxTemper) };
+}
+
+/** Why the current forge cannot temper this slot right now — for UI copy
+ * and for the engine's own revalidation. undefined = the work may proceed. */
+export function temperBlock(
+  p: PlayerState,
+  slot: 'weapon' | 'armor',
+): string | undefined {
+  const caps = forgeCapability(p);
+  if (!caps) return 'There is no forge here.';
+  if (!caps.slots.has(slot)) {
+    return slot === 'weapon'
+      ? "⚒️ This forge doesn't work weapons."
+      : "⚒️ This forge doesn't work armor.";
+  }
+  const equipped = p.equipment[slot];
+  if (!equipped) return 'Nothing equipped in that slot.';
+  if (temperLevelOf(p, equipped) >= caps.maxTemper) {
+    return temperLevelOf(p, equipped) >= MAX_TEMPER
+      ? `⚒️ ${itemName(equipped)} is fully tempered (+${MAX_TEMPER}).`
+      : `⚒️ ${itemName(equipped)} is beyond this forge's craft (+${caps.maxTemper} here).`;
+  }
+  return undefined;
+}
+
 function materialForItem(itemId: string): string {
   const tier = item(itemId)?.tier ?? 1;
   const idx = TIER_MATERIAL_INDEX[Math.min(8, Math.max(1, tier)) - 1]!;
   return TIER_MATERIALS[idx]!;
 }
 
+/** Cost of the NEXT temper at the current forge — undefined when the
+ * forge cannot (or need not) temper the slot further. */
 export function temperCost(
   p: PlayerState,
   slot: 'weapon' | 'armor',
 ): { gold: number; material: string; materialQty: number } | undefined {
-  const equipped = p.equipment[slot];
-  if (!equipped) return undefined;
+  if (temperBlock(p, slot)) return undefined;
+  const equipped = p.equipment[slot]!;
   const lvl = temperLevelOf(p, equipped);
-  if (lvl >= MAX_TEMPER) return undefined;
   return {
     gold: 200 * (lvl + 1) * (lvl + 1),
     material: materialForItem(equipped),
@@ -74,12 +131,12 @@ export function temper(
   p: PlayerState,
   slot: 'weapon' | 'armor',
 ): { ok: boolean; lines: string[] } {
-  const equipped = p.equipment[slot];
-  if (!equipped) return { ok: false, lines: ['Nothing equipped in that slot.'] };
-  const lvl = temperLevelOf(p, equipped);
-  if (lvl >= MAX_TEMPER) {
-    return { ok: false, lines: [`⚒️ ${itemName(equipped)} is fully tempered (+${MAX_TEMPER}).`] };
-  }
+  // Server-side authority (#161): facility, capability, item, cost and
+  // materials are all revalidated here — never trusted from a render.
+  if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  const block = temperBlock(p, slot);
+  if (block) return { ok: false, lines: [block] };
+  const equipped = p.equipment[slot]!;
   const cost = temperCost(p, slot);
   if (!cost) return { ok: false, lines: ['The forge refuses.'] };
   if (p.gold < cost.gold) return { ok: false, lines: [`💰 Needs ${cost.gold} gold.`] };
@@ -87,6 +144,7 @@ export function temper(
     return { ok: false, lines: [`🧱 Needs ${cost.materialQty}× ${itemName(cost.material)}.`] };
   }
   p.gold -= cost.gold;
+  const lvl = temperLevelOf(p, equipped);
   p.flags[temperKey(equipped)] = lvl + 1;
   return {
     ok: true,

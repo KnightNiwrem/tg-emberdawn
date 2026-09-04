@@ -374,6 +374,12 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
     p.unlockedZones.push(r.unlockZone);
     lines.push(`🗺️ New area unlocked: ${zoneDef(r.unlockZone)?.name ?? r.unlockZone}`);
   }
+  for (const zid of r.unlockZones ?? []) {
+    if (!p.unlockedZones.includes(zid)) {
+      p.unlockedZones.push(zid);
+      lines.push(`🗺️ New area unlocked: ${zoneDef(zid)?.name ?? zid}`);
+    }
+  }
   return { ok: true, lines, ready };
 }
 

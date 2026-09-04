@@ -565,6 +565,9 @@ export interface QuestDef {
     flags?: string[];
     /** Zone unlocked on completion. */
     unlockZone?: string;
+    /** Additional zones unlocked on completion (#161: multi-zone rewards,
+     * e.g. a settlement beside the main destination). */
+    unlockZones?: string[];
   };
   /** NPC id whose dialogue offers (starts) this quest — the physical
    * contact a player must talk to in order to accept it (#63). */
@@ -653,6 +656,8 @@ export interface ZoneDef {
   /** Friendly rest point: full heal on entering zone. */
   safeHaven: boolean;
   npcs: NpcDef[];
+  /** Authored local services (#161) — independent of `safeHaven`. */
+  services?: ZoneServices;
   /** Contextual loot table id (#158) — the zone's own resource/drop
    * identity, rolled IN ADDITION to ordinary enemy rewards. Enemy-global
    * base drops stay authoritative; quest-kind drops remain subject to the
@@ -755,4 +760,73 @@ export interface DropTableDef {
   id: string;
   /** Independent rolls: each entry is granted with its own chance. */
   entries: { item: string; chance: number; qty?: number }[];
+}
+
+/** ── Location-scoped facilities (#161) ──────────────────────────────────
+ *
+ * Shops and forges are independent services attached ONLY to zones where
+ * they exist, by stable facility identity. Safety is orthogonal: a safe
+ * haven may lack either or both; a dangerous zone may exceptionally host
+ * one. Nothing derives services from `safeHaven`, and neither facility
+ * implies the other.
+ */
+
+/** A zone's authored local services (#161) — stable facility ids, never
+ * inline catalogs. Absent fields mean the zone has no such facility. */
+export interface ZoneServices {
+  shop?: string;
+  forge?: string;
+}
+
+/** One stock rule of a shop (#161): a group of item ids, optionally
+ * gated by the declarative condition language (quest/flag/level/decision
+ * upgrades) and optionally priced away from list price when the local
+ * price behavior is clearly authored. */
+export interface StockRule {
+  items: string[];
+  /** Availability condition. Unauthored = always on the shelf. */
+  when?: Condition;
+  /** Local price multiplier over the item's list price. 1 = list. */
+  pricePct?: number;
+}
+
+export interface ShopDef {
+  id: string;
+  name: string;
+  /** What kind of establishment this is — flavor, never mechanics. */
+  desc?: string;
+  /** Authored stock rules, evaluated in order; first sighting of an item
+   * wins its price. Resolution re-filters gear to the SHOPPER's class and
+   * level (#22) — authored stock lists the shelf, never a personal
+   * guarantee. */
+  stock: StockRule[];
+}
+
+/** What a forge can do, and how progression raises it (#161). Tempering
+ * remains per-pattern mastery (`forge_i_<itemId>`): local capability
+ * bounds WHERE the work can be done, never WHAT the work is worth. */
+export interface ForgeCapabilities {
+  /** Which equipped slots this forge can temper. */
+  slots: ('weapon' | 'armor')[];
+  /** Highest temper level this forge can reach (≤ MAX_TEMPER). */
+  maxTemper: number;
+  /** Condition-driven upgrades, evaluated in authored order: each passing
+   * upgrade REPLACES the base limits with its own when present. */
+  upgrades?: ForgeUpgrade[];
+}
+
+export interface ForgeUpgrade {
+  name?: string;
+  when: Condition;
+  /** Raises the temper ceiling while the condition passes. */
+  maxTemper?: number;
+  /** Extends the temperable slots while the condition passes. */
+  slots?: ('weapon' | 'armor')[];
+}
+
+export interface ForgeDef {
+  id: string;
+  name: string;
+  desc?: string;
+  capabilities: ForgeCapabilities;
 }

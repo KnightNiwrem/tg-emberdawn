@@ -25,7 +25,7 @@ import { applyInstance } from '../src/engine/effects.ts';
 import { renderItemMenu } from '../src/render/battle.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
-import { shopStock } from '../src/content/items.ts';
+import { SHOPS } from '../src/content/facilities.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
 import { seeded } from './helpers.ts';
@@ -484,8 +484,12 @@ Deno.test('campaign: every collect objective has a reachable source (#9)', () =>
     for (const id of Object.keys(e.drops ?? {})) farmableDrops.add(id);
   }
   const shopItems = new Set<string>();
-  for (const z of ZONES) {
-    for (let t = 1; t <= 8; t++) for (const id of shopStock(z.id, t)) shopItems.add(id);
+  // Authored facility stock (#161): every rule of every shop is a
+  // reachable source — conditions gate WHEN, never WHETHER.
+  for (const s of SHOPS) {
+    for (const rule of s.stock) {
+      for (const id of rule.items) shopItems.add(id);
+    }
   }
 
   const problems: string[] = [];

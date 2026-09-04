@@ -61,6 +61,71 @@ export const ROUTES: readonly RouteDef[] = [
 
   // ── Chapter 2 — down to the mire ───────────────────────────────────────
   {
+    id: 'w_whisperwood_mirefoot',
+    from: 'whisperwood',
+    to: 'mirefoot',
+    name: 'The Landing Trail',
+    desc: 'A ranger-marked track down to the fen\u2019s edge — the long way in, but the dry way.',
+    eventCount: 1,
+    events: [
+      { kind: 'battle', enemy: 'e_wolf', weight: 2, maxPlayerLevel: 12 },
+      { kind: 'battle', enemy: 'e_boglin', weight: 2 },
+      { kind: 'flavor', weight: 2, text: 'The trees thin; the ground softens; boards begin.' },
+      {
+        kind: 'rest',
+        healPct: 0.25,
+        weight: 1,
+        text: 'A corduroy road-bridge makes a dry bench. You rest.',
+      },
+      {
+        kind: 'treasure',
+        gold: 50,
+        weight: 1,
+        text: 'A lost pole-tax pouch hangs from a waypoint stake.',
+      },
+    ],
+  },
+  {
+    id: 'w_mirefoot_whisperwood',
+    from: 'mirefoot',
+    to: 'whisperwood',
+    name: 'The Landing Trail, climbing',
+    desc: 'Up from the boards into honest tree-shade, the fen breathing at your back.',
+    eventCount: 1,
+    events: [
+      { kind: 'battle', enemy: 'e_boglin', weight: 2 },
+      { kind: 'flavor', weight: 2, text: 'Each rise leaves another layer of fen-damp behind.' },
+      {
+        kind: 'rest',
+        healPct: 0.25,
+        weight: 1,
+        text: 'You rest at the tree-line, where the frogs give way to birds.',
+      },
+      {
+        kind: 'treasure',
+        gold: 45,
+        weight: 1,
+        text: 'A boatman\u2019s dropped coin-roll wedged in the trail-boards.',
+      },
+    ],
+  },
+  {
+    id: 'w_mirefoot_hollowmere',
+    from: 'mirefoot',
+    to: 'hollowmere',
+    name: 'The Poled Crossing',
+    desc: 'The Ferryman\u2019s own route: flat water, tall reeds, a steady pole. The safe way in.',
+    eventCount: 0,
+  },
+  {
+    id: 'w_hollowmere_mirefoot',
+    from: 'hollowmere',
+    to: 'mirefoot',
+    name: 'The Poled Crossing, out',
+    desc: 'Back to the landing\u2019s dry boards and Odo\u2019s patient hammer.',
+    eventCount: 0,
+  },
+  {
     id: 'w_whisperwood_hollowmere',
     from: 'whisperwood',
     to: 'hollowmere',

@@ -197,16 +197,9 @@ export function renderItemDetail(
   if (def.kind === 'consumable' && (def.effect?.healHp || def.effect?.healMp)) {
     row.push(cbBtn('🧪 Use', encodeCb({ v: 'inventory', a: 'u', arg: itemId }), 'success'));
   }
-  if (!def.unique && def.kind !== 'quest') {
-    row.push(
-      cbBtn(
-        `💱 Sell (${Math.floor(def.price * 0.4)}g)`,
-        encodeCb({ v: 'inventory', a: 'sell', arg: itemId }),
-      ),
-    );
-  }
-  // Quest items and earned trophies have no Drop (#35) — the handler was
-  // already refusing them; now the button agrees.
+  // Selling left the generic inventory (#161): it happens only at a shop's
+  // own counter, where a merchant actually stands. Dropping stays a bag
+  // operation (#35): quest items and earned trophies refuse it.
   if (!def.unique && def.kind !== 'quest') {
     row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
   }

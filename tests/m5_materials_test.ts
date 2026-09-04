@@ -11,7 +11,7 @@ import { xpForNextLevel } from '../src/engine/classes.ts';
 import { performAction } from '../src/engine/combat.ts';
 import { countOf, removeItem } from '../src/engine/inventory.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from '../src/engine/quests.ts';
-import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
+import { buy, resolveStock } from '../src/engine/shops.ts';
 import {
   diveDungeon,
   dungeonOf,
@@ -141,10 +141,11 @@ Deno.test('m5_arms: the taught Iron Chunk route works for a real level-6 hero (#
     }
     assert(p.level >= 7, `${cid}: reached the readiness level (${fights} chapter fights)`);
     assert(fights <= 30, `${cid}: the readiness gap stays modest (${fights})`);
-    assertEquals(tierForLevel(p.level), 2, `${cid}: tier-2 stock opens at 7`);
+    // Tier-2 steel is legal at exactly level 7 (the catalog's tier law).
+    assertEquals(itemDef('w_warrior_2')!.level, 7, `${cid}: tier-2 gear opens at 7`);
 
     goto(p, 'emberdawn');
-    const stock = currentStock(p);
+    const stock = resolveStock(p).map((o) => o.itemId);
     const steel = stock.find((id) =>
       itemDef(id)?.kind === 'weapon' && (itemDef(id)?.tier ?? 0) >= 2 &&
       isEquippable(id, p.classId, p.level).ok

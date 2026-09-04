@@ -157,10 +157,12 @@ function isConsumable(id: string): boolean {
   return item(id)?.kind === 'consumable';
 }
 
-/** Non-battle item actions (inventory view). */
+/** Non-battle item actions (inventory view). Selling left the generic
+ * inventory (#161): it happens only at a shop's counter — the codec can
+ * no longer even express a bag-side sale. */
 export function itemAction(
   p: PlayerState,
-  op: 'u' | 'eq' | 'sell' | 'drop',
+  op: 'u' | 'eq' | 'drop',
   itemId: string,
 ): MutationResult {
   if (op === 'u') {
@@ -210,22 +212,15 @@ export function itemAction(
     p.scene = { view: 'equipment' };
     return {};
   }
-  if (op === 'sell') {
+  if (op === 'drop') {
     const def = item(itemId);
-    if (!def || def.unique) return { toast: "Can't sell that." };
+    if (def?.kind === 'quest') return { toast: "That isn't yours to throw away." };
+    if (def?.unique) return { toast: "You've earned that — it stays with you." };
     if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
-    const gain = Math.floor(def.price * 0.4);
-    p.gold += gain;
-    p.notices = [`💱 Sold ${def.name} for ${gain} gold.`];
+    p.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
     p.scene = { view: 'inventory', arg: '0' };
     return {};
   }
-  // drop
-  const def = item(itemId);
-  if (def?.kind === 'quest') return { toast: "That isn't yours to throw away." };
-  if (def?.unique) return { toast: "You've earned that — it stays with you." };
-  if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
-  p.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
-  p.scene = { view: 'inventory', arg: '0' };
-  return {};
+  // The switch is exhaustive ('u' | 'eq' | 'drop' all returned above).
+  return { toast: "Can't do that with that." };
 }

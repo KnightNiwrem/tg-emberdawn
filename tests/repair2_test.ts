@@ -35,7 +35,7 @@ import {
   syncAvailability,
   turnInQuest,
 } from '../src/engine/quests.ts';
-import { buy, currentStock, tierForLevel } from '../src/engine/shops.ts';
+import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { npcAction, shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { npcTopics } from '../src/engine/npc.ts';
 import { explore, resolveVictory, travel } from '../src/engine/world.ts';
@@ -411,14 +411,14 @@ Deno.test('grantItem centralizes acquisition → collect readiness', () => {
 
 // ── economy & pacing ─────────────────────────────────────────────────────
 
-Deno.test('shop tier unlocks exactly when gear becomes equippable', () => {
-  assertEquals(tierForLevel(1), 1);
-  assertEquals(tierForLevel(6), 1);
-  assertEquals(tierForLevel(7), 2);
-  assertEquals(tierForLevel(12), 2);
-  assertEquals(tierForLevel(13), 3);
-  assertEquals(tierForLevel(43), 8);
-  assertEquals(tierForLevel(45), 8);
+Deno.test('gear tier law: tier t is equippable exactly from level 1+(t-1)*6', () => {
+  // The economy's level math lives in the ITEMS catalog itself now (#161):
+  // authored stock carries items, and isEquippable gates them by level.
+  const t1 = ITEMS.find((i) => i.id === 'w_warrior_1')!;
+  const t2 = ITEMS.find((i) => i.id === 'w_warrior_2')!;
+  const t3 = ITEMS.find((i) => i.id === 'w_warrior_3')!;
+  const t8 = ITEMS.find((i) => i.id === 'w_warrior_8')!;
+  assertEquals([t1.level, t2.level, t3.level, t8.level], [1, 7, 13, 43]);
 });
 
 Deno.test('postgame XP converts to gold instead of vanishing', () => {
@@ -465,16 +465,16 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
 
 Deno.test('shops only stock trinkets the player can actually equip (#6)', () => {
   const p = createPlayer(35, 'T', 'mage');
-  const s1 = currentStock(p);
+  const s1 = resolveStock(p).map((o) => o.itemId);
   assert(!s1.includes('t_1'), 'Lucky Coin is level 3 — not at level 1');
   assert(!s1.includes('t_9'), 'Thorn Ring is level 5 — not at level 1');
   assert(s1.includes('w_mage_1'), 'gear tiers unchanged');
   p.level = 5;
-  const s5 = currentStock(p);
+  const s5 = resolveStock(p).map((o) => o.itemId);
   assert(s5.includes('t_1') && s5.includes('t_9'), 'Thorn Ring unlocks at its level');
   assert(!s5.includes('t_2'), 'Feather Charm is level 7');
   p.level = 7;
-  assert(currentStock(p).includes('t_2'));
+  assert(resolveStock(p).some((o) => o.itemId === 't_2'));
 });
 
 Deno.test('m25 finale rewards no equipment — t_18 already crowned the fight (#7)', () => {
@@ -489,7 +489,11 @@ Deno.test('boss first-clear trinkets are earned trophies — not sellable or dro
   const p = createPlayer(912, 'T', 'warrior');
   grantItem(p, 't_12', 1);
   assertEquals(countOf(p, 't_12'), 1);
-  assertEquals(itemAction(p, 'sell', 't_12').toast, "Can't sell that.");
+  // Selling happens only at a shop's counter now (#161), and earned
+  // trophies refuse it there too.
+  const res = sell(p, 't_12', 1);
+  assert(!res.ok);
+  assert(res.lines[0]!.includes("can't be sold"));
   assert(itemAction(p, 'drop', 't_12').toast, 'drop must be refused');
   assertEquals(countOf(p, 't_12'), 1, 'nothing left the bag');
   // Ordinary trinkets stay disposable — the guard is not a blanket ban.
@@ -931,58 +935,49 @@ Deno.test('reach quests record the journey; the starter starts, the finisher fin
 });
 
 Deno.test('shop stocks only the shopping class, only immediately usable gear (#22)', () => {
-  // The four audit boundaries: L4/Hollowmere stocked T2 (req 7), L25/Cinder
-  // T6 (req 31), L34/Umbra T7 (req 37), L41/Abyss T8 (req 43) — all bait.
-  const boundaries: [number, string][] = [
-    [4, 'hollowmere'],
-    [25, 'cinder'],
-    [34, 'umbra'],
-    [41, 'abyss'],
+  // Each authored shop, probed at a level where its higher tier would be
+  // bait: the level-locked tier stays hidden, the usable one is shelved —
+  // and no shelf ever shows another class's gear.
+  const probes: { level: number; zoneId: string; shelved: string; bait: string }[] = [
+    { level: 4, zoneId: 'emberdawn', shelved: 'w_warrior_1', bait: 'w_warrior_2' },
+    { level: 9, zoneId: 'hollowmere', shelved: 'w_warrior_2', bait: 'w_warrior_3' },
+    { level: 16, zoneId: 'sunspire', shelved: 'w_warrior_3', bait: 'w_warrior_4' },
+    { level: 29, zoneId: 'frostpeak', shelved: 'w_warrior_5', bait: 'w_warrior_6' },
+    { level: 33, zoneId: 'cinder', shelved: 'w_warrior_6', bait: 'w_warrior_7' },
   ];
   for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
-    for (const [level, zoneId] of boundaries) {
+    for (const probe of probes) {
       const p = createPlayer(950, 'T', cls);
-      p.level = level;
-      p.currentZone = zoneId;
-      const stock = currentStock(p);
+      p.level = probe.level;
+      p.currentZone = probe.zoneId;
+      const stock = resolveStock(p).map((o) => o.itemId);
       for (const other of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
         if (other === cls) continue;
         assert(
           !stock.some((id) => id.startsWith(`w_${other}_`) || id.startsWith(`a_${other}_`)),
-          `${other} gear must not sit on a ${cls}'s shelf (L${level} ${zoneId})`,
+          `${other} gear must not sit on a ${cls}'s shelf (L${probe.level} ${probe.zoneId})`,
         );
       }
       for (const id of stock) {
         const d = item(id)!;
         if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
           assertEquals(
-            isEquippable(id, cls, level).ok,
+            isEquippable(id, cls, probe.level).ok,
             true,
-            `${id} must be usable at L${level} in ${zoneId}`,
+            `${id} must be usable at L${probe.level} in ${probe.zoneId}`,
           );
         }
       }
+      // Tier pins per probe: the bait tier is gone, the usable one shelved.
+      const shelvedId = probe.shelved.replace('warrior', cls);
+      const baitId = probe.bait.replace('warrior', cls);
+      assert(stock.includes(shelvedId), `${shelvedId} is shelved at L${probe.level}`);
+      assert(!stock.includes(baitId), `${baitId} is not bait at L${probe.level}`);
     }
   }
 
-  // Tier pins at two boundaries: the bait tier is gone, the usable one is
-  // shelved.
-  const l4 = createPlayer(951, 'T', 'warrior');
-  l4.level = 4;
-  l4.currentZone = 'hollowmere';
-  const s4 = currentStock(l4);
-  assert(!s4.includes('w_warrior_2'), 'level-7 tier-2 gear is not bait at L4');
-  assert(s4.includes('w_warrior_1'));
-
-  const l41 = createPlayer(952, 'T', 'warrior');
-  l41.level = 41;
-  l41.currentZone = 'abyss';
-  const s41 = currentStock(l41);
-  assert(!s41.includes('w_warrior_8'), 'level-43 tier-8 gear is not bait at L41');
-  assert(s41.includes('w_warrior_7'), 'tier-7 (level 37) is shelved at L41');
-
-  // The counter revalidates before charging (#22): wrong-class gear is
-  // refused with the purse untouched.
+  // The counter revalidates before charging (#22/#161): gear the shelf
+  // does not offer this shopper is refused with the purse untouched.
   const mage = createPlayer(953, 'T', 'mage');
   mage.gold = 100;
   const r = buy(mage, 'w_warrior_1', 1);

@@ -26,7 +26,7 @@ export type Cb =
   | { v: 'battle'; a: 'atk' | 'gd' | 'fl' | 'go' | 'sk' | 'it' }
   | { v: 'battle'; a: 'use'; arg: string }
   | { v: 'inventory'; a: 'p'; arg: number }
-  | { v: 'inventory'; a: 'v' | 'u' | 'eq' | 'sell' | 'drop'; arg: string }
+  | { v: 'inventory'; a: 'v' | 'u' | 'eq' | 'drop'; arg: string }
   | { v: 'inventory'; a: 'bk' }
   | { v: 'equipment'; a: 'rm'; arg: string }
   | { v: 'equipment'; a: 'view'; arg: string }
@@ -154,7 +154,9 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
     case 'i': {
       if (a === 'pg') return { v: 'inventory', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'inventory', a: 'bk' };
-      const i = act(a, ['v', 'u', 'eq', 'sell', 'drop'] as const);
+      // #161: selling left the generic inventory — it happens only at a
+      // shop's own counter (shopAction), never remotely from the bag.
+      const i = act(a, ['v', 'u', 'eq', 'drop'] as const);
       return i ? { v: 'inventory', a: i, arg } : undefined;
     }
     case 'e':

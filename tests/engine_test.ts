@@ -33,7 +33,7 @@ import {
   turnInQuest,
 } from '../src/engine/quests.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
-import { buy, currentStock, sell } from '../src/engine/shops.ts';
+import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { diveDungeon, dungeonOf, explore, resolveVictory, travel } from '../src/engine/world.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
@@ -738,30 +738,52 @@ Deno.test('economy: buy needs gold, sell returns ratio', () => {
   assert(p.gold > 1000 - 30);
 });
 
-Deno.test('shop stock: zone consumables by band, gear only what you can equip (#22)', () => {
+Deno.test('shop stock: local facilities, starter stays beginner, gear only usable (#22, #161)', () => {
   const p = createPlayer(13, 'T', 'warrior');
-  const early = currentStock(p);
+  const early = resolveStock(p).map((o) => o.itemId);
   assert(early.includes('w_warrior_1'));
-  p.currentZone = 'frostpeak';
-  const late = currentStock(p);
-  // Zone identity for always-usable goods: a frostpeak shop carries
-  // frostpeak consumables whoever walks in.
+  // The starter shop stays a beginner shop at ANY level (#161): a level-45
+  // veteran back in Emberdawn still faces the hearth-side rack.
+  p.level = 45;
+  const veteranAtHome = resolveStock(p).map((o) => o.itemId);
+  assert(veteranAtHome.includes('w_warrior_1'), 'beginner steel stays on the starter rack');
+  assert(!veteranAtHome.some((id) => id === 'w_warrior_4' || id === 'w_warrior_5'));
+  // Regional stock is regional (#161): the frostpeak post carries northern
+  // supplies, and its gear is filtered to the shopper (#22).
+  const lvl45 = createPlayer(14, 'T', 'warrior');
+  lvl45.level = 45;
+  lvl45.currentZone = 'frostpeak';
+  const late = resolveStock(lvl45).map((o) => o.itemId);
   assert(late.includes('c_greater_potion'));
-  assert(late.includes('c_smoke_bomb'));
-  // Equipment is filtered to the shopper (#22): tier-4 gear (level 19) is
-  // bait for a level-1 traveler and must not be shelved.
-  assert(!late.includes('w_warrior_4'), 'level-19 gear is not bait at L1');
-  for (const id of late) {
-    const d = item(id)!;
-    if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
-      assertEquals(isEquippable(id, 'warrior', 1).ok, true, `${id} must be usable at L1`);
+  assert(late.includes('w_warrior_6'), 'northern gear lives at the northern post');
+  // Endgame crownsteel exists only through progression (#161): the ash
+  // caravan's crownsteel rule opens when the Last Flame is freed.
+  const atCaravan = createPlayer(15, 'T', 'warrior');
+  atCaravan.level = 45;
+  atCaravan.currentZone = 'cinder';
+  assert(
+    !resolveStock(atCaravan).some((o) => o.itemId === 'w_warrior_8'),
+    'crownsteel is gated behind the caldera, not level',
+  );
+  atCaravan.quests['m19_ignivar'] = { status: 'done', counts: [1] };
+  const crownsteel = resolveStock(atCaravan).map((o) => o.itemId);
+  assert(crownsteel.includes('w_warrior_8'), 'crownsteel after the Last Flame');
+  assert(crownsteel.includes('t_8'), 'late trinkets need an acquisition path');
+  // And no shelf anywhere offers unusable gear (#22).
+  const audited: [string[], number][] = [
+    [early, 1],
+    [veteranAtHome, 45],
+    [late, 45],
+    [crownsteel, 45],
+  ];
+  for (const [stock, level] of audited) {
+    for (const id of stock) {
+      const d = item(id)!;
+      if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
+        assertEquals(isEquippable(id, 'warrior', level).ok, true, `${id} at L${level}`);
+      }
     }
   }
-  p.level = 45;
-  p.currentZone = 'abyss'; // tier-8 gear lives where level 45 actually is
-  const endgame = currentStock(p);
-  assert(endgame.includes('w_warrior_8'), 'abyss-tier gear must be purchasable at 45');
-  assert(endgame.includes('t_11'), 'late trinkets need an acquisition path');
 });
 
 Deno.test('forge: tempering requires materials and caps at +5', () => {
@@ -856,6 +878,7 @@ Deno.test('world: every zone is reachable from the starting zones', () => {
   for (const q of QUESTS) {
     const u = q.rewards.unlockZone;
     if (u) granted.add(u);
+    for (const uz of q.rewards.unlockZones ?? []) granted.add(uz);
   }
   for (const z of ZONES) {
     const u = z.dungeon?.firstClear?.unlockZone;

@@ -18,7 +18,7 @@ import { CLASSES, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { applyDeath, createPlayer, grantXp, statsOf } from './character.ts';
 import { performAction, type PlayerAction, startBattle } from './combat.ts';
 import { resolveVictory } from './world.ts';
-import { buy, currentStock, shopTierForZone } from './shops.ts';
+import { buy, resolveStock } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
@@ -32,7 +32,8 @@ import {
 } from './world.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
-import { isEquippable, item as itemDef, ITEMS, shopStock } from '../content/items.ts';
+import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
+import { shopInZone } from '../content/facilities.ts';
 import { quest, QUESTS, zoneOfNpc } from '../content/quests.ts';
 import { skill as skillDef, SKILLS } from '../content/skills.ts';
 import {
@@ -1678,7 +1679,9 @@ export function driveQuests(
   };
 
   function shopHere(): void {
-    const stock = currentStock(p);
+    // #161: the hero shops only where a shop actually stands — resolveStock
+    // returns an empty shelf anywhere else, and buy() revalidates.
+    const stock = resolveStock(p).map((o) => o.itemId);
     for (const kind of ['weapon', 'armor'] as const) {
       const cur = p.equipment[kind] ?? '';
       const curW = statWeight(cur);
@@ -1708,22 +1711,15 @@ export function driveQuests(
     }
   }
 
-  /** Shops every unlocked rack (#73): the village band stocks tier-2 steel
-   * at the m5_arms beat, and the Whisperwood's band carries it too — a real
-   * shopper compares both. Ends wherever the better rack was. */
+  /** Shops every unlocked LOCAL shop (#161): the hero physically visits
+   * each authored counter — the starter stall stays beginner-tier, so
+   * regional steel comes from regional shops. Ends wherever the better
+   * rack was. */
   function shop(): void {
-    // #88: the full campaign shops EVERY unlocked rack — the chapter-one
-    // pair starved late chapters of tier-appropriate steel, and a level-45
-    // hero in chapter-one gear cannot survive its own story fights.
     shopHere();
     for (const z of ZONES) {
       if (!p.unlockedZones.includes(z.id) || p.currentZone === z.id) continue;
-      if (
-        shopStock(z.id, shopTierForZone(z, p.level), { level: p.level, classId: p.classId })
-          .length === 0
-      ) {
-        continue;
-      }
+      if (!shopInZone(z.id)) continue;
       travel(p, z.id);
       shopHere();
     }
@@ -1809,16 +1805,15 @@ export function driveQuests(
     return undefined;
   };
 
-  /** Unlocked zones whose shop GENUINELY stocks the target at the hero's
-   * current level (#74) — hops go where the shelf actually carries it. */
+  /** Unlocked zones whose LOCAL shop genuinely stocks the target for this
+   * hero (#161) — hops go where the shelf actually carries it. */
   const stockedZones = (target: string): string[] => {
     const out: string[] = [];
     for (const z of ZONES) {
       if (!p.unlockedZones.includes(z.id)) continue;
-      const tier = shopTierForZone(z, p.level);
-      if (shopStock(z.id, tier, { level: p.level, classId: p.classId }).includes(target)) {
-        out.push(z.id);
-      }
+      if (!shopInZone(z.id)) continue;
+      const probe = { ...p, currentZone: z.id } as PlayerState;
+      if (resolveStock(probe).some((o) => o.itemId === target)) out.push(z.id);
     }
     return out;
   };
@@ -1828,8 +1823,11 @@ export function driveQuests(
     let local = 0;
     while (countOf(p, target) < need) {
       if (++local > 60) return false; // safety net, never the plan (#74)
-      // 1. Buy when THIS shelf genuinely stocks it and it's affordable (#73).
-      if (currentStock(p).includes(target) && p.gold >= price + 20 && buy(p, target).ok) continue;
+      // 1. Buy when THIS counter genuinely stocks it and it's affordable (#73).
+      if (
+        resolveStock(p).some((o) => o.itemId === target) && p.gold >= price + 20 &&
+        buy(p, target).ok
+      ) continue;
       // 2. Farm the best eligible wild drop source.
       const zones = dropZonesFor(target);
       if (zones.length > 0) {

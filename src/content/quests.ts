@@ -128,6 +128,7 @@ export const QUESTS: readonly QuestDef[] = [
       items: { t_1: 1 },
       flags: ['chapter1Done'],
       unlockZone: 'hollowmere',
+      unlockZones: ['mirefoot'],
     },
   }),
 

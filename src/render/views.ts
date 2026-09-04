@@ -14,14 +14,15 @@ import { npcTopics } from '../engine/npc.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
-import { currentStock } from '../engine/shops.ts';
+import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
+import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
 import { itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
-import { MAX_TEMPER, temperCost, temperLevel } from '../engine/forge.ts';
+import { temperLevel } from '../engine/forge.ts';
 import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
@@ -97,12 +98,18 @@ export function renderZone(p: PlayerState): InputRichMessage {
       cbBtn('📜 Quests', encodeCb({ v: 'zone', a: 'q' })),
       cbBtn('✨ Skills', encodeCb({ v: 'zone', a: 'sk' })),
     ]),
-    buttonsRow([
-      cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })),
-      cbBtn('⚒️ Forge', encodeCb({ v: 'zone', a: 'fg' })),
-      cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
-    ]),
   );
+
+  // Local services render ONLY where they exist (#161): facility presence
+  // is authored, never assumed. The handlers revalidate authority.
+  const localShop = shopAt(p);
+  const localForge = forgeAt(p);
+  const serviceRow = [
+    localShop ? cbBtn(`🏪 ${localShop.name}`, encodeCb({ v: 'zone', a: 'sh' })) : undefined,
+    localForge ? cbBtn(`⚒️ ${localForge.name}`, encodeCb({ v: 'zone', a: 'fg' })) : undefined,
+    cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
+  ].filter((b) => b !== undefined);
+  blocks.push(buttonsRow(serviceRow));
 
   if (z.npcs.length > 0) {
     blocks.push(para('🗣️ Talk to:'));
@@ -239,24 +246,32 @@ function pageNav(pg: number, pages: number, pageCb: (n: number) => string): Inpu
 const SHOP_PAGE_SIZE = 6;
 
 export function renderShop(p: PlayerState, page: number): InputRichMessage {
-  const stock = currentStock(p);
+  const shop = shopAt(p);
+  const stock = shop ? offeringsAt(p) : [];
   const pages = Math.max(1, Math.ceil(stock.length / SHOP_PAGE_SIZE));
   const pg = Math.min(Math.max(0, page), pages - 1);
   const slice = stock.slice(pg * SHOP_PAGE_SIZE, (pg + 1) * SHOP_PAGE_SIZE);
   const blocks: Block[] = [
-    heading('🏪 Shop', 3),
+    heading(shop ? `🏪 ${shop.name}` : '🏪 Shop', 3),
     para(`💰 ${p.gold} gold — tap to buy:`),
     ...noticesBlocks(p),
   ];
-  for (const id of slice) {
+  if (!shop) {
+    blocks.push(para('There is no shop here.'));
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'shop', a: 'bk' }))]));
+    return { blocks };
+  }
+  if (shop.desc) blocks.push(para({ type: 'italic', text: shop.desc } as RichText));
+  for (const offering of slice) {
+    const id = offering.itemId;
     const def = item(id);
     if (!def) continue;
     const owned = countOf(p, id);
-    const afford = p.gold >= def.price;
+    const afford = p.gold >= offering.price;
     blocks.push(para([
       {
         type: 'bold',
-        text: `${defEmoji(def.kind)} ${def.name} — ${def.price}g${
+        text: `${defEmoji(def.kind)} ${def.name} — ${offering.price}g${
           owned > 0 ? ` (own ${owned})` : ''
         }`,
       } as RichText,
@@ -285,15 +300,23 @@ function shopTail(pg: number, pages: number, label: string, arg: number): Block[
 }
 
 export function renderSell(p: PlayerState, page: number): InputRichMessage {
-  const sellable = p.inventory.filter((e) => item(e.id) && !item(e.id)!.unique);
+  // Selling is a shop-counter service (#161): the sell view exists only
+  // where a shop stands, and the engine revalidates on every sale.
+  const shop = shopAt(p);
+  const sellable = shop ? p.inventory.filter((e) => item(e.id) && !item(e.id)!.unique) : [];
   const pages = Math.max(1, Math.ceil(sellable.length / SHOP_PAGE_SIZE));
   const pg = Math.min(Math.max(0, page), pages - 1);
   const slice = sellable.slice(pg * SHOP_PAGE_SIZE, (pg + 1) * SHOP_PAGE_SIZE);
   const blocks: Block[] = [
-    heading('💱 Sell', 3),
+    heading(shop ? `💱 Sell — ${shop.name}` : '💱 Sell', 3),
     para(`💰 ${p.gold} gold — tap to sell one:`),
     ...noticesBlocks(p),
   ];
+  if (!shop) {
+    blocks.push(para('No merchant here would buy anything.'));
+    blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'shop', a: 'bk' }))]));
+    return { blocks };
+  }
   for (const entry of slice) {
     const def = item(entry.id)!;
     blocks.push(para(`${def.name} ×${entry.qty} — sells for ${sellPrice(def.id)}g`));
@@ -328,10 +351,23 @@ function defEmoji(kind: string): string {
 // ── Forge ─────────────────────────────────────────────────────────────────
 
 export function renderForge(p: PlayerState): InputRichMessage {
+  const forge = forgeAt(p);
+  if (!forge) {
+    return {
+      blocks: [
+        heading('⚒️ Forge', 3),
+        ...noticesBlocks(p),
+        para('There is no forge here.'),
+        buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'forge', a: 'bk' }))]),
+      ],
+    };
+  }
   const wc = temperCost(p, 'weapon');
   const ac = temperCost(p, 'armor');
+  const caps = forgeCapability(p)!;
   const blocks: Block[] = [
-    heading('⚒️ The Forge', 3),
+    heading(`⚒️ ${forge.name}`, 3),
+    ...(forge.desc ? [para({ type: 'italic', text: forge.desc } as RichText)] : []),
     para(
       "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. Mastery binds to the pattern: every copy of this gear you ever own — forged, bought or looted — carries your forge-work.",
     ),
@@ -342,13 +378,15 @@ export function renderForge(p: PlayerState): InputRichMessage {
     para(
       `🗡️ ${p.equipment.weapon ? itemName(p.equipment.weapon) : '—'}: +${
         temperLevel(p, 'weapon')
-      }/${MAX_TEMPER}\n` +
+      }/${caps.maxTemper}\n` +
         `🛡️ ${p.equipment.armor ? itemName(p.equipment.armor) : '—'}: +${
           temperLevel(p, 'armor')
-        }/${MAX_TEMPER}\n` +
+        }/${caps.maxTemper}\n` +
         `💰 ${p.gold} gold`,
     ),
   ];
+  const weaponBlock = temperBlock(p, 'weapon');
+  const armorBlock = temperBlock(p, 'armor');
   blocks.push(
     buttonsRow([
       wc
@@ -357,7 +395,7 @@ export function renderForge(p: PlayerState): InputRichMessage {
           encodeCb({ v: 'forge', a: 'w' }),
           'primary',
         )
-        : disabledBtn('Weapon fully tempered'),
+        : disabledBtn(weaponBlock ?? 'Weapon at this forge\u2019s limit'),
     ], 'left'),
     buttonsRow([
       ac
@@ -366,7 +404,7 @@ export function renderForge(p: PlayerState): InputRichMessage {
           encodeCb({ v: 'forge', a: 'a' }),
           'primary',
         )
-        : disabledBtn('Armor fully tempered'),
+        : disabledBtn(armorBlock ?? 'Armor at this forge\u2019s limit'),
     ], 'left'),
     buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'forge', a: 'bk' }))]),
   );

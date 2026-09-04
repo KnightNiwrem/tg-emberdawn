@@ -23,6 +23,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc:
       'A village huddled around the last lit ember of the Great Flame — small, stubborn, and still planning for spring.',
     safeHaven: true,
+    services: { shop: 'shop_bram', forge: 'forge_bram' },
     explore: [
       {
         kind: 'treasure',
@@ -205,6 +206,56 @@ export const ZONES: readonly ZoneDef[] = [
     ],
   },
   {
+    id: 'mirefoot',
+    name: 'Mirefoot Landing',
+    emoji: '⛺',
+    chapter: 2,
+    levels: [9, 16],
+    desc:
+      'A pole-landing at the swamp\u2019s edge — the last dry boards before the fen, and Odo\u2019s ropewalk forge, built for boat-iron.',
+    safeHaven: true,
+    services: { forge: 'forge_ropewalk' },
+    explore: [
+      {
+        kind: 'treasure',
+        gold: 45,
+        weight: 1,
+        text: 'A boatman\u2019s tithe-jar under the boards holds a few honest coins.',
+      },
+      {
+        kind: 'treasure',
+        item: 'c_antidote',
+        weight: 1,
+        text: 'The landing\u2019s shared kit-box still holds a sealed tonic.',
+      },
+      {
+        kind: 'rest',
+        healPct: 0.3,
+        weight: 1,
+        text: 'You rest on dry planks over clean water. The fen keeps its distance.',
+      },
+      {
+        kind: 'flavor',
+        weight: 2,
+        text: 'Frogs sing off-beat. Odo\u2019s hammer keeps better time.',
+      },
+    ],
+    npcs: [
+      {
+        id: 'npc_odo',
+        name: 'Odo the Slowsmith',
+        greeting:
+          "Slow iron is sound iron. I'll take an hour your village smith wouldn't, and the work will outlive us both.",
+        topics: [{
+          id: 'odo_craft',
+          label: 'Ask about the ropewalk forge',
+          text:
+            '"Boat-iron teaches patience — the water tests every rivet, and it does not accept apologies. When the Shrine\u2019s rot is cleared out, the deep tools come downriver, and I\u2019ll match any forge this side of the ice."',
+        }],
+      },
+    ],
+  },
+  {
     id: 'hollowmere',
     name: 'Hollowmere Swamp',
     emoji: '🌫️',
@@ -214,6 +265,7 @@ export const ZONES: readonly ZoneDef[] = [
       'A drowned lowland where the water burns cold with toxin. Something crowned itself here — but crowns come off.',
     safeHaven: false,
     lootTable: 'dt_mire_roads',
+    services: { shop: 'shop_ferry' },
     explore: [
       { kind: 'battle', enemy: 'e_boglin', weight: 3 },
       { kind: 'battle', enemy: 'e_leech', weight: 3 },
@@ -312,6 +364,7 @@ export const ZONES: readonly ZoneDef[] = [
       'A desert city of solar clockwork, abandoned by its people and inherited by a cult. The gears still turn. So will tomorrow.',
     safeHaven: false,
     lootTable: 'dt_sun_flats',
+    services: { shop: 'shop_bazaar' },
     explore: [
       { kind: 'battle', enemy: 'e_scarab', weight: 3 },
       { kind: 'battle', enemy: 'e_sentinel', weight: 2 },
@@ -377,6 +430,7 @@ export const ZONES: readonly ZoneDef[] = [
     desc: "A frozen mountain pass where the Flame's twin — the Frostfire — sleeps in the ice.",
     safeHaven: false,
     lootTable: 'dt_high_pass',
+    services: { shop: 'shop_outcast' },
     explore: [
       { kind: 'battle', enemy: 'e_icebat', weight: 3 },
       { kind: 'battle', enemy: 'e_bristlehorn', weight: 2 },
@@ -447,6 +501,7 @@ export const ZONES: readonly ZoneDef[] = [
       "Ash dunes around a dying caldera. The Flame's greatest child hides here, starving — and a heart that starves is a heart that hasn't stopped.",
     safeHaven: false,
     lootTable: 'dt_ash_road',
+    services: { shop: 'shop_ashcaravan', forge: 'forge_warden' },
     explore: [
       { kind: 'battle', enemy: 'e_magmaslime', weight: 3 },
       { kind: 'battle', enemy: 'e_emberimp', weight: 3 },

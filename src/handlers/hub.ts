@@ -14,6 +14,8 @@ import {
   travel,
 } from '../engine/world.ts';
 import { zone as zoneDef } from '../content/zones.ts';
+import { forgeAt } from '../engine/forge.ts';
+import { shopAt } from '../engine/shops.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell } from '../engine/shops.ts';
 import { temper } from '../engine/forge.ts';
@@ -195,10 +197,17 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       return go(p, 'skills');
     case 'q':
       return go(p, 'quests');
-    case 'sh':
+    case 'sh': {
+      // Facility authority (#161): the button only opens the service the
+      // current zone actually authors — a forged tap for an absent shop
+      // (or a safe haven without one) is a non-mutating refusal.
+      if (!shopAt(p)) return { toast: 'There is no shop here.' };
       return go(p, 'shop', '0');
-    case 'fg':
+    }
+    case 'fg': {
+      if (!forgeAt(p)) return { toast: 'There is no forge here.' };
       return go(p, 'forge');
+    }
     case 'tk':
       return talkAction(p, cb.arg);
   }
@@ -219,11 +228,16 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
 
 export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResult {
   if (cb.a === 'bk') {
+    // Leaving is always allowed — a stale shop scene (content changed
+    // under a save) must never trap the player.
     p.scene = { view: 'zone' };
     return {};
   }
+  // Server-side authority (#161): every trade action verifies the current
+  // zone actually authors a shop — the renderer never grants access.
+  if (!shopAt(p)) return { toast: 'There is no shop here.' };
   if (cb.a === 'p') {
-    // -1 switches to sell mode
+    // -1 switches to sell mode (selling happens only at a shop's counter)
     if (cb.arg < 0) {
       p.scene = { view: 'shop', arg: 'sell', arg2: '0' };
       return {};
@@ -253,6 +267,9 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
     p.scene = { view: 'zone' };
     return {};
   }
+  // Facility authority (#161): a forged tap where no forge stands is a
+  // non-mutating refusal; the engine revalidates capability itself.
+  if (!forgeAt(p)) return { toast: 'There is no forge here.' };
   const res = temper(p, cb.a === 'w' ? 'weapon' : 'armor');
   p.notices = res.lines;
   return { toast: res.ok ? undefined : res.lines[0] };
