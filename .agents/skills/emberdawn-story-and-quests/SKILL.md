@@ -26,10 +26,9 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   caused it. `resolveVictory` collects ready ids from drops, the kill, the availability refresh,
   dungeon bookkeeping, and first-clear rewards, and appends one deduped `questReadyLine`
   (`📜 "<name>" is ready to turn in!` — the one shared formatter) per quest after all of the
-  victory's mutations. `travel()` puts it in the arrival lines; the talk interaction and
-  `acceptQuest` (whose result carries `lines`, so an immediately-complete quest reports acceptance
-  AND readiness) put it in the interaction notices. It is never re-derived at render time and never
-  re-announced for an already-`turnIn` quest.
+  victory's mutations. `travel()` puts it in the arrival lines; the talk interaction puts it in the
+  interaction notices. It is never re-derived at render time and never re-announced for an
+  already-`turnIn` quest.
 - Random quest-item drops are relevance-capped (`questDropAllowed`): they flow only while an open
   (available or active) quest still needs them, and stop permanently once it is done.
 
@@ -125,6 +124,14 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   returned `StoryResult` describes the final committed draft: `readyQuests` is deduplicated and
   reconciled to quests still `turnIn` at commit, while `startedQuests` is a transition log (a later
   effect may have locked or resolved a listed quest — read `p.quests` for final state).
+- Lifecycle reconciliation priority (#145): silent availability promotion; then explicit exclusion
+  (lock/fail), which cancels an already-STARTED quest (active/turnIn at transaction entry) with
+  exactly one canonical `questCancelledLine` notice, clears its stale progress, and closes an
+  unaccepted quest silently; then objective progress for surviving active quests; then final
+  readiness. `acceptQuest`/`turnInQuest` report readiness as structured ids (`ready`), never
+  sentences — "ready to turn in" is formatted only from the reconciled result. A bundle that
+  starts/accepts AND locks/fails the same quest refuses atomically as contradictory content (in
+  either order); starting route A while locking a different route B stays valid.
 - Mutating helpers (`removeItem`, `acceptQuest`, `turnInQuest`) report failure, and a failure
   refuses the bundle — never silently ignored.
 

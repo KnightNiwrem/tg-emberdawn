@@ -32,6 +32,17 @@
  * can never become locked/failed, a locked/failed quest can never start or
  * resolve, and one terminal kind never overwrites another.
  *
+ * Quest lifecycle output is reconciled in a fixed priority (#145) before
+ * anything player-facing is formatted: silent availability promotion;
+ * explicit exclusion (lock/fail), which cancels an already-STARTED quest
+ * with exactly one canonical notice — and closes an unaccepted quest
+ * silently; objective progress for surviving active quests; then final
+ * readiness. Helpers report readiness as structured ids, never sentences,
+ * so "ready to turn in" is a final derived conclusion. A bundle that
+ * starts/accepts AND locks/fails the same quest is contradictory content
+ * and refuses atomically (in either order); starting route A while locking
+ * a DIFFERENT route B stays valid.
+ *
  * Story effects never bypass the physical-contact authority (#63/#64):
  * startQuest/acceptQuest/turnInQuest only ever act on a quest whose
  * configured contact is the acting dialogue's on-site NPC. Every quest
@@ -50,6 +61,7 @@ import {
   acceptQuest,
   beginQuest,
   grantItem,
+  questCancelledLine,
   questExcluded,
   questReadyLine,
   refreshQuestProgress,
@@ -109,7 +121,14 @@ type BundleRun = { ok: true; result: StoryResult } | { ok: false; refusal: strin
  * The first refusal aborts the run and the caller discards the draft — the
  * live player is never touched. This single routine backs both
  * validateStoryBundle (throwaway draft) and applyStoryEffects (committed
- * draft), so validation and application cannot disagree. */
+ * draft), so validation and application cannot disagree.
+ *
+ * Quest lifecycle output stays STRUCTURED until the final reconciliation
+ * (#145): helpers report readiness as ids, a bundle that starts and
+ * locks/fails the SAME quest refuses atomically as contradictory content,
+ * and an explicit lock/fail of an already-STARTED quest (active or
+ * turn-in-ready when the transaction began) records one canonical
+ * cancellation — formatted only after reconciliation, never mid-run. */
 function runStoryBundle(
   draft: PlayerState,
   effects: readonly StoryEffect[],
@@ -117,6 +136,16 @@ function runStoryBundle(
 ): BundleRun {
   const result = emptyResult();
   const refuse = (refusal: string): BundleRun => ({ ok: false, refusal });
+  // Entry snapshot (#145): the draft clones the pre-transaction state, so
+  // this captures which quests were already STARTED (active/turnIn) when
+  // the transaction began — only those earn a cancellation notice.
+  const entryStatus = new Map(
+    Object.entries(draft.quests).map(([id, qp]) => [id, qp.status]),
+  );
+  // Quests this run itself started: locking/failing one of them later in
+  // the SAME bundle is contradictory content (#145), not a cancel workflow.
+  const startedInBundle = new Set<string>();
+  const cancelled: { id: string; kind: 'locked' | 'failed' }[] = [];
   for (const e of effects) {
     switch (e.kind) {
       case 'setFlag':
@@ -178,6 +207,7 @@ function runStoryBundle(
         // reconciliation to acceptQuest (ever-visited reach targets count).
         result.readyQuests.push(...beginQuest(draft, e.questId));
         result.startedQuests.push(e.questId);
+        startedInBundle.add(e.questId);
         break;
       }
       case 'resolveQuest': {
@@ -212,6 +242,12 @@ function runStoryBundle(
         const q = questDef(e.questId);
         if (!q) return refuse(`Unknown quest ${e.questId}.`);
         const kind = e.kind === 'failQuest' ? 'failed' : 'locked';
+        // Contradictory content (#145): a bundle may not start/accept a
+        // quest and lock/fail that SAME quest in one application — that is
+        // not a "start then cancel" workflow, it is an authoring error.
+        if (startedInBundle.has(e.questId)) {
+          return refuse(`${q.name} cannot be started and ${kind} in the same bundle.`);
+        }
         const prior = draft.questOutcomes[e.questId];
         if (prior?.kind === kind) break; // idempotent
         // Monotonic terminals (#129): a resolved quest never becomes
@@ -219,7 +255,16 @@ function runStoryBundle(
         if (prior) return refuse(`${q.name} already has a permanent resolution.`);
         const qp = draft.quests[e.questId];
         if (qp?.status === 'done') return refuse(`${q.name} is already completed.`);
-        if (qp) qp.status = 'unavailable';
+        // Cancellation vs silent close (#145): only a quest that was
+        // already STARTED when the transaction began earns a notice; an
+        // unaccepted quest simply closes. Stale progress is cleared either
+        // way — the permanent outcome below bars resurrection.
+        const entry = entryStatus.get(e.questId);
+        if (entry === 'active' || entry === 'turnIn') cancelled.push({ id: e.questId, kind });
+        if (qp) {
+          qp.status = 'unavailable';
+          qp.counts = qp.counts.map(() => 0);
+        }
         draft.questOutcomes[e.questId] = {
           kind,
           reason: e.reason,
@@ -266,13 +311,15 @@ function runStoryBundle(
         if (questExcluded(draft, e.questId)) return refuse(`${q.name} is no longer reachable.`);
         // Earlier bundle effects may have opened availability (#129).
         syncAvailability(draft);
-        // Central authority (#63/#64/#119): acceptance lines and any
-        // immediate readiness flow back as result lines.
+        // Central authority (#63/#64/#119): acceptance lines flow back as
+        // result lines; immediate readiness stays STRUCTURED (#145) and is
+        // announced only from the reconciled final state.
         const res = acceptQuest(draft, e.questId, ctx.npcId);
         if (!res.ok) return refuse(res.msg);
-        result.lines.push(res.msg);
-        result.lines.push(...res.lines.slice(1));
+        result.lines.push(...res.lines);
+        result.readyQuests.push(...res.ready);
         result.startedQuests.push(e.questId);
+        startedInBundle.add(e.questId);
         break;
       }
       case 'turnInQuest': {
@@ -288,13 +335,18 @@ function runStoryBundle(
         const res = turnInQuest(draft, e.questId, ctx.npcId);
         if (!res.ok) return refuse(res.lines[0] ?? 'That quest is not ready to turn in.');
         result.lines.push(...res.lines);
+        // Rewards can ready OTHER quests (#119): structured ids (#145),
+        // reconciled against the final draft below.
+        result.readyQuests.push(...res.ready);
         break;
       }
     }
   }
   // Availability may have shifted (flags/levels are unchanged here, but a
   // locked quest must drop out of 'available' at once) and collect
-  // objectives may have completed from granted items.
+  // objectives may have completed from granted items. Readiness refresh runs
+  // BEFORE promotion on purpose: syncAvailability internally refreshes
+  // progress and would silently swallow the active→turnIn flip report.
   result.readyQuests.push(...refreshQuestProgress(draft));
   syncAvailability(draft);
   // The result describes the FINAL draft, not the run's intermediate
@@ -304,6 +356,10 @@ function runStoryBundle(
   result.readyQuests = [...new Set(result.readyQuests)].filter(
     (id) => draft.quests[id]?.status === 'turnIn',
   );
+  // Cancellation notices are formatted only now, from the reconciled
+  // result (#145): one canonical line per already-started quest an explicit
+  // lock/fail closed off; unaccepted quests closed silently above.
+  result.lines.push(...cancelled.map((c) => questCancelledLine(c.id, c.kind)));
   return { ok: true, result };
 }
 

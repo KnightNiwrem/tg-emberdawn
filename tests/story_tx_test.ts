@@ -18,7 +18,7 @@ import {
   validateStoryBundle,
 } from '../src/engine/story.ts';
 import { createPlayer } from '../src/engine/character.ts';
-import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
+import { acceptQuest, questReadyLine, syncAvailability } from '../src/engine/quests.ts';
 import { addItem, countOf } from '../src/engine/inventory.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import type { PlayerState } from '../src/engine/types.ts';
@@ -174,13 +174,14 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
 
 // ── terminal outcome monotonicity ────────────────────────────────────────
 
-Deno.test('tx: lock → start refuses atomically; start → lock applies in order', () => {
+Deno.test('tx: starting and locking the SAME quest refuses atomically in either order (#145)', () => {
   const p = hero(1510);
   p.level = 2;
   p.quests['m1_embers'] = { status: 'done', counts: [4] };
   syncAvailability(p);
   assertEquals(p.quests['m2_letter']?.status, 'available');
 
+  // lock → start: the start sees the earlier exclusion.
   const before = JSON.stringify(p);
   const bad: StoryEffect[] = [
     { kind: 'lockQuest', questId: 'm2_letter', reason: 'route_closed' },
@@ -190,14 +191,26 @@ Deno.test('tx: lock → start refuses atomically; start → lock applies in orde
   assertThrows(() => applyStoryEffects(p, bad, ctxAt('n1')));
   assertEquals(JSON.stringify(p), before, 'the advertised start is not silently skipped');
 
-  const good: StoryEffect[] = [
+  // start → lock: contradictory content (#145) — never a "start then
+  // cancel" workflow; the bundle refuses atomically instead.
+  const contradictory: StoryEffect[] = [
     { kind: 'startQuest', questId: 'm2_letter' },
     { kind: 'lockQuest', questId: 'm2_letter', reason: 'route_closed' },
   ];
-  const r = applyStoryEffects(p, good, ctxAt('n1'));
+  const refusal = validateStoryBundle(p, contradictory, ctxAt('n1'));
+  assert(refusal?.includes('same bundle'), `contradiction named: ${refusal}`);
+  assertThrows(() => applyStoryEffects(p, contradictory, ctxAt('n1')));
+  assertEquals(JSON.stringify(p), before, 'nothing commits — not even the start');
+  assertEquals(p.storyReceipts, [], 'no receipt without a commit');
+
+  // Starting route A while locking a DIFFERENT route B stays valid (#145).
+  const r = applyStoryEffects(p, [
+    { kind: 'startQuest', questId: 'm2_letter' },
+    { kind: 'lockQuest', questId: 'sq_ore', reason: 'route_closed' },
+  ], ctxAt('n1'));
   assertEquals(r.startedQuests, ['m2_letter']);
-  assertEquals(p.quests['m2_letter']?.status, 'unavailable', 'the later lock wins the bundle');
-  assertEquals(p.questOutcomes['m2_letter']?.kind, 'locked');
+  assertEquals(p.quests['m2_letter']?.status, 'active', 'the chosen route started');
+  assertEquals(p.questOutcomes['sq_ore']?.kind, 'locked', 'the other route closed');
 });
 
 Deno.test('tx: a resolved quest can never become locked or failed — same bundle or later', () => {
@@ -354,7 +367,11 @@ Deno.test('tx: ever-visited reach objectives reconcile identically via startQues
   const res = acceptQuest(viaAccept, 'm5_fen', 'npc_bram');
   assert(res.ok);
   assertEquals(viaAccept.quests['m5_fen']?.status, 'turnIn', 'acceptance reconciles the same way');
-  assert(res.lines.some((l) => l.includes('ready to turn in')), 'same readiness announcement');
+  // Readiness is STRUCTURED (#145): the helper reports the id and the
+  // caller formats it — acceptance lines carry no ready sentence.
+  assertEquals(res.ready, ['m5_fen'], 'same readiness, reported as an id');
+  assert(!res.lines.some((l) => l.includes('ready to turn in')), 'no eager readiness sentence');
+  assertEquals(res.ready.map(questReadyLine), [questReadyLine('m5_fen')]);
   assertEquals(
     viaStory.quests['m5_fen'],
     viaAccept.quests['m5_fen'],
@@ -411,18 +428,33 @@ function toxinHero(id: number): PlayerState {
 
 Deno.test('tx: readiness revoked by a later lock never reaches the result (#137)', () => {
   const p = toxinHero(1521);
+  p.quests['m6_toxin']!.counts = [2]; // visible stale progress to clear
   const r = applyStoryEffects(p, [
     { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
     { kind: 'lockQuest', questId: 'm6_toxin', reason: 'route_closed' },
   ], ctxAt('n1', 'npc_ferryman'));
   assertEquals(p.quests['m6_toxin']?.status, 'unavailable', 'the lock committed');
+  assertEquals(p.quests['m6_toxin']?.counts, [0], 'stale objective progress is cleared');
   assertEquals(p.questOutcomes['m6_toxin']?.kind, 'locked');
   assertEquals(r.readyQuests, [], 'the revoked readiness is not announced');
+  const notices = storyNoticeLines(r);
   assertEquals(
-    storyNoticeLines(r).filter((l) => l.includes('ready to turn in')),
+    notices.filter((l) => l.includes('ready to turn in')),
     [],
     'no false ready banner for a quest the same bundle locked',
   );
+  // The quest was ACTIVE at transaction entry: exactly one canonical
+  // cancellation notice (#145), no more, and the receipt replay is silent.
+  assertEquals(
+    notices.filter((l) => l.includes('no longer within reach')),
+    ["📜 “The Water's Bane” is no longer within reach — that road has closed."],
+    'one canonical route-closed notice',
+  );
+  const r2 = applyStoryEffects(p, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'lockQuest', questId: 'm6_toxin', reason: 'route_closed' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(storyNoticeLines(r2), [], 'the replay emits no notice at all');
 });
 
 Deno.test('tx: readiness followed by resolve, fail or turn-in reports no false banner (#137)', () => {
@@ -441,6 +473,11 @@ Deno.test('tx: readiness followed by resolve, fail or turn-in reports no false b
   ], ctxAt('n1', 'npc_ferryman'));
   assertEquals(failed.quests['m6_toxin']?.status, 'unavailable');
   assertEquals(r2.readyQuests, [], 'a failed quest is not also announced ready');
+  assertEquals(
+    storyNoticeLines(r2).filter((l) => l.includes('can no longer be completed')),
+    ["📜 “The Water's Bane” can no longer be completed — that chance has slipped away."],
+    'failure has its own canonical cancellation copy (#145)',
+  );
 
   // Turn-in inside the same bundle: the completing grant readies the quest,
   // the turn-in finishes it — the result carries the rewards, not a stale
@@ -471,22 +508,138 @@ Deno.test('tx: readiness that survives the whole bundle is announced exactly onc
   );
 });
 
-Deno.test('tx: startedQuests is a transition log, not a final-state summary (#137)', () => {
+Deno.test('tx: startedQuests is a transition log, not a final-state summary (#137/#145)', () => {
   const p = hero(1526);
   p.level = 2;
   p.quests['m1_embers'] = { status: 'done', counts: [4] };
   syncAvailability(p);
+  // start + resolve is legal (only start + lock/fail is contradictory,
+  // #145): the log records the start even though the final state is done.
   const r = applyStoryEffects(p, [
     { kind: 'startQuest', questId: 'm2_letter' },
-    { kind: 'lockQuest', questId: 'm2_letter', reason: 'route_closed' },
+    { kind: 'resolveQuest', questId: 'm2_letter', outcome: 'hand_delivered' },
   ], ctxAt('n1'));
   assertEquals(r.startedQuests, ['m2_letter'], 'the log records that the bundle started it');
-  assertEquals(
-    p.quests['m2_letter']?.status,
-    'unavailable',
-    '…while the final state moved past it',
-  );
+  assertEquals(p.quests['m2_letter']?.status, 'done', '…while the final state moved past it');
+  assertEquals(p.questOutcomes['m2_letter']?.kind, 'resolved');
   assertEquals(r.readyQuests, [], 'readiness, by contrast, is reconciled to the final draft');
+});
+
+// ── lifecycle reconciliation: cancellation and contradictions (#145) ─────
+
+Deno.test('tx: locking a turn-in-ready quest cancels it — one notice, no readiness (#145)', () => {
+  const p = hero(1530);
+  p.quests['m6_toxin'] = { status: 'turnIn', counts: [4] };
+  const r = applyStoryEffects(p, [
+    { kind: 'lockQuest', questId: 'm6_toxin', reason: 'route_closed' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(p.quests['m6_toxin']?.status, 'unavailable');
+  assertEquals(p.quests['m6_toxin']?.counts, [0], 'stale progress cleared');
+  assertEquals(p.questOutcomes['m6_toxin']?.kind, 'locked');
+  const notices = storyNoticeLines(r);
+  assertEquals(
+    notices.filter((l) => l.includes('no longer within reach')).length,
+    1,
+    'exactly one cancellation notice',
+  );
+  assertEquals(notices.filter((l) => l.includes('ready to turn in')), [], 'cancellation wins');
+  assertEquals(r.readyQuests, []);
+});
+
+Deno.test('tx: locking an UNACCEPTED quest closes it silently (#145)', () => {
+  const p = hero(1531);
+  p.level = 2;
+  p.flags['zone_whisperwood'] = true;
+  syncAvailability(p);
+  assertEquals(p.quests['sq_ore']?.status, 'available');
+  const r = applyStoryEffects(p, [
+    { kind: 'lockQuest', questId: 'sq_ore', reason: 'route_closed' },
+    { kind: 'lockQuest', questId: 'm6_toxin', reason: 'route_closed' }, // never even available
+  ], ctxAt('n1'));
+  assertEquals(p.quests['sq_ore']?.status, 'unavailable');
+  assertEquals(p.questOutcomes['sq_ore']?.kind, 'locked');
+  assertEquals(p.questOutcomes['m6_toxin']?.kind, 'locked');
+  assertEquals(r.lines, [], 'no cancellation copy for quests the player never took');
+  assertEquals(r.readyQuests, []);
+});
+
+Deno.test('tx: a reward readies another quest, then a lock cancels it — no stale readiness (#145)', () => {
+  // m3_roots' turn-in grants the Iron Chunk that completes active sq_ore;
+  // a later lock in the same bundle must suppress that readiness (#145).
+  const p = hero(1532);
+  p.quests['m3_roots'] = { status: 'turnIn', counts: [1] };
+  p.quests['sq_ore'] = { status: 'active', counts: [0] };
+  addItem(p, 'm_iron_chunk', 2); // one short of three
+  const r = applyStoryEffects(p, [
+    { kind: 'turnInQuest', questId: 'm3_roots' },
+    { kind: 'lockQuest', questId: 'sq_ore', reason: 'route_closed' },
+  ], ctxAt('n1', 'npc_bram'));
+  assertEquals(p.quests['m3_roots']?.status, 'done');
+  assertEquals(p.quests['sq_ore']?.status, 'unavailable', 'the exclusion committed');
+  assertEquals(p.questOutcomes['sq_ore']?.kind, 'locked');
+  assertEquals(r.readyQuests, [], 'reward-originated readiness is reconciled away');
+  const notices = storyNoticeLines(r);
+  assert(notices.some((l) => l.includes('🎁 Received: Iron Chunk')), 'the reward is reported');
+  assertEquals(
+    notices.filter((l) => l.includes('ready to turn in')),
+    [],
+    'no readiness claim for the cancelled quest',
+  );
+  assertEquals(
+    notices.filter((l) => l.includes('no longer within reach')),
+    ['📜 “Ore for the Forge” is no longer within reach — that road has closed.'],
+    'one canonical cancellation notice for the started quest',
+  );
+});
+
+Deno.test('tx: immediate acceptance readiness followed by exclusion is contradictory (#145)', () => {
+  const p = hero(1533);
+  p.level = 9;
+  p.quests['m4_blessing'] = { status: 'done', counts: [] };
+  p.flags['zone_hollowmere'] = true; // ever-visited → m5_fen readies on start
+  syncAvailability(p);
+  assertEquals(p.quests['m5_fen']?.status, 'available');
+  const bundle: StoryEffect[] = [
+    { kind: 'acceptQuest', questId: 'm5_fen' },
+    { kind: 'lockQuest', questId: 'm5_fen', reason: 'route_closed' },
+  ];
+  const before = JSON.stringify(p);
+  const refusal = validateStoryBundle(p, bundle, ctxAt('n1', 'npc_bram'));
+  assert(refusal?.includes('same bundle'), `contradiction named: ${refusal}`);
+  assertThrows(() => applyStoryEffects(p, bundle, ctxAt('n1', 'npc_bram')));
+  assertEquals(JSON.stringify(p), before, 'the quest was never briefly started');
+});
+
+Deno.test('tx: acceptQuest + failQuest for the same quest refuse in either order (#145)', () => {
+  const mk = (id: number) => {
+    const p = hero(id);
+    p.level = 2;
+    p.quests['m1_embers'] = { status: 'done', counts: [4] };
+    syncAvailability(p);
+    assertEquals(p.quests['m2_letter']?.status, 'available');
+    return p;
+  };
+  const fwd = mk(1534);
+  const forward: StoryEffect[] = [
+    { kind: 'acceptQuest', questId: 'm2_letter' },
+    { kind: 'failQuest', questId: 'm2_letter', reason: 'too_late' },
+  ];
+  const refusal = validateStoryBundle(fwd, forward, ctxAt('n1'));
+  assert(refusal?.includes('same bundle'), `contradiction named: ${refusal}`);
+  assertThrows(() => applyStoryEffects(fwd, forward, ctxAt('n1')));
+  assertEquals(fwd.quests['m2_letter']?.status, 'available', 'nothing committed');
+
+  const rev = mk(1535);
+  const reverse: StoryEffect[] = [
+    { kind: 'failQuest', questId: 'm2_letter', reason: 'too_late' },
+    { kind: 'acceptQuest', questId: 'm2_letter' },
+  ];
+  assert(
+    validateStoryBundle(rev, reverse, ctxAt('n1')) !== undefined,
+    'the accept sees the earlier failure',
+  );
+  assertThrows(() => applyStoryEffects(rev, reverse, ctxAt('n1')));
+  assertEquals(rev.quests['m2_letter']?.status, 'available', 'nothing committed either');
 });
 
 // ── validation/application replay parity (#137) ──────────────────────────

@@ -114,24 +114,25 @@ export function acceptQuest(
   p: PlayerState,
   id: string,
   npcId: string,
-): { ok: boolean; msg: string; lines: string[] } {
+): { ok: boolean; msg: string; lines: string[]; ready: string[] } {
   const q = quest(id);
-  if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'] };
+  if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'], ready: [] };
   // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
   // refused with guidance and never touches quest state.
   const refusal = contactRefusal(p.currentZone, npcId, q.startNpc);
-  if (refusal) return { ok: false, msg: refusal, lines: [refusal] };
+  if (refusal) return { ok: false, msg: refusal, lines: [refusal], ready: [] };
   const qp = progress(p, id);
   if (qp.status !== 'available') {
     const msg = "That quest isn't available right now.";
-    return { ok: false, msg, lines: [msg] };
+    return { ok: false, msg, lines: [msg], ready: [] };
   }
   // Acceptance itself can complete the quest (#119): pre-owned goods or an
-  // already-visited reach target. Report BOTH the acceptance and the
-  // readiness.
+  // already-visited reach target. Readiness stays STRUCTURED (#145) — ids,
+  // never formatted sentences: inside a story transaction a later effect
+  // may still revoke it, and only the reconciled final state is announced.
   const ready = beginQuest(p, id);
   const msg = `📜 Quest accepted: ${q.name}`;
-  return { ok: true, msg, lines: [msg, ...ready.map(questReadyLine)] };
+  return { ok: true, msg, lines: [msg], ready };
 }
 
 /** Live progress of one objective (collect objectives read the bag). */
@@ -184,6 +185,18 @@ function refreshProgress(p: PlayerState): string[] {
  * reports it through this line, so name lookup and wording cannot drift. */
 export function questReadyLine(id: string): string {
   return `📜 “${quest(id)?.name ?? id}” is ready to turn in!`;
+}
+
+/** The ONE cancellation announcement (#145): a quest that was already
+ * STARTED (active or turn-in-ready when the transaction began) and that an
+ * explicit lock/fail then closed off is reported through this single
+ * formatter, so the wording cannot drift across callers. An unaccepted
+ * quest closes silently — it was never the player's to cancel. */
+export function questCancelledLine(id: string, kind: 'locked' | 'failed'): string {
+  const name = quest(id)?.name ?? id;
+  return kind === 'failed'
+    ? `📜 “${name}” can no longer be completed — that chance has slipped away.`
+    : `📜 “${name}” is no longer within reach — that road has closed.`;
 }
 
 /** Item-acquisition hook for paths outside battle (shops, treasure):
@@ -272,6 +285,11 @@ export function questStatusLine(p: PlayerState, id: string): string {
 export interface TurnInResult {
   ok: boolean;
   lines: string[];
+  /** Quests the turn-in's rewards just made turn-in-ready (#119) —
+   * STRUCTURED ids, never formatted sentences (#145): inside a story
+   * transaction a later effect may still revoke readiness, and only the
+   * reconciled final state is announced. */
+  ready: string[];
 }
 
 /** The aggregated collect-goods check behind turnInQuest (#127): returns
@@ -302,19 +320,19 @@ export function turnInGoodsShortfall(p: PlayerState, id: string): string | undef
  * dialogues present the completion beats themselves.) */
 export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInResult {
   const q = quest(id);
-  if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."] };
+  if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
   const refusal = contactRefusal(p.currentZone, npcId, q.finishNpc);
-  if (refusal) return { ok: false, lines: [refusal] };
+  if (refusal) return { ok: false, lines: [refusal], ready: [] };
   const qp = p.quests[id];
   if (!qp || qp.status !== 'turnIn') {
-    return { ok: false, lines: ["That quest isn't ready to turn in."] };
+    return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
   }
   // Revalidate at the counter: goods may have been spent, forged away or
   // dropped since the quest readied — the SHARED aggregated check (#8).
   const shortfall = turnInGoodsShortfall(p, id);
   if (shortfall) {
     qp.status = 'active';
-    return { ok: false, lines: [shortfall] };
+    return { ok: false, lines: [shortfall], ready: [] };
   }
   const required = new Map<string, number>();
   for (const obj of q.objectives) {
@@ -340,13 +358,15 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
     lines.push(`🎁 Received: ${itemName(itemId)}${qty > 1 ? ` ×${qty}` : ''}`);
   }
   // Reward items can complete OTHER active collect quests on the spot.
-  for (const id of onItemGain(p)) lines.push(questReadyLine(id));
+  // Readiness stays structured (#145): the caller announces it from the
+  // reconciled final state, not from this intermediate flip.
+  const ready = onItemGain(p);
   for (const f of r.flags ?? []) p.flags[f] = true;
   if (r.unlockZone && !p.unlockedZones.includes(r.unlockZone)) {
     p.unlockedZones.push(r.unlockZone);
     lines.push(`🗺️ New area unlocked: ${zoneDef(r.unlockZone)?.name ?? r.unlockZone}`);
   }
-  return { ok: true, lines };
+  return { ok: true, lines, ready };
 }
 
 /**
