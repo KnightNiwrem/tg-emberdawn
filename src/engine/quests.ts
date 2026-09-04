@@ -90,11 +90,15 @@ function contactRefusal(
 
 /** The ONE quest-start policy (#129): flip to active with fresh counters
  * plus objective reconciliation — collect objectives read the bag live (a
- * player may already own the goods) and reach objectives credit the target
+ * player may already own the goods), reach objectives credit the target
  * when the player stands in it or EVER visited it (the `zone_` flag
- * onZoneEnter plants, #23). Shared by direct acceptance (acceptQuest) and
- * the story-effect start path so every quest start reconciles identically.
- * Returns the quests the start itself just made turn-in-ready (#119). */
+ * onZoneEnter plants, #23), and storyEvent objectives credit an event that
+ * already fired (#132): story events are the durable one-shot record
+ * (#125), so a route quest started by the same choice that emitted its
+ * parent event opens with that objective honestly complete. Shared by
+ * direct acceptance (acceptQuest) and the story-effect start path so every
+ * quest start reconciles identically. Returns the quests the start itself
+ * just made turn-in-ready (#119). */
 export function beginQuest(p: PlayerState, id: string): string[] {
   const q = quest(id);
   const qp = progress(p, id);
@@ -104,9 +108,13 @@ export function beginQuest(p: PlayerState, id: string): string[] {
     if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
       qp.counts[i] = 1;
     }
+    if (o.kind === 'storyEvent' && p.storyEvents.includes(o.target)) {
+      qp.counts[i] = 1;
+    }
   }
-  // The start itself can complete the quest (#119): pre-owned goods or an
-  // already-visited reach target flip it ready on the spot.
+  // The start itself can complete the quest (#119): pre-owned goods, an
+  // already-visited reach target or an already-fired story event flip it
+  // ready on the spot.
   return refreshProgress(p);
 }
 

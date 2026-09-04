@@ -4010,4 +4010,157 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       },
     ],
   },
+
+  // ══ The shrine-pledge routes (#132) ═════════════════════════════════
+  // sq_shrine_pact and sq_ledger_debt start directly from the Ferryman's
+  // ledger conversation (dlg_ferry_promise) — they are never offered as
+  // menu topics. These offer dialogues exist as the lifecycle wiring every
+  // quest carries; the turn-in dialogues are the real completion beats.
+  // sq_shrine_pact's turn-in carries the game's authored alternate
+  // resolution: the player may keep the wisp-light, resolving the quest
+  // with the named outcome "kept" (no reward) instead of turning it in.
+  {
+    id: 'dlg_sq_shrine_pact_offer',
+    npcId: 'npc_ferryman',
+    start: 'o1',
+    nodes: [
+      {
+        id: 'o1',
+        kind: 'line',
+        speaker: 'npc',
+        text: "The pact is in the ledger — the drowned beacon's light is yours to return.",
+        next: 'oa',
+      },
+      {
+        id: 'oa',
+        kind: 'choice',
+        prompt: 'Will you take up the beacon?',
+        choices: [
+          {
+            id: 'accept',
+            label: '🤝 Accept',
+            effects: [{ kind: 'acceptQuest', questId: 'sq_shrine_pact' }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'dlg_sq_shrine_pact_turnin',
+    npcId: 'npc_ferryman',
+    start: 't1',
+    nodes: [
+      {
+        id: 't1',
+        kind: 'line',
+        speaker: 'narrator',
+        text: 'The Ferryman reads the clean air around you and nods slowly.',
+        next: 't2',
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "The wisps are quiet, and their light rides with you — the shrine felt every one go out. Given, it becomes the beacon's first breath. Kept, it stays yours on the road. The ledger writes either name.",
+        next: 'ta',
+      },
+      {
+        id: 'ta',
+        kind: 'choice',
+        prompt: 'So which is it?',
+        choices: [
+          {
+            id: 'handover',
+            label: '🕯️ Return the light to the shrine',
+            effects: [{ kind: 'turnInQuest', questId: 'sq_shrine_pact' }],
+            next: 't3',
+          },
+          {
+            id: 'keep',
+            label: '🔥 Keep the light for the road',
+            irreversible: true,
+            consequenceHint:
+              'The shrine\'s reward stays behind — the light is yours, and the ledger writes "kept" permanently.',
+            effects: [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
+            next: 't4',
+          },
+        ],
+      },
+      {
+        id: 't3',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'Given, then. Watch the drowned flame catch it — the beacon breathes, and the shrine pays what it owes.',
+      },
+      {
+        id: 't4',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'Kept, then. The ledger writes: light retained. The beacon waits for another hand — no refund, and no resentment. Walk warm.',
+      },
+    ],
+  },
+  {
+    id: 'dlg_sq_ledger_debt_offer',
+    npcId: 'npc_ferryman',
+    start: 'o1',
+    nodes: [
+      {
+        id: 'o1',
+        kind: 'line',
+        speaker: 'npc',
+        text: 'The unwritten name is on the books all the same — the shrine expects its due.',
+        next: 'oa',
+      },
+      {
+        id: 'oa',
+        kind: 'choice',
+        prompt: 'Will you settle the debt?',
+        choices: [
+          {
+            id: 'accept',
+            label: '🤝 Accept',
+            effects: [{ kind: 'acceptQuest', questId: 'sq_ledger_debt' }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'dlg_sq_ledger_debt_turnin',
+    npcId: 'npc_ferryman',
+    start: 't1',
+    nodes: [
+      {
+        id: 't1',
+        kind: 'line',
+        speaker: 'narrator',
+        text: 'The Ferryman counts your tally against a knot in his line.',
+        next: 't2',
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "Fat on the shrine's seep, every one. The books read even again — and a shrine out of debt can afford to be generous with its own.",
+        next: 'ta',
+      },
+      {
+        id: 'ta',
+        kind: 'choice',
+        prompt: 'Is the debt settled, then?',
+        choices: [
+          {
+            id: 'handover',
+            label: '📜 Settle the debt with the shrine',
+            effects: [{ kind: 'turnInQuest', questId: 'sq_ledger_debt' }],
+          },
+        ],
+      },
+    ],
+  },
 ];

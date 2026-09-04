@@ -601,6 +601,60 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_fenhag', count: 5 }],
     rewards: { xp: 1100, gold: 450, items: { c_ether: 2 } },
   }),
+  // The shrine-pledge routes (#132): the Ferryman's ledger conversation
+  // (dlg_ferry_promise) starts ONE of these and permanently locks the
+  // other. Availability is gated by the recorded decision itself — the
+  // decision ledger is the single source of truth, not a mirrored flag —
+  // and both consume the same shared parent event (`shrine_allegiance_
+  // chosen`), credited at start by beginQuest's storyEvent reconciliation.
+  Q({
+    id: 'sq_shrine_pact',
+    offerDialogue: 'dlg_sq_shrine_pact_offer',
+    turnInDialogue: 'dlg_sq_shrine_pact_turnin',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
+    name: "The Shrine's Beacon",
+    main: false,
+    chapter: 2,
+    level: 1,
+    prereq: {
+      any: [
+        { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } },
+        { decision: { id: 'ferry_shrine_pledge', choiceId: 'vouch' } },
+      ],
+    },
+    summary:
+      'You spoke for the shrine — now lay the marsh wisps smothering the drowned flame to rest and carry their light back.',
+    objectives: [
+      { kind: 'storyEvent', target: 'shrine_allegiance_chosen', label: 'Speak for the shrine' },
+      { kind: 'kill', target: 'e_wisp', count: 4 },
+    ],
+    rewards: { xp: 900, gold: 400, items: { c_antidote: 1 } },
+    // The only quest with an authored alternate resolution (#132): at
+    // turn-in the player may keep the wisp-light instead of handing it
+    // over, resolving the quest with this named outcome (and forgoing the
+    // reward) rather than completing it ordinarily.
+    outcomes: ['kept'],
+  }),
+  Q({
+    id: 'sq_ledger_debt',
+    offerDialogue: 'dlg_sq_ledger_debt_offer',
+    turnInDialogue: 'dlg_sq_ledger_debt_turnin',
+    startNpc: 'npc_ferryman',
+    finishNpc: 'npc_ferryman',
+    name: 'The Unwritten Debt',
+    main: false,
+    chapter: 2,
+    level: 1,
+    prereq: { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
+    summary:
+      "Your name stays unwritten, but the debt is on the books — cull the marsh leeches growing fat on the shrine's seep.",
+    objectives: [
+      { kind: 'storyEvent', target: 'shrine_allegiance_chosen', label: 'Answer the Ferryman' },
+      { kind: 'kill', target: 'e_leech', count: 4 },
+    ],
+    rewards: { xp: 850, gold: 380 },
+  }),
   Q({
     id: 'sq_scarabs',
     offerDialogue: 'dlg_sq_scarabs_offer',

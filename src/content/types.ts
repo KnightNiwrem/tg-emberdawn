@@ -488,7 +488,19 @@ export type Condition =
   | { flag: { id: string; equals?: FlagValue } }
   | { levelAtLeast: number }
   | { ownsItem: { itemId: string; count?: number } }
-  | { inZone: string };
+  | { inZone: string }
+  /** A quest's permanent terminal resolution (#132): the entry in
+   * `p.questOutcomes` — terminal kind, and/or a particular named resolved
+   * outcome. Ordinary `turnInQuest` completion persists NO outcome entry
+   * (query it with `questStatus: 'done'`); this condition matches only
+   * explicit `resolveQuest`/`failQuest`/`lockQuest` resolutions. */
+  | {
+    questOutcome: {
+      questId: string;
+      kind?: 'resolved' | 'failed' | 'locked';
+      outcome?: string;
+    };
+  };
 
 /** An authored ordinary conversation/lore topic (#123): stable compact id,
  * player-facing label, and the authored text. Lives with the NPC — never
@@ -563,6 +575,14 @@ export interface QuestDef {
   /** Optional declarative prereq (#125): the shared condition language,
    * ANDed with the legacy prereqQuest/prereqFlags fields. */
   prereq?: Condition;
+  /** Legal NAMED completion outcomes (#132) this quest can be resolved
+   * with (`resolveQuest` story effects and `questOutcome` conditions are
+   * validated against this list). Ordinary `turnInQuest` completion records
+   * NO outcome entry — completion is queried with `questStatus: 'done'`;
+   * only an alternate `resolveQuest` resolution persists a named outcome
+   * here. Content integrity refuses a named resolution or query whose
+   * outcome this list does not declare. */
+  outcomes?: readonly string[];
 }
 
 export type ExploreEvent =

@@ -13,7 +13,26 @@ import { npcInZone, zoneOfNpc } from '../src/content/quests.ts';
 import { ZONES } from '../src/content/zones.ts';
 import { dialogue, DIALOGUES } from '../src/content/dialogues.ts';
 import { conditionRefs } from '../src/engine/conditions.ts';
-import type { Condition } from '../src/content/types.ts';
+import type { Condition, DialogueDef, QuestDef } from '../src/content/types.ts';
+
+/** A quest's own lifecycle dialogues (offer, turn-in, conversation). */
+function questDialoguesOf(q: QuestDef): DialogueDef[] {
+  return [q.offerDialogue, q.turnInDialogue, q.conversationDialogue]
+    .filter((id): id is string => id !== undefined)
+    .map((id) => dialogue(id))
+    .flatMap((d) => d ? [d] : []);
+}
+
+/** Every story event a dialogue's line and choice effects can emit. */
+function emittedStoryEvents(d: DialogueDef): string[] {
+  return d.nodes.flatMap((n) =>
+    n.kind === 'line'
+      ? n.effects ?? []
+      : n.kind === 'choice'
+      ? n.choices.flatMap((c) => c.effects ?? [])
+      : []
+  ).filter((e) => e.kind === 'storyEvent').map((e) => (e as { event: string }).event);
+}
 
 Deno.test('quest copy: the Sealed Letter is granted once and delivered to Bram (#122)', () => {
   // The letter enters the bag from exactly ONE quest reward (m1_embers,
@@ -163,26 +182,22 @@ Deno.test('quest copy: every quest dialogue flow is wired and authoritative (#12
       assert(events.length > 0, `${q.id}: the conversation emits no story event`);
     }
   }
-  // Every storyEvent objective's event is emitted by its quest's dialogues.
+  // Every storyEvent objective's event is emitted by its quest's own
+  // dialogues, or by a dialogue owned by one of its quest contacts —
+  // shared parent progress (#126): a route quest's opening event may be
+  // emitted by the contact's other conversation (#132).
   for (const q of QUESTS) {
     for (const o of q.objectives) {
       if (o.kind !== 'storyEvent') continue;
-      const qd = [q.offerDialogue, q.turnInDialogue, q.conversationDialogue]
-        .filter((id): id is string => id !== undefined)
-        .map((id) => dialogue(id))
-        .flatMap((d) => d ? [d] : []);
-      const emitted = qd.flatMap((d) =>
-        d.nodes.flatMap((n) =>
-          n.kind === 'line'
-            ? n.effects ?? []
-            : n.kind === 'choice'
-            ? n.choices.flatMap((c) => c.effects ?? [])
-            : []
-        )
-      ).some((e) => e.kind === 'storyEvent' && e.event === o.target);
+      const contactOwned = DIALOGUES.filter((d) =>
+        d.npcId === q.startNpc || d.npcId === q.finishNpc
+      );
+      const emitted = [...questDialoguesOf(q), ...contactOwned].some((d) =>
+        emittedStoryEvents(d).includes(o.target)
+      );
       assert(
         emitted,
-        `${q.id}: storyEvent ${o.target} is never emitted by its own dialogues`,
+        `${q.id}: storyEvent ${o.target} is never emitted by its own or contact dialogues`,
       );
     }
   }
@@ -210,12 +225,15 @@ Deno.test('quest copy: every quest contact still resolves on-site (#63 regressio
   }
 });
 
-Deno.test('quest copy: declarative conditions reference only real ids (#125)', () => {
+Deno.test('quest copy: declarative conditions reference only real ids (#125, #132)', () => {
   // The shared condition language is data — its references must resolve
-  // like every other content reference (quests, items, zones).
+  // like every other content reference (quests, items, zones, outcomes,
+  // decisions). Every condition SURFACE is crawled: NPC topics, quest
+  // prerequisites, and dialogue-choice availability.
   const questIds = new Set(QUESTS.map((q) => q.id));
   const zoneIds = new Set(ZONES.map((z) => z.id));
   const itemIds = new Set(ITEMS.map((i) => i.id));
+  const questOf = (id: string) => QUESTS.find((q) => q.id === id);
   const check = (from: string, c: Condition): void => {
     const refs = conditionRefs(c);
     for (const qid of refs.quests) {
@@ -227,6 +245,30 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125)', (
     for (const zid of refs.zones) {
       assert(zoneIds.has(zid), `${from}: condition references unknown zone ${zid}`);
     }
+    // Named-outcome queries (#132) must name an outcome the quest declares.
+    const walk = (cond: Condition): void => {
+      if ('all' in cond) return cond.all.forEach(walk);
+      if ('any' in cond) return cond.any.forEach(walk);
+      if ('not' in cond) return walk(cond.not);
+      if ('questOutcome' in cond) {
+        const q = questOf(cond.questOutcome.questId);
+        assert(q, `${from}: outcome query names unknown quest ${cond.questOutcome.questId}`);
+        const { outcome } = cond.questOutcome;
+        if (outcome !== undefined) {
+          assert(
+            q?.outcomes?.includes(outcome),
+            `${from}: ${cond.questOutcome.questId} does not declare outcome "${outcome}"`,
+          );
+        }
+      }
+      if ('decision' in cond) {
+        assert(
+          recordedDecisionIds.has(cond.decision.id),
+          `${from}: condition references decision ${cond.decision.id} that no dialogue records`,
+        );
+      }
+    };
+    walk(c);
   };
   for (const z of ZONES) {
     for (const n of z.npcs) {
@@ -237,5 +279,58 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125)', (
   }
   for (const q of QUESTS) {
     if (q.prereq) check(q.id, q.prereq);
+  }
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind !== 'choice') continue;
+      for (const c of n.choices) {
+        if (c.when) check(`${d.id}:${n.id}:${c.id}:when`, c.when);
+      }
+    }
+  }
+});
+
+/** Decision ids some dialogue's recordDecision effect actually records —
+ * the legal id set decision conditions may query (#132). */
+const recordedDecisionIds = new Set(
+  DIALOGUES.flatMap((d) =>
+    d.nodes.flatMap((n) =>
+      n.kind === 'line'
+        ? n.effects ?? []
+        : n.kind === 'choice'
+        ? n.choices.flatMap((c) => c.effects ?? [])
+        : []
+    )
+  ).filter((e) => e.kind === 'recordDecision').map((e) => (e as { id: string }).id),
+);
+
+Deno.test('quest copy: named quest outcomes are declared and resolved legally (#132)', () => {
+  // Every resolveQuest effect authored in dialogue content must name a
+  // quest that DECLARES the outcome — typos and cross-quest outcomes are
+  // content corruption, not runtime surprises.
+  const questOf = (id: string) => QUESTS.find((q) => q.id === id);
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      const effects = n.kind === 'line'
+        ? n.effects ?? []
+        : n.kind === 'choice'
+        ? n.choices.flatMap((c) => c.effects ?? [])
+        : [];
+      for (const e of effects) {
+        if (e.kind !== 'resolveQuest') continue;
+        const q = questOf(e.questId);
+        assert(q, `${d.id}:${n.id}: resolveQuest names unknown quest ${e.questId}`);
+        assert(
+          q?.outcomes?.includes(e.outcome),
+          `${d.id}:${n.id}: ${e.questId} does not declare outcome "${e.outcome}"`,
+        );
+      }
+    }
+  }
+  // A quest that declares outcomes must declare at least one.
+  for (const q of QUESTS) {
+    if (q.outcomes !== undefined) {
+      assert(q.outcomes.length > 0, `${q.id}: outcomes declared but empty`);
+    }
   }
 });

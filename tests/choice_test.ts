@@ -30,6 +30,13 @@ function ferryHero(id: number): PlayerState {
   return p;
 }
 
+/** A fresh hero in Emberdawn Village (Maren's zone). */
+function hero(id: number): PlayerState {
+  const p = createPlayer(id, 'T', 'warrior');
+  syncAvailability(p);
+  return p;
+}
+
 function openChoice(p: PlayerState): void {
   p.scene = { view: 'npc', arg: FERRY };
   npcAction(p, { v: 'npc', a: 'lore', arg: 'ferry_promise' });
@@ -73,7 +80,8 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   assertEquals(JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents }), before);
   const panel = JSON.stringify(renderDialogue(p));
   assert(panel.includes('cannot be changed'), 'permanence is stated');
-  assert(panel.includes('The shrine will count on you'), 'the consequence hint renders');
+  assert(panel.includes('The shrine counts on you'), 'the consequence hint renders');
+  assert(panel.includes('unwritten name closes'), 'the hint names the permanent exclusion');
   assert(panel.includes('dlg:cf:promise'), 'Confirm carries the choice id only');
   assert(panel.includes('dlg:cc'), 'Go back is offered');
   // Abandon: back to the choice list, still zero mutation.
@@ -82,14 +90,18 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   assertEquals(JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents }), before);
 });
 
-Deno.test('choices: confirmation applies effects exactly once, atomically (#126)', () => {
+Deno.test('choices: confirmation applies effects exactly once, atomically (#126, #132)', () => {
   const p = ferryHero(1403);
   openChoice(p);
   dialogueAction(p, { v: 'dlg', a: 'ch', arg: 'promise' }); // stage
   dialogueAction(p, { v: 'dlg', a: 'cf', arg: 'promise' }); // confirm
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(p.storyEvents, ['shrine_allegiance_chosen'], 'shared parent progress emitted');
-  assertEquals(p.flags['shrine_pledge'], true);
+  // The route consequence (#132): the believer route started and opened
+  // with the parent event credited; the incompatible route locked.
+  assertEquals(p.quests['sq_shrine_pact']?.status, 'active');
+  assertEquals(p.quests['sq_shrine_pact']?.counts, [1, 0], 'the parent objective is credited');
+  assertEquals(p.questOutcomes['sq_ledger_debt']?.kind, 'locked');
   assertEquals(p.scene.arg2, 'n4', 'the choice advanced to its authored next node');
   assertEquals(p.scene.arg3, undefined, 'the staged panel cleared');
   // A later topic can identify the actual choice from the ledger.
@@ -97,18 +109,25 @@ Deno.test('choices: confirmation applies effects exactly once, atomically (#126)
   assert(!evalCondition(p, { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } }));
 });
 
-Deno.test('choices: the decline branch records its own decision, same event', () => {
+Deno.test('choices: the decline branch starts the other route and locks the first', () => {
   const a = ferryHero(1404);
   const b = ferryHero(1405);
-  for (const p of [a, b]) openChoice(p);
+  openChoice(a);
+  openChoice(b);
   // The central op derives dialogue/node/NPC from the live scene (#130);
-  // the irreversible promise needs its staged panel.
+  // both committing responses are irreversible and need staged panels.
+  a.scene.arg3 = 'confirm:decline';
   applyDialogueChoice(a, { choiceId: 'decline', now: 1 });
   b.scene.arg3 = 'confirm:promise';
   applyDialogueChoice(b, { choiceId: 'promise', now: 1 });
   assertEquals(a.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
   assertEquals(b.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(a.storyEvents, b.storyEvents, 'both choices share the parent-progress event');
+  // Each route starts its own follow-up quest and locks the other (#132).
+  assertEquals(a.quests['sq_ledger_debt']?.status, 'active');
+  assertEquals(a.questOutcomes['sq_shrine_pact']?.kind, 'locked');
+  assertEquals(b.quests['sq_shrine_pact']?.status, 'active');
+  assertEquals(b.questOutcomes['sq_ledger_debt']?.kind, 'locked');
 });
 
 Deno.test('choices: incompatible re-choices and engine-level replays are refused', () => {
@@ -253,16 +272,26 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
 });
 
 Deno.test('choices: full router — an ordinary ch still applies directly (#136)', async () => {
+  // The pledge dialogue's committing responses are all irreversible; the
+  // ordinary-direct path is exercised on m1_embers' standard offer accept.
   const store = new MemoryStore();
-  const p = ferryHero(1411);
+  const p = hero(1411);
   p.messageId = 300;
-  p.scene = { view: 'npc', arg: FERRY };
+  p.scene = { view: 'npc', arg: 'npc_maren' };
   await store.set(1411, p);
-  const tap = await routerAtChoice(store, 1411);
-  const r = await tap('dlg:ch:decline');
-  assertEquals(r.cur.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
-  assertEquals(r.cur.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:decline`]);
-  assertEquals(r.cur.scene.arg2, 'n5', 'the decline branch advances to its authored next node');
+  const tap = async (data: string) => {
+    const before = (await store.get(1411))!;
+    await handleCallback(fakeCtx(1411, 300, withRev(before.uiRev ?? 0, data)), store);
+    return (await store.get(1411))!;
+  };
+  let cur = await tap('npc:q:m1_embers');
+  assertEquals(cur.scene.view, 'dialogue');
+  assertEquals(cur.scene.arg, 'dlg_m1_embers_offer');
+  cur = await tap('dlg:nx:o2'); // advance through the offer beats
+  cur = await tap('dlg:nx:oa'); // …to the choice node
+  cur = await tap('dlg:ch:accept');
+  assertEquals(cur.quests['m1_embers']?.status, 'active', 'the ordinary choice applied');
+  assertEquals(cur.storyReceipts, ['choice:dlg_m1_embers_offer:oa:accept']);
 });
 
 Deno.test('choices: scene persists through rerender and /start (#126)', () => {
@@ -291,14 +320,20 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
   const refused = applyDialogueChoice(p, { choiceId: 'vouch', now: 1 });
   assertEquals(refused.ok, false, 'tap-time reevaluation gates the effects');
   assertEquals(Object.keys(p.decisions).length, 0);
-  // After the condition passes, the response renders and applies.
+  // After the condition passes, the response renders and applies — like
+  // every committing pledge response, from its staged confirmation panel.
   p.quests['m6_toxin'] = { status: 'done', counts: [4] };
   assert(
     JSON.stringify(renderDialogue(p)).includes('dlg:ch:vouch'),
     'a met condition reveals the response',
   );
+  p.scene.arg3 = 'confirm:vouch';
   const ok = applyDialogueChoice(p, { choiceId: 'vouch', now: 1 });
   assertEquals(ok.ok, true);
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'vouch');
   assertEquals(ok.nextNodeId, 'n6');
+  // The vouch route is the believer route: the beacon started, the debt
+  // route locked (#132).
+  assertEquals(p.quests['sq_shrine_pact']?.status, 'active');
+  assertEquals(p.questOutcomes['sq_ledger_debt']?.kind, 'locked');
 });

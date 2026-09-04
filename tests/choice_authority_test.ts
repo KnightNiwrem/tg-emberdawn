@@ -40,6 +40,8 @@ function storySnapshot(p: PlayerState): string {
     f: p.flags,
     e: p.storyEvents,
     r: p.storyReceipts,
+    q: p.quests,
+    o: p.questOutcomes,
   });
 }
 
@@ -117,19 +119,27 @@ Deno.test('authority: a confirmation staged for a DIFFERENT choice does not auth
   assertRefused(p, 'promise');
 });
 
-Deno.test('authority: an ordinary choice refuses while an unrelated confirmation is staged', () => {
-  const p = ferryHero(1606);
-  atChoice(p, 'confirm:promise');
-  const r = applyDialogueChoice(p, { choiceId: 'decline', now: 1 });
+Deno.test('authority: an ordinary choice refuses while a confirmation is staged', () => {
+  // Every committing pledge response is irreversible now; the ordinary
+  // path lives on m1_embers' standard offer accept. A FORGED staging for
+  // an ordinary choice (the handler never stages one) makes the central
+  // op treat the staged panel — not the list — as the live sub-state.
+  const p = createPlayer(1606, 'T', 'warrior');
+  syncAvailability(p);
+  p.scene = { view: 'dialogue', arg: 'dlg_m1_embers_offer', arg2: 'oa', arg3: 'confirm:accept' };
+  const r = applyDialogueChoice(p, { choiceId: 'accept', now: 1 });
   assertEquals(r.ok, false, 'the staged panel is the live sub-state, not the list');
   assertEquals(p.decisions['ferry_shrine_pledge'], undefined);
   assertEquals(p.storyReceipts, []);
+  assertEquals(p.quests['m1_embers']?.status, 'available', 'nothing was accepted');
 });
 
 Deno.test('authority: a condition that turned false after render refuses at apply time', () => {
   const p = ferryHero(1607);
-  atChoice(p);
   // 'vouch' requires m6_toxin done — rendered earlier, no longer true now.
+  // The panel stages (rendering was never authority) but the central op
+  // re-evaluates the condition and refuses before any mutation.
+  atChoice(p, 'confirm:vouch');
   assertRefused(p, 'vouch');
   assertEquals(p.decisions['ferry_shrine_pledge'], undefined);
 });
@@ -143,7 +153,11 @@ Deno.test('authority: correct scene, owner, presence and staged panel apply exac
   assertEquals(r.nextNodeId, 'n4');
   assertEquals(p.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(p.storyEvents, ['shrine_allegiance_chosen']);
-  assertEquals(p.flags['shrine_pledge'], true);
+  // The route consequence (#132): the chosen route starts (with the parent
+  // event already credited), the incompatible route locks permanently.
+  assertEquals(p.quests['sq_shrine_pact']?.status, 'active');
+  assertEquals(p.quests['sq_shrine_pact']?.counts, [1, 0]);
+  assertEquals(p.questOutcomes['sq_ledger_debt']?.kind, 'locked');
   assertEquals(p.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:promise`]);
 });
 

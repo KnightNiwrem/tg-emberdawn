@@ -15,6 +15,7 @@ import { decodeCb, encodeCb, withRev } from '../src/codec.ts';
 import { createPlayer } from '../src/engine/character.ts';
 import { syncAvailability } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
+import { conditionRefs } from '../src/engine/conditions.ts';
 import { storyEffectRefs } from './helpers_story.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
@@ -47,15 +48,43 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
         if (n.next !== undefined) {
           assert(nodeIds.has(n.next), `${d.id}:${n.id}: missing next target ${n.next}`);
         }
+        // Line-entry effects resolve too (#132): every effect surface is
+        // crawled, not only choices.
+        for (const e of n.effects ?? []) {
+          const r = storyEffectRefs(e);
+          for (const qid of r.quests) assert(questIds.has(qid), `${d.id}: unknown quest ${qid}`);
+          for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
+          for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
+        }
       } else if (n.kind === 'choice') {
         assert(n.prompt.length > 0, `${d.id}:${n.id}: empty choice prompt`);
-        assert(n.choices.length >= 2, `${d.id}:${n.id}: a choice node offers a real branch`);
+        // A choice node always offers a real branch: either multiple
+        // responses, or a single response while the structural deferral
+        // ("Not now") remains available as the non-mutating exit (#132).
+        assert(
+          n.choices.length >= 2 || (n.choices.length >= 1 && n.allowDeferral !== false),
+          `${d.id}:${n.id}: a choice node offers a real branch`,
+        );
         const choiceIds = new Set(n.choices.map((c) => c.id));
         assertEquals(choiceIds.size, n.choices.length, `${d.id}:${n.id}: choice ids unique`);
         for (const c of n.choices) {
           assert(c.label.length > 0, `${d.id}:${n.id}:${c.id}: empty label`);
           if (c.next !== undefined) {
             assert(nodeIds.has(c.next), `${d.id}:${n.id}:${c.id}: missing next ${c.next}`);
+          }
+          // Availability conditions resolve (#132): choice `when` gates are
+          // crawled like every other condition surface.
+          if (c.when) {
+            const r = conditionRefs(c.when);
+            for (const qid of r.quests) {
+              assert(questIds.has(qid), `${d.id}:${n.id}:${c.id}: unknown quest ${qid}`);
+            }
+            for (const iid of r.items) {
+              assert(itemIds.has(iid), `${d.id}:${n.id}:${c.id}: unknown item ${iid}`);
+            }
+            for (const zid of r.zones) {
+              assert(zoneIds.has(zid), `${d.id}:${n.id}:${c.id}: unknown zone ${zid}`);
+            }
           }
           // Effect references resolve (quests, items, zones) and decision
           // ids never collide with incompatible option sets.
@@ -64,6 +93,21 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
             for (const qid of r.quests) assert(questIds.has(qid), `${d.id}: unknown quest ${qid}`);
             for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
             for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
+          }
+          // Obvious incompatible bundles are statically rejected (#132):
+          // one choice may not start/accept AND lock/fail the SAME quest.
+          const started = new Set(
+            (c.effects ?? [])
+              .filter((e) => e.kind === 'startQuest' || e.kind === 'acceptQuest')
+              .map((e) => (e as { questId: string }).questId),
+          );
+          for (const e of c.effects ?? []) {
+            if (e.kind === 'lockQuest' || e.kind === 'failQuest') {
+              assert(
+                !started.has(e.questId),
+                `${d.id}:${n.id}:${c.id}: starts and ${e.kind}s ${e.questId} in one bundle`,
+              );
+            }
           }
           const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
           if (dec && dec.kind === 'recordDecision') {
@@ -301,7 +345,16 @@ Deno.test('dialogue: topics still resolve for every NPC (#123 parity)', () => {
   for (const z of ZONES) {
     for (const n of z.npcs) {
       assert(npc(n.id), `${n.id} resolves`);
-      void npcTopics({ quests: {} } as PlayerState, n.id);
+      void npcTopics(
+        {
+          quests: {},
+          decisions: {},
+          flags: {},
+          storyEvents: [],
+          questOutcomes: {},
+        } as unknown as PlayerState,
+        n.id,
+      );
     }
   }
 });

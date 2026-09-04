@@ -109,6 +109,17 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   `src/engine/conditions.ts`) is shared by NPC topic availability (`NpcTopicDef.when`), quest
   prereqs (`QuestDef.prereq`, ANDed with the legacy `prereqQuest`/`prereqFlags`), and dialogue
   choices. Content integrity validates condition references (`tests/quest_copy_test.ts`).
+- Quest terminal state is queryable (#132): the `questOutcome` condition matches a quest's permanent
+  resolution in `p.questOutcomes` by terminal kind and/or named outcome. Semantics: ordinary
+  `turnInQuest` completion persists NO outcome entry (query completion with `questStatus: 'done'`);
+  only `resolveQuest` persists a named outcome, and a quest that declares `outcomes` refuses any
+  resolution outside its list — a declaration is mandatory in content whenever a named resolution or
+  outcome query is authored. The shipped exemplar is the Ferryman's shrine-pledge branch
+  (`dlg_ferry_promise` → `sq_shrine_pact`/`sq_ledger_debt`): both committing responses record
+  distinct decisions, emit the same shared parent event, start one route quest, and lock the other;
+  `beginQuest` credits an already-fired story event to a starting quest's storyEvent objective (the
+  reach ever-visited policy's counterpart), so the parent objective reads complete from the moment
+  the route opens.
 - Irreversible choices are recorded in `p.decisions` with choice and provenance — never reduced to
   unexplained booleans. A locked or failed quest (`p.questOutcomes`, `questExcluded`) is never
   resurrected by `syncAvailability`.

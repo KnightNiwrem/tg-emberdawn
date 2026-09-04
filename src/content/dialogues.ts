@@ -92,10 +92,15 @@ export const DIALOGUES: readonly DialogueDef[] = [
     ],
   },
   {
-    // The representative branching conversation (#126): two conditionally
-    // presented responses, both emitting the same shared story event while
-    // recording distinct durable decisions; one is irreversible and stages
-    // an explicit confirmation; deferral ("Not now") is always available.
+    // The consequential branch (#132): both committing responses record
+    // distinct durable decisions, emit the SAME shared parent event, start
+    // a different follow-up quest, and permanently lock the incompatible
+    // route. Both are irreversible (each stages an explicit confirmation
+    // panel whose hint names the permanent exclusion); deferral ("Not now")
+    // stays non-mutating and leaves both routes open. Availability of the
+    // route quests is gated by the recorded decision itself (their prereq
+    // conditions) — the ledger is the single source of truth, with the
+    // explicit locks as the permanent exclusion record.
     id: 'dlg_ferry_promise',
     npcId: 'npc_ferryman',
     start: 'n1',
@@ -122,22 +127,29 @@ export const DIALOGUES: readonly DialogueDef[] = [
         choices: [
           {
             id: 'promise',
-            label: '“Put me down as a believer.”',
+            label: 'Put me down as a believer',
             irreversible: true,
-            consequenceHint: 'The shrine will count on you from now on.',
+            consequenceHint:
+              'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'promise' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
-              { kind: 'setFlag', id: 'shrine_pledge' },
+              { kind: 'startQuest', questId: 'sq_shrine_pact' },
+              { kind: 'lockQuest', questId: 'sq_ledger_debt', reason: 'shrine_route' },
             ],
             next: 'n4',
           },
           {
             id: 'decline',
-            label: '“Keep my name off the ledger.”',
+            label: 'Keep my name off the ledger',
+            irreversible: true,
+            consequenceHint:
+              'The debt goes on the books all the same — and the road of the beacon closes for good.',
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'decline' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+              { kind: 'startQuest', questId: 'sq_ledger_debt' },
+              { kind: 'lockQuest', questId: 'sq_shrine_pact', reason: 'shrine_route' },
             ],
             next: 'n5',
           },
@@ -145,11 +157,16 @@ export const DIALOGUES: readonly DialogueDef[] = [
             // Conditionally available response (#126): earned trust changes
             // what the shrine will hear. Re-evaluated at tap time.
             id: 'vouch',
-            label: '“Tell them the swamp already vouches for me.”',
+            label: 'Tell them the swamp already vouches for me',
             when: { questStatus: { questId: 'm6_toxin', is: 'done' } },
+            irreversible: true,
+            consequenceHint:
+              'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'vouch' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+              { kind: 'startQuest', questId: 'sq_shrine_pact' },
+              { kind: 'lockQuest', questId: 'sq_ledger_debt', reason: 'shrine_route' },
             ],
             next: 'n6',
           },
@@ -160,21 +177,86 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Then the ledger says so. Belief written down outlives belief merely felt — that is the whole trick of records. Hold yourself to it.',
+          "Then the ledger says so — and it says what comes with it. The shrine's drowned beacon is yours to relight; the unwritten road closed behind you the moment the ink dried. Hold yourself to it.",
       },
       {
         id: 'n5',
         kind: 'line',
         speaker: 'npc',
         text:
-          'Fair enough. The water keeps no ledger either. The offer stands — the swamp is patient with believers and unbelievers alike.',
+          'Fair enough. The water keeps no ledger, but the shrine does — and it writes debts for unwritten names too. Yours is on the books now, and the beacon road closed behind you the moment you turned away.',
       },
       {
         id: 'n6',
         kind: 'line',
         speaker: 'npc',
         text:
-          'That they do — you cleaned the runoff the Tyrant left. Names I write for folk like you are the ones the shrine trusts to stay written.',
+          'That they do — you cleaned the runoff the Tyrant left. I will write the strongest line the ledger holds. The beacon is yours to relight, and the unwritten road closed behind you with the ink still wet.',
+      },
+    ],
+  },
+  {
+    // The ledger's aftermath (#132): opened only once the pledge decision
+    // exists, it reacts to the recorded decision and — through the
+    // questOutcome condition — to the named resolution of the beacon route.
+    // Every response is conditionally gated; "Not now" defers, mutates
+    // nothing.
+    id: 'dlg_ferry_aftermath',
+    npcId: 'npc_ferryman',
+    start: 'a1',
+    nodes: [
+      {
+        id: 'a1',
+        kind: 'choice',
+        prompt: "The ledger's open. What do you want of it?",
+        choices: [
+          {
+            id: 'beacon',
+            label: 'How do I relight the beacon?',
+            when: {
+              any: [
+                { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } },
+                { decision: { id: 'ferry_shrine_pledge', choiceId: 'vouch' } },
+              ],
+            },
+            next: 'a2',
+          },
+          {
+            id: 'debt',
+            label: 'What does the shrine expect of me?',
+            when: { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
+            next: 'a3',
+          },
+          {
+            id: 'keptlight',
+            label: 'What does the ledger say of the light I kept?',
+            when: {
+              questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
+            },
+            next: 'a4',
+          },
+        ],
+      },
+      {
+        id: 'a2',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'The drowned shrine holds the beacon, and the marsh wisps smother its flame. Lay them to rest and carry their light back. The shrine will know its own again.',
+      },
+      {
+        id: 'a3',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "Nothing holy — only what is owed. Leeches have grown fat on the shrine's seep. Cull them, and the books balance.",
+      },
+      {
+        id: 'a4',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          'It writes: light retained, debt forgiven. The beacon waits for a kinder hand. Walk warm, Dawncaller — the ledger does not begrudge you the glow.',
       },
     ],
   },

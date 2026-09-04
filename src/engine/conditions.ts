@@ -37,6 +37,13 @@ export function evalCondition(p: PlayerState, c: Condition): boolean {
   if ('levelAtLeast' in c) return p.level >= c.levelAtLeast;
   if ('ownsItem' in c) return countOf(p, c.ownsItem.itemId) >= (c.ownsItem.count ?? 1);
   if ('inZone' in c) return p.currentZone === c.inZone;
+  if ('questOutcome' in c) {
+    const o = p.questOutcomes[c.questOutcome.questId];
+    if (!o) return false;
+    if (c.questOutcome.kind !== undefined && o.kind !== c.questOutcome.kind) return false;
+    if (c.questOutcome.outcome !== undefined && o.outcome !== c.questOutcome.outcome) return false;
+    return true;
+  }
   return false;
 }
 
@@ -53,6 +60,7 @@ export function conditionRefs(c: Condition): {
     if ('any' in cond) return cond.any.forEach(walk);
     if ('not' in cond) return walk(cond.not);
     if ('questStatus' in cond) out.quests.push(cond.questStatus.questId);
+    if ('questOutcome' in cond) out.quests.push(cond.questOutcome.questId);
     if ('ownsItem' in cond) out.items.push(cond.ownsItem.itemId);
     if ('inZone' in cond) out.zones.push(cond.inZone);
   };

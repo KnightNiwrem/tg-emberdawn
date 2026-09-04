@@ -277,6 +277,17 @@ export const ZONES: readonly ZoneDef[] = [
           id: 'ferry_promise',
           label: 'Speak for you at the shrine',
           dialogue: 'dlg_ferry_promise',
+          // The pledge exists only until it is made (#132): once the
+          // decision is in the ledger the topic hides, and the aftermath
+          // topic below takes over.
+          when: { not: { decision: { id: 'ferry_shrine_pledge' } } },
+        }, {
+          id: 'ferry_ledger',
+          label: 'Ask about the shrine ledger',
+          dialogue: 'dlg_ferry_aftermath',
+          // The ledger's aftermath (#132): reacts to the recorded decision
+          // and to the beacon route's named resolution.
+          when: { decision: { id: 'ferry_shrine_pledge' } },
         }],
       },
     ],
