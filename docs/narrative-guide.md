@@ -125,4 +125,5 @@ reference their deeds or their reputation, which every class has.
 No lexical parser, sentiment model, or AI detector polices this prose. The machine-checkable facts
 stay in tests: speaker structure, ids, references, staging, rewards, class neutrality of reward
 gear, and the absence of game system terms in in-world fields (quest_copy_test.ts). Everything else
-here is editorial judgment for human review.
+here is editorial judgment for human review; review passes — their inventories, dispositions, and
+the outstanding human sign-off — are recorded in `docs/editorial-review.md`.
