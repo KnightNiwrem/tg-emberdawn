@@ -120,7 +120,11 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   player (`validateStoryBundle` discards the draft, `applyStoryEffects` commits it once), so every
   effect's preconditions see the projected result of all earlier effects (grant → remove nets to
   zero; an impossible cumulative removal refuses the whole bundle), and any refusal leaves the live
-  player byte-for-byte unchanged with no receipt recorded.
+  player byte-for-byte unchanged with no receipt recorded. Both entry points share the application
+  receipt (#137): an already-committed application validates clean and applies as a no-op. The
+  returned `StoryResult` describes the final committed draft: `readyQuests` is deduplicated and
+  reconciled to quests still `turnIn` at commit, while `startedQuests` is a transition log (a later
+  effect may have locked or resolved a listed quest — read `p.quests` for final state).
 - Mutating helpers (`removeItem`, `acceptQuest`, `turnInQuest`) report failure, and a failure
   refuses the bundle — never silently ignored.
 

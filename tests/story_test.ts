@@ -87,11 +87,13 @@ Deno.test('decisions: recorded with provenance, idempotent, conflicting choice r
     nodeId: 'n1',
     chosenAt: ctx.now,
   });
-  // A different choice for the same decision id is a contradiction.
+  // A different choice for the same decision id is a contradiction — under
+  // a FRESH application identity (this one is receipted now, and a
+  // receipted identity validates as a replay no-op, #137).
   assert(
     validateStoryBundle(p, [
       { kind: 'recordDecision', id: 'shrine_allegiance', choiceId: 'curator' },
-    ], ctx) !== undefined,
+    ], { ...ctx, nodeId: 'n2' }) !== undefined,
     'overwriting a decision is refused',
   );
   assert(evalCondition(p, { decision: { id: 'shrine_allegiance', choiceId: 'ferryman' } }));

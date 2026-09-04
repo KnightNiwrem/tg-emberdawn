@@ -3,7 +3,10 @@
  * ones), commits are all-or-nothing with the live player byte-for-byte
  * unchanged on refusal, one-shot application receipts make replays complete
  * no-ops, terminal quest outcomes are monotonic, and every quest start
- * shares acceptQuest's objective-reconciliation policy. */
+ * shares acceptQuest's objective-reconciliation policy. Results describe
+ * the FINAL committed draft (#137): readyQuests is deduplicated and
+ * reconciled to it, startedQuests is a transition log, and validation
+ * shares the receipt so a replay validates exactly like it applies. */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import type { StoryEffect } from '../src/content/types.ts';
@@ -394,4 +397,127 @@ Deno.test('tx: a mid-bundle collect shortfall refuses the turn-in, not just the 
   assertThrows(() => applyStoryEffects(p, bundle, ctxAt('n1', 'npc_bram')));
   assertEquals(JSON.stringify(p), before, 'the flag does not commit either');
   assertEquals(p.quests['m5_arms']?.status, 'turnIn', 'the quest is untouched');
+});
+
+// ── the result describes the final committed draft (#137) ────────────────
+
+/** A hero one toxin sample short of completing m6_toxin. */
+function toxinHero(id: number): PlayerState {
+  const p = hero(id);
+  p.quests['m6_toxin'] = { status: 'active', counts: [0] };
+  addItem(p, 'q_toxin_sample', 3);
+  return p;
+}
+
+Deno.test('tx: readiness revoked by a later lock never reaches the result (#137)', () => {
+  const p = toxinHero(1521);
+  const r = applyStoryEffects(p, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'lockQuest', questId: 'm6_toxin', reason: 'route_closed' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(p.quests['m6_toxin']?.status, 'unavailable', 'the lock committed');
+  assertEquals(p.questOutcomes['m6_toxin']?.kind, 'locked');
+  assertEquals(r.readyQuests, [], 'the revoked readiness is not announced');
+  assertEquals(
+    storyNoticeLines(r).filter((l) => l.includes('ready to turn in')),
+    [],
+    'no false ready banner for a quest the same bundle locked',
+  );
+});
+
+Deno.test('tx: readiness followed by resolve, fail or turn-in reports no false banner (#137)', () => {
+  const resolved = toxinHero(1522);
+  const r1 = applyStoryEffects(resolved, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'resolveQuest', questId: 'm6_toxin', outcome: 'cured' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(resolved.quests['m6_toxin']?.status, 'done');
+  assertEquals(r1.readyQuests, [], 'a resolved quest is not also announced ready');
+
+  const failed = toxinHero(1523);
+  const r2 = applyStoryEffects(failed, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'failQuest', questId: 'm6_toxin', reason: 'too_late' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(failed.quests['m6_toxin']?.status, 'unavailable');
+  assertEquals(r2.readyQuests, [], 'a failed quest is not also announced ready');
+
+  // Turn-in inside the same bundle: the completing grant readies the quest,
+  // the turn-in finishes it — the result carries the rewards, not a stale
+  // "ready to turn in" banner.
+  const turnedIn = toxinHero(1524);
+  turnedIn.currentZone = 'hollowmere';
+  const r3 = applyStoryEffects(turnedIn, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'turnInQuest', questId: 'm6_toxin' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(turnedIn.quests['m6_toxin']?.status, 'done');
+  assertEquals(r3.readyQuests, [], 'a turned-in quest is not also announced ready');
+  assert(r3.lines.some((l) => l.includes('+400 gold')), 'the turn-in rewards are reported');
+});
+
+Deno.test('tx: readiness that survives the whole bundle is announced exactly once (#137)', () => {
+  const p = toxinHero(1525);
+  const r = applyStoryEffects(p, [
+    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
+    { kind: 'grantItem', itemId: 'c_minor_potion', qty: 1 },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(p.quests['m6_toxin']?.status, 'turnIn');
+  assertEquals(r.readyQuests, ['m6_toxin'], 'deduplicated final readiness');
+  assertEquals(
+    storyNoticeLines(r).filter((l) => l.includes('ready to turn in')).length,
+    1,
+    'exactly one notice',
+  );
+});
+
+Deno.test('tx: startedQuests is a transition log, not a final-state summary (#137)', () => {
+  const p = hero(1526);
+  p.level = 2;
+  p.quests['m1_embers'] = { status: 'done', counts: [4] };
+  syncAvailability(p);
+  const r = applyStoryEffects(p, [
+    { kind: 'startQuest', questId: 'm2_letter' },
+    { kind: 'lockQuest', questId: 'm2_letter', reason: 'route_closed' },
+  ], ctxAt('n1'));
+  assertEquals(r.startedQuests, ['m2_letter'], 'the log records that the bundle started it');
+  assertEquals(
+    p.quests['m2_letter']?.status,
+    'unavailable',
+    '…while the final state moved past it',
+  );
+  assertEquals(r.readyQuests, [], 'readiness, by contrast, is reconciled to the final draft');
+});
+
+// ── validation/application replay parity (#137) ──────────────────────────
+
+Deno.test('tx: an already-receipted application validates and applies as a no-op (#137)', () => {
+  const p = hero(1527);
+  addItem(p, 'm_iron_chunk', 1);
+  applyStoryEffects(p, [remove(1)], ctxAt('n1'));
+  assertEquals(countOf(p, 'm_iron_chunk'), 0, 'the final chunk is gone');
+  // Revalidating the SAME application identity agrees with application: the
+  // recorded receipt makes it a valid replay no-op, even though a fresh run
+  // of these effects would now refuse on the empty bag.
+  assertEquals(validateStoryBundle(p, [remove(1)], ctxAt('n1')), undefined);
+  const before = JSON.stringify(p);
+  const r = applyStoryEffects(p, [remove(1)], ctxAt('n1'));
+  assertEquals(r, { lines: [], readyQuests: [], startedQuests: [], events: [], decisions: [] });
+  assertEquals(JSON.stringify(p), before, 'the replay touches nothing');
+  // A DIFFERENT application identity is fresh business and still refuses.
+  assert(validateStoryBundle(p, [remove(1)], ctxAt('n2')) !== undefined);
+});
+
+Deno.test('tx: a failed application acquires no receipt and stays retryable (#137)', () => {
+  const p = hero(1528);
+  const bundle = [remove(1)]; // no iron owned
+  assert(validateStoryBundle(p, bundle, ctxAt('n1')) !== undefined);
+  assertThrows(() => applyStoryEffects(p, bundle, ctxAt('n1')));
+  assertEquals(p.storyReceipts, [], 'a refused application records no receipt');
+  // No receipt, so validation keeps refusing the unmodified retry…
+  assert(validateStoryBundle(p, bundle, ctxAt('n1')) !== undefined);
+  // …and the corrected retry still applies.
+  addItem(p, 'm_iron_chunk', 1);
+  applyStoryEffects(p, bundle, ctxAt('n1'));
+  assertEquals(countOf(p, 'm_iron_chunk'), 0);
 });

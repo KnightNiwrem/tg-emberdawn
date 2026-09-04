@@ -13,14 +13,20 @@
  * player byte-for-byte unchanged. validateStoryBundle is the SAME ordered
  * run against a throwaway draft, so its answer can never drift from what
  * application would do, and a mutating helper's failure (removeItem,
- * acceptQuest, turnInQuest) is a refusal — never silently ignored.
+ * acceptQuest, turnInQuest) is a refusal — never silently ignored. The
+ * returned StoryResult describes the FINAL committed draft (#137):
+ * readyQuests is deduplicated and reconciled against it, so readiness a
+ * later effect in the same bundle revoked never reaches the notice banner.
  *
  * Every committed application records a one-shot RECEIPT in
  * p.storyReceipts: `choice:<dialogue>:<node>:<choice>` for dialogue
  * choices, `line:<dialogue>:<node>` for line-entry effects. Replaying a
  * receipted application is a complete no-op — no duplicated items, rewards,
  * events, quest starts, locks or notices — so bundle-level idempotency no
- * longer rests on per-effect guards.
+ * longer rests on per-effect guards. Validation and application share the
+ * receipt (#137): an already-committed application VALIDATES clean and
+ * applies as a no-op, while a refused application records no receipt and
+ * stays retryable.
  *
  * Terminal quest outcomes are MONOTONIC: a resolved (or completed) quest
  * can never become locked/failed, a locked/failed quest can never start or
@@ -72,9 +78,14 @@ export interface StoryContext {
 export interface StoryResult {
   /** Player-facing lines (grants, unlocks) — renderers append them. */
   lines: string[];
-  /** Quests this bundle made turn-in-ready (#119) — announce once. */
+  /** Quests turn-in-ready in the FINAL committed draft (#119, reconciled
+   * #137): deduplicated, and a readiness a later effect in the same bundle
+   * revoked (lock/fail/resolve/turn-in) never appears here — announce once. */
   readyQuests: string[];
-  /** Quests this bundle started. */
+  /** Transition log of the quests this bundle started (#137) — NOT a
+   * final-state summary: a later effect in the same bundle may have locked,
+   * failed, resolved or turned in a listed quest. Read `p.quests` for the
+   * committed status. */
   startedQuests: string[];
   /** Story events emitted (deduped). */
   events: string[];
@@ -286,6 +297,13 @@ function runStoryBundle(
   // objectives may have completed from granted items.
   result.readyQuests.push(...refreshQuestProgress(draft));
   syncAvailability(draft);
+  // The result describes the FINAL draft, not the run's intermediate
+  // states (#137): readiness an earlier effect announced may have been
+  // revoked by a later one (lock/fail/resolve/turn-in), so each quest is
+  // kept once and only while it ends the bundle actually turn-in-ready.
+  result.readyQuests = [...new Set(result.readyQuests)].filter(
+    (id) => draft.quests[id]?.status === 'turnIn',
+  );
   return { ok: true, result };
 }
 
@@ -309,12 +327,17 @@ function commitApplication(p: PlayerState, draft: PlayerState, receipt: string):
  * against the projected result of all earlier effects. Returns undefined
  * when the whole bundle would apply cleanly, else a refusal message.
  * Static reference/contradiction validation is content-integrity's job;
- * this is the runtime half that makes bundles all-or-nothing. */
+ * this is the runtime half that makes bundles all-or-nothing.
+ *
+ * Replay parity with applyStoryEffects (#137): an application whose
+ * receipt is already recorded is a valid no-op here too — preflight can
+ * never reject a retry that application would accept as already done. */
 export function validateStoryBundle(
   p: PlayerState,
   effects: readonly StoryEffect[],
   ctx: StoryContext,
 ): string | undefined {
+  if (p.storyReceipts.includes(receiptKey(ctx))) return undefined; // replay: no-op
   const run = runStoryBundle(structuredClone(p), effects, ctx);
   return run.ok ? undefined : run.refusal;
 }
