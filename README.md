@@ -18,7 +18,8 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 - **25 main quests + 16 side quests** (the player is a _Dawncaller_; the Sundered King is despair
   that stopped believing in morning), quest log with objective tracking and turn-ins.
 - **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
-- **Forge tempering** (+1…+5, bound to the item itself), shops that scale with your level.
+- **Forge tempering** (+1…+5, mastered per item pattern so future copies inherit it), shops that
+  scale with your level.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
   penalties, a Phoenix Cinder auto-revive.
 - **One live message per player**: staleness-guarded, crash-safe, state persisted in Postgres
@@ -90,10 +91,12 @@ Postgres requires TLS, append `?sslmode=require` to the URL. Exercise the store 
 `/start` → pick a class → the game message becomes your zone hub. From there, everything is buttons:
 **Explore** (battles, treasure, rest — towns are battle-free safe havens; arriving in one fully
 heals you), **Dive** into the zone dungeon, **Travel**, **Shop**, **Forge**, **Quests**, **Skills**,
-**Character**. `/help` explains; `/reset` asks before it erases anything. If the game message ever
-gets buried, `/start` re-centers it and old copies go stale safely.
+**Character**. `/help` explains; `/reset` confirms before deleting a supported character — during
+pre-launch it also serves as the explicit escape hatch for an unloadable retired development save.
+If the game message ever gets buried, `/start` re-centers it and old copies go stale safely.
 
 ## Project layout
 
-See **[AGENTS.md](AGENTS.md)** — the full architecture manual, invariants (pure engine, single live
-message, callback budget), content authoring checklist, and the evaluated fallow audit notes.
+See **[AGENTS.md](AGENTS.md)** for the compact project invariants and the task-to-skill router.
+Detailed conditional agent guidance lives under **`.agents/skills/`** as standard Agent Skills;
+**[docs/narrative-guide.md](docs/narrative-guide.md)** remains the canonical editorial guide.
