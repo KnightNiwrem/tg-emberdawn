@@ -5,7 +5,10 @@
 
 export type Rng = () => number;
 
-export const defaultRng: Rng = Math.random;
+/** Indirect on purpose: tests can pin production randomness by patching
+ * Math.random for a window; the captured lambda always reads the current
+ * global. */
+export const defaultRng: Rng = () => Math.random();
 
 export function randInt(rng: Rng, min: number, max: number): number {
   return min + Math.floor(rng() * (max - min + 1));

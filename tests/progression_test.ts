@@ -18,7 +18,7 @@ import {
   dungeonOf,
   explore,
   resolveVictory,
-  travel,
+  travelDirect,
 } from '../src/engine/world.ts';
 import { onLethalHit, performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance } from '../src/engine/effects.ts';
@@ -47,7 +47,7 @@ for (const z of ZONES) {
 
 function goto(p: PlayerState, zoneId: string): void {
   if (p.currentZone === zoneId) return;
-  assert(travel(p, zoneId).ok, `travel to ${zoneId} blocked`);
+  assert(travelDirect(p, zoneId).ok, `travel to ${zoneId} blocked`);
 }
 
 /** Defeats a battle through the engine's real victory routing. */
@@ -378,7 +378,7 @@ Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo'
   const p = createPlayer(82, 'T', 'warrior');
   p.level = 45;
   p.unlockedZones.push('abyss');
-  travel(p, 'abyss');
+  travelDirect(p, 'abyss');
   p.quests['m24_below'] = { status: 'done', counts: [] };
   syncAvailability(p);
   assert(acceptQuest(p, 'm25_silence', 'npc_echo').ok); // the Echo stands in the Abyss
@@ -409,7 +409,7 @@ Deno.test('encounters: authored eligibility protects low-level players (#73)', (
   // A level-1 player finds NO hostiles in the Whisperwood — and never the
   // level-7 stag: the protection is authored content, not an engine guess.
   p.level = 1;
-  assert(travel(p, 'whisperwood').ok);
+  assert(travelDirect(p, 'whisperwood').ok);
   for (let i = 0; i < 400; i++) {
     const out = explore(p, rng);
     assert(
@@ -430,7 +430,7 @@ Deno.test('encounters: authored eligibility protects low-level players (#73)', (
 
   // The Outskirts give level-1 heroes a real, level-appropriate pool.
   p.level = 1;
-  assert(travel(p, 'outskirts').ok);
+  assert(travelDirect(p, 'outskirts').ok);
   let fights = 0;
   for (let i = 0; i < 300 && fights < 8; i++) {
     const out = explore(p, rng);

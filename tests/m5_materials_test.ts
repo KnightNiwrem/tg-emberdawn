@@ -18,7 +18,7 @@ import {
   explore,
   nextDiveIsBoss,
   resolveVictory,
-  travel,
+  travelDirect,
 } from '../src/engine/world.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
@@ -29,7 +29,7 @@ import { zone as zoneDef } from '../src/content/zones.ts';
 import { seeded } from './helpers.ts';
 
 function goto(p: PlayerState, zoneId: string): void {
-  if (p.currentZone !== zoneId) travel(p, zoneId);
+  if (p.currentZone !== zoneId) travelDirect(p, zoneId);
 }
 
 /** A minimal competent fighter: strongest castable offensive skill, heals

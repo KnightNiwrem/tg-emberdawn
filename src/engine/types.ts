@@ -3,7 +3,7 @@
  * class instances, no functions, no grammY imports. Persistence depends on it.
  */
 
-import type { EffectTag, StackingPolicy, StatKey } from '../content/types.ts';
+import type { EffectTag, StackingPolicy, StatKey, TravelEvent } from '../content/types.ts';
 
 export type ClassId = 'warrior' | 'mage' | 'rogue' | 'cleric';
 
@@ -142,11 +142,40 @@ export interface EffectInstance {
   battleLifetime?: boolean;
 }
 
-/** Where a battle came from — decides what victory bookkeeping applies. */
+/** Where a battle came from — decides what victory bookkeeping applies.
+ * `travel` (#159): a rolled route event mid-journey; `zoneId` is the edge
+ * ORIGIN, `edgeId` + `eventIndex` tie the fight to the exact crossing and
+ * the exact pending event (validated against the active journey). */
 export type BattleOrigin =
   | { kind: 'explore'; zoneId: string }
   | { kind: 'elite'; zoneId: string }
-  | { kind: 'dungeon'; zoneId: string; dungeonId: string; floor: number; boss: boolean };
+  | { kind: 'dungeon'; zoneId: string; dungeonId: string; floor: number; boss: boolean }
+  | { kind: 'travel'; zoneId: string; edgeId: string; eventIndex: number };
+
+/** A persisted, resumable edge crossing (#159). Plain JSON. The journey
+ * carries the SNAPSHOTTED resolved plan for the whole crossing — a
+ * condition change mid-road can never replace or lengthen the crossing
+ * in progress — plus completed/total event rolls and the ordered report
+ * of the most recent non-interactive run. A rolled battle pauses the
+ * journey (BattleOrigin 'travel' provenance); the pending event is the
+ * one at `completedEvents` until the fight resolves. */
+export interface JourneyState {
+  edgeId: string;
+  /** Which resolved variant plan the crossing snapshot took ('base' or a
+   * RouteVariant id). Persisted content identity. */
+  variantId: string;
+  fromZone: string;
+  toZone: string;
+  /** Event rolls fully resolved so far. */
+  completedEvents: number;
+  /** Exact rolls the crossing carries (snapshotted at departure). */
+  totalEvents: number;
+  /** The snapshotted event table (authored order preserved). */
+  plan: TravelEvent[];
+  /** Ordered report of the events resolved in the latest non-interactive
+   * run — rendered once, never re-rolled. */
+  report: string[];
+}
 
 export interface BattleState {
   enemy: EnemyInstance;
@@ -209,6 +238,7 @@ export type TutorialBeat = 'basic' | 'skill' | 'guard' | 'item' | 'cleared';
 export type ViewId =
   | 'tutorial'
   | 'travel'
+  | 'journey'
   | 'zone'
   | 'npc'
   | 'dialogue'
@@ -290,6 +320,9 @@ export interface PlayerState {
   skills: string[];
   scene: SceneState;
   battle?: BattleState;
+  /** The active persisted journey (#159): a crossing in progress. The
+   * player is still at `fromZone` until the coordinator's final arrival. */
+  journey?: JourneyState;
   /** Message id of the live game message (staleness guard). */
   messageId?: number;
   /** Render revision of the live message's buttons (#16). Bumped on every

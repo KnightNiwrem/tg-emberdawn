@@ -38,7 +38,7 @@ import {
 import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { npcAction, shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { npcTopics } from '../src/engine/npc.ts';
-import { explore, resolveVictory, travel } from '../src/engine/world.ts';
+import { explore, resolveVictory, travelDirect } from '../src/engine/world.ts';
 import {
   npc,
   quest,
@@ -445,8 +445,8 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
   const inv0 = structuredClone(p.inventory);
   // Free-travel loop + explores before expiry: the faucet stays dry.
   for (let i = 0; i < 3; i++) {
-    assert(travel(p, 'whisperwood').ok);
-    assert(travel(p, 'emberdawn').ok);
+    assert(travelDirect(p, 'whisperwood').ok);
+    assert(travelDirect(p, 'emberdawn').ok);
   }
   for (let i = 0; i < 60; i++) explore(p, seeded(13), t0 + 100_000);
   assertEquals(p.gold, gold0, 'exhausted haven yields no gold');
@@ -908,7 +908,7 @@ Deno.test('reach quests record the journey; the starter starts, the finisher fin
   assertEquals(fresh.quests['m5_fen']?.status, 'active', 'unvisited → still active');
   assertEquals(fresh.quests['m5_fen']?.counts[0], 0);
   fresh.unlockedZones.push('hollowmere');
-  assert(travel(fresh, 'hollowmere').ok);
+  assert(travelDirect(fresh, 'hollowmere').ok);
   assertEquals(fresh.quests['m5_fen']?.status, 'turnIn', 'arrival completes it');
   // The Ferryman (finisher) stands right there — the handover is on-site.
   assert(turnInQuest(fresh, 'm5_fen', 'npc_ferryman').ok);
@@ -918,8 +918,8 @@ Deno.test('reach quests record the journey; the starter starts, the finisher fin
   // marks the objective the moment Bram hands the quest over.
   const visited = mk();
   visited.unlockedZones.push('hollowmere');
-  assert(travel(visited, 'hollowmere').ok); // plants zone_hollowmere
-  assert(travel(visited, 'emberdawn').ok);
+  assert(travelDirect(visited, 'hollowmere').ok); // plants zone_hollowmere
+  assert(travelDirect(visited, 'emberdawn').ok);
   assert(acceptQuest(visited, 'm5_fen', 'npc_bram').ok);
   assertEquals(visited.quests['m5_fen']?.status, 'turnIn', 'ever visited → ready');
 

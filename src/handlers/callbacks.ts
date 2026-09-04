@@ -18,6 +18,7 @@ import {
   deathAction,
   dialogueAction,
   forgeAction,
+  journeyAction,
   metaAction,
   npcAction,
   pickClass,
@@ -81,6 +82,10 @@ function dispatch(
       return zoneAction(player, cb);
     case 'travel':
       return travelAction(player, cb);
+    case 'journey':
+      // Journey intermission controls (#159): continue/retreat, revalidated
+      // server-side against the persisted crossing.
+      return journeyAction(player, cb);
     case 'shop':
       return shopAction(player, cb);
     case 'forge':
@@ -105,7 +110,9 @@ function dispatch(
       return deathAction(player);
     case 'inventory': {
       if (cb.a === 'bk') {
-        player.scene = { view: 'zone' };
+        // Back from the bag preserves a live crossing (#159): the journey
+        // intermission is the player's current place, not the zone hub.
+        player.scene = player.journey ? { view: 'journey' } : { view: 'zone' };
         return {};
       }
       if (cb.a === 'p') {
@@ -114,12 +121,14 @@ function dispatch(
       }
       if (cb.a === 'v') {
         // #112: the detail records WHERE it was opened from — the current
-        // inventory page, or the Equipment screen — so its Back button
-        // returns to the origin instead of a hardcoded view.
+        // inventory page, the Equipment screen, or an active journey — so
+        // its Back button returns to the origin instead of a hardcoded view.
         const origin = player.scene.view === 'inventory'
           ? (player.scene.arg ?? '0')
           : player.scene.view === 'equipment'
           ? 'eq'
+          : player.journey
+          ? 'j'
           : undefined;
         player.scene = {
           view: 'item',

@@ -9,6 +9,7 @@ import { clampPools, statsOf } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
+import { advanceJourney, completeTravelBattleEvent } from '../engine/journey.ts';
 import { coachTutorial, grantTutorialReward, tutorialRelease } from './tutorial.ts';
 import type { MutationResult } from './session.ts';
 
@@ -29,6 +30,9 @@ export function enterBattle(
     // The opening log IS the terminal round's record (#67): notices carry
     // only the victory RESOLUTION, never a faked round.
     p.notices = [...intro, ...resolveVictory(p, b)];
+    // A travel-provenance victory completes its pending event at ONE
+    // clearly owned point (#159); the journey resumes on Continue.
+    if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
     b.phase = 'won';
     p.scene = { view: 'battle' };
     return {};
@@ -41,6 +45,22 @@ export function enterBattle(
   }
   p.scene = { view: 'battle' };
   p.notices = intro;
+  return {};
+}
+
+/** Resumes the crossing after a travel battle's Continue (#159): the next
+ * event rolls resolve, or the final arrival lands. */
+function resumeJourney(p: PlayerState): MutationResult {
+  const step = advanceJourney(p);
+  if (step.kind === 'battle') {
+    return enterBattle(p, step.battle, step.outcome, [step.line]);
+  }
+  if (step.kind === 'arrived') {
+    p.notices = step.lines;
+    p.scene = { view: 'zone' };
+    return {};
+  }
+  p.scene = { view: 'journey' };
   return {};
 }
 
@@ -62,11 +82,21 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
       return {};
     }
     const won = b.phase === 'won';
+    const wasTravel = b.origin.kind === 'travel';
     p.battle = undefined;
     if (won && p.tutorial === 'fight') {
       p.tutorial = 'done';
       p.scene = { view: 'zone' };
       p.notices = tutorialRelease();
+      return {};
+    }
+    // A travel battle's Continue resumes the exact pending crossing (#159):
+    // mid-crossing it offers the stable journey intermission (report +
+    // continue/retreat/supplies); after the LAST event it lands the final
+    // arrival through the one coordinator.
+    if (won && wasTravel && p.journey) {
+      if (p.journey.completedEvents >= p.journey.totalEvents) return resumeJourney(p);
+      p.scene = { view: 'journey' };
       return {};
     }
     p.scene = { view: 'zone' };
@@ -110,6 +140,10 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
 
   if (res.outcome === 'fled' || phase === 'fled') {
     p.battle = undefined;
+    // A successful flee (or Smoke Bomb) from a travel fight ABORTS the
+    // crossing (#159/#160): battle and journey clear, the player stays at
+    // the edge origin, earned rewards remain.
+    if (b.origin.kind === 'travel') p.journey = undefined;
     p.scene = { view: 'zone' };
     p.notices = lines;
     return {};
@@ -119,13 +153,17 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // the terminal state, never a handler HP re-check (mutual KO is
   // structurally impossible, so there is no check-order ambiguity).
   // Victory is routed through resolveVictory so the battle's origin
-  // (explore/elite/dungeon) decides rewards, quest hooks and bookkeeping.
+  // (explore/elite/dungeon/travel) decides rewards, quest hooks and
+  // bookkeeping.
   if (res.outcome === 'victory') {
     // The kill round lives in battle.history as the terminal round (#67) —
     // notices carry only the victory RESOLUTION (defeat line, level-ups,
     // drops, dungeon bookkeeping), never the round itself and never an
     // XP/gold headline: rewards render once as Spoils from b.rewards (#40).
     p.notices = [...resolveVictory(p, b)];
+    // A travel-provenance victory completes its pending event at ONE
+    // clearly owned point (#159); Continue resumes the crossing.
+    if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
     // Guided prologue (#69): the deterministic ember reward lands exactly
     // once (flag-guarded) and lifts every hero to level 2 before release.
     if (p.tutorial === 'fight') p.notices.push(...grantTutorialReward(p));

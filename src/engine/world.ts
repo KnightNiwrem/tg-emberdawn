@@ -25,17 +25,19 @@ import {
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { itemName } from '../content/items.ts';
 
-function canTravel(p: PlayerState, zoneId: string): boolean {
-  return p.unlockedZones.includes(zoneId) && p.currentZone !== zoneId;
-}
-
-export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: string[] } {
-  const z = zone(zoneId);
-  if (!z) return { ok: false, lines: ["You can't find a road to there."] };
-  if (!canTravel(p, zoneId)) return { ok: false, lines: ['🚫 That path is still closed to you.'] };
-  p.currentZone = zoneId;
-  const lines = [`🧭 You arrive at ${z.emoji} ${z.name}.`, z.desc];
-  if (z.safeHaven) {
+/**
+ * The ONE arrival authority (#159/#160): changes currentZone, restores a
+ * safe haven, runs onZoneEnter (the zone flag + reach objectives), and
+ * syncs availability — exactly once, only here. The journey coordinator
+ * calls it on final arrival; the sim-only shim below routes through it;
+ * nothing else may move the player between zones.
+ */
+export function arriveAt(p: PlayerState, toZone: string): string[] {
+  const z = zone(toZone);
+  p.currentZone = toZone;
+  const lines = [`🧭 You arrive at ${z?.emoji ?? ''} ${z?.name ?? toZone}.`];
+  if (z) lines.push(z.desc);
+  if (z?.safeHaven) {
     const s = statsOf(p);
     p.hp = s.maxHp;
     p.mp = s.maxMp;
@@ -43,12 +45,30 @@ export function travel(p: PlayerState, zoneId: string): { ok: boolean; lines: st
     // real-time recharge (see explore) governs when the faucet refills.
     lines.push('🔥 A safe haven. HP and MP fully restored.');
   }
-  for (const qid of onZoneEnter(p, zoneId)) {
+  for (const qid of onZoneEnter(p, toZone)) {
     // A reach objective completing on arrival is announced in the arrival
     // result itself (#119) — the player sees it the moment they step in.
     lines.push(questReadyLine(qid));
   }
-  return { ok: true, lines };
+  syncAvailability(p);
+  return lines;
+}
+
+/**
+ * SIMULATION/TEST-ONLY direct travel (#159 — removed by #162): places the
+ * player at `zoneId` through the ONE arrival authority without a journey
+ * or route events. Live play never calls this — departures go through the
+ * journey coordinator (engine/journey.ts), which enforces adjacency,
+ * unlocks and conditions. The balance harness keeps it until it learns to
+ * walk the real graph.
+ */
+export function travelDirect(p: PlayerState, zoneId: string): { ok: boolean; lines: string[] } {
+  const z = zone(zoneId);
+  if (!z) return { ok: false, lines: ["You can't find a road to there."] };
+  if (!p.unlockedZones.includes(zoneId) || p.currentZone === zoneId) {
+    return { ok: false, lines: ['🚫 That path is still closed to you.'] };
+  }
+  return { ok: true, lines: arriveAt(p, zoneId) };
 }
 
 export type ExploreOutcome =

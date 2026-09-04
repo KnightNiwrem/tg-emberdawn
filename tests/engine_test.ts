@@ -35,7 +35,14 @@ import {
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
-import { diveDungeon, dungeonOf, explore, resolveVictory, travel } from '../src/engine/world.ts';
+import {
+  diveDungeon,
+  dungeonOf,
+  explore,
+  resolveVictory,
+  travelDirect,
+} from '../src/engine/world.ts';
+import { startJourney } from '../src/engine/journey.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
@@ -803,18 +810,35 @@ Deno.test('forge: tempering requires materials and caps at +5', () => {
   assert(boosted.atk > statsOf(fresh).atk);
 });
 
-Deno.test('world: travel requires unlock, safe haven restores', () => {
+Deno.test('world: journeys need adjacency+unlock; final arrival restores havens', () => {
   const p = createPlayer(16, 'T', 'mage');
   p.hp = 1;
-  const fail = travel(p, 'sunspire');
-  assert(!fail.ok);
-  const ok = travel(p, 'whisperwood');
-  assert(ok.ok);
-  assertEquals(p.currentZone, 'whisperwood');
-  assert(p.flags['zone_whisperwood']);
-  const back = travel(p, 'emberdawn');
-  assert(back.ok);
+  // An unknown or non-adjacent edge never departs, whatever the unlock set says.
+  assert(!startJourney(p, 'w_nope_nada').ok);
+  assert(!startJourney(p, 'w_whisperwood_hollowmere').ok, 'not adjacent from Emberdawn');
+  assertEquals(p.currentZone, 'emberdawn');
+  // Zero-event starter roads cross immediately.
+  const ok = startJourney(p, 'w_emberdawn_outskirts');
+  assert(ok.ok && ok.step.kind === 'arrived');
+  assertEquals(p.currentZone, 'outskirts');
+  assert(p.flags['zone_outskirts']);
+  assert(!p.journey, 'zero-event crossings never persist a journey');
+  // Walk the starter roads; arrival at the haven fully restores (#159).
+  p.hp = 1;
+  p.mp = 1;
+  for (
+    const edge of [
+      'w_outskirts_whisperwood',
+      'w_whisperwood_outskirts',
+      'w_outskirts_emberdawn',
+    ]
+  ) {
+    const step = startJourney(p, edge);
+    assert(step.ok && step.step.kind === 'arrived', edge);
+  }
+  assertEquals(p.currentZone, 'emberdawn');
   assertEquals(p.hp, statsOf(p).maxHp);
+  assertEquals(p.mp, statsOf(p).maxMp);
 });
 
 Deno.test('death revives at a safe haven, not where you fell', () => {
@@ -901,7 +925,7 @@ Deno.test('world: safe havens never spawn battles; the wilds do', () => {
   // The wilds: battles are common (weighted tables) — find one. The
   // Outskirts are the level-1 wilds band (#73); the Whisperwood's band
   // starts at 3 and its elite waits for 5.
-  assert(travel(p, 'outskirts').ok);
+  assert(travelDirect(p, 'outskirts').ok);
   let sawBattle = false;
   for (let i = 0; i < 50 && !sawBattle; i++) {
     if (explore(p, rng).kind === 'battle') sawBattle = true;
@@ -914,7 +938,7 @@ Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () 
   const p = createPlayer(18, 'T', 'warrior');
   p.level = 45;
   p.unlockedZones.push('hollowmere');
-  travel(p, 'hollowmere');
+  travelDirect(p, 'hollowmere');
   const d = dungeonOf(zone('hollowmere')!)!;
 
   // Normal floors are open; each victory (and ONLY victory) advances.

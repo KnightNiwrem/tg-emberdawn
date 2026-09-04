@@ -107,12 +107,15 @@ export function itemMechanicsLines(def: ItemDef): string[] {
 export type ItemDetailOrigin =
   | { kind: 'inventory'; page: number }
   | { kind: 'equipment' }
+  | { kind: 'journey' }
   | { kind: 'zone' };
 
 /** Parses the scene's origin marker (#112): a digit string is the inventory
- * page, 'eq' the Equipment screen, anything else the legacy zone fallback. */
+ * page, 'eq' the Equipment screen, 'j' an active journey (#159), anything
+ * else the legacy zone fallback. */
 export function itemDetailOrigin(arg2: string | undefined): ItemDetailOrigin {
   if (arg2 === 'eq') return { kind: 'equipment' };
+  if (arg2 === 'j') return { kind: 'journey' };
   if (arg2 !== undefined && /^\d+$/.test(arg2)) return { kind: 'inventory', page: Number(arg2) };
   return { kind: 'zone' };
 }
@@ -120,6 +123,9 @@ export function itemDetailOrigin(arg2: string | undefined): ItemDetailOrigin {
 function detailBackRow(origin: ItemDetailOrigin): InputRichBlock {
   const btn = origin.kind === 'equipment'
     ? cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))
+    : origin.kind === 'journey'
+    // The journey handler routes i:bk back to the crossing (#159).
+    ? cbBtn('⬅️ Back to the road', encodeCb({ v: 'inventory', a: 'bk' }))
     : origin.kind === 'inventory'
     ? cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'p', arg: origin.page }))
     : cbBtn('⬅️ Back', encodeCb({ v: 'inventory', a: 'bk' }));

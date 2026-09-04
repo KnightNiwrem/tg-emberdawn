@@ -99,8 +99,9 @@ export function clampPools(p: PlayerState): void {
  * bump it when the persisted PlayerState shape changes; older dev saves are
  * retired, not migrated. After launch, bump it per explicit migration step.
  * v9 (#125): decisions ledger, story events, and permanent quest outcomes.
- * v10 (#129): one-shot story-application receipts (storyReceipts). */
-export const CURRENT_STATE_VERSION = 10;
+ * v10 (#129): one-shot story-application receipts (storyReceipts).
+ * v11 (#159): persisted journeys (PlayerState.journey). */
+export const CURRENT_STATE_VERSION = 11;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */

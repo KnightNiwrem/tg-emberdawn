@@ -16,7 +16,8 @@ import {
   questReadyLine,
   syncAvailability,
 } from '../src/engine/quests.ts';
-import { resolveVictory, travel } from '../src/engine/world.ts';
+import { resolveVictory, travelDirect } from '../src/engine/world.ts';
+import { startJourney } from '../src/engine/journey.ts';
 import { battleAction, enterBattle } from '../src/handlers/battle.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { dialogue } from '../src/content/dialogues.ts';
@@ -64,27 +65,30 @@ Deno.test('ready notice: onKill returns newly-ready ids; rechecks never re-repor
   assertEquals(p.quests['m1_embers']!.status, 'turnIn');
 });
 
-Deno.test('ready notice: a reach objective completed by travel surfaces one named arrival line', () => {
+Deno.test('ready notice: a reach objective completed by final arrival surfaces one named arrival line', () => {
   const p = createPlayer(1203, 'T', 'warrior');
   p.level = 9;
-  p.quests['m4_blessing'] = { status: 'done', counts: [] };
+  p.quests['m4_blessing'] = { status: 'done', counts: [] }; // unlocks the mire roads
+  p.unlockedZones.push('mirefoot', 'hollowmere');
   syncAvailability(p);
   assert(acceptQuest(p, 'm5_fen', 'npc_bram').ok);
-  p.unlockedZones.push('hollowmere');
-
-  const res = travel(p, 'hollowmere');
-  assert(res.ok);
+  // Reach the landing through the sim shim, then take the ZERO-EVENT
+  // poled crossing: the arrival — and its notice — are deterministic.
+  assert(travelDirect(p, 'mirefoot').ok);
+  const res = startJourney(p, 'w_mirefoot_hollowmere');
+  assert(res.ok && res.step.kind === 'arrived');
   assertEquals(p.quests['m5_fen']!.status, 'turnIn');
   assertEquals(
-    readyHits(res.lines),
+    readyHits(res.step.lines),
     ['📜 “Into the Fen” is ready to turn in!'],
     'the arrival result carries the notice',
   );
 
   // Leaving and returning never repeats it.
-  assert(travel(p, 'emberdawn').ok);
-  const again = travel(p, 'hollowmere');
-  assertEquals(readyHits(again.lines), [], 're-arrival is silent');
+  assert(travelDirect(p, 'mirefoot').ok);
+  const again = startJourney(p, 'w_mirefoot_hollowmere');
+  assert(again.ok && again.step.kind === 'arrived');
+  assertEquals(readyHits(again.step.lines), [], 're-arrival is silent');
 });
 
 Deno.test('ready notice: a dungeon objective completed by the boss clear surfaces one named line', () => {

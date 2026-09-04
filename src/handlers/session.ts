@@ -31,6 +31,7 @@ import {
   renderDialogue,
   renderForge,
   renderHelp,
+  renderJourney,
   renderNpcTopics,
   renderQuestDetail,
   renderQuests,
@@ -87,6 +88,10 @@ function renderFor(p: PlayerState): InputRichMessage {
       return renderForge(p);
     case 'travel':
       return renderTravel(p);
+    case 'journey':
+      // The persisted crossing (#159): /start and rerenders rebuild the
+      // intermission from PlayerState without consuming anything.
+      return renderJourney(p);
     case 'death':
       return renderDeath(p);
     case 'reset':

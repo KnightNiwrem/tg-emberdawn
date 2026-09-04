@@ -30,9 +30,12 @@
  *  - storyEvents (must be an event current content emits or consumes);
  *  - the scene: view id, plus identity-bearing args (item, quest, NPC,
  *    topic, dialogue, node, staged confirmation choice, equip slot);
- *  - the active battle: enemy id, origin zone/dungeon/floor, cooldown skill
+ *  - the active battle: enemy id, origin zone/dungeon/floor, travel
+ *    edge/event provenance (must match the active journey), cooldown skill
  *    ids, effect instance defIds and sources, equipment proc keys, and
- *    staged reward drops.
+ *    staged reward drops;
+ *  - the active journey (#159): edge id, variant id, endpoint zones, and
+ *    the snapshotted plan's enemies/items/drop tables.
  */
 
 import { dialogue, dialogueNode, DIALOGUES } from '../content/dialogues.ts';
@@ -41,8 +44,17 @@ import { item } from '../content/items.ts';
 import { npc, quest, QUESTS } from '../content/quests.ts';
 import { skill } from '../content/skills.ts';
 import { zone } from '../content/zones.ts';
-import type { StoryEffect } from '../content/types.ts';
-import type { BattleState, EffectSource, PlayerState, SceneState, ViewId } from './types.ts';
+import { route } from '../content/routes.ts';
+import { dropTable } from '../content/loot.ts';
+import type { StoryEffect, TravelEvent } from '../content/types.ts';
+import type {
+  BattleState,
+  EffectSource,
+  JourneyState,
+  PlayerState,
+  SceneState,
+  ViewId,
+} from './types.ts';
 
 /** One unresolved persisted identity, in a readable form for logs/tests. */
 export interface SaveIdentityProblem {
@@ -125,6 +137,7 @@ const DECISION_PROVENANCE: ReadonlyMap<string, ReadonlySet<string>> = (() => {
 const KNOWN_VIEWS: Record<ViewId, true> = {
   tutorial: true,
   travel: true,
+  journey: true,
   zone: true,
   npc: true,
   dialogue: true,
@@ -150,6 +163,58 @@ const EQUIP_SLOTS = new Set(['weapon', 'armor', 'trinket']);
 const FORGE_FLAG_PREFIX = 'forge_i_';
 /** Class basic actions report as skill sources under this literal id. */
 const BASIC_ACTION_ID = 'basic';
+
+/** A persisted journey's plan events are plain authored data whose
+ * references are all persisted identities (#159). */
+function validateTravelEvents(owner: string, events: readonly TravelEvent[], bad: Report): void {
+  for (const ev of events) {
+    if (!Number.isFinite(ev.weight) || ev.weight <= 0) {
+      bad(owner, String(ev.weight), 'event weight must be finite and positive');
+    }
+    if (ev.kind === 'battle') {
+      const def = enemy(ev.enemy);
+      if (!def) bad(owner, ev.enemy, 'unknown travel battle enemy');
+      else if (def.boss) bad(owner, ev.enemy, 'boss enemy inside a route table');
+    }
+    if (ev.kind === 'treasure') {
+      if (ev.item && !item(ev.item)) bad(owner, ev.item, 'unknown travel treasure item');
+      if (ev.dropTable && !dropTable(ev.dropTable)) {
+        bad(owner, ev.dropTable, 'unknown travel drop table');
+      }
+    }
+  }
+}
+
+/** The persisted journey (#159): every stored identity resolves, the
+ * snapshot is internally consistent, and it matches its authored route. */
+function validateJourney(j: JourneyState, bad: Report): void {
+  const r = route(j.edgeId);
+  if (!r) {
+    bad('journey.edgeId', j.edgeId, 'unknown route id');
+  } else {
+    if (r.from !== j.fromZone || r.to !== j.toZone) {
+      bad('journey.endpoints', j.edgeId, 'journey endpoints do not match the route');
+    }
+    if (j.variantId !== 'base' && !(r.variants ?? []).some((v) => v.id === j.variantId)) {
+      bad('journey.variantId', j.variantId, 'unknown route variant id');
+    }
+  }
+  if (!zone(j.fromZone)) bad('journey.fromZone', j.fromZone, 'unknown zone id');
+  if (!zone(j.toZone)) bad('journey.toZone', j.toZone, 'unknown zone id');
+  if (
+    !Number.isInteger(j.totalEvents) || j.totalEvents <= 0 ||
+    !Number.isInteger(j.completedEvents) || j.completedEvents < 0 ||
+    j.completedEvents > j.totalEvents
+  ) {
+    bad(
+      'journey.progress',
+      `${j.completedEvents}/${j.totalEvents}`,
+      'inconsistent journey progress',
+    );
+  }
+  if (j.plan.length === 0) bad('journey.plan', j.edgeId, 'a crossing carries no event table');
+  validateTravelEvents('journey.plan', j.plan, bad);
+}
 
 type Report = (family: string, id: string, detail: string) => void;
 
@@ -184,11 +249,41 @@ function validateEffectSource(source: EffectSource, bad: Report): void {
   }
 }
 
-function validateBattle(b: BattleState, bad: Report): void {
+function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): void {
   if (!enemy(b.enemy.id)) bad('battle.enemy', b.enemy.id, 'unknown enemy id');
   const origin = b.origin;
   if (origin.kind === 'explore' || origin.kind === 'elite') {
     if (!zone(origin.zoneId)) bad('battle.origin', origin.zoneId, 'unknown origin zone');
+  } else if (origin.kind === 'travel') {
+    // Travel provenance (#159): the edge resolves, the player IS on that
+    // crossing, and the event index is the pending (or just-completed)
+    // roll. A travel battle without its matching journey is a corrupt
+    // combination — refused, never guessed back into shape.
+    const r = route(origin.edgeId);
+    if (!r) {
+      bad('battle.origin', origin.edgeId, 'unknown travel edge');
+    } else if (r.from !== origin.zoneId) {
+      bad('battle.origin', origin.zoneId, 'travel origin is not the edge origin');
+    }
+    if (!journey) {
+      bad('battle.origin', origin.edgeId, 'travel battle without an active journey');
+    } else {
+      if (journey.edgeId !== origin.edgeId) {
+        bad('battle.origin', origin.edgeId, 'battle edge does not match the journey');
+      }
+      if (
+        !Number.isInteger(origin.eventIndex) || origin.eventIndex < 0 ||
+        origin.eventIndex >= journey.totalEvents ||
+        (origin.eventIndex !== journey.completedEvents &&
+          origin.eventIndex !== journey.completedEvents - 1)
+      ) {
+        bad(
+          'battle.origin',
+          String(origin.eventIndex),
+          'travel event index does not match the journey progress',
+        );
+      }
+    }
   } else {
     const z = zone(origin.zoneId);
     if (!z) {
@@ -379,7 +474,14 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
     if (!STORY_EVENT_NAMES.has(event)) bad('storyEvents', event, 'unknown story event');
   }
   validateScene(p.scene, bad);
-  if (p.battle) validateBattle(p.battle, bad);
+  // The journey and its battle are validated TOGETHER (#159): a travel
+  // battle needs its matching crossing, and a crossing with a battle of
+  // any other provenance is corrupt.
+  if (p.journey && p.battle && p.battle.origin.kind !== 'travel') {
+    bad('journey', p.journey.edgeId, 'active journey paired with a non-travel battle');
+  }
+  if (p.journey) validateJourney(p.journey, bad);
+  if (p.battle) validateBattle(p.battle, bad, p.journey);
   return problems;
 }
 

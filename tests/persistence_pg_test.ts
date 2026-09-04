@@ -10,6 +10,9 @@
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
 import { PgStore } from '../src/persistence/store.ts';
+import { assertResolvablePersistedIds } from '../src/engine/validate.ts';
+import { startBattle } from '../src/engine/combat.ts';
+import { route } from '../src/content/routes.ts';
 
 const url = Deno.env.get('TEST_PG_URL');
 
@@ -23,8 +26,31 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     p.notices = ['the dawn you seek is still ahead'];
     p.quests = { m1_embers: { status: 'done', counts: [3] } };
 
+    // An active journey + its paused travel battle (#159): the whole
+    // nested shape — snapshotted plan, progress, provenance — must survive
+    // JSONB and re-pass the persisted-identity gate on the way out.
+    p.currentZone = 'whisperwood';
+    p.unlockedZones.push('hollowmere');
+    p.journey = {
+      edgeId: 'w_whisperwood_hollowmere',
+      variantId: 'base',
+      fromZone: 'whisperwood',
+      toZone: 'hollowmere',
+      completedEvents: 1,
+      totalEvents: 2,
+      plan: route('w_whisperwood_hollowmere')!.events!,
+      report: ['Flat water, still air.'],
+    };
+    p.battle = startBattle('e_boglin', {
+      kind: 'travel',
+      zoneId: 'whisperwood',
+      edgeId: 'w_whisperwood_hollowmere',
+      eventIndex: 1,
+    }, { player: p, rng: () => 0.5 })!.battle;
+
     await store.set(p.userId, p);
     assertEquals(await store.get(p.userId), p);
+    assertResolvablePersistedIds((await store.get(p.userId))!);
 
     // upsert overwrites
     p.gold = 1;

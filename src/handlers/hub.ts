@@ -5,20 +5,12 @@
 
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import {
-  bossGateBlock,
-  diveDungeon,
-  dungeonOf,
-  explore,
-  nextDiveIsBoss,
-  travel,
-} from '../engine/world.ts';
+import { bossGateBlock, diveDungeon, dungeonOf, explore, nextDiveIsBoss } from '../engine/world.ts';
+import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
-import { forgeAt } from '../engine/forge.ts';
-import { shopAt } from '../engine/shops.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
-import { buy, sell } from '../engine/shops.ts';
-import { temper } from '../engine/forge.ts';
+import { buy, sell, shopAt } from '../engine/shops.ts';
+import { forgeAt, temper } from '../engine/forge.ts';
 import { syncAvailability } from '../engine/quests.ts';
 import { npc, npcInZone } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
@@ -45,6 +37,12 @@ function exploreAction(p: PlayerState): MutationResult {
     p.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
   }
+  // No exploring mid-crossing (#159): the player is on the road, not in
+  // the wilds — and the destination's wilds are not theirs yet.
+  if (p.journey) {
+    p.scene = { view: 'journey' };
+    return { toast: '🧭 Finish the crossing first.' };
+  }
   const outcome = explore(p);
   if (outcome.kind === 'battle') {
     // #96: enterBattle resolves the opening's explicit adjudication — a
@@ -64,6 +62,10 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
   if (p.battle) {
     p.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
+  }
+  if (p.journey) {
+    p.scene = { view: 'journey' };
+    return { toast: '🧭 Finish the crossing first.' };
   }
   const z = zoneDef(p.currentZone);
   const d = z ? dungeonOf(z) : undefined;
@@ -96,6 +98,11 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
  * never accepts or turns in a quest, and never mutates story state. Which
  * topic the player selects decides what happens (see npcAction). */
 function talkAction(p: PlayerState, npcIndex: number): MutationResult {
+  // Conversations wait for arrival (#159): no NPC contact mid-crossing.
+  if (p.journey) {
+    p.scene = { view: 'journey' };
+    return { toast: '🧭 Finish the crossing first.' };
+  }
   const z = zoneDef(p.currentZone);
   const npc = z?.npcs[npcIndex];
   if (!npc) return { toast: 'Nobody there.' };
@@ -179,7 +186,9 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
 export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResult {
   switch (cb.a) {
     case 'hm':
-      return go(p, 'zone');
+      // Returning "home" from any panel preserves a live crossing (#159):
+      // the journey intermission IS the player's current place.
+      return go(p, p.journey ? 'journey' : 'zone');
     case 'ex':
       return exploreAction(p);
     case 'dg':
@@ -188,6 +197,11 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       // Explicit confirmation for an under-level boss dive (#73).
       return diveAction(p, true);
     case 'tv':
+      // No second edge while a crossing is live (#159).
+      if (p.journey) {
+        p.scene = { view: 'journey' };
+        return { toast: '🧭 Finish the crossing first.' };
+      }
       return go(p, 'travel');
     case 'ch':
       return go(p, 'character');
@@ -198,6 +212,11 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
     case 'q':
       return go(p, 'quests');
     case 'sh': {
+      // No second errand while a crossing is live (#159).
+      if (p.journey) {
+        p.scene = { view: 'journey' };
+        return { toast: '🧭 Finish the crossing first.' };
+      }
       // Facility authority (#161): the button only opens the service the
       // current zone actually authors — a forged tap for an absent shop
       // (or a safe haven without one) is a non-mutating refusal.
@@ -205,6 +224,10 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       return go(p, 'shop', '0');
     }
     case 'fg': {
+      if (p.journey) {
+        p.scene = { view: 'journey' };
+        return { toast: '🧭 Finish the crossing first.' };
+      }
       if (!forgeAt(p)) return { toast: 'There is no forge here.' };
       return go(p, 'forge');
     }
@@ -218,11 +241,56 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
     p.scene = { view: 'zone' };
     return {};
   }
-  const res = travel(p, cb.arg);
-  if (!res.ok) return { toast: res.lines[0] };
-  p.notices = res.lines;
+  // The journey coordinator revalidates everything server-side (#159):
+  // adjacency, unlocks, conditions, current state. The callback carries
+  // only the stable edge id.
+  const res = startJourney(p, cb.arg);
+  if (!res.ok) return { toast: res.refusal };
+  if (res.step.kind === 'battle') {
+    return enterBattle(p, res.step.battle, res.step.outcome, [res.step.line]);
+  }
+  if (res.step.kind === 'arrived') {
+    p.notices = res.step.lines;
+    p.scene = { view: 'zone' };
+    return {};
+  }
+  p.scene = { view: 'journey' };
+  return {};
+}
+
+/** Journey intermission controls (#159): Continue resolves the next
+ * roll(s) — or the final arrival — through the ONE coordinator; Retreat
+ * aborts back to the edge origin without rolling return events. */
+export function journeyAction(p: PlayerState, cb: Cb & { v: 'journey' }): MutationResult {
+  if (cb.a === 'go') {
+    if (p.battle) {
+      p.scene = { view: 'battle' };
+      return { toast: 'Finish this fight first!' };
+    }
+    if (!p.journey) {
+      p.scene = { view: 'zone' };
+      return {};
+    }
+    const step = advanceJourney(p);
+    if (step.kind === 'battle') {
+      return enterBattle(p, step.battle, step.outcome, [step.line]);
+    }
+    if (step.kind === 'arrived') {
+      p.notices = step.lines;
+      p.scene = { view: 'zone' };
+      return {};
+    }
+    p.scene = { view: 'journey' };
+    return {};
+  }
+  // Retreat.
+  if (p.battle) {
+    p.scene = { view: 'battle' };
+    return { toast: 'Finish this fight first!' };
+  }
+  if (!p.journey) return { toast: 'There is no crossing to abandon.' };
+  p.notices = retreatFromJourney(p);
   p.scene = { view: 'zone' };
-  syncAvailability(p);
   return {};
 }
 
@@ -232,6 +300,12 @@ export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResu
     // under a save) must never trap the player.
     p.scene = { view: 'zone' };
     return {};
+  }
+  // No trade mid-crossing (#159): destination facilities stay closed
+  // until arrival, origin counters wait for the road's end.
+  if (p.journey) {
+    p.scene = { view: 'journey' };
+    return { toast: '🧭 Finish the crossing first.' };
   }
   // Server-side authority (#161): every trade action verifies the current
   // zone actually authors a shop — the renderer never grants access.
@@ -266,6 +340,11 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
   if (cb.a === 'bk') {
     p.scene = { view: 'zone' };
     return {};
+  }
+  // No forge work mid-crossing (#159).
+  if (p.journey) {
+    p.scene = { view: 'journey' };
+    return { toast: '🧭 Finish the crossing first.' };
   }
   // Facility authority (#161): a forged tap where no forge stands is a
   // non-mutating refusal; the engine revalidates capability itself.
@@ -421,6 +500,9 @@ function applyChoice(
 export function deathAction(p: PlayerState): MutationResult {
   const line = applyDeath(p);
   p.battle = undefined;
+  // Defeat always ends the crossing (#159): the journey clears and the
+  // player wakes wherever the death flow left them.
+  p.journey = undefined;
   p.notices = [line, "You gather yourself. Roads end; dawns don't."];
   p.scene = { view: 'zone' };
   return {};
@@ -463,9 +545,12 @@ export function metaAction(
       p.scene = { view: 'reset' };
       return p;
     case 'resetNo':
-      // Cancel: resume whatever was live — a pending fight stays a fight.
+      // Cancel: resume whatever was live — a pending fight stays a fight,
+      // a pending crossing stays a crossing.
       p.scene = p.battle
         ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
+        : p.journey
+        ? { view: 'journey' }
         : { view: 'zone' };
       return p;
   }

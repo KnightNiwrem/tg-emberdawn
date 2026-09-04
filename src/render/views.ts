@@ -19,6 +19,7 @@ import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/for
 import { itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
+import { resolveRoute, usableRoutesFrom } from '../engine/routes.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
@@ -200,27 +201,79 @@ export function renderTravel(p: PlayerState): InputRichMessage {
   const blocks: Block[] = [
     heading('🧭 Travel', 3),
     ...noticesBlocks(p),
-    para('Where the flame calls, follow.'),
+    para(
+      'Every road leads somewhere specific. Events on the road may be hostile, quiet, or helpful — a count is rolls, not battles.',
+    ),
   ];
-  for (const zid of p.unlockedZones) {
-    const z = zone(zid);
-    if (!z) continue;
-    const here = zid === p.currentZone;
+  const routes = usableRoutesFrom(p);
+  if (routes.length === 0) {
+    blocks.push(para('No road leads out of here yet.'));
+  }
+  for (const r of routes) {
+    const plan = resolveRoute(p, r);
+    const dest = zone(plan.to)!;
+    const rolls = plan.eventCount === 0
+      ? 'safe crossing'
+      : `${plan.eventCount} road event${plan.eventCount > 1 ? 's' : ''}`;
+    blocks.push(para([
+      { type: 'bold', text: `${plan.name ?? 'The road'} → ${dest.emoji} ${dest.name}` } as RichText,
+      `\nLv ${dest.levels[0]}-${dest.levels[1]} · ${rolls}`,
+    ]));
+    if (plan.desc) blocks.push(para({ type: 'italic', text: plan.desc } as RichText));
     blocks.push(
-      para(
-        `${z.emoji} ${z.name} — Lv ${z.levels[0]}-${z.levels[1]}${here ? ' (you are here)' : ''}`,
+      buttonsRow(
+        [cbBtn(`Take the road to ${dest.name}`, encodeCb({ v: 'travel', a: 'go', arg: r.id }))],
+        'left',
       ),
     );
-    if (!here) {
-      blocks.push(
-        buttonsRow(
-          [cbBtn(`Go to ${z.name}`, encodeCb({ v: 'travel', a: 'go', arg: zid }))],
-          'left',
-        ),
-      );
-    }
   }
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'travel', a: 'bk' }))]));
+  return { blocks };
+}
+
+// ── Journey intermission (#159) ──────────────────────────────────────────
+
+/** The persistent journey view: reconstructable from PlayerState — origin,
+ * destination, progress, the latest road report, and the three controls
+ * (continue, supplies, retreat). Consecutive quiet events appear as ONE
+ * ordered report, never one tap apiece. */
+export function renderJourney(p: PlayerState): InputRichMessage {
+  const j = p.journey;
+  if (!j) {
+    return {
+      blocks: [
+        heading('🧭 On the road', 3),
+        ...noticesBlocks(p),
+        para('You are not on the road.'),
+        buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]),
+      ],
+    };
+  }
+  const from = zone(j.fromZone);
+  const to = zone(j.toZone);
+  const blocks: Block[] = [
+    heading('🧭 On the road', 3),
+    para([
+      {
+        type: 'bold',
+        text: `${from?.emoji ?? ''} ${from?.name ?? j.fromZone} → ${to?.emoji ?? ''} ${
+          to?.name ?? j.toZone
+        }`,
+      } as RichText,
+      `\nCrossing events: ${j.completedEvents}/${j.totalEvents} resolved`,
+    ]),
+    ...noticesBlocks(p),
+  ];
+  if (j.report.length > 0) {
+    blocks.push(para(j.report.join('\n')));
+  }
+  blocks.push(
+    buttonsRow([cbBtn('➡️ Press on', encodeCb({ v: 'journey', a: 'go' }), 'primary')]),
+    buttonsRow([
+      cbBtn('🎒 Supplies', encodeCb({ v: 'zone', a: 'inv' })),
+      cbBtn('↩️ Retreat to the origin', encodeCb({ v: 'journey', a: 'rt' }), 'danger'),
+    ]),
+  );
   return { blocks };
 }
 

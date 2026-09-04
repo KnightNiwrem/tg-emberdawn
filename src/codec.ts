@@ -43,6 +43,7 @@ export type Cb =
   | { v: 'forge'; a: 'w' | 'a' | 'bk' }
   | { v: 'travel'; a: 'go'; arg: string }
   | { v: 'travel'; a: 'bk' }
+  | { v: 'journey'; a: 'go' | 'rt' }
   | { v: 'death'; a: 'ok' }
   | { v: 'tut'; a: 'maren' | 'out' | 'face' }
   | { v: 'meta'; a: 'pick'; arg?: string }
@@ -119,7 +120,13 @@ export function encodeCb(c: Cb): string {
     case 'forge':
       return `f:${c.a}`;
     case 'travel':
+      // #159: `go` carries the compact ROUTE INTENT (the stable edge id) —
+      // counts, tables, rewards and conditions resolve server-side.
       return c.a === 'bk' ? 't:bk' : `t:go:${c.arg}`;
+    case 'journey':
+      // #159: continue resolves the next roll(s) server-side; retreat
+      // aborts back to the origin. No plan data ever rides the wire.
+      return `j:${c.a}`;
     case 'death':
       return 'd:ok';
     case 'tut':
@@ -203,6 +210,10 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'bk') return { v: 'travel', a: 'bk' };
       if (a === 'go') return { v: 'travel', a: 'go', arg };
       return undefined;
+    case 'j': {
+      const ja = act(a, ['go', 'rt'] as const);
+      return ja ? { v: 'journey', a: ja } : undefined;
+    }
     case 'd':
       if (a === 'ok') return { v: 'death', a: 'ok' };
       return undefined;

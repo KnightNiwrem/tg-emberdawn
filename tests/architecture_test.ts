@@ -48,13 +48,13 @@ import {
 import type { BattleOutcome } from '../src/engine/combat.ts';
 import type { BattleOrigin, BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
+import { diveDungeon, explore, type ExploreOutcome, resolveVictory } from '../src/engine/world.ts';
 import {
-  diveDungeon,
-  explore,
-  type ExploreOutcome,
-  resolveVictory,
-  travel,
-} from '../src/engine/world.ts';
+  advanceJourney,
+  type JourneyStart,
+  type JourneyStep,
+  startJourney,
+} from '../src/engine/journey.ts';
 import type { Rng } from '../src/engine/rng.ts';
 import { applyDeath, createPlayer, grantXp } from '../src/engine/character.ts';
 import {
@@ -102,8 +102,8 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
     rng?: Rng,
   ) => { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } =
     diveDungeon;
-  const travelContract: (p: PlayerState, zoneId: string) => { ok: boolean; lines: string[] } =
-    travel;
+  const travelContract: (p: PlayerState, edgeId: string, rng?: Rng) => JourneyStart = startJourney;
+  const journeyContract: (p: PlayerState, rng?: Rng) => JourneyStep = advanceJourney;
 
   // Quest progress "hooks" — directly invoked synchronous functions. The
   // hooks RETURN the quests they just made turn-in-ready (#119): readiness
@@ -127,7 +127,8 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
   // never be pruned as dead code.
   assert(
     battleContract !== undefined && actionContract !== undefined && victoryContract !== undefined &&
-      diveContract !== undefined && travelContract !== undefined && acceptContract !== undefined &&
+      diveContract !== undefined && travelContract !== undefined &&
+      journeyContract !== undefined && acceptContract !== undefined &&
       turnInContract !== undefined && storyEventContract !== undefined &&
       killContract !== undefined &&
       zoneContract !== undefined && syncContract !== undefined && xpContract !== undefined &&

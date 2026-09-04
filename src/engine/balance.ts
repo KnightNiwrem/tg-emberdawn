@@ -28,7 +28,7 @@ import {
   encounterEligible,
   explore,
   nextDungeonFloor,
-  travel,
+  travelDirect,
 } from './world.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
@@ -1655,17 +1655,17 @@ export function driveQuests(
   };
 
   const goto = (zoneId: string): void => {
-    if (p.currentZone !== zoneId) travel(p, zoneId);
+    if (p.currentZone !== zoneId) travelDirect(p, zoneId);
   };
 
   /** Death recovery: re-entering the safe haven fully heals (free travel,
    * by design); then shop while there. */
   const restock = (): void => {
     if (p.currentZone !== 'emberdawn') {
-      travel(p, 'emberdawn');
+      travelDirect(p, 'emberdawn');
     } else {
-      travel(p, 'whisperwood');
-      travel(p, 'emberdawn');
+      travelDirect(p, 'whisperwood');
+      travelDirect(p, 'emberdawn');
     }
     shop();
   };
@@ -1720,7 +1720,7 @@ export function driveQuests(
     for (const z of ZONES) {
       if (!p.unlockedZones.includes(z.id) || p.currentZone === z.id) continue;
       if (!shopInZone(z.id)) continue;
-      travel(p, z.id);
+      travelDirect(p, z.id);
       shopHere();
     }
   }
@@ -1979,7 +1979,7 @@ export function driveQuests(
         onStoryEvent(p, obj.target);
         progressed = questCount(active, i) >= need;
       } else if (obj.kind === 'reach') {
-        travel(p, obj.target);
+        travelDirect(p, obj.target);
         progressed = true;
       } else if (obj.kind === 'dungeon') {
         // #88: later chapters gate story beats behind dungeon dives —

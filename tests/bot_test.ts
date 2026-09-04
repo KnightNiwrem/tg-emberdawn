@@ -68,8 +68,8 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
   // Battles live in the wilds now — head to the Outskirts first (the
-  // level-1/2 band, #73).
-  await tap(store, user, 't:go:outskirts');
+  // level-1/2 band, #73). The travel callback carries the EDGE id (#159).
+  await tap(store, user, 't:go:w_emberdawn_outskirts');
   // Explore until a battle starts (weighted tables guarantee battles often).
   let started = false;
   for (let i = 0; i < 30 && !started; i++) {
