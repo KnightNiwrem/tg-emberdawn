@@ -172,10 +172,11 @@ Deno.test('{n} follows the structured value, never a content constant (#153)', (
 
 // ── Narrow integrity check: no duplicated mechanical numbers ─────────────
 
-/** Every authored `EffectSpec.line` in current content. Only choice of the
- * structured mechanics boundary: `{n}` is allowed (it reports the actual
- * applied value supplied by the resolver), everything else numeric in a
- * battle line duplicates a spec field. */
+/** Every authored `EffectSpec.line` in current content: item triggers,
+ * skill effects, enemy moves, enemy specials, and enemy openings (#155).
+ * Only choice of the structured mechanics boundary: `{n}` is allowed (it
+ * reports the actual applied value supplied by the resolver), everything
+ * else numeric in a battle line duplicates a spec field. */
 function authoredLines(): { from: string; line: string }[] {
   const out: { from: string; line: string }[] = [];
   const fromSpec = (from: string, spec: EffectSpec): void => {
@@ -190,6 +191,9 @@ function authoredLines(): { from: string; line: string }[] {
     sk.effects.forEach((e, ei) => fromSpec(`${sk.id}:e${ei}`, e));
   }
   for (const e of ENEMIES) {
+    if (e.opening) {
+      e.opening.effects.forEach((spec, ei) => fromSpec(`${e.id}:opening:e${ei}`, spec));
+    }
     e.moves.forEach((m, mi) => {
       m.effects.forEach((spec, ei) => fromSpec(`${e.id}:m${mi}:e${ei}`, spec));
     });
@@ -201,16 +205,42 @@ function authoredLines(): { from: string; line: string }[] {
 }
 
 /** The duplicated-mechanics patterns: percentage literals, damage amounts,
- * multiplier notation, duration literals, and battle-lifetime rules. */
-const DUPLICATED_MECHANICS = /−?\d+(?:\.\d+)?%|\d+ damage|×\d|\d+ rounds?\b|SPD −\d|whole battle/i;
+ * multiplier notation, duration literals, literal HP/MP/action counts, and
+ * battle-lifetime rules — each tied to a structured spec field. */
+const DUPLICATED_MECHANICS =
+  /−?\d+(?:\.\d+)?%|\d+ damage|×\d|\d+ rounds?\b|\d+ HP\b|\d+ MP\b|\d+ actions?\b|SPD −\d|whole battle/i;
+
+/** The one integrity authority shared by every corpus regression. */
+function duplicatedMechanics(): { from: string; line: string }[] {
+  return authoredLines().filter(({ line }) => DUPLICATED_MECHANICS.test(line));
+}
 
 Deno.test('integrity: authored battle lines duplicate no mechanical number (#153)', () => {
-  const offenders = authoredLines().filter(({ line }) => DUPLICATED_MECHANICS.test(line));
-  assertEquals(
-    offenders,
-    [],
-    `authored battle lines must stay qualitative (#153):\n${
-      offenders.map((o) => `${o.from}: ${o.line}`).join('\n')
-    }`,
+  assertEquals(duplicatedMechanics(), []);
+});
+
+Deno.test('integrity: enemy opening lines are crawled; a copied mechanic there is rejected (#155)', () => {
+  // The Chrono Wisp authors the one enemy-global opening line (#80); it
+  // must sit in the crawled inventory with clear source provenance.
+  assert(
+    authoredLines().some((entry) =>
+      entry.from === 'e_chronowisp:opening:e0' &&
+      entry.line === '⏳ The wisp anchors you outside time.'
+    ),
+    'the Chrono Wisp opening line is inventoried with source provenance',
   );
+
+  // Regression: copying the structured slow magnitude and duration into
+  // the opening narration must be seen and rejected by the same authority
+  // as every other authored battle line.
+  const wisp = ENEMIES.find((e) => e.id === 'e_chronowisp')!;
+  const spec = wisp.opening!.effects[0];
+  const original = spec.line;
+  const forged = '⏳ The wisp anchors you outside time (SPD −20%, 2 rounds)!';
+  spec.line = forged;
+  try {
+    assertEquals(duplicatedMechanics(), [{ from: 'e_chronowisp:opening:e0', line: forged }]);
+  } finally {
+    spec.line = original;
+  }
 });
