@@ -59,15 +59,17 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 ## Dialogue scenes
 
 - Authored conversations live in `src/content/dialogues.ts` (`DialogueDef`: stable id, owning NPC,
-  start node, linear nodes with explicit npc/player/narrator speakers and `next` links).
+  start node, and a graph of `DialogueNode`s). A node is a `line` (explicit npc/player/narrator
+  speaker and an optional `next` link), a `choice` (a prompt with branching `DialogueChoice`s), or
+  an `end`.
 - The scene persists `(arg: dialogueId, arg2: nodeId)` so rerenders and `/start` reproduce the exact
   current beat.
 - Continue (`dlg:nx:<targetNodeId>`) advances exactly one node and edits the same live message —
   never a second message. Every tap revalidates the scene view, the dialogue identity, the current
   node's next link, and the NPC's physical presence.
 - Back/End returns to the owning NPC's topic menu when they are still on-site. Reopening a dialogue
-  always restarts it from the start node (linear conversations carry no partial state); the final
-  line omits `next` and is the implicit end state.
+  resets scene navigation to its start node; already committed decisions, story effects, events, and
+  receipts remain persisted. A final `line` node omits `next` and is the implicit end state.
 - Content integrity (`tests/dialogue_test.ts`) covers id uniqueness, references, reachability,
   terminals, topic wiring, and the callback budget.
 

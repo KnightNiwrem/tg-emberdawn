@@ -1,8 +1,9 @@
 # Emberdawn — Narrative & Style Guide (#128)
 
 The editorial contract for every authored player-facing string. It exists so prose decisions are
-checkable against a document instead of a mood. Names and flavor remain creatively free (AGENTS.md
-rule 8); only generated mechanical summaries are binding, and they are never authored here.
+checkable against a document instead of a mood. Names and flavor remain creatively free (the
+**Flavor is not rules** invariant in `AGENTS.md`); only generated mechanical summaries are binding,
+and they are never authored here.
 
 ## 1. Setting facts (canonical)
 

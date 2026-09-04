@@ -5,9 +5,10 @@ description: Use when an explicit public-launch decision is being made for Ember
 
 # Emberdawn release policy
 
-The root `AGENTS.md` is the only source of truth for the current phase, which is PRE-LAUNCH.
-Everything in this skill is INACTIVE until public launch is explicitly approved through the
-checklist below. Deployment, playtesting, database contents, tags, and `stateVersion` numbers do not
+The root `AGENTS.md` is the only source of truth for the current release phase; this skill does not
+repeat its value. Read the current phase from root `AGENTS.md`: while it says PRE-LAUNCH, the
+deferred rules below are inactive; once an explicitly approved launch changes root to LIVE, they
+become active. Deployment, playtesting, database contents, tags, and `stateVersion` numbers do not
 imply launch, and nothing may infer or automate the transition.
 
 ## Deferred rules (activate at public release only)

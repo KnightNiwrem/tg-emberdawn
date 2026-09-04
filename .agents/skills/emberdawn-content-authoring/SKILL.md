@@ -12,7 +12,11 @@ and must stay green.
 
 ## Adding content checklist
 
-1. Define ids first (`e_*`, `w_`/`a_`/`t_`/`c_`/`m_`/`q_*`, `sq_*`), then reference them.
+1. Define ids first, then reference them. Follow the conventions already used in each content module
+   — for example `e_*` enemies, `w_`/`a_`/`t_`/`c_`/`m_` items, `sk_*` skills, `npc_*` NPCs, `dlg_*`
+   dialogues, `d_*` dungeons, `m<n>_*` main quests, `sq_*` side quests, and bare-word zone ids. This
+   list is not exhaustive: the content modules and the content-integrity tests are the authority on
+   each catalog's real convention.
 2. Enemy stats: use `mk()` with level and multipliers — never raw numbers.
 3. Wire drops at sensible probabilities (bosses 0.4–1.0, field 0.1–0.6).
 4. Quest rewards should cover roughly 2–3 shop tiers of gear at that level.

@@ -94,13 +94,23 @@ text.
 
 ## Reset flow
 
-`/reset` and the character menu's delete-hero control only stage an explicit Yes/No confirmation
-(the `reset` view). The confirmed `resetYes` deletes the save (`store.delete`) and delivers the
-stateless class picker in place (with a resend fallback). Delivery is attempted FIRST, so a failed
-delivery leaves the old save intact; nothing is persisted again until a class is picked through the
-normal no-player path (`pickClass`). No/cancel resumes the live scene — a pending fight stays a
-fight. A redelivered confirmation after deletion is a harmless no-op; once a new hero exists, the
-staleness guard rejects old reset callbacks.
+`handleReset()` in `src/handlers/commands.ts` behaves differently depending on the save it finds:
+
+1. **Supported current save:** `/reset` and the character menu's delete-hero control only stage an
+   explicit Yes/No confirmation (the `reset` view). The confirmed `resetYes` deletes the save
+   (`store.delete`) and delivers the stateless class picker in place (with a resend fallback).
+   Delivery is attempted FIRST, so a failed delivery leaves the old save intact; nothing is
+   persisted again until a class is picked through the normal no-player path (`pickClass`).
+   No/cancel resumes the live scene — a pending fight stays a fight. A redelivered confirmation
+   after deletion is a harmless no-op; once a new hero exists, the staleness guard rejects old reset
+   callbacks. The delivery-before-delete guarantee applies only to this confirmed flow.
+2. **Too-old or unversioned pre-launch save:** the save cannot be loaded, so a confirmation scene
+   cannot be staged or persisted. An explicit `/reset` deletes it immediately and presents the class
+   picker — this is the documented escape hatch for disposable development saves.
+3. **Newer-version save:** refused without mutation or deletion, with a reply telling the player
+   their progress is safe.
+
+Case 2 is regression-tested in `tests/repair2_test.ts`.
 
 ## Webhook boundary
 

@@ -16,7 +16,9 @@ Deployment, playtesting, database contents, tags, and `stateVersion` numbers do 
 
 - Development and playtest saves are DISPOSABLE; they carry no compatibility promise.
 - Persisted-shape changes advance `stateVersion`; older development saves are refused by
-  `assertSupportedSaveVersion()` rather than migrated. Do not build migrations while pre-launch.
+  `assertSupportedSaveVersion()` rather than migrated. Do not add `PlayerState`/save-payload
+  migrations for retired pre-launch development saves; PostgreSQL schema migrations
+  (`src/persistence/migrate.ts`, `deno task migrate:pg`) are a separate concern.
 - Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
   shims — but every ID referenced by current code and content must resolve.
 - Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
@@ -49,8 +51,10 @@ These apply to every change:
    across user input.
 6. **callback_data budget.** 64 bytes maximum, built and parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Never inline raw callback strings in renderers or handlers.
-7. **Persisted state is plain JSON.** `PlayerState` must survive `JSON.stringify`: no class
-   instances, no Maps, no functions. Runtime-only state lives on `BattleState`.
+7. **Persisted state is plain JSON.** `PlayerState` — including its nested `BattleState` — is
+   persisted as plain JSON: no Dates, Maps, Sets, class instances, or functions. Battle-scoped state
+   belongs on `BattleState`; genuinely derived, runtime-only context such as `DerivedStats` is never
+   persisted.
 8. **Rich text, not HTML.** Rich messages use typed entities (`{ type: 'bold', text }`) and the
    helpers in `src/render/rich.ts`. HTML tags render literally.
 9. **Flavor is not rules.** Item and skill names and flavor text are creative, never a rules source.

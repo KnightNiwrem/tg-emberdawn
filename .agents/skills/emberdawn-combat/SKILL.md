@@ -16,7 +16,8 @@ Authoritative code and tests: `src/engine/combat.ts`, `src/engine/world.ts`,
 
 ## Progression and enemy stats
 
-- 45 levels; `xpForNextLevel(l) = 45·l^2.35 + 20l` — deliberately grindy.
+- 45 levels. The XP curve is deliberately grindy; `xpForNextLevel()` in `src/engine/classes.ts` is
+  the authority (it floors the curve and returns infinity at the level cap).
 - Enemy stats derive from level in `mk()` (`src/content/enemies.ts`). Bosses multiply HP/xp/gold and
   have scripted specials.
 

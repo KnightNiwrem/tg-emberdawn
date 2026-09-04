@@ -16,9 +16,13 @@ changes.
 
 ## Persisted shapes
 
-- `PlayerState` (`src/engine/types.ts`) is plain JSON: no class instances, no Maps, no functions.
-  Anything you add must survive `JSON.stringify`.
-- Runtime-only state (for example battle buffs) lives on `BattleState`, not the player.
+- `PlayerState` (`src/engine/types.ts`) is plain JSON: no Dates, Maps, Sets, class instances, or
+  functions. Anything you add must survive `JSON.stringify`.
+- `PlayerState` — including its nested `battle?: BattleState` — is persisted as plain JSON:
+  `PgStore.set()` serializes the whole `PlayerState` into JSONB. Battle-scoped state (for example
+  battle buffs) belongs on `BattleState`; it is saved and restored with the player.
+  `BattleState.effectSeq` is persisted deliberately for deterministic save/load behavior. Genuinely
+  derived, runtime-only context — such as `DerivedStats` — is never persisted.
 - Required battle fields (`phoenixUsed`, `effectInstances`, `effectSeq`, `shield`, `history`) are
   initialized by `startBattle()`.
 - Narrative state on `PlayerState`: `decisions` (ledger with choice and provenance), `storyEvents`
