@@ -7,7 +7,7 @@ import type { ClassId, DerivedStats, PlayerState } from './types.ts';
 import { CLASSES, derivedStats, MAX_LEVEL, xpForNextLevel } from './classes.ts';
 import { itemStats } from '../content/items.ts';
 import { skillsForClass, skillsLearnedAt } from '../content/skills.ts';
-import { STARTING_ZONES, ZONES } from '../content/zones.ts';
+import { STARTING_ZONES, zone, ZONES } from '../content/zones.ts';
 import { temperBonusOf } from './forge.ts';
 
 export function createPlayer(userId: number, name: string, classId: ClassId): PlayerState {
@@ -30,6 +30,9 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     quests: {},
     unlockedZones: [...STARTING_ZONES],
     currentZone: 'emberdawn',
+    // The starter village is every hero's first respawn haven (#160);
+    // arrival at further havens moves it through the arrival authority.
+    respawnHaven: 'emberdawn',
     // Fresh heroes begin the guided prologue (#69): Elder Maren first.
     tutorial: 'maren',
     flags: {},
@@ -100,8 +103,10 @@ export function clampPools(p: PlayerState): void {
  * retired, not migrated. After launch, bump it per explicit migration step.
  * v9 (#125): decisions ledger, story events, and permanent quest outcomes.
  * v10 (#129): one-shot story-application receipts (storyReceipts).
- * v11 (#159): persisted journeys (PlayerState.journey). */
-export const CURRENT_STATE_VERSION = 11;
+ * v11 (#159): persisted journeys (PlayerState.journey).
+ * v12 (#160): persisted last-safe-haven respawn provenance
+ * (PlayerState.respawnHaven). */
+export const CURRENT_STATE_VERSION = 12;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -192,7 +197,8 @@ export function xpProgress(p: PlayerState): { current: number; needed: number } 
   return { current: p.xp, needed: xpForNextLevel(p.level) };
 }
 
-/** Applies death penalties; the player wakes at a safe haven with 50% HP. */
+/** Applies death penalties; the player wakes at their LAST reached safe
+ * haven (#160 — never merely the first haven in the catalog) with 50% HP. */
 export function applyDeath(p: PlayerState): string {
   p.stats.deaths++;
   const lost = Math.floor(p.gold * 0.1);
@@ -200,8 +206,10 @@ export function applyDeath(p: PlayerState): string {
   const s = statsOf(p);
   p.hp = Math.max(1, Math.floor(s.maxHp * 0.5));
   p.mp = Math.floor(s.maxMp * 0.5);
-  p.currentZone = ZONES.find((z) => z.safeHaven)?.id ?? 'emberdawn';
+  const haven = zone(p.respawnHaven)?.safeHaven ? p.respawnHaven : 'emberdawn';
+  p.currentZone = haven;
+  const name = ZONES.find((z) => z.id === haven)?.name ?? 'a safe haven';
   return lost > 0
-    ? `💀 You black out and wake at a safe haven. ${lost} gold slipped from your pockets.`
-    : '💀 You black out and wake at a safe haven, somehow poorer in spirit only.';
+    ? `💀 You black out and wake at ${name}. ${lost} gold slipped from your pockets.`
+    : `💀 You black out and wake at ${name}, somehow poorer in spirit only.`;
 }

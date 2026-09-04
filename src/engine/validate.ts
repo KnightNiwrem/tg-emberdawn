@@ -17,7 +17,8 @@
  * enforced by the durable-ID policy, which requires every ID that can occur
  * in supported live saves to stay resolvable:
  *
- *  - currentZone and every unlockedZones entry;
+ *  - currentZone, every unlockedZones entry, and the respawn haven
+ *    (must resolve to a real SAFE haven zone, #160);
  *  - inventory and equipment item ids;
  *  - learned skill ids;
  *  - quest map keys and questOutcomes entries (a resolved record's named
@@ -405,6 +406,12 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
   const bad: Report = (family, id, detail) => problems.push({ family, id, detail });
 
   if (!zone(p.currentZone)) bad('currentZone', p.currentZone, 'unknown zone id');
+  // The respawn haven (#160) must be a real zone that IS a safe haven: a
+  // corrupt pointer must never silently relocate a death to a warzone or
+  // a deleted settlement.
+  const haven = zone(p.respawnHaven);
+  if (!haven) bad('respawnHaven', p.respawnHaven, 'unknown zone id');
+  else if (!haven.safeHaven) bad('respawnHaven', p.respawnHaven, 'not a safe-haven zone');
   for (const z of p.unlockedZones) {
     if (!zone(z)) bad('unlockedZones', z, 'unknown zone id');
   }

@@ -1599,6 +1599,11 @@ export function driveQuests(
     if (o.kind === 'dungeon') {
       return `dungeon@${o.zoneId}:floor${o.floor}${o.boss ? ':boss' : ''}`;
     }
+    if (o.kind === 'travel') {
+      // Route origin diagnostics (#160): the report identifies the edge a
+      // travel fight came from, not just its origin zone.
+      return `travel@${o.zoneId}:${o.edgeId}#${o.eventIndex}`;
+    }
     return `${o.kind}@${o.zoneId}`;
   };
   // #111: observation-only stall context — written after each fight, never

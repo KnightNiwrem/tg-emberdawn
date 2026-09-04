@@ -41,6 +41,9 @@ export function arriveAt(p: PlayerState, toZone: string): string[] {
     const s = statsOf(p);
     p.hp = s.maxHp;
     p.mp = s.maxMp;
+    // The respawn haven moves ONLY here (#160): a journey that has merely
+    // begun — or a crossing still mid-road — never relocates it.
+    p.respawnHaven = toZone;
     // The forage counter intentionally persists across visits now — the
     // real-time recharge (see explore) governs when the faucet refills.
     lines.push('🔥 A safe haven. HP and MP fully restored.');

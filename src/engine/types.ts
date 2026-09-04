@@ -299,6 +299,12 @@ export interface PlayerState {
   /** Ordered ids of zones the player may travel to. */
   unlockedZones: string[];
   currentZone: string;
+  /** The last safe haven the player successfully reached (#160): death
+   * revives here — never merely at the first haven in the catalog.
+   * Updated ONLY by the arrival authority, so a journey that has merely
+   * begun never moves it. Persisted content identity (a real safe
+   * haven). */
+  respawnHaven: string;
   /** Guided prologue step (#69). Required on every save; see TutorialStep. */
   tutorial: TutorialStep;
   /** Generic story/flag storage (key -> numeric or string value). */
