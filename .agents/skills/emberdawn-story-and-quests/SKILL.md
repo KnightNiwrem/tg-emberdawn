@@ -90,9 +90,12 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 - Then: the ledger conflict check (a recorded decision can never be overwritten) → the atomic
   StoryEffect bundle → next node or back to the topic menu.
 - The handler layer (`dialogueAction` in `src/handlers/hub.ts`) keeps only transport and navigation
-  checks — scene view, the rendered node/choice target, and confirmation staging, which mutates no
-  story state. Confirm is the only mutating control; Go back/Not now/Leave never touch it. The
-  handler passes the engine exactly the tapped choice id.
+  checks — scene view, the rendered node/choice target, confirmation staging (a scene mutation,
+  never story state), and the ch/cf wire-intent contract (#136): `ch` applies an ordinary choice but
+  only stages the panel for an irreversible one, and `cf` is honored solely for an irreversible
+  choice from its exact staged `confirm:<choiceId>` panel — a forged or mismatched `cf` is a
+  non-mutating refusal. Confirm is the only mutating control; Go back/Not now/Leave never touch it.
+  The handler passes the engine exactly the tapped choice id.
 - Callback revision and message staleness are transport-level authority, enforced by the locked
   per-player router before any handler runs. The rev guard kills wire-level double taps and replays.
 - Every committed application records a one-shot receipt in `p.storyReceipts`. Replaying a receipted

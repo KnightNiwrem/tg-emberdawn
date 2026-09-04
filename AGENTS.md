@@ -74,7 +74,10 @@ These apply to every change:
 Story and quest mutations derive identity and authorization from live `PlayerState` and content
 definitions, never from callback data or caller assertions. Central engine operations revalidate
 scene, ownership, location, and conditions; story bundles commit transactionally; retries are
-suppressed by stable receipts; terminal quest outcomes are monotonic. Load
+suppressed by stable receipts; terminal quest outcomes are monotonic. Dialogue choice callbacks are
+two distinct wire intents: `dlg:ch:<choiceId>` selects a response (staging the confirmation panel
+for an irreversible one), and `dlg:cf:<choiceId>` confirms — valid only for an irreversible choice
+from its exact staged panel; anything else is a non-mutating refusal. Load
 `emberdawn-story-and-quests` before changing this subsystem.
 
 ## Conditional skills

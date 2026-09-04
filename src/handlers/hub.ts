@@ -306,7 +306,12 @@ function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void
  * dialogue ownership, on-site NPC presence, availability, staged
  * confirmation and the transaction itself — lives entirely in the central
  * engine operation `applyDialogueChoice` (#130); this layer passes it only
- * the tapped choice id, exactly as the wire carries it. */
+ * the tapped choice id, exactly as the wire carries it. The two choice
+ * actions are distinct wire intents (#136): `ch` selects a response
+ * (staging the panel for an irreversible one), while `cf` confirms — and
+ * `cf` is validated here to target an irreversible choice from its exact
+ * staged panel before the central op is consulted, so a forged or
+ * mismatched `cf` is a harmless refusal. */
 export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
   const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
   if (cb.a === 'bk') {
@@ -336,16 +341,30 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
     enterDialogueNode(p, d, cb.arg);
     return {};
   }
-  // 'ch' (tap a response) and 'cf' (tap Confirm on a staged panel) both
-  // resolve to the same central authority; the only handler-level
-  // difference is that 'ch' on an irreversible choice STAGES the panel.
+  // 'ch' (tap a response) and 'cf' (tap Confirm on a staged panel) are
+  // DISTINCT wire intents (#136), validated here at the transport boundary
+  // before the central authority is consulted:
+  //  - 'ch' applies an ordinary choice, but only STAGES the confirmation
+  //    panel for an irreversible one;
+  //  - 'cf' applies an irreversible choice, and only from its own exact
+  //    staged panel — a forged or mismatched 'cf' is a non-mutating refusal.
   // (Every other dlg action returned above, so cb.a is 'ch' | 'cf' here.)
   if (!node || node.kind !== 'choice') {
     return { toast: 'That conversation has moved on.' };
   }
   const choice = node.choices.find((c) => c.id === cb.arg);
   if (!choice) return { toast: 'That response is not on the table.' };
-  if (cb.a === 'ch' && choice.irreversible) {
+  if (cb.a === 'cf') {
+    // Confirm is valid only from the matching confirmation panel (#136):
+    // an irreversible choice whose exact staging is live. Anything else —
+    // an ordinary choice, no panel staged, or a panel staged for a
+    // DIFFERENT choice — is a refusal that mutates nothing.
+    if (!choice.irreversible || p.scene.arg3 !== `confirm:${choice.id}`) {
+      return { toast: 'That conversation has moved on.' };
+    }
+    return applyChoice(p, d, choice.id);
+  }
+  if (choice.irreversible) {
     // Stage the confirmation — nothing is mutated merely by opening it.
     // (Availability of a not-yet-available response is re-refused here so
     // the panel cannot be staged for a response the player cannot take;

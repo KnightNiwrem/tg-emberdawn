@@ -14,7 +14,7 @@ import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
-import { fakeCtx } from './helpers.ts';
+import { fakeCtx, fakeCtxCapture } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 const FERRY = 'npc_ferryman';
@@ -171,6 +171,98 @@ Deno.test('choices: full router — double taps, cancellation, stale confirmatio
   await handleCallback(fakeCtx(1407, 300, withRev(cur.uiRev ?? 0, 'dlg:cf:decline')), store);
   cur = (await store.get(1407))!;
   assertEquals(cur.decisions['ferry_shrine_pledge']?.choiceId, 'promise', 'un-staged cf refused');
+});
+
+/** Routes a stored hero to the Ferryman's choice node through the real
+ * callback router, then returns a tap helper that always fires at the
+ * CURRENT render revision (unless overridden) and reports the resulting
+ * persisted player plus the toasts the route delivered. */
+async function routerAtChoice(store: MemoryStore, userId: number) {
+  const tap = async (data: string, rev?: number) => {
+    const before = (await store.get(userId))!;
+    const { ctx, toasts } = fakeCtxCapture(userId, 300, withRev(rev ?? before.uiRev ?? 0, data));
+    await handleCallback(ctx, store);
+    return { cur: (await store.get(userId))!, toasts };
+  };
+  await tap('npc:lore:ferry_promise');
+  await tap('dlg:nx:n2');
+  const { cur } = await tap('dlg:nx:n3');
+  assertEquals(cur.scene.arg2, CHOICE_NODE);
+  return tap;
+}
+
+Deno.test('choices: full router — forged and mismatched cf callbacks are harmless refusals (#136)', async () => {
+  const store = new MemoryStore();
+  const p = ferryHero(1410);
+  p.messageId = 300;
+  p.scene = { view: 'npc', arg: FERRY };
+  await store.set(1410, p);
+  const tap = await routerAtChoice(store, 1410);
+
+  // Forged confirm of an ORDINARY choice, nothing staged: a non-mutating
+  // refusal — no decision, no receipt, the scene stays on the choice list.
+  let r = await tap('dlg:cf:decline');
+  assert(r.toasts.some((t) => t?.includes('moved on')), `refusal toast: ${r.toasts}`);
+  assertEquals(Object.keys(r.cur.decisions).length, 0, 'the ordinary choice was not applied');
+  assertEquals(r.cur.storyReceipts, []);
+  assertEquals(r.cur.scene.arg2, CHOICE_NODE);
+  assertEquals(r.cur.scene.arg3, undefined, 'no panel was staged');
+
+  // Confirm of the IRREVERSIBLE choice without its staged panel: refused.
+  r = await tap('dlg:cf:promise');
+  assert(r.toasts.some((t) => t?.includes('moved on')), `refusal toast: ${r.toasts}`);
+  assertEquals(Object.keys(r.cur.decisions).length, 0);
+  assertEquals(r.cur.storyReceipts, []);
+
+  // A STALE revision never reaches the handler — neither ch nor cf.
+  const stale = (r.cur.uiRev ?? 1) - 1;
+  r = await tap('dlg:ch:promise', stale);
+  assert(r.toasts.some((t) => t?.includes('stale')), `staleness toast: ${r.toasts}`);
+  assertEquals(r.cur.scene.arg3, undefined, 'a stale select stages nothing');
+
+  // Select STAGES the irreversible panel without applying anything.
+  r = await tap('dlg:ch:promise');
+  assertEquals(r.cur.scene.arg3, 'confirm:promise');
+  assertEquals(Object.keys(r.cur.decisions).length, 0, 'staging is not an application');
+
+  // A stale confirm is rejected by the router even while the panel is live.
+  r = await tap('dlg:cf:promise', (r.cur.uiRev ?? 1) - 1);
+  assert(r.toasts.some((t) => t?.includes('stale')), `staleness toast: ${r.toasts}`);
+  assertEquals(Object.keys(r.cur.decisions).length, 0);
+
+  // A panel staged for choice A cannot confirm choice B.
+  r = await tap('dlg:cf:decline');
+  assert(r.toasts.some((t) => t?.includes('moved on')), `refusal toast: ${r.toasts}`);
+  assertEquals(r.cur.scene.arg3, 'confirm:promise', 'the staged panel survives the forged tap');
+  assertEquals(Object.keys(r.cur.decisions).length, 0);
+  assertEquals(r.cur.storyReceipts, []);
+
+  // The exact staged confirm applies exactly once.
+  r = await tap('dlg:cf:promise');
+  assertEquals(r.cur.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
+  assertEquals(r.cur.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:promise`]);
+  assertEquals(r.cur.scene.arg2, 'n4', 'the authored next beat');
+  assertEquals(r.cur.scene.arg3, undefined);
+
+  // A duplicate confirm at the CURRENT revision: the conversation has routed
+  // on, so it refuses without a second application (the recorded receipt
+  // also makes any engine-level replay a complete no-op — #129).
+  r = await tap('dlg:cf:promise');
+  assertEquals(Object.keys(r.cur.decisions).length, 1);
+  assertEquals(r.cur.storyReceipts.length, 1, 'no second receipt, no double apply');
+});
+
+Deno.test('choices: full router — an ordinary ch still applies directly (#136)', async () => {
+  const store = new MemoryStore();
+  const p = ferryHero(1411);
+  p.messageId = 300;
+  p.scene = { view: 'npc', arg: FERRY };
+  await store.set(1411, p);
+  const tap = await routerAtChoice(store, 1411);
+  const r = await tap('dlg:ch:decline');
+  assertEquals(r.cur.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
+  assertEquals(r.cur.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:decline`]);
+  assertEquals(r.cur.scene.arg2, 'n5', 'the decline branch advances to its authored next node');
 });
 
 Deno.test('choices: scene persists through rerender and /start (#126)', () => {
