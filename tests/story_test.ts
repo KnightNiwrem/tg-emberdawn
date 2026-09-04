@@ -17,6 +17,7 @@ import { createPlayer } from '../src/engine/character.ts';
 import { addItem } from '../src/engine/inventory.ts';
 import { acceptQuest, questExcluded, syncAvailability } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
+import { findUnresolvedPersistedIds } from '../src/engine/validate.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 const ctx: StoryContext = {
@@ -123,20 +124,84 @@ Deno.test('outcomes: a locked quest never resurrects through availability sync',
   assertEquals(JSON.stringify(p.questOutcomes['m25_silence']), before);
 });
 
-Deno.test('outcomes: alternate named outcomes are recorded and distinguishable', () => {
-  const a = hero(1303);
-  const b = hero(1304);
-  for (const p of [a, b]) {
-    p.quests['sq_rats'] = { status: 'active', counts: [6] };
-  }
-  applyStoryEffects(a, [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' }], ctx);
-  applyStoryEffects(b, [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'driven_off' }], ctx);
-  assertEquals(a.quests['sq_rats']?.status, 'done');
-  assertEquals(a.questOutcomes['sq_rats']?.outcome, 'culled');
-  assertEquals(b.questOutcomes['sq_rats']?.outcome, 'driven_off');
-  // Resolving twice changes nothing.
-  applyStoryEffects(a, [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' }], ctx);
-  assertEquals(a.questOutcomes['sq_rats']?.outcome, 'culled');
+Deno.test('outcomes: named resolutions require their quest to declare them (#146)', () => {
+  // No declaration: sq_rats declares no outcomes, so EVERY named
+  // resolution is refused — there is no default-accept path.
+  const none = hero(1303);
+  none.quests['sq_rats'] = { status: 'active', counts: [6] };
+  assert(
+    validateStoryBundle(
+      none,
+      [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' }],
+      ctx,
+    ) !== undefined,
+    'a quest with no outcomes declaration refuses every named resolution',
+  );
+  assertEquals(none.quests['sq_rats']?.status, 'active', 'the refusal mutates nothing');
+
+  // Unknown value on a DECLARED quest: sq_shrine_pact declares only "kept".
+  const declared = hero(1304);
+  declared.quests['sq_shrine_pact'] = { status: 'active', counts: [1, 0] };
+  assert(
+    validateStoryBundle(
+      declared,
+      [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'traded' }],
+      ctx,
+    ) !== undefined,
+    'a value outside the declaration refuses',
+  );
+  // A cross-quest declared value: "kept" is sq_shrine_pact's alone —
+  // sq_ledger_debt does not declare it.
+  const other = hero(1314);
+  other.quests['sq_ledger_debt'] = { status: 'active', counts: [1, 0] };
+  assert(
+    validateStoryBundle(
+      other,
+      [{ kind: 'resolveQuest', questId: 'sq_ledger_debt', outcome: 'kept' }],
+      ctx,
+    ) !== undefined,
+    'an outcome declared by a DIFFERENT quest refuses',
+  );
+
+  // The declared pair resolves, replays idempotently (a distinct
+  // application identity still sees the recorded outcome as matching), and
+  // leaves the quest done. A real dialogue id keeps the receipts
+  // themselves resolvable identities.
+  const real = { ...ctx, dialogueId: 'dlg_maren_flame' };
+  applyStoryEffects(
+    declared,
+    [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
+    { ...real, nodeId: 'n1' },
+  );
+  assertEquals(declared.quests['sq_shrine_pact']?.status, 'done');
+  assertEquals(declared.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+  applyStoryEffects(
+    declared,
+    [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
+    { ...real, nodeId: 'n2' },
+  );
+  assertEquals(declared.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
+
+  // The valid declared outcome survives a JSON/save round-trip, keeps
+  // satisfying questOutcome conditions, and passes the persisted-identity
+  // gate untouched (#146).
+  const reloaded = JSON.parse(JSON.stringify(declared)) as PlayerState;
+  assert(
+    evalCondition(reloaded, {
+      questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
+    }),
+  );
+  assertEquals(findUnresolvedPersistedIds(reloaded), []);
+  // …while an undeclared resolved value would fail that same gate without
+  // mutation.
+  const corrupt = JSON.parse(JSON.stringify(declared)) as PlayerState;
+  corrupt.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'typo', at: 1 };
+  assert(
+    findUnresolvedPersistedIds(corrupt).some((pr) =>
+      pr.family === 'questOutcomes' && pr.id === 'typo'
+    ),
+    'an undeclared resolved outcome is refused by the identity gate',
+  );
 });
 
 Deno.test('outcomes: a failed quest is likewise permanent', () => {

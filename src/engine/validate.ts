@@ -20,7 +20,8 @@
  *  - currentZone and every unlockedZones entry;
  *  - inventory and equipment item ids;
  *  - learned skill ids;
- *  - quest map keys and questOutcomes keys;
+ *  - quest map keys and questOutcomes entries (a resolved record's named
+ *    outcome must resolve against that quest's outcomes declaration, #146);
  *  - ID-bearing flags (`forge_i_<itemId>`);
  *  - storyReceipts (`choice:<dlg>:<node>:<choice>` / `line:<dlg>:<node>`);
  *  - decisions (authored decision id + dialogue/node/choice provenance);
@@ -303,8 +304,25 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
   for (const id of Object.keys(p.quests)) {
     if (!quest(id)) bad('quests', id, 'unknown quest id');
   }
-  for (const id of Object.keys(p.questOutcomes)) {
-    if (!quest(id)) bad('questOutcomes', id, 'unknown quest id');
+  for (const [id, o] of Object.entries(p.questOutcomes)) {
+    if (!quest(id)) {
+      bad('questOutcomes', id, 'unknown quest id');
+      continue;
+    }
+    // A named resolved outcome (#132) is declared content identity: a saved
+    // value the quest does not declare — a typo, an undeclared quest, or a
+    // cross-quest value — is recognizable by no authored condition. It is
+    // reported, never repaired or substituted (#146).
+    if (
+      o.kind === 'resolved' &&
+      (o.outcome === undefined || !quest(id)!.outcomes?.includes(o.outcome))
+    ) {
+      bad(
+        'questOutcomes',
+        o.outcome ?? id,
+        `${id} does not declare resolved outcome "${o.outcome ?? ''}"`,
+      );
+    }
   }
   for (const key of Object.keys(p.flags)) {
     if (key.startsWith(FORGE_FLAG_PREFIX) && !item(key.slice(FORGE_FLAG_PREFIX.length))) {

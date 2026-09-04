@@ -214,13 +214,15 @@ Deno.test('tx: starting and locking the SAME quest refuses atomically in either 
 });
 
 Deno.test('tx: a resolved quest can never become locked or failed — same bundle or later', () => {
+  // The declared beacon route (#146) is the fixture: "kept" is the one
+  // named resolution sq_shrine_pact declares.
   const p = hero(1511);
-  p.quests['sq_rats'] = { status: 'active', counts: [6] };
+  p.quests['sq_shrine_pact'] = { status: 'active', counts: [1, 0] };
   // Same bundle: the lock sees the earlier resolution and refuses it all.
   const before = JSON.stringify(p);
   const bad: StoryEffect[] = [
-    { kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' },
-    { kind: 'lockQuest', questId: 'sq_rats' },
+    { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
+    { kind: 'lockQuest', questId: 'sq_shrine_pact' },
   ];
   assert(validateStoryBundle(p, bad, ctxAt('n1')) !== undefined);
   assertThrows(() => applyStoryEffects(p, bad, ctxAt('n1')));
@@ -228,15 +230,16 @@ Deno.test('tx: a resolved quest can never become locked or failed — same bundl
 
   applyStoryEffects(
     p,
-    [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' }],
+    [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
     ctxAt('n1'),
   );
-  assertEquals(p.questOutcomes['sq_rats']?.kind, 'resolved');
-  // Later applications: lock, fail, and a contradicting resolve all refuse.
+  assertEquals(p.questOutcomes['sq_shrine_pact']?.kind, 'resolved');
+  // Later applications: lock and fail refuse — the terminal resolution
+  // stands (and a DIFFERENT named outcome would be refused all the sooner,
+  // #146).
   const attempts: StoryEffect[] = [
-    { kind: 'lockQuest', questId: 'sq_rats' },
-    { kind: 'failQuest', questId: 'sq_rats' },
-    { kind: 'resolveQuest', questId: 'sq_rats', outcome: 'driven_off' },
+    { kind: 'lockQuest', questId: 'sq_shrine_pact' },
+    { kind: 'failQuest', questId: 'sq_shrine_pact' },
   ];
   for (const [i, e] of attempts.entries()) {
     const snapshot = JSON.stringify(p);
@@ -244,47 +247,50 @@ Deno.test('tx: a resolved quest can never become locked or failed — same bundl
     assertThrows(() => applyStoryEffects(p, [e], ctxAt(`x${i}`)));
     assertEquals(JSON.stringify(p), snapshot, 'terminal outcome is never overwritten');
   }
-  assertEquals(p.quests['sq_rats']?.status, 'done');
-  assertEquals(p.questOutcomes['sq_rats']?.outcome, 'culled');
+  assertEquals(p.quests['sq_shrine_pact']?.status, 'done');
+  assertEquals(p.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
   // The SAME resolve replays idempotently.
   applyStoryEffects(
     p,
-    [{ kind: 'resolveQuest', questId: 'sq_rats', outcome: 'culled' }],
+    [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
     ctxAt('n9'),
   );
-  assertEquals(p.questOutcomes['sq_rats']?.outcome, 'culled');
+  assertEquals(p.questOutcomes['sq_shrine_pact']?.outcome, 'kept');
 });
 
 Deno.test('tx: a locked or failed quest can never start or resolve', () => {
   const p = hero(1512);
-  p.level = 2;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  syncAvailability(p);
-  applyStoryEffects(p, [{ kind: 'lockQuest', questId: 'm2_letter' }], ctxAt('n1'));
+  p.quests['sq_shrine_pact'] = { status: 'active', counts: [1, 0] };
+  applyStoryEffects(p, [{ kind: 'lockQuest', questId: 'sq_shrine_pact' }], ctxAt('n1'));
   for (
     const e of [
-      { kind: 'startQuest', questId: 'm2_letter' },
-      { kind: 'resolveQuest', questId: 'm2_letter', outcome: 'x' },
-      { kind: 'failQuest', questId: 'm2_letter' },
+      { kind: 'startQuest', questId: 'sq_shrine_pact' },
+      { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
+      { kind: 'failQuest', questId: 'sq_shrine_pact' },
     ] as StoryEffect[]
   ) {
     assert(validateStoryBundle(p, [e], ctxAt('n2')) !== undefined, `${e.kind} after lock refuses`);
   }
 
   const q = hero(1513);
-  q.quests['sq_ore'] = { status: 'active', counts: [1] };
-  applyStoryEffects(q, [{ kind: 'failQuest', questId: 'sq_ore' }], ctxAt('n1'));
+  q.quests['sq_shrine_pact'] = { status: 'active', counts: [1, 0] };
+  applyStoryEffects(q, [{ kind: 'failQuest', questId: 'sq_shrine_pact' }], ctxAt('n1'));
   assert(
     validateStoryBundle(
       q,
-      [{ kind: 'resolveQuest', questId: 'sq_ore', outcome: 'x' }],
+      [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
       ctxAt('n2'),
     ) !== undefined,
   );
   assert(
-    validateStoryBundle(q, [{ kind: 'lockQuest', questId: 'sq_ore' }], ctxAt('n2')) !== undefined,
+    validateStoryBundle(q, [{ kind: 'lockQuest', questId: 'sq_shrine_pact' }], ctxAt('n2')) !==
+      undefined,
   );
-  assertEquals(q.questOutcomes['sq_ore']?.kind, 'failed', 'the original terminal kind stands');
+  assertEquals(
+    q.questOutcomes['sq_shrine_pact']?.kind,
+    'failed',
+    'the original terminal kind stands',
+  );
 });
 
 // ── all-or-nothing commit ────────────────────────────────────────────────
@@ -458,12 +464,15 @@ Deno.test('tx: readiness revoked by a later lock never reaches the result (#137)
 });
 
 Deno.test('tx: readiness followed by resolve, fail or turn-in reports no false banner (#137)', () => {
-  const resolved = toxinHero(1522);
+  // The resolved leg uses the declared beacon route (#146): a quest that is
+  // turn-in-ready and then resolved in the same bundle reports no readiness.
+  const resolved = hero(1522);
+  resolved.quests['sq_shrine_pact'] = { status: 'turnIn', counts: [1, 4] };
   const r1 = applyStoryEffects(resolved, [
-    { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 1 },
-    { kind: 'resolveQuest', questId: 'm6_toxin', outcome: 'cured' },
+    { kind: 'grantItem', itemId: 'c_minor_potion', qty: 1 },
+    { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
   ], ctxAt('n1', 'npc_ferryman'));
-  assertEquals(resolved.quests['m6_toxin']?.status, 'done');
+  assertEquals(resolved.quests['sq_shrine_pact']?.status, 'done');
   assertEquals(r1.readyQuests, [], 'a resolved quest is not also announced ready');
 
   const failed = toxinHero(1523);
@@ -510,18 +519,20 @@ Deno.test('tx: readiness that survives the whole bundle is announced exactly onc
 
 Deno.test('tx: startedQuests is a transition log, not a final-state summary (#137/#145)', () => {
   const p = hero(1526);
-  p.level = 2;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  syncAvailability(p);
+  p.currentZone = 'hollowmere'; // the Ferryman stands here
   // start + resolve is legal (only start + lock/fail is contradictory,
   // #145): the log records the start even though the final state is done.
+  // The beacon route opens through its real gate: the recorded pledge
+  // decision makes it available, and "kept" is its declared outcome (#146).
   const r = applyStoryEffects(p, [
-    { kind: 'startQuest', questId: 'm2_letter' },
-    { kind: 'resolveQuest', questId: 'm2_letter', outcome: 'hand_delivered' },
-  ], ctxAt('n1'));
-  assertEquals(r.startedQuests, ['m2_letter'], 'the log records that the bundle started it');
-  assertEquals(p.quests['m2_letter']?.status, 'done', '…while the final state moved past it');
-  assertEquals(p.questOutcomes['m2_letter']?.kind, 'resolved');
+    { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'promise' },
+    { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
+    { kind: 'startQuest', questId: 'sq_shrine_pact' },
+    { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
+  ], ctxAt('n1', 'npc_ferryman'));
+  assertEquals(r.startedQuests, ['sq_shrine_pact'], 'the log records that the bundle started it');
+  assertEquals(p.quests['sq_shrine_pact']?.status, 'done', '…while the final state moved past it');
+  assertEquals(p.questOutcomes['sq_shrine_pact']?.kind, 'resolved');
   assertEquals(r.readyQuests, [], 'readiness, by contrast, is reconciled to the final draft');
 });
 

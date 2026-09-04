@@ -17,6 +17,7 @@ import { syncAvailability } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
 import { conditionRefs } from '../src/engine/conditions.ts';
 import { storyEffectRefs } from './helpers_story.ts';
+import type { StoryEffect } from '../src/content/types.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
@@ -26,6 +27,30 @@ import type { PlayerState } from '../src/engine/types.ts';
 
 const QUEST_IDS = QUESTS.map((q) => q.id);
 const ITEM_IDS = ITEMS.map((i) => i.id);
+
+/** Obvious incompatible bundles are statically rejected (#132, #146): one
+ * effect surface — a choice's list or a line node's list — may not
+ * start/accept AND lock/fail the SAME quest. The runtime refuses the same
+ * combination as contradictory content (#145); this keeps authored content
+ * from ever shipping it. */
+function assertNoIncompatibleBundle(
+  from: string,
+  effects: readonly StoryEffect[],
+): void {
+  const started = new Set(
+    effects
+      .filter((e) => e.kind === 'startQuest' || e.kind === 'acceptQuest')
+      .map((e) => (e as { questId: string }).questId),
+  );
+  for (const e of effects) {
+    if (e.kind === 'lockQuest' || e.kind === 'failQuest') {
+      assert(
+        !started.has(e.questId),
+        `${from}: starts and ${e.kind}s ${e.questId} in one bundle`,
+      );
+    }
+  }
+}
 
 // ── content integrity ────────────────────────────────────────────────────
 
@@ -56,6 +81,10 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
           for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
           for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
         }
+        // Line bundles get the same incompatible-bundle gate as choices
+        // (#146): no effect surface may start/accept AND lock/fail the
+        // SAME quest — the runtime refuses that as contradictory content.
+        assertNoIncompatibleBundle(`${d.id}:${n.id}`, n.effects ?? []);
       } else if (n.kind === 'choice') {
         assert(n.prompt.length > 0, `${d.id}:${n.id}: empty choice prompt`);
         // A choice node always offers a real branch: either multiple
@@ -94,21 +123,9 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
             for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
             for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
           }
-          // Obvious incompatible bundles are statically rejected (#132):
-          // one choice may not start/accept AND lock/fail the SAME quest.
-          const started = new Set(
-            (c.effects ?? [])
-              .filter((e) => e.kind === 'startQuest' || e.kind === 'acceptQuest')
-              .map((e) => (e as { questId: string }).questId),
-          );
-          for (const e of c.effects ?? []) {
-            if (e.kind === 'lockQuest' || e.kind === 'failQuest') {
-              assert(
-                !started.has(e.questId),
-                `${d.id}:${n.id}:${c.id}: starts and ${e.kind}s ${e.questId} in one bundle`,
-              );
-            }
-          }
+          // Obvious incompatible bundles are statically rejected (#132,
+          // #146 — for choice AND line effect surfaces alike).
+          assertNoIncompatibleBundle(`${d.id}:${n.id}:${c.id}`, c.effects ?? []);
           const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
           if (dec && dec.kind === 'recordDecision') {
             const prior = DECISION_CHOICES.get(dec.id);

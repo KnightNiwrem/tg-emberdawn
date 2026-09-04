@@ -118,14 +118,15 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 - Quest terminal state is queryable (#132): the `questOutcome` condition matches a quest's permanent
   resolution in `p.questOutcomes` by terminal kind and/or named outcome. Semantics: ordinary
   `turnInQuest` completion persists NO outcome entry (query completion with `questStatus: 'done'`);
-  only `resolveQuest` persists a named outcome, and a quest that declares `outcomes` refuses any
-  resolution outside its list — a declaration is mandatory in content whenever a named resolution or
-  outcome query is authored. The shipped exemplar is the Ferryman's shrine-pledge branch
-  (`dlg_ferry_promise` → `sq_shrine_pact`/`sq_ledger_debt`): both committing responses record
-  distinct decisions, emit the same shared parent event, start one route quest, and lock the other;
-  `beginQuest` credits an already-fired story event to a starting quest's storyEvent objective (the
-  reach ever-visited policy's counterpart), so the parent objective reads complete from the moment
-  the route opens.
+  only `resolveQuest` persists a named outcome, and the RUNTIME refuses any named resolution the
+  target quest does not declare (#146): a quest with no `outcomes` list accepts no named resolution
+  at all, a value outside the list is refused, and the persisted-identity gate refuses a
+  same-version save whose resolved record names an outcome the quest does not declare. The shipped
+  exemplar is the Ferryman's shrine-pledge branch (`dlg_ferry_promise` →
+  `sq_shrine_pact`/`sq_ledger_debt`): both committing responses record distinct decisions, emit the
+  same shared parent event, start one route quest, and lock the other; `beginQuest` credits an
+  already-fired story event to a starting quest's storyEvent objective (the reach ever-visited
+  policy's counterpart), so the parent objective reads complete from the moment the route opens.
 - Irreversible choices are recorded in `p.decisions` with choice and provenance — never reduced to
   unexplained booleans. A locked or failed quest (`p.questOutcomes`, `questExcluded`) is never
   resurrected by `syncAvailability`.

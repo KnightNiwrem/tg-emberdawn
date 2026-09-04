@@ -219,10 +219,13 @@ function runStoryBundle(
       case 'resolveQuest': {
         const q = questDef(e.questId);
         if (!q) return refuse(`Unknown quest ${e.questId}.`);
-        // Declared named outcomes (#132): a quest that declares its legal
-        // outcome names refuses anything outside the list — a typo or a
-        // cross-quest outcome fails loudly instead of persisting.
-        if (q.outcomes && !q.outcomes.includes(e.outcome)) {
+        // Declared named outcomes (#132, #146): a named resolution is legal
+        // ONLY when the target quest declares that exact outcome. A quest
+        // with no declaration refuses EVERY named resolution, and a value
+        // outside the declaration — including one declared by a DIFFERENT
+        // quest — fails loudly instead of persisting a terminal record no
+        // authored condition could recognize.
+        if (!q.outcomes?.includes(e.outcome)) {
           return refuse(`${q.name} does not declare outcome "${e.outcome}".`);
         }
         const prior = draft.questOutcomes[e.questId];

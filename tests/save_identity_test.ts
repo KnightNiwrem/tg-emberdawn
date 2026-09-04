@@ -275,6 +275,35 @@ Deno.test('identity gate: battle identities (#141)', () => {
   );
 });
 
+Deno.test('identity gate: named resolved outcomes must resolve against their quest (#146)', () => {
+  // The declared pair is legitimate: sq_shrine_pact declares "kept".
+  const ok = createPlayer(989, 'T', 'warrior');
+  ok.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'kept', at: 1 };
+  assertEquals(findUnresolvedPersistedIds(ok), []);
+
+  // A value the quest does not declare — a typo — is reported, never
+  // repaired or substituted.
+  const undeclared = createPlayer(990, 'T', 'warrior');
+  undeclared.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'typo', at: 1 };
+  expectProblems(undeclared, 'questOutcomes');
+
+  // "kept" is declared by sq_shrine_pact alone: it does not authorize a
+  // cross-quest resolved record.
+  const cross = createPlayer(991, 'T', 'warrior');
+  cross.questOutcomes['sq_ledger_debt'] = { kind: 'resolved', outcome: 'kept', at: 1 };
+  expectProblems(cross, 'questOutcomes');
+
+  // A resolved record naming NO outcome is malformed the same way.
+  const empty = createPlayer(992, 'T', 'warrior');
+  empty.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', at: 1 };
+  expectProblems(empty, 'questOutcomes');
+
+  // Failed/locked records carry no named outcome and stay valid.
+  const terminal = createPlayer(993, 'T', 'warrior');
+  terminal.questOutcomes['m2_letter'] = { kind: 'locked', at: 1 };
+  assertEquals(findUnresolvedPersistedIds(terminal), []);
+});
+
 Deno.test('identity gate: handlers refuse before mutation, render, or save (#141)', async () => {
   const store = new MemoryStore();
   const p = createPlayer(982, 'T', 'warrior');

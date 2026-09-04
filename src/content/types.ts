@@ -580,8 +580,10 @@ export interface QuestDef {
    * validated against this list). Ordinary `turnInQuest` completion records
    * NO outcome entry — completion is queried with `questStatus: 'done'`;
    * only an alternate `resolveQuest` resolution persists a named outcome
-   * here. Content integrity refuses a named resolution or query whose
-   * outcome this list does not declare. */
+   * here. A named resolution is legal ONLY against this declaration
+   * (#146): content integrity and the runtime both refuse a resolution
+   * whose outcome this list does not declare, and a quest without a
+   * declaration accepts no named resolution at all. */
   outcomes?: readonly string[];
 }
 

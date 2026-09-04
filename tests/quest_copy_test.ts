@@ -262,10 +262,17 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125, #13
         }
       }
       if ('decision' in cond) {
+        const legal = recordedDecisions.get(cond.decision.id);
         assert(
-          recordedDecisionIds.has(cond.decision.id),
+          legal !== undefined,
           `${from}: condition references decision ${cond.decision.id} that no dialogue records`,
         );
+        if (cond.decision.choiceId !== undefined) {
+          assert(
+            legal.has(cond.decision.choiceId),
+            `${from}: decision ${cond.decision.id} never records choice ${cond.decision.choiceId}`,
+          );
+        }
       }
     };
     walk(c);
@@ -291,18 +298,48 @@ Deno.test('quest copy: declarative conditions reference only real ids (#125, #13
 });
 
 /** Decision ids some dialogue's recordDecision effect actually records —
- * the legal id set decision conditions may query (#132). */
-const recordedDecisionIds = new Set(
-  DIALOGUES.flatMap((d) =>
-    d.nodes.flatMap((n) =>
-      n.kind === 'line'
-        ? n.effects ?? []
-        : n.kind === 'choice'
-        ? n.choices.flatMap((c) => c.effects ?? [])
-        : []
-    )
-  ).filter((e) => e.kind === 'recordDecision').map((e) => (e as { id: string }).id),
-);
+ * the legal id set decision conditions may query (#132) — each mapped to
+ * the choice ids that decision is recorded WITH, so a condition naming a
+ * choice value names a value the ledger can legally hold (#146). */
+const recordedDecisions = new Map<string, Set<string>>();
+for (const d of DIALOGUES) {
+  for (const n of d.nodes) {
+    const effects = n.kind === 'line'
+      ? n.effects ?? []
+      : n.kind === 'choice'
+      ? n.choices.flatMap((c) => c.effects ?? [])
+      : [];
+    for (const e of effects) {
+      if (e.kind !== 'recordDecision') continue;
+      const choices = recordedDecisions.get(e.id) ?? new Set<string>();
+      choices.add(e.choiceId);
+      recordedDecisions.set(e.id, choices);
+    }
+  }
+}
+
+Deno.test('quest copy: a choice can only record its own decision value (#146)', () => {
+  // A recordDecision authored ON a choice must store THAT choice's id.
+  // With provenance consistent, every persisted decision value is one a
+  // real application of the recorded choice could have produced — a
+  // mismatched authoring would persist a ledger entry the later
+  // persisted-identity gate cannot reconcile.
+  for (const d of DIALOGUES) {
+    for (const n of d.nodes) {
+      if (n.kind !== 'choice') continue;
+      for (const c of n.choices) {
+        for (const e of c.effects ?? []) {
+          if (e.kind !== 'recordDecision') continue;
+          assertEquals(
+            e.choiceId,
+            c.id,
+            `${d.id}:${n.id}:${c.id}: recordDecision stores a foreign choice id`,
+          );
+        }
+      }
+    }
+  }
+});
 
 Deno.test('quest copy: named quest outcomes are declared and resolved legally (#132)', () => {
   // Every resolveQuest effect authored in dialogue content must name a
