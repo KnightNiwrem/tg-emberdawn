@@ -2,7 +2,7 @@
 
 import type { Context } from 'grammy';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit, INCOMPATIBLE_SAVE_REPLY } from './session.ts';
+import { commit, INCOMPATIBLE_SAVE_REPLY, UNRESOLVABLE_SAVE_REPLY } from './session.ts';
 import { renderClassPicker } from '../render/views.ts';
 import { renderHelp } from '../render/views.ts';
 import {
@@ -10,6 +10,7 @@ import {
   SaveTooNewError,
   SaveTooOldError,
 } from '../engine/character.ts';
+import { assertResolvablePersistedIds, SaveUnresolvableError } from '../engine/validate.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
@@ -24,11 +25,18 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
   // abandoning a fight is what /reset is for.
   try {
     assertSupportedSaveVersion(existing); // the compatibility gate runs here too
+    assertResolvablePersistedIds(existing); // and the identity gate (#141)
   } catch (e) {
     if (e instanceof SaveTooOldError) {
       // Incompatible pre-launch save (#44, #116): refuse and point at
       // /reset — never silently rewrite it.
       await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
+      return;
+    }
+    if (e instanceof SaveUnresolvableError) {
+      // Same-version save with dangling content ids (#141): refuse before
+      // the re-center render, leave the stored JSON untouched.
+      await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
       return;
     }
     if (!(e instanceof SaveTooNewError)) throw e;
@@ -69,11 +77,12 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
   }
   try {
     assertSupportedSaveVersion(p);
+    assertResolvablePersistedIds(p);
   } catch (e) {
-    if (e instanceof SaveTooOldError) {
+    if (e instanceof SaveTooOldError || e instanceof SaveUnresolvableError) {
       // The save cannot be loaded, so a confirmation cannot be staged. An
-      // explicit /reset is the documented escape hatch (#44, #116): drop the
-      // unloadable save and offer the class picker.
+      // explicit /reset is the documented escape hatch (#44, #116, #141):
+      // drop the unloadable save and offer the class picker.
       await store.delete(from.id);
       await ctx.replyWithRichMessage(renderClassPicker());
       return;

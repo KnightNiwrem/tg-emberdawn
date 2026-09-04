@@ -51,8 +51,25 @@ changes.
 ## Unknown persisted IDs
 
 Never silently guess a replacement for an unknown or corrupt persisted ID: do not rewrite ambiguous
-saves, and do not invent fallback state for a deleted historical ID. Pre-launch, old development
-saves may simply be refused through the existing explicit `/reset` path.
+saves, and do not invent fallback state for a deleted historical ID.
+
+The version gate alone cannot catch ID renames or removals, because they do not change the
+TypeScript shape. So every gameplay load also runs the central identity gate,
+`assertResolvablePersistedIds()` in `src/engine/validate.ts` — pure, non-mutating, and run after
+`assertSupportedSaveVersion()` and before any mutation or render. It validates every persisted
+identity family (zones, items, skills, quests, flags, receipts, decisions, story events, scene args,
+and the active battle) against the current content catalogs and throws `SaveUnresolvableError`
+listing every unresolved identity. When you add a new ID-bearing persisted field, extend that
+validator — its module doc is the authoritative enumeration of the families.
+
+Refusal policy while PRE-LAUNCH: handlers answer with the /reset pointer and leave the stored JSON
+untouched; explicit `/reset` deletes the unloadable save and offers the class picker (a
+newer-version save is still refused without deletion). The error classification (`SaveTooOldError` /
+`SaveTooNewError` / `SaveUnresolvableError`) stays distinct so that after launch an unresolved live
+ID can be treated as corruption, a broken migration, or a contract-violating release rather than a
+resettable save.
+
+Covered by `tests/save_identity_test.ts`.
 
 ## Stores
 

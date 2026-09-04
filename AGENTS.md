@@ -22,7 +22,9 @@ Deployment, playtesting, database contents, tags, and `stateVersion` numbers do 
 - Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
   shims — but every ID referenced by current code and content must resolve.
 - Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
-  fallback state for one.
+  fallback state for one. Every gameplay load runs the central identity gate
+  (`assertResolvablePersistedIds` in `src/engine/validate.ts`) after the version gate and before any
+  mutation or render; a same-version save with dangling IDs is refused with a pointer to /reset.
 - Public launch is an explicit decision only; never infer it from a deployment or version tag.
 
 For an explicit launch decision or post-launch compatibility policy, load the `emberdawn-release`

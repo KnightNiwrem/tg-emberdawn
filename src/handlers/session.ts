@@ -14,6 +14,7 @@ import {
   SaveTooNewError,
   SaveTooOldError,
 } from '../engine/character.ts';
+import { assertResolvablePersistedIds, SaveUnresolvableError } from '../engine/validate.ts';
 import { GrammyError } from 'grammy';
 import { renderBattle, renderItemMenu, renderSkillMenu } from '../render/battle.ts';
 import {
@@ -214,6 +215,13 @@ export interface MutationResult {
 export const INCOMPATIBLE_SAVE_REPLY =
   '⚠️ This pre-launch save uses an unsupported schema and cannot be loaded. Send /reset to start fresh.';
 
+/** Player-facing refusal for a current-schema save whose persisted content
+ * identities no longer resolve (#141). Same pre-launch /reset policy as an
+ * incompatible schema; the error classification stays separate so a live
+ * deployment can treat it as corruption instead. */
+export const UNRESOLVABLE_SAVE_REPLY =
+  '⚠️ This pre-launch save references content that no longer exists and cannot be loaded. Send /reset to start fresh.';
+
 export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,
@@ -223,12 +231,21 @@ export async function withLoadedPlayer(
   if (!ctx.chat) return;
   try {
     assertSupportedSaveVersion(p); // compatibility gate — refuses, never rewrites
+    assertResolvablePersistedIds(p); // identity gate (#141) — after schema, before mutation/render
   } catch (e) {
     if (e instanceof SaveTooOldError) {
       // Incompatible pre-launch save (#44, #116): refuse to guess — the
       // player must explicitly reset. The stored JSON stays untouched.
       await answerCallbackBestEffort(ctx);
       await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
+      return;
+    }
+    if (e instanceof SaveUnresolvableError) {
+      // Same-version save with dangling content ids (#141): refuse before
+      // any mutation or render, leave the stored JSON untouched, and point
+      // at the explicit /reset path. Never repair or substitute.
+      await answerCallbackBestEffort(ctx);
+      await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
       return;
     }
     if (!(e instanceof SaveTooNewError)) throw e;
