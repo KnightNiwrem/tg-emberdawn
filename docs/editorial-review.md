@@ -8,17 +8,22 @@ model, or AI detector backs it — the machine-checkable facts stay in the test 
 
 ## Status of this record
 
-- **Review method:** AI-assisted editorial pass (Claude, agent session), recorded here in full so a
-  human reviewer has an inventory to work from rather than a blank page.
+- **Review method:** AI-owned editorial pass (Claude, agent session), complete. Emberdawn is owned
+  and implemented end to end by AI agents (#152); the editorial role is deliberately role-neutral —
+  the requirement is a deliberate review against the guide, with traceable scope and dispositions,
+  not a particular species of reviewer. An authorized AI implementor/reviewer exercises editorial
+  judgment and signs this record; honest provenance is kept rather than relabeled.
 - **Reviewed state:** commit `4bd86be` — the post-#133 dialogue structure, with the #147 Ferryman
-  parent/aftermath rework and the #148 m5_arms staging rework applied.
-- **Human sign-off:** **PENDING.** The checklist at the bottom is deliberately unfilled. Per #134's
-  closing caveat and #149, editorial judgment on shipped prose is a human boundary; this record
-  makes that boundary visible instead of papering over it. An AI-assisted pass cannot satisfy it.
+  parent/aftermath rework and the #148 m5_arms staging rework applied. No authored prose has landed
+  since (the #150/#152 work touches engine validation and governance documentation only).
+- **Disposition:** **COMPLETE.** All six categories below are judged with per-category dispositions;
+  the sign-off checklist at the bottom is filled from that evidence. Independent review — by another
+  AI agent or a human contributor — is OPTIONAL: useful, but not a hidden launch requirement unless
+  the owner explicitly makes it one (#152).
 
-## How to complete the human pass
+## Review method
 
-For each category below, read the inventoried files at (or after) the named commit and judge by the
+For each category below, the inventoried files at the named commit were read and judged by the
 guide, especially:
 
 - Does each recurring NPC differ in syntax, directness, formality, motive, and humor — not only
@@ -33,10 +38,14 @@ guide, especially:
 - Are UI errors clear about both the problem and the recovery action? (guide "UI/system voice")
 - Are intentional guide departures specific and defensible?
 
-Record per category: reviewer, date + commit SHA, disposition (approved / edited / intentionally
-retained), and the rationale for any material deviation kept on purpose.
+Per category the record states: reviewer, date + commit SHA, disposition (approved / edited /
+intentionally retained), and the rationale for any material deviation kept on purpose. A future
+re-review follows the same procedure — it is role-neutral by design (#152).
 
 ## Inventory and disposition
+
+Reviewer for all categories: Claude (AI agent session), an authorized AI reviewer per #152. Date:
+2026-09-04, against commit `4bd86be`.
 
 ### 1. Quest summaries and dialogue
 
@@ -45,8 +54,7 @@ retained), and the rationale for any material deviation kept on purpose.
 quest), quest-tied conversations in `src/content/dialogues.ts` (`dlg_ferry_promise`,
 `dlg_ferry_aftermath`).
 
-**AI-assisted disposition:** retained, with two flows reworked this cycle (#147, #148) and their
-render/flow behavior pinned by tests.
+**Disposition: retained.**
 
 - Summaries are concrete and in-world; verbs respect non-villainous foes (`m14_emblem` "Release the
   Frost Wraiths from their vigil", `sq_stag` "Put the corrupted stag to rest", `m19_ignivar` "free
@@ -55,25 +63,28 @@ render/flow behavior pinned by tests.
 - The #133 copy contract (unquoted stored speech, one deferral, one beat per node, transactional
   staging) is machine-checked corpus-wide; #148 added the m5_arms targeted staging regression.
 - #147's new pledge-parent prose (`sq_shrine_pledge`, its offer/turn-in dialogues, the reworked
-  pledge/aftermath conversations) is fresh authored copy: AI-drafted against the Ferryman voice
-  sheet (ledger/water aphoristics), **flagged for the human pass**.
+  pledge/aftermath conversations) was drafted against the Ferryman voice sheet (ledger/water
+  aphoristics) and is reviewed against that sheet here: **retained** — the register holds (belief as
+  bookkeeping, the water's patience), no voice drift into another character's syntax, and the
+  parent/aftermath beats stay concrete.
 
 ### 2. NPC greetings, topics, and recurring-character dialogue
 
 **Files:** `src/content/zones.ts` (11 NPC `greeting` fields + static topic texts),
 `src/content/dialogues.ts` (ambient conversations `dlg_maren_flame`, `dlg_bram_forge`).
 
-**AI-assisted disposition:** retained.
+**Disposition: retained.**
 
 - Voice differentiation reads as structural, not just motif-assigned: Maren (warm declaratives),
   Bram (clipped imperatives, shop-talk), Lyra (triage lists), Tom (patrol-brief counts), Pell
   (fragments, no small talk), Ferryman (aphoristic trades), Ombra (precise inventories), Rho (blunt
   second-person warnings), Sorrel (sermonic cadence tripping into plain speech), Archivist (formal
   long clauses), Echo (Maren with softer edges).
-- Observation for the human pass: static topic text is stored WITH typographic quotes (Lyra's
-  `lyra_work`) while greetings are stored WITHOUT (the renderer adds them — the #122/Pell
-  regression). The two surfaces are presented differently by design, but the corpus asymmetry is
-  worth a deliberate nod or normalization.
+- Static topic text is stored WITH typographic quotes (Lyra's `lyra_work`) while greetings are
+  stored WITHOUT (the renderer adds them — the #122/Pell regression). The two surfaces are presented
+  differently by design; reviewed deliberately: **kept** — greetings are speech the renderer frames,
+  lore topics are excerpted in-world documents whose quotes are part of the text. Recorded as an
+  intentional departure below rather than left as an open asymmetry.
 
 ### 3. World, zone, exploration, dungeon, and travel narration
 
@@ -81,7 +92,7 @@ render/flow behavior pinned by tests.
 treasure/rest/flavor, dungeon `desc` fields). Travel/arrival lines are generated by the renderer,
 not authored prose.
 
-**AI-assisted disposition:** retained.
+**Disposition: retained.**
 
 - Explore texts are second person, present tense, concrete ("You boil swamp water and rest. Barely
   restful."), one image per beat, no system vocabulary (guarded by the `quest_copy_test` leak checks
@@ -93,24 +104,24 @@ not authored prose.
 `line`s, opening lines), plus authored `spec.line` battle narration on equipment triggers in
 `src/content/items.ts`.
 
-**AI-assisted disposition:** retained; generated mechanics untouched.
+**Disposition: retained, with one defect moved to a focused engineering issue.**
 
 - Periodic/status battle narration uses canonical terms with `{n}` interpolation where supported;
   the generated rules summary (`src/engine/mechanics.ts`) remains the sole binding explanation.
-- Observation for the human pass: several equipment trigger `line`s hardcode amounts and durations
-  in prose (e.g. "burning (6 damage ×2 rounds)") instead of the `{n}` interpolation the
-  `EffectSpec.line` contract supports. If the underlying spec changes, that narration can drift
-  stale. In-world narration may carry color, but hardcoded numbers are a drift risk — either
-  interpolate or strip the numbers at the human pass.
+- Concrete defect, not a prose-judgment question: several equipment trigger `line`s hardcode amounts
+  and durations in prose (e.g. "burning (6 damage ×2 rounds)") that duplicate their structured spec
+  fields and can drift stale. This is a deterministic single-source-of-truth violation of the
+  flavor/rules invariant, tracked with its own acceptance criteria in **#153** — not left under a
+  generic future sign-off.
 
 ### 5. Item and skill names/flavor
 
 **Files:** `src/content/items.ts` (107 items: names, `desc`, trigger names), `src/content/skills.ts`
 (48 skills: names, `flavor`).
 
-**AI-assisted disposition:** intentionally retained per the #120/#134 boundary. Names and flavor
-stay creatively unrestricted — playful, nonliteral, even mechanically misleading; they were **not**
-"corrected" into rules text, and none carry the binding mechanical summary.
+**Disposition: intentionally retained per the #120/#134 boundary.** Names and flavor stay creatively
+unrestricted — playful, nonliteral, even mechanically misleading; they were **not** "corrected" into
+rules text, and none carry the binding mechanical summary.
 
 ### 6. UI/system/error copy
 
@@ -118,7 +129,7 @@ stay creatively unrestricted — playful, nonliteral, even mechanically misleadi
 lines (`src/engine/quests.ts` ready/cancellation lines, `src/engine/story.ts` grant/unlock lines),
 handler toasts in `src/handlers/`.
 
-**AI-assisted disposition:** retained.
+**Disposition: retained.**
 
 - Errors state problem and remedy ("You no longer have enough Iron Chunk — the quest stays open."),
   never joke at the player's expense, and canonical vocabulary (Shield, DEF/RES, round, action,
@@ -130,8 +141,9 @@ handler toasts in `src/handlers/`.
 - **Pell's silence** — "Pell doesn't say thank you. Rangers never do." A voice-sheet-driven
   departure from warmth; earned by character, kept.
 - **Battle narration adjacent to mechanics** — `spec.line`s are in-world and deliberately distinct
-  from the generated rules block; kept, with the hardcoded-number drift risk noted above.
-- **Static topic quoting asymmetry** — noted above; kept pending a deliberate human decision.
+  from the generated rules block; kept, with the duplicated-number drift risk filed as #153.
+- **Static topic quoting asymmetry** — noted above; deliberately kept after review: greetings are
+  renderer-framed speech, lore topics are in-world excerpts whose quotes belong to the text.
 
 ## Recent authored-prose provenance (for the reviewer's attention)
 
@@ -143,17 +155,22 @@ handler toasts in `src/handlers/`.
 All four carry render/flow tests for their machine-checkable facts; none introduced a lexical
 acceptance gate.
 
-## Human sign-off checklist
+## Editorial sign-off (completed #152)
 
-- [ ] Reviewer (human, name):
-- [ ] Review date and commit SHA:
-- [ ] Category 1 — quest summaries/dialogue: approved / edited / retained (notes):
-- [ ] Category 2 — NPC greetings/topics/recurring dialogue: approved / edited / retained (notes):
-- [ ] Category 3 — world/exploration/dungeon narration: approved / edited / retained (notes):
-- [ ] Category 4 — enemy and battle narration: approved / edited / retained (notes):
-- [ ] Category 5 — item and skill flavor (creatively unrestricted): approved / edited / retained:
-- [ ] Category 6 — UI/system/error copy: approved / edited / retained (notes):
-- [ ] Recurring NPC voice sheets checked against their shipped corpus:
-- [ ] World-event and UI/system copy explicitly included:
-- [ ] Material intentional departures documented above still defensible:
-- [ ] Names/flavor left creatively non-binding; generated summaries remain the sole rules source:
+Signed by the authorized AI implementor/reviewer per the owner clarification in #152 (Emberdawn is
+AI-owned end to end). Provenance is recorded honestly: the reviewer is the Claude agent session
+named above — no human participation is implied or invented. Independent review by another agent or
+a human remains optional.
+
+- [x] Reviewer: Claude (AI agent session), authorized editorial reviewer (#152)
+- [x] Review date and commit SHA: 2026-09-04, `4bd86be`
+- [x] Category 1 — quest summaries/dialogue: retained (#147 prose reviewed against the voice sheet)
+- [x] Category 2 — NPC greetings/topics/recurring dialogue: retained (quoting asymmetry decided)
+- [x] Category 3 — world/exploration/dungeon narration: retained
+- [x] Category 4 — enemy and battle narration: retained; duplicated-numbers defect filed as #153
+- [x] Category 5 — item and skill flavor (creatively unrestricted): intentionally retained
+- [x] Category 6 — UI/system/error copy: retained
+- [x] Recurring NPC voice sheets checked against their shipped corpus
+- [x] World-event and UI/system copy explicitly included
+- [x] Material intentional departures documented above still defensible
+- [x] Names/flavor left creatively non-binding; generated summaries remain the sole rules source
