@@ -63,6 +63,12 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   an `end`.
 - The scene persists `(arg: dialogueId, arg2: nodeId)` so rerenders and `/start` reproduce the exact
   current beat.
+- Dialogue copy follows the #133 contract (machine-checked in `tests/dialogue_copy_test.ts`, prose
+  guide in `docs/narrative-guide.md` §3a): the renderer owns speech presentation, so prompts, labels
+  and speech are stored unquoted; every choice node defers at most once (the renderer's "Not now" —
+  never an authored duplicate); one node is one complete beat (no "X says." attribution fragments);
+  and nothing before a committing choice narrates that choice's effects — post-commit beats hang off
+  `choice.next`.
 - Continue (`dlg:nx:<targetNodeId>`) advances exactly one node and edits the same live message —
   never a second message. Every tap revalidates the scene view, the dialogue identity, the current
   node's next link, and the NPC's physical presence.

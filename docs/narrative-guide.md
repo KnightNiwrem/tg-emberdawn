@@ -75,6 +75,25 @@ and out of every sheet.
 - A short line lands only after enough context, and only when it is in someone's voice.
 - Imagery is motif-managed (see §5), not decorative filler.
 
+### 3a. Dialogue copy contract (#133)
+
+The conversation renderer owns speech presentation. Authored dialogue content obeys four rules, each
+machine-checked in `tests/dialogue_copy_test.ts`:
+
+1. **Punctuation ownership.** Prompts, choice labels, and NPC/player speech are stored WITHOUT
+   surrounding quotation marks — the renderer adds the quote marks, the `You — …` attribution, and
+   the speaker heading. Narration is stored unquoted and renders unquoted.
+2. **One deferral.** Every choice node exposes at most one non-mutating exit: the renderer's "✋ Not
+   now" deferral. Never author a second "Not yet" response beside it.
+3. **One beat per node.** A node carries one complete speech or one meaningful stage direction.
+   Never split a sentence into clause + "X says." attribution fragments — the heading already names
+   the speaker. Keep a narrator node only when it adds visible action or blocking.
+4. **Transactional staging.** No line before a committing choice may assert that choice's effects. A
+   handover, reward, unlock, or completion is narrated only AFTER the commit — offer the thing
+   before ("She holds out a wax-sealed letter."), hand it over after, via `choice.next` post-commit
+   beats. Turn-in labels name the actual transaction: "Hand over the samples" where goods change
+   hands; a report, arrival, or conclusion everywhere else.
+
 ## 4. Mechanical/flavor boundary (inherited from #120/#121)
 
 - `SkillDef.flavor` and `ItemDef.desc` are creative; they may be boastful, nonliteral, or wrong

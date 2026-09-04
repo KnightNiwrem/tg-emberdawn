@@ -4,8 +4,18 @@
  * happens ONLY at the offer's accept choice (a central `acceptQuest` story
  * effect with the #63/#64 on-site authority); the hand-over happens ONLY at
  * the turn-in dialogue's hand-over choice (a central `turnInQuest` story
- * effect). m2's conversation advances its delivery by emitting the stable
- * story event `heard_bram_reading` at the authored reading node; the three
+ * effect).
+ *
+ * Dialogue copy contract (#133): the renderer owns speech presentation —
+ * prompts, labels and lines are stored WITHOUT surrounding quotation
+ * marks; every choice node exposes at most one non-mutating exit (the
+ * renderer's "Not now" deferral — no authored duplicates); one node carries
+ * one complete speech or stage-direction beat (no "X says." attribution
+ * fragments); and no line before a committing choice asserts that choice's
+ * effects — post-commit narration hangs off `choice.next`.
+ *
+ * m2's conversation advances its delivery by emitting the stable story
+ * event `heard_bram_reading` at the authored reading node; the three
  * counsel quests (m8/m17/m22) emit their events at the authored accept
  * choice — acceptance IS the conversation. The legacy single-box
  * `intro`/`outro` strings were migrated into these nodes beat by beat and
@@ -38,21 +48,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you carry this for us?”',
+        prompt: 'Will you carry this for us?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm1_embers',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm1_embers' }],
           },
         ],
       },
@@ -67,41 +68,33 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: "You've bought us quiet nights,",
+        text:
+          "You've bought us quiet nights. This goes to Bram. The road you'll walk starts at his forge.",
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Maren says, pressing a wax-sealed letter into your hands.',
-        next: 't3',
+        text: 'She holds out a wax-sealed letter.',
+        next: 'ta',
       },
       {
         id: 't3',
         kind: 'line',
-        speaker: 'npc',
-        text: "This goes to Bram. The road you'll walk starts at his forge.",
-        next: 'ta',
+        speaker: 'narrator',
+        text: 'She presses the letter into your hands.',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Is the work done, then?”',
+        prompt: 'Is the work done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm1_embers',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the quiet roads',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm1_embers' }],
+            next: 't3',
           },
         ],
       },
@@ -116,42 +109,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The wolves grow bold as the Flame dims,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Maren says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'They were the first to feel the rot, out under the Whisperwood. Thin the packs, so the wood keeps heart enough to hope.',
+          'The wolves grow bold as the Flame dims. They were the first to feel the rot, out under the Whisperwood. Thin the packs, so the wood keeps heart enough to hope.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you carry this for us?”',
+        prompt: 'Will you carry this for us?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm3_wolves',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm3_wolves' }],
           },
         ],
       },
@@ -166,41 +136,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Quiet returns to the treeline,',
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Maren says.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'The wood remembers kindness slowly — but it does remember.',
+        text:
+          'Quiet returns to the treeline. The wood remembers kindness slowly — but it does remember.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Is the work done, then?”',
+        prompt: 'Is the work done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm3_wolves',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the thinned packs',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm3_wolves' }],
           },
         ],
       },
@@ -215,42 +163,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Keep to the paths,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Warden Tom says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'The silk-broods and their sprite-kin are feeding the Hollow. Cut them down at the threshold, before you think of going deeper.',
+          'Keep to the paths. The silk-broods and their sprite-kin are feeding the Hollow. Cut them down at the threshold, before you think of going deeper.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Can I count on you?”',
+        prompt: 'Can I count on you?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm4_floors',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm4_floors' }],
           },
         ],
       },
@@ -265,42 +190,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: "Threshold's holding,",
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Tom says.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "Deeper's worse. The Hollow's heart has a keeper now — and it isn't kind. Ready yourself.",
+          "Threshold's holding. Deeper's worse. The Hollow's heart has a keeper now — and it isn't kind. Ready yourself.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Report: is it done?”',
+        prompt: 'Report: is it done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm4_floors',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the threshold held',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm4_floors' }],
           },
         ],
       },
@@ -329,21 +231,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm5_arms',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm5_arms' }],
           },
         ],
       },
@@ -372,21 +265,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Done, then?”',
+        prompt: 'Done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm5_arms',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚒️ Hand over the iron',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm5_arms' }],
           },
         ],
       },
@@ -415,21 +299,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm3_roots',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm3_roots' }],
           },
         ],
       },
@@ -451,21 +326,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Done, then?”',
+        prompt: 'Done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm3_roots',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the Hollow cleansed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm3_roots' }],
           },
         ],
       },
@@ -479,13 +345,6 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'o1',
         kind: 'line',
-        speaker: 'narrator',
-        text: 'Bram says,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
         speaker: 'npc',
         text:
           "The wood bleeds ember-shards where the rot was cut. Bring me enough, and I'll hammer them into a keepsake that carries a promise: the light isn't gone, only scattered.",
@@ -494,21 +353,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm4_blessing',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm4_blessing' }],
           },
         ],
       },
@@ -523,38 +373,36 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          'Bram quenches the shard-steel with a hiss that sounds like relief, and presses the finished keepsake into your hand.',
-        next: 't2',
+        text: 'Bram holds out his hands for the shards.',
+        next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
-        speaker: 'npc',
+        speaker: 'narrator',
         text:
-          "The swamp east carries the same rot — and maybe another piece of the dawn. Go when you're ready.",
-        next: 'ta',
+          'Bram quenches the shard-steel with a hiss that sounds like relief, and presses the finished keepsake into your hand.',
+        next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Done, then?”',
+        prompt: 'Done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm4_blessing',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🔥 Hand over the ember shards',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm4_blessing' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't3',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "The swamp east carries the same rot — and maybe another piece of the dawn. Go when you're ready.",
       },
     ],
   },
@@ -567,42 +415,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'East of the wood the water turns dark and thoughtful,',
+        text:
+          'East of the wood the water turns dark and thoughtful. A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram says, nodding at the keepsake cooling on its cord.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          'A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm.',
+        text: 'He nods at the keepsake cooling on its cord.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm5_fen',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm5_fen' }],
           },
         ],
       },
@@ -631,21 +463,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm5_fen',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🛶 Say the crossing is made',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm5_fen' }],
           },
         ],
       },
@@ -660,42 +483,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Leeches carry the toxin whole,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "Fetch samples. What can be named can be countered — and what's countered makes room for something better.",
+          "Leeches carry the toxin whole. Fetch samples. What can be named can be countered — and what's countered makes room for something better.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm6_toxin',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm6_toxin' }],
           },
         ],
       },
@@ -710,42 +510,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: "That's the brew,",
-        next: 't2',
+        text:
+          "That's the brew. Drained from the Flame's runoff. The Tyrant didn't poison the swamp — he claimed its despair. Take that claim back.",
+        next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'the Ferryman mutters over the vials.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          "Drained from the Flame's runoff. The Tyrant didn't poison the swamp — he claimed its despair. Take that claim back.",
-        next: 'ta',
+        text: 'He uncorks one vial and holds it to the light.',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm6_toxin',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🧪 Hand over the samples',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm6_toxin' }],
+            next: 't2',
           },
         ],
       },
@@ -760,41 +544,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The Shrine drowns slowly,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Hope drowns faster. Go down and raise something before the water finishes the job.',
+        text:
+          'The Shrine drowns slowly. Hope drowns faster. Go down and raise something before the water finishes the job.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm7_tyrant',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm7_tyrant' }],
           },
         ],
       },
@@ -816,21 +578,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm7_tyrant',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the Tyrant fallen',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm7_tyrant' }],
           },
         ],
       },
@@ -845,46 +598,22 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Word travels faster than boats,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "There's a city of gears east — Sunspire. A cult there is bottling hours. Whoever holds the hours holds the future.",
+          "Word travels faster than boats. There's a city of gears east — Sunspire. A cult there is bottling hours. Whoever holds the hours holds the future.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm8_passage',
-              },
-              {
-                kind: 'storyEvent',
-                event: 'heard_ferrymans_word',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm8_passage' }, {
+              'kind': 'storyEvent',
+              'event': 'heard_ferrymans_word',
+            }],
           },
         ],
       },
@@ -899,42 +628,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Take the east road,',
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'And mind the sentinels. They only remember half their orders — the half worth keeping, with luck.',
+          'Take the east road. And mind the sentinels. They only remember half their orders — the half worth keeping, with luck.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm8_passage',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🤝 Say the word is heard',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm8_passage' }],
           },
         ],
       },
@@ -949,42 +655,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'You heard my word about the gears — now go stand under them,',
+        text:
+          'You heard my word about the gears — now go stand under them. A Curator keeps honest ledgers in a dishonest city. Show him the swamp still sends believers east.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'the Ferryman says, poling for the far shore.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          'A Curator keeps honest ledgers in a dishonest city. Show him the swamp still sends believers east.',
+        text: 'He poles for the far shore.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm9_spire',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm9_spire' }],
           },
         ],
       },
@@ -1013,21 +703,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm9_spire',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🏛️ Report the spire reached',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm9_spire' }],
           },
         ],
       },
@@ -1042,42 +723,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'They call it devotion,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Ombra says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "It's despair wearing hymns — kneeling to a sun they've decided never rises for anyone else. Thin their ranks until the singing stops.",
+          "They call it devotion. It's despair wearing hymns — kneeling to a sun they've decided never rises for anyone else. Thin their ranks until the singing stops.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm10_cult',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm10_cult' }],
           },
         ],
       },
@@ -1099,21 +757,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm10_cult',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the hymns stopped',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm10_cult' }],
           },
         ],
       },
@@ -1128,41 +777,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The Vault only opens for its own key,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Ombra says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: "The automatons carry it. Break them, and we wind tomorrow's door open.",
+        text:
+          "The Vault only opens for its own key. The automatons carry it. Break them, and we wind tomorrow's door open.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm11_toll',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm11_toll' }],
           },
         ],
       },
@@ -1177,30 +804,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          'The last automaton folds with a sound like a struck hour. A key of cold gold light sits in the wreckage — the Sunspire Key, and it is warm on one side only. The side that faces morning.',
+        text: 'The last automaton folds with a sound like a struck hour.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm11_toll',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🗝️ Report the toll paid',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm11_toll' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'narrator',
+        text:
+          'A key of cold gold light sits in the wreckage — the Sunspire Key, and it is warm on one side only. The side that faces morning.',
       },
     ],
   },
@@ -1227,21 +852,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm12_chronolich',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm12_chronolich' }],
           },
         ],
       },
@@ -1271,21 +887,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm12_chronolich',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the hour returned',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm12_chronolich' }],
           },
         ],
       },
@@ -1300,42 +907,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'North,',
+        text:
+          "North. Frostpeak keeps the flame's twin under blue ice, and an outcast named Rho keeps watch over the pass — the mountain froze everyone else's promises but his. Wake what winter only pretended to bury.",
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: "Ombra says, closing the Vault's ledger behind you.",
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          "Frostpeak keeps the flame's twin under blue ice, and an outcast named Rho keeps watch over the pass — the mountain froze everyone else's promises but his. Wake what winter only pretended to bury.",
+        text: 'Ombra closes the Vault’s ledger behind you.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm13_pass',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm13_pass' }],
           },
         ],
       },
@@ -1364,21 +955,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Finished?”',
+        prompt: 'Finished?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm13_pass',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🏔️ Report the pass crossed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm13_pass' }],
           },
         ],
       },
@@ -1393,42 +975,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The wraiths were wardens once,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Rho says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'They froze mid-oath, still believing. Their marks still open old roads. Three, and the way to the Maw is yours.',
+          'The wraiths were wardens once. They froze mid-oath, still believing. Their marks still open old roads. Three, and the way to the Maw is yours.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“You up for it?”',
+        prompt: 'You up for it?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm14_emblem',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm14_emblem' }],
           },
         ],
       },
@@ -1443,36 +1002,34 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho aligns the emblems, and the ice remembers a door.',
-        next: 't2',
+        text: 'Rho holds out his hands for the emblems.',
+        next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
-        speaker: 'npc',
-        text: 'The Maw is open. What sleeps inside — wake it gently. Some futures start as dreams.',
-        next: 'ta',
+        speaker: 'narrator',
+        text: 'Rho aligns the emblems, and the ice remembers a door.',
+        next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Finished?”',
+        prompt: 'Finished?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm14_emblem',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '❄️ Hand over the emblems',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm14_emblem' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't3',
+        kind: 'line',
+        speaker: 'npc',
+        text: 'The Maw is open. What sleeps inside — wake it gently. Some futures start as dreams.',
       },
     ],
   },
@@ -1492,21 +1049,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“You up for it?”',
+        prompt: 'You up for it?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm15_wyrm',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm15_wyrm' }],
           },
         ],
       },
@@ -1528,21 +1076,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Finished?”',
+        prompt: 'Finished?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm15_wyrm',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🔥 Report the Frostfire freed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm15_wyrm' }],
           },
         ],
       },
@@ -1557,42 +1096,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'South of the glacier the world burned and stubbornly kept going,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Rho says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'The Cinder Wastes hide a monk named Sorrel, tending a starving flame nobody else would feed. Tell him the Frostfire lives — proof travels better than hope alone.',
+          'South of the glacier the world burned and stubbornly kept going. The Cinder Wastes hide a monk named Sorrel, tending a starving flame nobody else would feed. Tell him the Frostfire lives — proof travels better than hope alone.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“You up for it?”',
+        prompt: 'You up for it?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm16_ashes',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm16_ashes' }],
           },
         ],
       },
@@ -1621,21 +1137,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm16_ashes',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌋 Report the Wastes crossed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm16_ashes' }],
           },
         ],
       },
@@ -1650,46 +1157,22 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Listen before you swing,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'Ignivar guarded the Flame for a thousand years. Then the Sundered King began drinking it, and everyone blamed the hunger on the guardian. Despair is easy. Listen harder.',
+          'Listen before you swing. Ignivar guarded the Flame for a thousand years. Then the Sundered King began drinking it, and everyone blamed the hunger on the guardian. Despair is easy. Listen harder.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm17_plea',
-              },
-              {
-                kind: 'storyEvent',
-                event: 'heard_sorrels_plea',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm17_plea' }, {
+              'kind': 'storyEvent',
+              'event': 'heard_sorrels_plea',
+            }],
           },
         ],
       },
@@ -1704,42 +1187,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: "He'll fight you anyway,",
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says quietly.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "Pride burns hotter than starvation. But when he falls — and he will — know that the true thief is above the sky, in a tower that isn't entirely real. And that endings here have always been doorways.",
+          "He'll fight you anyway. Pride burns hotter than starvation. But when he falls — and he will — know that the true thief is above the sky, in a tower that isn't entirely real. And that endings here have always been doorways.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm17_plea',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🕯️ Say the plea is heard',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm17_plea' }],
           },
         ],
       },
@@ -1754,42 +1214,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "The revenants are the Flame's old faithful,",
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "Their sorrow brands the ash with sigils. Bring me three — grief, honored, becomes a lamp. That's how we calm the Caldera.",
+          "The revenants are the Flame's old faithful. Their sorrow brands the ash with sigils. Bring me three — grief, honored, becomes a lamp. That's how we calm the Caldera.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm18_sigil',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm18_sigil' }],
           },
         ],
       },
@@ -1804,37 +1241,35 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: "The sigils cool in Sorrel's hands.",
-        next: 't2',
+        text: 'Sorrel holds out her hands for the sigils.',
+        next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
-        speaker: 'npc',
-        text:
-          "The Caldera's throat is open. Go down gently. He's been waiting to be understood for a very long time — and being understood is its own dawn.",
-        next: 'ta',
+        speaker: 'narrator',
+        text: 'The sigils cool in Sorrel’s hands.',
+        next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm18_sigil',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🔥 Hand over the sigils',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm18_sigil' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't3',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "The Caldera's throat is open. Go down gently. He's been waiting to be understood for a very long time — and being understood is its own dawn.",
       },
     ],
   },
@@ -1854,21 +1289,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm19_ignivar',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm19_ignivar' }],
           },
         ],
       },
@@ -1891,41 +1317,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'The thief,',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel whispers.',
-        next: 't4',
-      },
-      {
-        id: 't4',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'The Umbral Spire. Go finish this — not for vengeance. For morning.',
+        text: 'The thief. The Umbral Spire. Go finish this — not for vengeance. For morning.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm19_ignivar',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🕯️ Report the flame freed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm19_ignivar' }],
           },
         ],
       },
@@ -1940,42 +1343,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The thief keeps a tower in the seam of the sky,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'An Archivist stacks his yesterdays up there and calls the pile a future. Climb, Dawncaller — make the man remember what hours are FOR.',
+          'The thief keeps a tower in the seam of the sky. An Archivist stacks his yesterdays up there and calls the pile a future. Climb, Dawncaller — make the man remember what hours are FOR.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm20_seam',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm20_seam' }],
           },
         ],
       },
@@ -2004,21 +1384,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall the record show it complete?”',
+        prompt: 'Shall the record show it complete?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm20_seam',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the climb done',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm20_seam' }],
           },
         ],
       },
@@ -2033,42 +1404,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'They were knights once,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Archivist says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "Now they're the King's habit, still fighting his wars. Give them rest — even loyalty deserves a future.",
+          "They were knights once. Now they're the King's habit, still fighting his wars. Give them rest — even loyalty deserves a future.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will the record show you willing?”',
+        prompt: 'Will the record show you willing?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm21_loyalty',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm21_loyalty' }],
           },
         ],
       },
@@ -2090,21 +1438,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall the record show it complete?”',
+        prompt: 'Shall the record show it complete?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm21_loyalty',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚔️ Say the Crownsworn rest',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm21_loyalty' }],
           },
         ],
       },
@@ -2119,46 +1458,22 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The Crownsworn carried a key out of habit,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Archivist says,',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          'but grief was the only lock. Before you climb — let me tell you what the last king chose to forget.',
+          'The Crownsworn carried a key out of habit, but grief was the only lock. Before you climb — let me tell you what the last king chose to forget.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will the record show you willing?”',
+        prompt: 'Will the record show you willing?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm22_umbral_key',
-              },
-              {
-                kind: 'storyEvent',
-                event: 'heard_archivists_counsel',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm22_umbral_key' }, {
+              'kind': 'storyEvent',
+              'event': 'heard_archivists_counsel',
+            }],
           },
         ],
       },
@@ -2173,25 +1488,11 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The door was never locked,',
+        text: 'The door was never locked, only mourned shut.',
         next: 't2',
       },
       {
         id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Archivist says,',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'only mourned shut.',
-        next: 't4',
-      },
-      {
-        id: 't4',
         kind: 'line',
         speaker: 'narrator',
         text:
@@ -2201,21 +1502,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall the record show it complete?”',
+        prompt: 'Shall the record show it complete?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm22_umbral_key',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Say the counsel is taken',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm22_umbral_key' }],
           },
         ],
       },
@@ -2230,42 +1522,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The stair is clear and the hour is yours,',
+        text:
+          'The stair is clear and the hour is yours. Up there sits a man who decided a hundred years ago that morning was a rumor. Do not hate him — out-wait him. Crowns break where patience will not.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'the Archivist says, pen motionless for the first time.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          'Up there sits a man who decided a hundred years ago that morning was a rumor. Do not hate him — out-wait him. Crowns break where patience will not.',
+        text: 'The Archivist’s pen is motionless for the first time.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will the record show you willing?”',
+        prompt: 'Will the record show you willing?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm23_aldric',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm23_aldric' }],
           },
         ],
       },
@@ -2280,30 +1556,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. But the Seam below the world is still open, and the future is worth guarding.",
+        text: 'The Archivist waits among the settling light, pen still.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall the record show it complete?”',
+        prompt: 'Shall the record show it complete?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm23_aldric',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '👑 Report the crown whole',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm23_aldric' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'narrator',
+        text:
+          "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. But the Seam below the world is still open, and the future is worth guarding.",
       },
     ],
   },
@@ -2316,42 +1590,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The sundering opened a seam beneath the world,',
+        text:
+          "The sundering opened a seam beneath the world. Echoes drift down it — everyone who ever sought the crown, still climbing, still believing. One of them wears Maren's face. Go down and bear witness: the future is worth guarding, even from below.",
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'the Archivist says, pen still at last.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text:
-          "Echoes drift down it — everyone who ever sought the crown, still climbing, still believing. One of them wears Maren's face. Go down and bear witness: the future is worth guarding, even from below.",
+        text: 'The Archivist’s pen is still, at last.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will the record show you willing?”',
+        prompt: 'Will the record show you willing?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm24_below',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm24_below' }],
           },
         ],
       },
@@ -2380,21 +1638,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Can we call it done, hero?”',
+        prompt: 'Can we call it done, hero?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm24_below',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌅 Say the Abyss is witnessed',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm24_below' }],
           },
         ],
       },
@@ -2409,42 +1658,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "The Warden doesn't threaten. It doesn't need to,",
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Echo of Maren says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
         text:
-          "The dark at the Seam's bottom arranges itself, patient as arithmetic. Rest, sharpen, and go down when you can carry the morning back up.",
+          "The Warden doesn't threaten. It doesn't need to. The dark at the Seam's bottom arranges itself, patient as arithmetic. Rest, sharpen, and go down when you can carry the morning back up.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you go where I cannot?”',
+        prompt: 'Will you go where I cannot?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm25_silence',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm25_silence' }],
           },
         ],
       },
@@ -2466,21 +1692,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Can we call it done, hero?”',
+        prompt: 'Can we call it done, hero?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'm25_silence',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌙 Report the silence kept',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm25_silence' }],
           },
         ],
       },
@@ -2508,21 +1725,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you help me mend this?”',
+        prompt: 'Will you help me mend this?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_rats',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_rats' }],
           },
         ],
       },
@@ -2537,41 +1745,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Cleaner streets and calmer granaries,',
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Lyra says.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'The village thanks you.',
+        text: 'Cleaner streets and calmer granaries. The village thanks you.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“All handed over?”',
+        prompt: 'Are the granaries quiet?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_rats',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the granaries quiet',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_rats' }],
           },
         ],
       },
@@ -2586,41 +1771,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Iron runs under the Whisperwood,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Bram says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Three chunks and I can keep your edge honest.',
+        text: 'Iron runs under the Whisperwood. Three chunks and I can keep your edge honest.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_ore',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_ore' }],
           },
         ],
       },
@@ -2634,42 +1796,26 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 't1',
         kind: 'line',
-        speaker: 'npc',
-        text: 'Good stock,',
-        next: 't2',
+        speaker: 'narrator',
+        text: 'Bram holds out a scarred palm.',
+        next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
-        speaker: 'narrator',
-        text: 'Bram says, weighing the ore.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
         speaker: 'npc',
-        text: "Now we're cooking.",
-        next: 'ta',
+        text: "Good stock. Now we're cooking.",
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Done, then?”',
+        prompt: 'Done, then?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_ore',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚒️ Hand over the ore',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_ore' }],
+            next: 't2',
           },
         ],
       },
@@ -2684,41 +1830,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The dimming frightens the children,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Lyra says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Ember shards make good luck-charms. Four would do.',
+        text:
+          'The dimming frightens the children. Ember shards make good luck-charms. Four would do.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you help me mend this?”',
+        prompt: 'Will you help me mend this?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_charm',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_charm' }],
           },
         ],
       },
@@ -2733,29 +1857,27 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The charms go up over doorways one by one. The village glows a little prouder.',
+        text: 'Lyra holds out her hands for the shards.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“All handed over?”',
+        prompt: 'All handed over?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_charm',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🔥 Hand over the shards',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_charm' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'narrator',
+        text: 'The charms go up over doorways one by one. The village glows a little prouder.',
       },
     ],
   },
@@ -2767,42 +1889,27 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'o1',
         kind: 'line',
-        speaker: 'npc',
-        text: 'A spider took more than my blood,',
+        speaker: 'narrator',
+        text: 'Ranger Pell sharpens a knife that has seen this argument before.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
-        speaker: 'narrator',
-        text: 'Ranger Pell mutters, sharpening a knife that has seen this argument before.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
         speaker: 'npc',
-        text: "Took my mother's locket. Eight spiders' worth of persuasion should get it back.",
+        text:
+          "A spider took more than my blood. Took my mother's locket. Eight spiders' worth of persuasion should get it back.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Coming, or not?”',
+        prompt: 'Coming, or not?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_locket',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_locket' }],
           },
         ],
       },
@@ -2817,30 +1924,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          "The locket, scratched but whole. Pell doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
+        text: 'Pell waits at the wood’s edge, saying nothing.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Done?”',
+        prompt: 'Done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_locket',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🧿 Say it is recovered',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_locket' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'narrator',
+        text:
+          "The locket, scratched but whole. Pell doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
       },
     ],
   },
@@ -2866,21 +1971,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Can I count on you?”',
+        prompt: 'Can I count on you?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_stag',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_stag' }],
           },
         ],
       },
@@ -2908,21 +2004,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Report: is it done?”',
+        prompt: 'Report: is it done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_stag',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚰️ Report the stag at rest',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_stag' }],
           },
         ],
       },
@@ -2937,41 +2024,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Boglins travel in numbers and opinions,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Reduce both.',
+        text: 'Boglins travel in numbers and opinions. Reduce both.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_boglins',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_boglins' }],
           },
         ],
       },
@@ -2986,41 +2050,25 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Quieter water already,',
+        text: 'Quieter water already. Should hold a week. Maybe two.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'the Ferryman says, poling past.',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Should hold a week. Maybe two.',
+        text: 'He poles past, eyes already downriver.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_boglins',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌊 Report the water quieter',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_boglins' }],
           },
         ],
       },
@@ -3035,41 +2083,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The hags sing at night,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Ferryman says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Their songs stick to your ribs. Five silences, and the swamp sleeps.',
+        text:
+          'The hags sing at night. Their songs stick to your ribs. Five silences, and the swamp sleeps.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Do we cross together?”',
+        prompt: 'Do we cross together?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_hags',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_hags' }],
           },
         ],
       },
@@ -3090,21 +2116,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall we call it square?”',
+        prompt: 'Shall we call it square?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_hags',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌙 Report the night silent',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_hags' }],
           },
         ],
       },
@@ -3119,41 +2136,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Scarabs strip the clockwork for gold,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Curator Ombra says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: "A dozen fewer, and the city's heart can beat again.",
+        text:
+          "Scarabs strip the clockwork for gold. A dozen fewer, and the city's heart can beat again.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_scarabs',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_scarabs' }],
           },
         ],
       },
@@ -3168,34 +2163,25 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The gears turn easier,',
+        text: 'The gears turn easier.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ombra notes, sounding almost pleased.',
+        text: 'Ombra sounds almost pleased.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_scarabs',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚙️ Report the swarm broken',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_scarabs' }],
           },
         ],
       },
@@ -3210,41 +2196,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The lynx were pets of the old astronomers,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Ombra says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Their children hunt pilgrims now. Six of them, and the roads open.',
+        text:
+          'The lynx were pets of the old astronomers. Their children hunt pilgrims now. Six of them, and the roads open.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Shall I enter you in the ledger?”',
+        prompt: 'Shall I enter you in the ledger?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_lynx',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_lynx' }],
           },
         ],
       },
@@ -3272,21 +2236,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall I close the ledger?”',
+        prompt: 'Shall I close the ledger?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_lynx',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🐾 Report the roads open',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_lynx' }],
           },
         ],
       },
@@ -3301,41 +2256,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'They froze mid-oath, all of them,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Rho says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Eight unkept promises, wandering. Unstick them.',
+        text: 'They froze mid-oath, all of them. Eight unkept promises, wandering. Unstick them.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“You up for it?”',
+        prompt: 'You up for it?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_wraiths',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_wraiths' }],
           },
         ],
       },
@@ -3356,21 +2288,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Finished?”',
+        prompt: 'Finished?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_wraiths',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🕯️ Report the oaths released',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_wraiths' }],
           },
         ],
       },
@@ -3385,41 +2308,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Yetis respect two things,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Rho says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: "Size and consequences. You're not big. Be convincing.",
+        text: "Yetis respect two things. Size and consequences. You're not big. Be convincing.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“You up for it?”',
+        prompt: 'You up for it?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_yetis',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_yetis' }],
           },
         ],
       },
@@ -3442,41 +2342,25 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'Four arguments,',
+        text: 'Four arguments. Yours carried more weight.',
         next: 't3',
       },
       {
         id: 't3',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho says, watching the snow settle.',
-        next: 't4',
-      },
-      {
-        id: 't4',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Yours carried more weight.',
+        text: 'Rho watches the snow settle.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Finished?”',
+        prompt: 'Finished?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_yetis',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🏔️ Report the yetis convinced',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_yetis' }],
           },
         ],
       },
@@ -3491,41 +2375,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "Imps are the Flame's hiccups,",
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Fourteen fewer hiccups, and the Wastes breathe.',
+        text: "Imps are the Flame's hiccups. Fourteen fewer hiccups, and the Wastes breathe.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_imps',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_imps' }],
           },
         ],
       },
@@ -3546,21 +2407,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_imps',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🔥 Report the hiccups cured',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_imps' }],
           },
         ],
       },
@@ -3575,41 +2427,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Salamanders herd travelers into lava,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Old instinct, no malice in it. Break eight of the herds and the paths stay open.',
+        text:
+          'Salamanders herd travelers into lava. Old instinct, no malice in it. Break eight of the herds and the paths stay open.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you walk this road with me?”',
+        prompt: 'Will you walk this road with me?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_salamanders',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_salamanders' }],
           },
         ],
       },
@@ -3624,41 +2454,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The lava stays hungry,',
-        next: 't2',
-      },
-      {
-        id: 't2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Sorrel says,',
-        next: 't3',
-      },
-      {
-        id: 't3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'but it dines alone now.',
+        text: 'The lava stays hungry, but it dines alone now.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“May we call this mercy done?”',
+        prompt: 'May we call this mercy done?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_salamanders',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🌋 Report the herds broken',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_salamanders' }],
           },
         ],
       },
@@ -3673,41 +2480,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Shades fear names,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'the Archivist says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Yours is spoken by whatever you wield. Same thing, down here.',
+        text: 'Shades fear names. Yours is spoken by whatever you wield. Same thing, down here.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will the record show you willing?”',
+        prompt: 'Will the record show you willing?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_shades',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_shades' }],
           },
         ],
       },
@@ -3728,21 +2512,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Shall the record show it complete?”',
+        prompt: 'Shall the record show it complete?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_shades',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '📜 Report the shades named',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_shades' }],
           },
         ],
       },
@@ -3757,41 +2532,19 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Every echo was somebody,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Echo of Maren says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Ten honors, hero. Give them what they never got: an ending.',
+        text:
+          'Every echo was somebody. Ten honors, hero. Give them what they never got: an ending.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you go where I cannot?”',
+        prompt: 'Will you go where I cannot?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_echoes',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_echoes' }],
           },
         ],
       },
@@ -3812,21 +2565,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Can we call it done, hero?”',
+        prompt: 'Can we call it done, hero?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_echoes',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '⚰️ Report the honors given',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_echoes' }],
           },
         ],
       },
@@ -3841,41 +2585,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The hounds hunt echoes,',
-        next: 'o2',
-      },
-      {
-        id: 'o2',
-        kind: 'line',
-        speaker: 'narrator',
-        text: 'Echo of Maren says.',
-        next: 'o3',
-      },
-      {
-        id: 'o3',
-        kind: 'line',
-        speaker: 'npc',
-        text: 'Unfair, even down here. Quiet fifteen of them.',
+        text: 'The hounds hunt echoes. Unfair, even down here. Quiet fifteen of them.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you go where I cannot?”',
+        prompt: 'Will you go where I cannot?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'sq_null',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_null' }],
           },
         ],
       },
@@ -3896,21 +2617,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Can we call it done, hero?”',
+        prompt: 'Can we call it done, hero?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [
-              {
-                kind: 'turnInQuest',
-                questId: 'sq_null',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            label: '🐾 Report the hounds quiet',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_null' }],
           },
         ],
       },
@@ -3925,7 +2637,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Maren presses the wax-sealed letter into your hands.',
+        text: 'The sealed letter sits warm where Maren pressed it.',
         next: 'o2',
       },
       {
@@ -3939,21 +2651,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'oa',
         kind: 'choice',
-        prompt: '“Will you carry this for us?”',
+        prompt: 'Will you carry this for us?',
         choices: [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [
-              {
-                kind: 'acceptQuest',
-                questId: 'm2_letter',
-              },
-            ],
-          },
-          {
-            id: 'notyet',
-            label: '✋ Not yet',
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'm2_letter' }],
           },
         ],
       },
@@ -3978,7 +2681,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         speaker: 'npc',
         text:
           "The Flame isn't just dying — its tomorrow was stolen and scattered. The Whisperwood roots still carry warmth. Follow it. Find where the light went.",
-        effects: [{ kind: 'storyEvent', event: 'heard_bram_reading' }],
+        effects: [{ 'kind': 'storyEvent', 'event': 'heard_bram_reading' }],
       },
     ],
   },
@@ -3990,27 +2693,32 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 't1',
         kind: 'line',
-        speaker: 'npc',
-        text:
-          "The letter goes in the drawer of things that matter — the one I open on hard days. What Maren sealed, we've both read now, and the road is the same road.",
+        speaker: 'narrator',
+        text: 'Bram holds out his hand for the letter.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: '“Do we have a bargain?”',
+        prompt: 'Do we have a bargain?',
         choices: [
           {
             id: 'handover',
-            label: '📦 Hand it over',
-            effects: [{ kind: 'turnInQuest', questId: 'm2_letter' }],
+            label: '✉️ Hand over the letter',
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'm2_letter' }],
+            next: 't2',
           },
-          { id: 'notyet', label: '✋ Not yet' },
         ],
+      },
+      {
+        id: 't2',
+        kind: 'line',
+        speaker: 'npc',
+        text:
+          "The letter goes in the drawer of things that matter — the one I open on hard days. What Maren sealed, we've both read now, and the road is the same road.",
       },
     ],
   },
-
   // ══ The shrine-pledge routes (#132) ═════════════════════════════════
   // sq_shrine_pact and sq_ledger_debt start directly from the Ferryman's
   // ledger conversation (dlg_ferry_promise) — they are never offered as
@@ -4039,7 +2747,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [{ kind: 'acceptQuest', questId: 'sq_shrine_pact' }],
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_shrine_pact' }],
           },
         ],
       },
@@ -4073,7 +2781,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'handover',
             label: '🕯️ Return the light to the shrine',
-            effects: [{ kind: 'turnInQuest', questId: 'sq_shrine_pact' }],
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_shrine_pact' }],
             next: 't3',
           },
           {
@@ -4082,7 +2790,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
             irreversible: true,
             consequenceHint:
               'The shrine\'s reward stays behind — the light is yours, and the ledger writes "kept" permanently.',
-            effects: [{ kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' }],
+            effects: [{ 'kind': 'resolveQuest', 'questId': 'sq_shrine_pact', 'outcome': 'kept' }],
             next: 't4',
           },
         ],
@@ -4123,7 +2831,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'accept',
             label: '🤝 Accept',
-            effects: [{ kind: 'acceptQuest', questId: 'sq_ledger_debt' }],
+            effects: [{ 'kind': 'acceptQuest', 'questId': 'sq_ledger_debt' }],
           },
         ],
       },
@@ -4157,7 +2865,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
           {
             id: 'handover',
             label: '📜 Settle the debt with the shrine',
-            effects: [{ kind: 'turnInQuest', questId: 'sq_ledger_debt' }],
+            effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_ledger_debt' }],
           },
         ],
       },
