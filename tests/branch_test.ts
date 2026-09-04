@@ -16,7 +16,6 @@ import { npcTopics } from '../src/engine/npc.ts';
 import { evalCondition } from '../src/engine/conditions.ts';
 import { applyDialogueChoice, applyStoryEffects } from '../src/engine/story.ts';
 import type { StoryContext } from '../src/engine/story.ts';
-import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
