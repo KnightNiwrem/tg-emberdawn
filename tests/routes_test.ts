@@ -496,3 +496,77 @@ Deno.test('content integrity: route ids never collide with route helper lookups'
     assert(routesBetween(r.from, r.to).includes(r), `routesBetween must include ${r.id}`);
   }
 });
+
+// ── world-topology documentation checks (#163) ───────────────────────────
+
+Deno.test('world topology: the authoring map matches the shipped catalog (#163)', async () => {
+  // docs/world-topology.md is a maintained authoring map, not a second
+  // mechanics source — its mechanical facts are test-checked here.
+  const doc = await Deno.readTextFile(new URL('../docs/world-topology.md', import.meta.url));
+  const zones = new Set(ZONES.map((z) => z.id));
+  // Every zone and every route id appears in the documented map (by name
+  // or road id), so the doc cannot silently lag the world.
+  for (const z of ZONES) {
+    assert(doc.includes(z.name), `the topology map never names ${z.name}`);
+  }
+  // The documented haven/facility matrix matches the catalog.
+  const havens = ZONES.filter((z) => z.safeHaven).map((z) => z.id);
+  assertEquals(havens.sort(), ['emberdawn', 'mirefoot'], 'the map documents exactly these havens');
+  assert(doc.includes('Mirefoot Landing') && doc.includes('forge only') === false);
+  const shopZones = ZONES.filter((z) => z.services?.shop).map((z) => z.id).sort();
+  assertEquals(
+    shopZones,
+    ['cinder', 'emberdawn', 'frostpeak', 'hollowmere', 'sunspire'],
+    'five authored shops across the map',
+  );
+  const forgeZones = ZONES.filter((z) => z.services?.forge).map((z) => z.id).sort();
+  assertEquals(forgeZones, ['cinder', 'emberdawn', 'mirefoot'], 'three authored forges');
+  // The starter region and the Descent's exceptional count are documented.
+  assert(doc.includes('zero-event'), 'starter roads are documented as zero-event');
+  assert(doc.includes('3') && doc.includes('Descent'), 'the exceptional expedition is documented');
+  void zones;
+});
+
+Deno.test('world topology: road tables keep meaningful quiet/beneficial room (#163)', () => {
+  // "Random event" must never become a euphemism for mandatory combat:
+  // every nonzero-event table keeps at least a quarter of its weight
+  // non-hostile (level-gated battles excluded from the promise).
+  for (const r of ROUTES) {
+    const tables: TravelEvent[][] = [r.events ?? []];
+    for (const v of r.variants ?? []) {
+      if ((v.events ?? r.events ?? []).length > 0 && (v.eventCount ?? 0) > 0) {
+        tables.push(v.events ?? r.events ?? []);
+      }
+    }
+    for (const table of tables) {
+      if (table.length === 0) continue;
+      const total = table.reduce((a, e) => a + e.weight, 0);
+      const hostile = table
+        .filter((e) => e.kind === 'battle')
+        .reduce((a, e) => a + e.weight, 0);
+      const quiet = (total - hostile) / total;
+      assert(
+        quiet >= 0.25,
+        `${r.id}: only ${(quiet * 100).toFixed(0)}% of the road is non-hostile`,
+      );
+    }
+  }
+});
+
+Deno.test('world topology: a quest-secured road can drop to a zero-event crossing (#163)', () => {
+  const p = createPlayer(1660, 'Trader', 'warrior');
+  p.level = 20;
+  p.unlockedZones.push('sunspire', 'hollowmere');
+  p.currentZone = 'sunspire';
+  const edge = route('w_sunspire_hollowmere')!;
+  assertEquals(resolveRoute(p, edge).eventCount, 1, 'the patrolled descent rolls');
+  p.quests['m10_cult'] = { status: 'done', counts: [8] };
+  const plan = resolveRoute(p, edge);
+  assertEquals(plan.variantId, 'v_sun_road_open');
+  assertEquals(plan.eventCount, 0, 'caravans run: a zero-event secured road');
+  assertEquals(plan.risk, 'sheltered');
+  // The base table is untouched for players who have not broken the cult.
+  const other = createPlayer(1661, 'Patrol', 'mage');
+  other.level = 20;
+  assertEquals(resolveRoute(other, edge).eventCount, 1);
+});

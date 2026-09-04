@@ -280,6 +280,18 @@ export const ROUTES: readonly RouteDef[] = [
         text: 'A cultist\u2019s tithe-purse, cut and abandoned in the scrub.',
       },
     ],
+    variants: [
+      {
+        id: 'v_sun_road_open',
+        // The cult is broken (#163): caravans run the upper miles again,
+        // and the descent is a zero-event secured road.
+        when: { questStatus: { questId: 'm10_cult', is: 'done' } },
+        eventCount: 0,
+        name: 'The Sun Road — caravans run',
+        desc: 'Wagon ruts replace the patrol tracks. The cult\u2019s flags are down; trade is up.',
+        risk: 'sheltered',
+      },
+    ],
   },
 
   // ── Chapter 4 — up to the ice ──────────────────────────────────────────
