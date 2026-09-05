@@ -177,6 +177,19 @@ export interface JourneyState {
   report: string[];
 }
 
+/** Victory rewards staged onto the battle (#40, #67): the ONE authoritative
+ * reward record renderers read. `xpConvertedGold` is the post-cap conversion
+ * actually granted (stamped BEFORE the XP grant, #40). `contextual` (#165)
+ * carries the zone loot table's granted rolls — plain {item, qty} data, never
+ * parsed from presentation text. */
+export interface BattleRewards {
+  xp: number;
+  gold: number;
+  drops: string[];
+  xpConvertedGold?: number;
+  contextual?: { item: string; qty: number }[];
+}
+
 export interface BattleState {
   enemy: EnemyInstance;
   phase: BattlePhase;
@@ -213,8 +226,11 @@ export interface BattleState {
   /** Rewards staged on victory. `xpConvertedGold` is the amount actually
    * granted by post-cap conversion (stamped by `resolveVictory` BEFORE the
    * XP grant, #40) — renderers must never re-infer it from the player's
-   * current level, or a 44→45 victory advertises unawarded gold. */
-  rewards?: { xp: number; gold: number; drops: string[]; xpConvertedGold?: number };
+   * current level, or a 44→45 victory advertises unawarded gold.
+   * `contextual` (#165) is the zone loot table's granted rolls, stamped by
+   * `resolveVictory` from the structured origin: plain {item, qty} data a
+   * renderer or harness reads directly — never parsed from prose lines. */
+  rewards?: BattleRewards;
   /** Phoenix Cinder already spent this battle (revive is once per battle).
    * Required in the current battle shape; initialized by startBattle (#44). */
   phoenixUsed: boolean;

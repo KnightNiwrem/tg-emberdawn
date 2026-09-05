@@ -6,6 +6,7 @@
 
 import type {
   BattleOrigin,
+  BattleRewards,
   BattleState,
   EffectInstance,
   EffectSource,
@@ -2032,7 +2033,7 @@ export function onLethalHit(
 export function rollRewards(
   def: EnemyDef,
   rng: Rng = defaultRng,
-): { xp: number; gold: number; drops: string[]; xpConvertedGold?: number } {
+): BattleRewards {
   const drops: string[] = [];
   for (const [id, dropChance] of Object.entries(def.drops ?? {})) {
     if (chance(rng, dropChance)) drops.push(id);

@@ -7,7 +7,10 @@
  */
 
 import { dropTable } from '../content/loot.ts';
+import { itemName } from '../content/items.ts';
+import { grantItem, questDropAllowed, questReadyLine } from './quests.ts';
 import { defaultRng, type Rng } from './rng.ts';
+import type { PlayerState } from './types.ts';
 
 export interface ContextualDrop {
   item: string;
@@ -28,4 +31,25 @@ export function rollDropTable(
     if (rng() < e.chance) out.push({ item: e.item, qty: e.qty ?? 1 });
   }
   return out;
+}
+
+/**
+ * The ONE contextual grant site (#158, #165): every rolled contextual drop
+ * — travel treasure and victory zone loot alike — passes through here, so
+ * quest-kind drops ALWAYS obey the central relevance filter (#2) and every
+ * grant routes through the central item path (collect objectives can
+ * complete on the spot, and readiness is announced through questReadyLine).
+ * Returns the presentation lines in grant order.
+ */
+export function grantContextualDrops(
+  p: PlayerState,
+  drops: readonly ContextualDrop[],
+): string[] {
+  const lines: string[] = [];
+  for (const drop of drops) {
+    if (!questDropAllowed(p, drop.item)) continue;
+    lines.push(`🎁 Found: ${itemName(drop.item)}${drop.qty > 1 ? ` ×${drop.qty}` : ''}`);
+    for (const qid of grantItem(p, drop.item, drop.qty)) lines.push(questReadyLine(qid));
+  }
+  return lines;
 }

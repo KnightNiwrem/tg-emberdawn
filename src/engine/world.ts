@@ -3,7 +3,7 @@
  * Battles returned from here are stored on the player by the caller.
  */
 
-import type { BattleState, PlayerState } from './types.ts';
+import type { BattleOrigin, BattleState, PlayerState } from './types.ts';
 import type { DungeonDef, ExploreEvent, ZoneDef } from '../content/types.ts';
 import { zone } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
@@ -23,6 +23,7 @@ import {
   syncAvailability,
 } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
+import { grantContextualDrops, rollDropTable } from './loot.ts';
 import { itemName } from '../content/items.ts';
 
 /**
@@ -88,9 +89,24 @@ export type ExploreOutcome =
 
 /**
  * Victory resolution for ANY battle, routed by structured origin:
- * rewards → kills/stats → quest hooks → dungeon bookkeeping (only when the
- * battle truly came from a dungeon). Pure engine, so tests can drive it.
+ * rewards → zone contextual loot → kills/stats → quest hooks → dungeon
+ * bookkeeping (only when the battle truly came from a dungeon). Pure
+ * engine, so tests can drive it.
  */
+
+/** Origin policy for zone contextual loot (#165): battles fought in the
+ * zone's OPEN world roll its authored `lootTable` in addition to ordinary
+ * enemy rewards — explore and elite encounters in the zone, and travel
+ * battles on roads departing it (a travel origin's `zoneId` is the road's
+ * origin zone). Dungeon battles are EXCLUDED: a dungeon victory already
+ * grants its authored floor caches and clear rewards, and the depths are a
+ * distinct sub-context from the zone's open fields. The eligible zone
+ * resolves ONLY from the structured battle origin — never from callback
+ * data or display text. */
+export function zoneLootEligible(origin: BattleOrigin): boolean {
+  return origin.kind === 'explore' || origin.kind === 'elite' || origin.kind === 'travel';
+}
+
 export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaultRng): string[] {
   const def = enemyDef(b.enemy.id);
   if (!def) return [];
@@ -122,6 +138,23 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   const ready: string[] = [];
   lines.push(...grantXp(p, rewards.xp));
   lines.push(...grantDropRewards(p, rewards.drops));
+  // #165: the zone's own contextual resources roll here, exactly once, from
+  // the structured origin — in addition to the ordinary enemy rewards. The
+  // ONE shared contextual grant site applies the central relevance filter
+  // (#2) and routes through the central item path, so collect objectives
+  // can complete on the spot like any other gain.
+  if (zoneLootEligible(b.origin)) {
+    const z = zone(b.origin.zoneId);
+    if (z?.lootTable) {
+      const contextual = rollDropTable(z.lootTable, rng);
+      const granted = contextual.filter((d) => questDropAllowed(p, d.item));
+      if (granted.length > 0) {
+        rewards.contextual = granted;
+        lines.push(...grantContextualDrops(p, granted));
+        ready.push(...onItemGain(p));
+      }
+    }
+  }
   // An ordinary drop can complete a collect objective on the spot.
   ready.push(...onItemGain(p));
   p.stats.kills++;

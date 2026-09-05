@@ -23,10 +23,10 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { itemName } from '../content/items.ts';
 import { type BattleOutcome, startBattle } from './combat.ts';
 import { statsOf } from './character.ts';
-import { grantItem, questDropAllowed, questReadyLine } from './quests.ts';
+import { grantItem, questReadyLine } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { arriveAt, encounterEligible } from './world.ts';
-import { rollDropTable } from './loot.ts';
+import { grantContextualDrops, rollDropTable } from './loot.ts';
 import { resolveRouteById } from './routes.ts';
 
 /** One coordinator result: what the handler should show next. */
@@ -83,13 +83,9 @@ function applyQuietEvent(p: PlayerState, ev: TravelEvent, rng: Rng): string[] {
         for (const qid of grantItem(p, ev.item, 1)) lines.push(questReadyLine(qid));
       }
       if (ev.dropTable) {
-        // Contextual route resources (#158), granted through the central
-        // item path — quest-kind drops stay relevance-filtered.
-        for (const drop of rollDropTable(ev.dropTable, rng)) {
-          if (!questDropAllowed(p, drop.item)) continue;
-          lines.push(`🎁 Found: ${itemName(drop.item)}${drop.qty > 1 ? ` ×${drop.qty}` : ''}`);
-          for (const qid of grantItem(p, drop.item, drop.qty)) lines.push(questReadyLine(qid));
-        }
+        // Contextual route resources (#158) through the ONE shared grant
+        // site — quest-kind drops stay relevance-filtered (#165).
+        lines.push(...grantContextualDrops(p, rollDropTable(ev.dropTable, rng)));
       }
       return lines;
     }

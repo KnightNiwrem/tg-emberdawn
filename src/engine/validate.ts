@@ -320,6 +320,9 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
   for (const drop of b.rewards?.drops ?? []) {
     if (!item(drop)) bad('battle.rewards', drop, 'unknown drop item id');
   }
+  for (const drop of b.rewards?.contextual ?? []) {
+    if (!item(drop.item)) bad('battle.rewards.contextual', drop.item, 'unknown contextual item id');
+  }
 }
 
 function validateReceipt(receipt: string, bad: Report): void {
