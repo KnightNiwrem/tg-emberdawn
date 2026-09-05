@@ -56,7 +56,7 @@ Deno.test('quest brief: every committing offer and report shows the quest, work,
         }
         if (o.kind === 'collect') {
           assert(view.includes(`${itemName(o.target)} ×${o.count ?? 1}`));
-          assert(view.includes('These leave your bag.'));
+          assert(view.includes(stage === 'offer' ? 'At completion, hand over:' : 'Hand over now:'));
         }
       }
       assertEquals(JSON.stringify(p), before, 'reading a decision never mutates progress');

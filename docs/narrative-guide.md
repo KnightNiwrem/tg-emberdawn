@@ -72,6 +72,8 @@ reviewed in the earlier entries of `editorial-review.md`.
   system terms are allowed, clearly as UI.
 - Never jokes at the player's expense, never withholds information for tone. "You are nowhere.
   Somehow." is a defect; "You are far from any road. Travel to rejoin the world." is the register.
+- Trust familiar action labels: **Not now**, **Finish with**, and **Hand over** need no explanation
+  of their ordinary meaning. State the actual requirements, rewards, and unusual consequences once.
 
 ### Character dialogue
 

@@ -58,7 +58,6 @@ Deno.test('quest decision UI: first offer highlights work and rewards and pairs 
   for (
     const fact of [
       'Finish with Elder Maren — Emberdawn Village.',
-      'Completion is a report; no items are handed over.',
       '✨ +120 XP',
       '80 gold',
       'Sealed Letter ×1',
@@ -88,7 +87,6 @@ Deno.test('quest decision UI: collection costs, progress, and reward timing stay
     const blocks = questBriefBlocks(p, q, mode);
     const text = visible(blocks);
     assert(text.includes('Sealed Letter ×1'));
-    assert(text.includes('These leave your bag.'));
     assert(text.includes('Finish with Blacksmith Bram — Emberdawn Village.'));
     assert(text.includes(mode === 'turnIn' ? 'Hand over now:' : 'At completion, hand over:'));
     assert(text.includes(mode === 'turnIn' ? '🎁 Rewards now' : '🎁 Rewards on completion'));
@@ -96,7 +94,7 @@ Deno.test('quest decision UI: collection costs, progress, and reward timing stay
     assert(
       blocks.some((b) =>
         b.type === 'paragraph' && typeof b.text === 'object' && !Array.isArray(b.text) &&
-        b.text.type === 'bold' && visible(b).includes('These leave your bag.')
+        b.text.type === 'bold' && visible(b).includes('Sealed Letter ×1')
       ),
     );
   }
@@ -279,7 +277,7 @@ Deno.test('quest decision UI: direct grants, travel unlocks, and item costs disc
   assert(text.includes('🎁 Receive now'));
   assert(text.includes('Receive: Wisp Lantern ×1.'));
   assert(text.includes('Opens travel to: Whisperwood.'));
-  assert(text.includes('Hand over now: Sealed Letter ×1. These leave your bag.'));
+  assert(text.includes('Hand over now: Sealed Letter ×1.'));
   p.unlockedZones.push('whisperwood');
   assert(!visible(choiceQuestBlocks(p, c)).includes('Opens travel to:'));
   p.level = 45;

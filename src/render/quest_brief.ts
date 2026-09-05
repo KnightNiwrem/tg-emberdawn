@@ -177,18 +177,14 @@ export function questBriefBlocks(
   const fin = questFinisher(q.id)!;
   blocks.push(para(`Finish with ${fin.npc.name} — ${fin.zone.name}.`));
   const goods = [...collectRequirements(q)].map(([id, n]) => `${itemName(id)} ×${n}`);
-  blocks.push(
-    para(
-      goods.length > 0
-        ? {
-          type: 'bold',
-          text: `${mode === 'turnIn' ? 'Hand over now' : 'At completion, hand over'}: ${
-            goods.join(' · ')
-          }. These leave your bag.`,
-        }
-        : 'Completion is a report; no items are handed over.',
-    ),
-  );
+  if (goods.length) {
+    blocks.push(para({
+      type: 'bold',
+      text: `${mode === 'turnIn' ? 'Hand over now' : 'At completion, hand over'}: ${
+        goods.join(' · ')
+      }.`,
+    }));
+  }
   blocks.push(
     heading(mode === 'turnIn' ? '🎁 Rewards now' : '🎁 Rewards on completion', 4),
     list(rewardBlocks(p, q)),
@@ -251,7 +247,7 @@ export function choiceQuestBlocks(p: PlayerState, c: DialogueChoice): InputRichB
       case 'removeItem':
         consequences.push([para({
           type: 'bold',
-          text: `Hand over now: ${itemName(e.itemId)} ×${e.qty ?? 1}. These leave your bag.`,
+          text: `Hand over now: ${itemName(e.itemId)} ×${e.qty ?? 1}.`,
         })]);
         break;
     }
