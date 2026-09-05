@@ -96,10 +96,15 @@ Deno.test('defeat during a travel battle ends the crossing and revives at the ha
   assert(res.ok && res.step.kind === 'battle');
   await store.set(p.userId, p);
 
-  // The road fight wins: the hero falls.
+  // The road fight wins: the hero falls. The counter must land — a dodge
+  // slip is always possible, so keep swinging until the fight resolves
+  // (the hero never heals; an undodged hit at 1 HP is lethal).
   p.battle!.enemy.hp = 999999;
   p.hp = 1;
-  battleAction(p, { v: 'battle', a: 'atk' });
+  let guard = 0;
+  while (p.battle!.phase === 'active' && guard++ < 50) {
+    battleAction(p, { v: 'battle', a: 'atk' });
+  }
   assertEquals(p.battle!.phase, 'lost');
   assertEquals(p.scene.view, 'death');
   // Rise again: journey + battle clear, penalties apply, the haven receives.

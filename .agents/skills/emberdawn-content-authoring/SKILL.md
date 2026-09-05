@@ -37,12 +37,18 @@ and must stay green.
 ## Economy
 
 - Selling returns 40% of price.
-- Shop tier follows the player level clamped to the zone's band (`shopTierFor`) — that governs
-  consumables and materials, which are always usable, so it is pure zone flavor.
+- Shops are AUTHORED local catalogs (`ShopDef`, referenced by a zone's `services.shop`): each shop
+  owns its stock rules in authored order, with condition-gated groups (`when` — e.g. Bram's tier-2
+  steel opens exactly at the m5_arms beat) and authored local price rules (`pricePct`). There is no
+  computed universal stock and no `shopTierFor` — what a counter carries is what the author wrote
+  for that counter (#161).
 - Equipment is filtered per shopper: only their class, only pieces they can actually equip
-  (`def.level ≤ player level`). The old clamp-up baited low-level travelers with level-locked gear.
-  The counter revalidates `isEquippable` before charging (defense in depth). Trinkets stock only
-  what the player can currently equip (`item.level ≤ player level`).
+  (`def.level ≤ player level`). The counter revalidates `isEquippable` before charging (defense in
+  depth). Trinkets stock only what the player can currently equip (`item.level ≤ player level`).
+- Zone contextual loot (#158/#165): zones author a `lootTable` (stable id in `content/loot.ts`)
+  rolled IN ADDITION to ordinary enemy rewards for explore/elite/travel battles resolved in that
+  zone (dungeon battles grant their own caches instead). Quest-kind drops in any contextual table
+  stay behind the central relevance filter.
 - Forge tempers up to +5 are item-pattern mastery (`forge_i_<itemId>` flags — a documented design
   choice: every copy of that catalog id carries the temper, replacement loot inherits your
   forge-work, and the forge is a bounded per-pattern sink) and boost only that item's own base
