@@ -254,7 +254,7 @@ function renderTravelConfirmation(p: PlayerState): InputRichMessage | undefined 
       if (plan.desc) blocks.push(para({ type: 'italic', text: plan.desc } as RichText));
       blocks.push(
         para(
-          'Road events are rolled as you walk: some are hostile fights you can flee, others are quiet stretches, caches or shelter. Retreat returns you here, to the origin.',
+          'Fleeing or retreating returns you to your departure point.',
         ),
       );
       blocks.push(
@@ -279,9 +279,7 @@ export function renderTravel(p: PlayerState): InputRichMessage {
   const blocks: Block[] = [
     heading('🧭 Travel', 3),
     ...noticesBlocks(p),
-    para(
-      'Every road leads somewhere specific. Road events are rolled as you walk — they may be hostile, quiet, or helpful. A count is rolls, never promised battles.',
-    ),
+    para('Road events may be battles, quiet stretches, or useful finds.'),
   ];
   const routes = usableRoutesFrom(p);
   // Adjacent roads that are NOT currently usable get a clear line — the
@@ -580,11 +578,9 @@ export function renderForge(p: PlayerState): InputRichMessage {
     heading(`⚒️ ${forge.name}`, 3),
     ...(forge.desc ? [para({ type: 'italic', text: forge.desc } as RichText)] : []),
     para(
-      "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. Mastery binds to the pattern: every copy of this gear you ever own — forged, bought or looted — carries your forge-work.",
+      "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. All copies of this gear share your temper level.",
     ),
-    para(
-      '⚡ Triggered item effects are fixed authored data — tempering never changes their chance, potency or duration.',
-    ),
+    para('⚡ Tempering does not change item effects.'),
     ...noticesBlocks(p),
     para(
       `🗡️ ${p.equipment.weapon ? itemName(p.equipment.weapon) : '—'}: +${
@@ -984,9 +980,9 @@ export function renderHelp(): InputRichMessage {
           '🏪 ⚒️ Shops and forges live where they are built — each with its own stock and craft. Better gear means reaching the region that sells it.\n' +
           '⚔️ Battles — your free action, Skills, Items, Guard, Flee. Free actions are class-typed: Warrior/Rogue attack with ATK, Mage/Cleric with MAG. SPD pays off: outspeeding a foe slips its damaging blows aside (baseline 2%, hard cap 20%).\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
-          '⚒️ Forges — temper gear to +5 at a forge that can; mastery binds to the pattern.\n' +
-          '🚶 Travel — you walk ADJACENT roads, one edge at a time. Starter roads are safe and immediate; farther roads roll road events as you walk — hostile, quiet, or helpful. Fleeing or retreating returns you to the road\u2019s origin, and arriving at a haven restores you fully.\n\n' +
-          'Everything happens in this one message — /start re-centers it if it ever gets lost.',
+          '⚒️ Forges — temper gear up to +5 where available. All copies of the same gear share its temper level.\n' +
+          '🚶 Travel — follow roads between adjacent places. Starter roads are safe and immediate; farther roads have events such as battles, quiet stretches, or useful finds. Fleeing or retreating returns you to your departure point.\n\n' +
+          'Use /start to find the game message again.',
       ),
       buttonsRow([cbBtn('⬅️ Back to the game', encodeCb({ v: 'zone', a: 'hm' }), 'primary')]),
     ],

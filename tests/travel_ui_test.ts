@@ -64,7 +64,7 @@ Deno.test('each route shows its roll count as events, never as battles', () => {
   assert(view.includes('2 road events'), 'the exact roll count renders');
   assert(!view.includes('2 battles'), 'counts are never described as battles');
   assert(
-    view.includes('never promised battles'),
+    view.includes('Road events may be battles, quiet stretches, or useful finds.'),
     'the view explains events may be hostile, quiet, or helpful',
   );
   assert(view.includes('wild'), 'the authored risk descriptor renders');
@@ -100,6 +100,7 @@ Deno.test('perilous departures stage an explicit confirmation; starter roads sta
   assert(panel.includes('Depart for The Abyss'));
   assert(panel.includes('3 road events'));
   assert(panel.includes('perilous'));
+  assert(panel.includes('Fleeing or retreating returns you to your departure point.'));
   // Confirming departs.
   const go = travelAction(p, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
   assertEquals(p.currentZone !== 'umbra' || p.journey !== undefined, true, 'the crossing began');
@@ -170,8 +171,8 @@ Deno.test('the hub preserves a live crossing; back never resets to the zone hub'
 Deno.test('help and tutorial copy describe conditional travel and local facilities', () => {
   const help = JSON.stringify(renderHelp());
   assert(!help.includes('travel costs nothing'), 'the old universal-free claim is gone');
-  assert(help.includes('ADJACENT roads'), 'travel teaches adjacency');
-  assert(help.includes('road events'), 'road events are explained');
+  assert(help.includes('roads between adjacent places'), 'travel teaches adjacency');
+  assert(help.includes('roads have events'), 'road events are explained');
   assert(help.includes('Not every haven offers services'), 'safety and services are orthogonal');
   const release = JSON.stringify(tutorialRelease());
   assert(!release.includes('costs nothing'));
