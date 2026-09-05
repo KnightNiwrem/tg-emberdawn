@@ -9,7 +9,7 @@ import { clampPools, statsOf } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
-import { advanceJourney, completeTravelBattleEvent } from '../engine/journey.ts';
+import { advanceJourney, completeTravelBattleEvent, type JourneyStep } from '../engine/journey.ts';
 import { coachTutorial, grantTutorialReward, tutorialRelease } from './tutorial.ts';
 import type { MutationResult } from './session.ts';
 
@@ -51,7 +51,12 @@ export function enterBattle(
 /** Resumes the crossing after a travel battle's Continue (#159): the next
  * event rolls resolve, or the final arrival lands. */
 function resumeJourney(p: PlayerState): MutationResult {
-  const step = advanceJourney(p);
+  return applyJourneyStep(p, advanceJourney(p));
+}
+
+/** Applies an already-resolved coordinator result (#179); never rolls or
+ * advances a journey, and never owns departure authorization. */
+export function applyJourneyStep(p: PlayerState, step: JourneyStep): MutationResult {
   if (step.kind === 'battle') {
     return enterBattle(p, step.battle, step.outcome, [step.line]);
   }

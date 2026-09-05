@@ -32,18 +32,12 @@ import { noticesBlocks } from './parts.ts';
 
 type Block = InputRichBlock;
 
-// ── Zone hub (home) ───────────────────────────────────────────────────────
-
-export function renderZone(p: PlayerState): InputRichMessage {
-  // Guided prologue (#69): while it runs, the hub renders ONLY the directed
-  // action for the current step — travel, explore, shops and the NPC list
-  // are withheld until the prologue releases the player into the real hub.
-  if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
+/** Identical status information in the normal and guided hubs (#183). */
+function zoneHeader(p: PlayerState): Block[] {
   const z = zone(p.currentZone)!;
   const s = statsOf(p);
   const c = CLASSES[p.classId];
-  const d = dungeonOf(z);
-  const blocks: Block[] = [
+  return [
     heading(`${z.emoji} ${z.name}`, 3),
     ...noticesBlocks(p),
     para([
@@ -53,6 +47,18 @@ export function renderZone(p: PlayerState): InputRichMessage {
       }\n💰 ${p.gold} gold`,
     ]),
   ];
+}
+
+// ── Zone hub (home) ───────────────────────────────────────────────────────
+
+export function renderZone(p: PlayerState): InputRichMessage {
+  // Guided prologue (#69): while it runs, the hub renders ONLY the directed
+  // action for the current step — travel, explore, shops and the NPC list
+  // are withheld until the prologue releases the player into the real hub.
+  if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
+  const z = zone(p.currentZone)!;
+  const d = dungeonOf(z);
+  const blocks = zoneHeader(p);
   if (z.safeHaven) {
     blocks.push(para('🔥 Safe haven — no battles, and full rest on arrival.'));
   } else {
@@ -135,19 +141,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
 /** The directed hub: ONE action per prologue step, status panels intact so
  * the player still learns to read their own bars. */
 function renderTutorialHub(p: PlayerState): InputRichMessage {
-  const s = statsOf(p);
-  const c = CLASSES[p.classId];
-  const z = zone(p.currentZone)!;
-  const blocks: Block[] = [
-    heading(`${z.emoji} ${z.name}`, 3),
-    ...noticesBlocks(p),
-    para([
-      { type: 'bold', text: `${c.emoji} ${p.name} · Lv ${p.level} ${c.name}` } as RichText,
-      `\n❤️ ${p.hp}/${s.maxHp} ${bar(p.hp, s.maxHp)}\n💧 ${p.mp}/${s.maxMp} ${
-        bar(p.mp, s.maxMp)
-      }\n💰 ${p.gold} gold`,
-    ]),
-  ];
+  const blocks = zoneHeader(p);
   if (p.tutorial === 'maren') {
     blocks.push(banner('🔥 Your tale begins'));
     blocks.push(para(
@@ -214,7 +208,7 @@ const RISK_TEXT: Record<string, string> = {
   perilous: 'perilous — an expedition; go restored',
 };
 
-export function renderTravel(p: PlayerState): InputRichMessage {
+function renderTravelConfirmation(p: PlayerState): InputRichMessage | undefined {
   // A hazardous-departure confirmation (#164): the staged panel replaces
   // the route list until confirmed or dismissed.
   const staged = p.scene.arg ?? '';
@@ -252,6 +246,12 @@ export function renderTravel(p: PlayerState): InputRichMessage {
       return { blocks };
     }
   }
+  return undefined;
+}
+
+export function renderTravel(p: PlayerState): InputRichMessage {
+  const confirmation = renderTravelConfirmation(p);
+  if (confirmation) return confirmation;
   const blocks: Block[] = [
     heading('🧭 Travel', 3),
     ...noticesBlocks(p),

@@ -22,9 +22,10 @@ import {
   questReadyLine,
   syncAvailability,
 } from './quests.ts';
-import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
+import { defaultRng, type Rng, weightedIndex } from './rng.ts';
 import { grantContextualDrops, rollDropTable } from './loot.ts';
 import { JOURNEY_BLOCK } from './routes.ts';
+import { applyQuietEvent } from './event_rewards.ts';
 import { itemName } from '../content/items.ts';
 
 /**
@@ -286,29 +287,10 @@ function applyExploreEvent(p: PlayerState, z: ZoneDef, ev: ExploreEvent, rng: Rn
           } appears!`,
       };
     }
-    case 'treasure': {
-      const lines = [`✨ ${ev.text}`];
-      if (ev.gold) {
-        const g = randInt(rng, Math.floor(ev.gold * 0.8), Math.ceil(ev.gold * 1.3));
-        p.gold += g;
-        lines.push(`💰 +${g} gold`);
-      }
-      if (ev.item) {
-        lines.push(`🎁 Found: ${itemName(ev.item)}`);
-        for (const qid of grantItem(p, ev.item, 1)) lines.push(questReadyLine(qid));
-      }
-      return { kind: 'result', lines };
-    }
-    case 'rest': {
-      const s = statsOf(p);
-      const healHp = Math.floor(s.maxHp * ev.healPct);
-      const healMp = Math.floor(s.maxMp * ev.healPct);
-      p.hp = Math.min(s.maxHp, p.hp + healHp);
-      p.mp = Math.min(s.maxMp, p.mp + healMp);
-      return { kind: 'result', lines: [`🌙 ${ev.text}`, `💚 +${healHp} HP · 💧 +${healMp} MP`] };
-    }
+    case 'treasure':
+    case 'rest':
     case 'flavor':
-      return { kind: 'result', lines: [ev.text] };
+      return { kind: 'result', lines: applyQuietEvent(p, ev, rng).lines };
   }
 }
 

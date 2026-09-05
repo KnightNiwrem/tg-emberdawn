@@ -22,7 +22,7 @@ import { evalCondition } from '../engine/conditions.ts';
 import { applyDeath } from '../engine/character.ts';
 import { createPlayer } from '../engine/character.ts';
 import { CLASS_IDS } from '../engine/types.ts';
-import { enterBattle } from './battle.ts';
+import { applyJourneyStep, enterBattle } from './battle.ts';
 import type { MutationResult } from './session.ts';
 
 /** Zone hub actions (explore/dive/talk) + navigation. */
@@ -270,16 +270,7 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
   // only the stable edge id.
   const res = startJourney(p, cb.arg);
   if (!res.ok) return { toast: res.refusal };
-  if (res.step.kind === 'battle') {
-    return enterBattle(p, res.step.battle, res.step.outcome, [res.step.line]);
-  }
-  if (res.step.kind === 'arrived') {
-    p.notices = res.step.lines;
-    p.scene = { view: 'zone' };
-    return {};
-  }
-  p.scene = { view: 'journey' };
-  return {};
+  return applyJourneyStep(p, res.step);
 }
 
 /** Journey intermission controls (#159): Continue resolves the next
@@ -295,17 +286,7 @@ export function journeyAction(p: PlayerState, cb: Cb & { v: 'journey' }): Mutati
       p.scene = { view: 'zone' };
       return {};
     }
-    const step = advanceJourney(p);
-    if (step.kind === 'battle') {
-      return enterBattle(p, step.battle, step.outcome, [step.line]);
-    }
-    if (step.kind === 'arrived') {
-      p.notices = step.lines;
-      p.scene = { view: 'zone' };
-      return {};
-    }
-    p.scene = { view: 'journey' };
-    return {};
+    return applyJourneyStep(p, advanceJourney(p));
   }
   // Retreat.
   if (p.battle) {
