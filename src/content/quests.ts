@@ -197,8 +197,7 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 13,
     prereq: { questStatus: { questId: 'm7_tyrant', is: 'done' } },
-    summary:
-      "Hear the Ferryman explain Ombra's request for help, then confirm your preparations with him to open the road to Sunspire.",
+    summary: "Hear the Ferryman explain Ombra's request for help and learn the road to Sunspire.",
     objectives: [{
       kind: 'storyEvent',
       target: 'heard_ferrymans_word',
@@ -358,7 +357,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 31,
     prereq: { questStatus: { questId: 'm16_ashes', is: 'done' } },
     summary:
-      "Listen to Sorrel's account of Ignivar and the King's drain on the Great Flame. Confirm that you understand before preparing the descent.",
+      "Listen to Sorrel's account of Ignivar and the King's drain on the Great Flame, then take supplies for the descent.",
     objectives: [{ kind: 'storyEvent', target: 'heard_sorrels_plea', label: "Hear Sorrel's plea" }],
     rewards: { xp: 1500, gold: 700, items: { c_super_potion: 1 } },
   }),
@@ -442,7 +441,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 40,
     prereq: { questStatus: { questId: 'm21_loyalty', is: 'done' } },
     summary:
-      "Hear the Archivist explain Aldric's decision and how to release the crown's light. Confirm your preparations before the throne ascent.",
+      "Hear the Archivist explain Aldric's decision and how to release the crown's light, then take supplies for the throne ascent.",
     objectives: [{
       kind: 'storyEvent',
       target: 'heard_archivists_counsel',
@@ -650,7 +649,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 1,
     prereq: { flag: { id: 'zone_hollowmere' } },
     summary:
-      "Discuss the shrine's two jobs with the Ferryman. Choose one permanent assignment, then return to him to confirm your answer.",
+      "Discuss the shrine's two jobs with the Ferryman. Choose one assignment, then collect the planning payment.",
     objectives: [{
       kind: 'storyEvent',
       target: 'shrine_allegiance_chosen',

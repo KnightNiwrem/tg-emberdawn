@@ -655,7 +655,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         choices: [
           {
             id: 'handover',
-            label: '🤝 Say the word is heard',
+            label: '🗺️ Mark the road to Sunspire',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm8_passage' }],
           },
         ],
@@ -1219,11 +1219,11 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Do you understand why Ignivar must be faced?',
+        prompt: 'You will need provisions for the descent.',
         choices: [
           {
             id: 'handover',
-            label: '🕯️ Say the plea is heard',
+            label: '🎒 Take the supplies',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm17_plea' }],
           },
         ],
@@ -1528,11 +1528,11 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to take the supplies and prepare for Aldric?',
+        prompt: 'These provisions are for the climb to the throne.',
         choices: [
           {
             id: 'handover',
-            label: '📜 Say the counsel is taken',
+            label: '🎒 Take the supplies',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm22_umbral_key' }],
           },
         ],
@@ -2827,8 +2827,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text:
-          "You chose your assignment. I can give you the keepers' planning payment now; the work itself remains a separate job. Your choice stands whichever task you finish first.",
+        text: "I can give you the keepers' planning payment now.",
         next: 'ta',
       },
       {
@@ -2838,7 +2837,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         choices: [
           {
             id: 'handover',
-            label: '📜 Say the answer stands',
+            label: '📜 Collect the planning payment',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_shrine_pledge' }],
           },
         ],
