@@ -49,10 +49,6 @@ and they are never authored here.
 - Display names follow current catalogs. Sorrel uses **he/him** consistently. Odo is the
   **Slowsmith** at **Mirefoot Landing**, the rest stop between Whisperwood and Hollowmere.
 
-The chapter and quest audit, including transaction and location corrections, is recorded in
-[the campaign revision](campaign-revision.md). This canon supersedes the thinner setting account
-reviewed in the earlier entries of `editorial-review.md`.
-
 ## 2. Voices
 
 ### Narrator (system-adjacent, in-world)
@@ -190,5 +186,6 @@ stay in tests: speaker structure, ids, references, staging, rewards, class neutr
 gear, and the absence of game system terms in in-world fields (quest_copy_test.ts). Everything else
 here is editorial judgment, exercised by deliberate review — not by a mood, and not by a particular
 class of reviewer: the project is AI-owned end to end (#152), so an authorized AI
-implementor/reviewer may complete and sign an editorial pass. Review passes — their inventories,
-dispositions, and provenance — are recorded in `docs/editorial-review.md`.
+implementor/reviewer may complete and sign an editorial pass. Record review scope, findings,
+dispositions, and provenance in GitHub issues. Keep this folder focused on the game and its current
+design, rather than historical change records.
