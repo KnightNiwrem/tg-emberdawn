@@ -141,6 +141,9 @@ machine-checked in `tests/dialogue_copy_test.ts`:
   Distinguish cancelling active work from permanently closing an unaccepted branch. Keep each
   consequence with its response, and pair a single response with the non-mutating **Not now**
   deferral in one aligned button row. A confirmation repeats only the selected response.
+- Put each objective source on its own line with its activity icon: 🧭 Explore, the dungeon's Dive
+  icon, 🚶 Travel, 🗣️ conversation, or 📜 quest reward. Do not join locations with semicolons or
+  truncate a monster's locations to two entries; retain one objective and tally above its sources.
 - Narrate the scene where the contact actually stands. A report can describe evidence brought back
   or visible recovery there; it cannot replay a remote boss death as a present event.
 - Do not claim an item enters or leaves the bag without the matching transaction. Reading Maren's

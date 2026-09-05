@@ -6,9 +6,10 @@ import type { DialogueChoice } from '../src/content/types.ts';
 import { dialogue } from '../src/content/dialogues.ts';
 import { itemName } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
+import { zone } from '../src/content/zones.ts';
 import { createPlayer, xpRewardLabel } from '../src/engine/character.ts';
 import { dialogueAction } from '../src/handlers/hub.ts';
-import { choiceQuestBlocks, questBriefBlocks } from '../src/render/quest_brief.ts';
+import { choiceQuestBlocks, objectiveSource, questBriefBlocks } from '../src/render/quest_brief.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { ferryHero } from './helpers_story.ts';
 
@@ -48,7 +49,7 @@ Deno.test('quest decision UI: first offer highlights work and rewards and pairs 
   assertEquals(lists.length, 2);
   assertEquals(lists[0].items.length, 1);
   assert(visible(lists[0].items[0]).includes('Defeat Ember Rat ×4'));
-  assert(visible(lists[0].items[0]).includes('🗺️ Emberdawn Outskirts (Explore)'));
+  assert(visible(lists[0].items[0]).includes('🧭 Emberdawn Outskirts (Explore)'));
   const objective = lists[0].items[0].blocks[0];
   assert(objective.type === 'paragraph' && Array.isArray(objective.text));
   assertEquals(objective.text[0], { type: 'bold', text: 'Defeat Ember Rat ×4' });
@@ -99,6 +100,57 @@ Deno.test('quest decision UI: collection costs, progress, and reward timing stay
       ),
     );
   }
+});
+
+Deno.test('quest decision UI: Six Fewer Rats puts each Explore location on its own line', () => {
+  const p = createPlayer(1926, 'Reader', 'mage');
+  p.scene = { view: 'dialogue', arg: 'dlg_sq_rats_offer', arg2: 'oa' };
+  const blocks = renderDialogue(p).blocks!;
+  const objectives = blocks.find((b) => b.type === 'list');
+  assert(objectives?.type === 'list');
+  assertEquals(objectives.items.length, 1, 'locations are alternatives for one objective');
+  const objective = objectives.items[0].blocks[0];
+  assert(objective.type === 'paragraph');
+  assertEquals(objective.text, [
+    { type: 'bold', text: 'Defeat Giant Rat ×6' },
+    '\n🧭 Emberdawn Outskirts (Explore)\n🧭 Whisperwood (Explore)',
+  ]);
+});
+
+Deno.test('quest decision UI: two Explore and three dungeon sources retain all five activity lines', () => {
+  const q = quest('sq_rats')!;
+  const dungeons = ['whisperwood', 'hollowmere', 'sunspire'].map((id) => zone(id)!.dungeon!);
+  const originalEnemies = dungeons.map((d) => d.floors[0].enemies);
+  try {
+    // Model the requested mixed-source case without changing shipped content.
+    for (const d of dungeons) d.floors[0].enemies = [...d.floors[0].enemies, 'e_rat'];
+    assertEquals(objectiveSource(q, q.objectives[0]).split('\n'), [
+      '🧭 Emberdawn Outskirts (Explore)',
+      '🧭 Whisperwood (Explore)',
+      '🕸️ Rootbound Hollow — Whisperwood (Dungeon)',
+      '🌊 Sunken Shrine — Hollowmere Swamp (Dungeon)',
+      '⏳ Vault of Hours — Sunspire Ruins (Dungeon)',
+    ]);
+  } finally {
+    for (const [i, d] of dungeons.entries()) d.floors[0].enemies = originalEnemies[i];
+  }
+});
+
+Deno.test('quest decision UI: collection directions keep each source activity and boss details together', () => {
+  const iron = quest('m5_arms')!;
+  assertEquals(objectiveSource(iron, iron.objectives[0]).split('\n'), [
+    '🕸️ First-visit caches in Rootbound Hollow — Whisperwood',
+    '🕸️ Drops from Mycelid Drone — Rootbound Hollow — Whisperwood (Dungeon) (may take several fights)',
+  ]);
+  const boss = quest('m12_chronolich')!;
+  const source = objectiveSource(boss, boss.objectives[0]);
+  assert(source.startsWith('⏳ Vault of Hours — Sunspire Ruins (boss; recommended Lv 21)'));
+  assert(source.includes('bring Sunspire Key, consumed on the first boss victory'));
+  assertEquals(
+    source.split('\n').length,
+    1,
+    'semicolons inside one location are not list separators',
+  );
 });
 
 Deno.test('quest decision UI: each branch owns its warning and button, without a preferred route', () => {

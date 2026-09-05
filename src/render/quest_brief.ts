@@ -12,31 +12,50 @@ import { countOf } from '../engine/inventory.ts';
 import { collectRequirements } from '../engine/quests.ts';
 import { details, heading, list, para } from './rich.ts';
 
-function enemyPlaces(id: string): string[] {
+interface ObjectiveSource {
+  emoji: string;
+  text: string;
+}
+
+function enemyPlaces(id: string): ObjectiveSource[] {
   const field = ZONES.filter((z) =>
     z.explore.some((e) => (e.kind === 'battle' || e.kind === 'elite') && e.enemy === id)
-  ).map((z) => `${z.name} (Explore)`);
+  ).map((z) => ({
+    emoji: z.safeHaven ? '🌾' : '🧭',
+    text: `${z.name} (${z.safeHaven ? 'Forage' : 'Explore'})`,
+  }));
   const dungeons = ZONES.filter((z) =>
     z.dungeon?.boss === id || z.dungeon?.floors.some((f) => f.enemies.includes(id))
   ).map((z) => {
     const d = z.dungeon!;
     const key = d.boss === id ? d.bossGate?.item : undefined;
-    return `${d.name} — ${z.name}${
-      d.boss === id ? ` (boss; recommended Lv ${d.recommendedLevel})` : ''
-    }${key ? `; bring ${itemName(key)}, consumed on the first boss victory` : ''}`;
+    return {
+      emoji: d.emoji,
+      text: `${d.name} — ${z.name}${
+        d.boss === id ? ` (boss; recommended Lv ${d.recommendedLevel})` : ' (Dungeon)'
+      }${key ? `; bring ${itemName(key)}, consumed on the first boss victory` : ''}`,
+    };
   });
   return [...field, ...dungeons];
 }
 
-/** Only real catalog sources are named; these are directions, never extra objectives. */
-export function objectiveSource(q: QuestDef, o: Objective): string {
-  if (o.kind === 'kill') return enemyPlaces(o.target).slice(0, 2).join('; ');
+/** Keep each activity's identity with its directions until the final line formatting. */
+function objectiveSources(q: QuestDef, o: Objective): ObjectiveSource[] {
+  if (o.kind === 'kill') return enemyPlaces(o.target);
   if (o.kind === 'dungeon') {
     const z = ZONES.find((z) => z.dungeon?.id === o.target);
-    return z ? `${z.name} (Dungeon; recommended Lv ${z.dungeon!.recommendedLevel})` : '';
+    return z
+      ? [{
+        emoji: z.dungeon!.emoji,
+        text: `${z.name} (Dungeon; recommended Lv ${z.dungeon!.recommendedLevel})`,
+      }]
+      : [];
   }
   if (o.kind === 'reach') {
-    return 'Travel along the roads to this region, then meet the contact below.';
+    return [{
+      emoji: '🚶',
+      text: 'Travel along the roads to this region, then meet the contact below.',
+    }];
   }
   if (o.kind === 'storyEvent') {
     const d = DIALOGUES.find((d) =>
@@ -49,15 +68,23 @@ export function objectiveSource(q: QuestDef, o: Objective): string {
           : []).some((e) => e.kind === 'storyEvent' && e.event === o.target)
       )
     );
-    if (!d) return '';
-    if (d.id === q.offerDialogue) return 'Recorded when you accept this conversation.';
+    if (!d) return [];
+    if (d.id === q.offerDialogue) {
+      return [{ emoji: '🗣️', text: 'Recorded when you accept this conversation.' }];
+    }
     const topic = npc(d.npcId)?.topics?.find((t) => t.dialogue === d.id);
-    return `${npc(d.npcId)!.name} — ${zoneOfNpc(d.npcId)!.name}: ${topic?.label ?? q.name}.`;
+    return [{
+      emoji: '🗣️',
+      text: `${npc(d.npcId)!.name} — ${zoneOfNpc(d.npcId)!.name}: ${topic?.label ?? q.name}.`,
+    }];
   }
-  const sources: string[] = [];
+  const sources: ObjectiveSource[] = [];
   for (const z of ZONES) {
     if (z.dungeon?.floors.some((f) => f.treasure?.item === o.target)) {
-      sources.push(`First-visit caches in ${z.dungeon.name} — ${z.name}`);
+      sources.push({
+        emoji: z.dungeon.emoji,
+        text: `First-visit caches in ${z.dungeon.name} — ${z.name}`,
+      });
     }
   }
   const drops = ENEMIES.filter((e) => (e.drops?.[o.target] ?? 0) > 0);
@@ -65,18 +92,29 @@ export function objectiveSource(q: QuestDef, o: Objective): string {
   // Mycelids supply Bram's iron before Hollowmere's Boglins are reachable.
   const source = drops.toSorted((a, b) => a.level - b.level)[0];
   if (source) {
-    sources.push(
-      `Drops from ${source.name} — ${enemyPlaces(source.id)[0]} (may take several fights)`,
-    );
+    const place = enemyPlaces(source.id)[0];
+    if (place) {
+      sources.push({
+        emoji: place.emoji,
+        text: `Drops from ${source.name} — ${place.text} (may take several fights)`,
+      });
+    }
   }
   // Prefer repeatable drops and early caches over later quest rewards that
   // may themselves require completing this quest (e.g. Bram's iron order).
   if (sources.length === 0) {
     for (const reward of QUESTS) {
-      if (reward.rewards.items?.[o.target]) sources.push(`Reward from ${reward.name}`);
+      if (reward.rewards.items?.[o.target]) {
+        sources.push({ emoji: '📜', text: `Reward from ${reward.name}` });
+      }
     }
   }
-  return sources.slice(0, 2).join('; ');
+  return sources.slice(0, 2);
+}
+
+/** Only real catalog sources are named; these are directions, never extra objectives. */
+export function objectiveSource(q: QuestDef, o: Objective): string {
+  return objectiveSources(q, o).map((source) => `${source.emoji} ${source.text}`).join('\n');
 }
 
 function objectiveLabel(o: Objective): string {
@@ -133,7 +171,7 @@ export function questBriefBlocks(
     const progress = mode === 'offer' ? '' : ` — ${Math.min(have, o.count ?? 1)}/${o.count ?? 1}`;
     const text = [{ type: 'bold' as const, text: `${objectiveLabel(o)}${progress}` }];
     const source = mode === 'turnIn' ? '' : objectiveSource(q, o);
-    objectives.push([para(source ? [...text, `\n🗺️ ${source}`] : text)]);
+    objectives.push([para(source ? [...text, `\n${source}`] : text)]);
   }
   blocks.push(list(objectives), heading('📍 Completion', 4));
   const fin = questFinisher(q.id)!;
