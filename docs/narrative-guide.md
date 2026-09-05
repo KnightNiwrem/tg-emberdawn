@@ -135,6 +135,12 @@ machine-checked in `tests/dialogue_copy_test.ts`:
   consumed collection goods. It also handles the selected permanent-choice confirmation. Counts,
   item effects, and rewards remain structured data. Keep these facts out of duplicate authored UI
   summaries.
+- Quest decisions use native Rich Message headings and lists for objectives, completion, and rewards
+  (#192). Only repeated narrative context may collapse; targets, directions, handover costs,
+  rewards, and consequences stay expanded. State reward timing and disclose exact forfeited rewards.
+  Distinguish cancelling active work from permanently closing an unaccepted branch. Keep each
+  consequence with its response, and pair a single response with the non-mutating **Not now**
+  deferral in one aligned button row. A confirmation repeats only the selected response.
 - Narrate the scene where the contact actually stands. A report can describe evidence brought back
   or visible recovery there; it cannot replay a remote boss death as a present event.
 - Do not claim an item enters or leaves the bag without the matching transaction. Reading Maren's

@@ -134,7 +134,7 @@ Deno.test('quest brief: keeping the light grants one real keepsake and none of t
   assert(view.includes('without its normal rewards'));
   assert(view.includes('Receive: Wisp Lantern ×1'));
   assert(
-    !view.includes('🎁 Rewards:'),
+    !view.includes('🎁 Rewards now'),
     'the normal reward is not advertised for keeping the lantern',
   );
   const before = { gold: p.gold, xp: p.xp, stats: item('q_wisp_lantern')!.stats };
@@ -235,7 +235,9 @@ Deno.test('dialogue contract: complete choice screens stay compact even with all
     if (typeof value === 'string') return value;
     if (Array.isArray(value)) return value.map(visible).join('');
     if (!value || typeof value !== 'object') return '';
-    return Object.entries(value).filter(([k]) => ['text', 'blocks', 'buttons'].includes(k)).map((
+    return Object.entries(value).filter(([k]) =>
+      ['text', 'blocks', 'buttons', 'items', 'summary'].includes(k)
+    ).map((
       [, v],
     ) => visible(v)).join('');
   }

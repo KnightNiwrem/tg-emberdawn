@@ -50,7 +50,8 @@ Deno.test('choices: both responses render, deferral is offered, prompt is separa
     view.includes('Which job will you take: the beacon or the water intake?'),
     'the NPC prompt is shown',
   );
-  assert(!view.includes('confirm'), 'no confirmation is staged yet');
+  assertEquals(p.scene.arg3, undefined, 'no confirmation is staged yet');
+  assert(!view.includes('dlg:cf:'), 'the list offers selection, never a committing confirmation');
 });
 
 Deno.test('choices: deferral ("Not now") performs no story mutation', () => {

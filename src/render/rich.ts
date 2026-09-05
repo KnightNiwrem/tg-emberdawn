@@ -13,6 +13,22 @@ export function heading(text: RichText, size: 1 | 2 | 3 | 4 | 5 | 6 = 3): InputR
   return { type: 'heading', text, size };
 }
 
+export function divider(): InputRichBlock {
+  return { type: 'divider' };
+}
+
+export function footer(text: RichText): InputRichBlock {
+  return { type: 'footer', text };
+}
+
+export function details(summary: RichText, blocks: InputRichBlock[]): InputRichBlock {
+  return { type: 'details', summary, blocks };
+}
+
+export function list(items: InputRichBlock[][]): InputRichBlock {
+  return { type: 'list', items: items.map((blocks) => ({ blocks })) };
+}
+
 export function buttonsRow(
   buttons: RichMessageButton[],
   align: 'left' | 'center' | 'right' = 'center',

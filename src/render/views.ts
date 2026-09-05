@@ -32,7 +32,19 @@ import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
 import { temperBonusOf, temperLevel } from '../engine/forge.ts';
-import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
+import {
+  banner,
+  bar,
+  buttonsRow,
+  cbBtn,
+  disabledBtn,
+  divider,
+  footer,
+  heading,
+  para,
+  pct,
+  quote,
+} from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
 import { choiceQuestBlocks, questBriefBlocks, questRewardText } from './quest_brief.ts';
@@ -898,22 +910,18 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     if (p.scene.arg3?.startsWith('confirm:')) {
       const choice = node.choices.find((c) => c.id === p.scene.arg3!.slice('confirm:'.length));
       if (choice) {
-        blocks.push(banner('⚠️ This decision cannot be changed'));
         blocks.push(quote(`You — “${choice.label}”`));
-        blocks.push(para('Once confirmed, this choice is permanent. There is no undo.'));
-        if (choice.consequenceHint) {
-          blocks.push(para({ type: 'italic', text: choice.consequenceHint } as RichText));
-        }
         blocks.push(...choiceQuestBlocks(p, choice));
         blocks.push(
+          divider(),
           buttonsRow([
             cbBtn(
-              `✅ Confirm: ${choice.label}`,
+              '✅ Confirm choice',
               encodeCb({ v: 'dlg', a: 'cf', arg: choice.id }),
               'danger',
             ),
             cbBtn('✋ Go back', encodeCb({ v: 'dlg', a: 'cc' })),
-          ]),
+          ], 'left'),
         );
         return { blocks };
       }
@@ -924,16 +932,36 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     // `when` gates HIDE a response (a secret route), by design; re-render
     // is never authority — availability is revalidated at tap time.
     blocks.push(quote(`“${node.prompt}”`));
-    for (const c of node.choices) {
-      if (c.when && !evalCondition(p, c.when)) continue;
-      if (c.consequenceHint) blocks.push(para(c.consequenceHint));
-      blocks.push(...choiceQuestBlocks(p, c));
-      blocks.push(
-        buttonsRow([cbBtn(c.label, encodeCb({ v: 'dlg', a: 'ch', arg: c.id }))], 'left'),
-      );
+    const choices = node.choices.filter((c) => !c.when || evalCondition(p, c.when));
+    const defer = node.allowDeferral !== false;
+    for (const c of choices) {
+      const brief = choiceQuestBlocks(p, c);
+      if (choices.length > 1 && brief.length) {
+        blocks.push(divider(), heading(c.label, 4));
+      }
+      blocks.push(...brief);
+      const row = [
+        cbBtn(
+          c.label,
+          encodeCb({ v: 'dlg', a: 'ch', arg: c.id }),
+          choices.length === 1 ? 'primary' : undefined,
+        ),
+      ];
+      if (choices.length === 1) {
+        blocks.push(divider());
+        if (defer) {
+          blocks.push(footer('Not now leaves this conversation without choosing.'));
+          row.push(cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' })));
+        }
+      }
+      blocks.push(buttonsRow(row, 'left'));
     }
-    if (node.allowDeferral !== false) {
-      blocks.push(buttonsRow([cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' }))]));
+    if (defer && choices.length !== 1) {
+      blocks.push(
+        divider(),
+        footer('Not now leaves this conversation without choosing.'),
+        buttonsRow([cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' }))], 'left'),
+      );
     }
     return { blocks };
   }
