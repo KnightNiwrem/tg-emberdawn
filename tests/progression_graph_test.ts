@@ -36,7 +36,7 @@ import { DIALOGUES } from '../src/content/dialogues.ts';
 import { SHOPS } from '../src/content/facilities.ts';
 import { dropTable } from '../src/content/loot.ts';
 import { route, ROUTES } from '../src/content/routes.ts';
-import type { TravelEvent } from '../src/content/types.ts';
+import type { TravelEvent, ZoneDef } from '../src/content/types.ts';
 import { zone as zoneDef, ZONES } from '../src/content/zones.ts';
 
 const ALL_MAINS = QUESTS.filter((q) => q.main).map((q) => q.id);
@@ -104,60 +104,77 @@ function enemyDropsItem(enemyId: string | undefined, id: string): boolean {
 function itemSources(id: string): SourceSite[] {
   const sites: SourceSite[] = [];
   for (const z of ZONES) {
-    // Explore: enemy drop tables and authored treasure caches, each with
-    // its own authored level band.
-    for (const ev of z.explore) {
-      if ((ev.kind === 'battle' || ev.kind === 'elite') && enemyDropsItem(ev.enemy, id)) {
-        sites.push({
-          label: `explore:${ev.enemy}@${z.id}`,
-          zone: z.id,
-          minLevel: ev.minPlayerLevel ?? 1,
-          ...(ev.maxPlayerLevel !== undefined ? { maxLevel: ev.maxPlayerLevel } : {}),
-        });
-      }
-      if (ev.kind === 'treasure' && ev.item === id) {
-        sites.push({ label: `explore-cache@${z.id}`, zone: z.id, minLevel: 1 });
-      }
+    sites.push(...exploreItemSources(id, z), ...dungeonItemSources(id, z));
+  }
+  sites.push(...shopItemSources(id), ...questItemSources(id), ...storyItemSources(id));
+  return sites;
+}
+
+function exploreItemSources(id: string, z: ZoneDef): SourceSite[] {
+  const sites: SourceSite[] = [];
+  // Explore: enemy drop tables and authored treasure caches, each with
+  // its own authored level band.
+  for (const ev of z.explore) {
+    if ((ev.kind === 'battle' || ev.kind === 'elite') && enemyDropsItem(ev.enemy, id)) {
+      sites.push({
+        label: `explore:${ev.enemy}@${z.id}`,
+        zone: z.id,
+        minLevel: ev.minPlayerLevel ?? 1,
+        ...(ev.maxPlayerLevel !== undefined ? { maxLevel: ev.maxPlayerLevel } : {}),
+      });
     }
-    // Zone contextual loot (#165): rolls on every eligible battle in the
-    // zone — usable only while some battle table is eligible at all.
-    if (z.lootTable && dropTable(z.lootTable)?.entries.some((e) => e.item === id)) {
-      const battles = z.explore.filter((e) => e.kind === 'battle' || e.kind === 'elite');
-      const min = Math.min(...battles.map((e) => e.minPlayerLevel ?? 1));
-      sites.push({ label: `zone-loot:${z.lootTable}@${z.id}`, zone: z.id, minLevel: min });
-    }
-    // Dungeon floors, boss, and first clear — each named site must itself
-    // grant the item, and boss-tier sites carry their story gate.
-    const d = z.dungeon ? dungeonOf(z) : undefined;
-    if (d) {
-      for (const [fi, floor] of d.floors.entries()) {
-        if (floor.treasure?.item === id) {
-          sites.push({ label: `dungeon-cache:${d.id}:floor${fi + 1}`, zone: z.id, minLevel: 1 });
-        }
-        for (const e of floor.enemies) {
-          if (enemyDropsItem(e, id)) {
-            sites.push({ label: `dungeon:${d.id}:floor${fi + 1}:${e}`, zone: z.id, minLevel: 1 });
-          }
-        }
-      }
-      if (enemyDropsItem(d.boss, id)) {
-        sites.push({
-          label: `dungeon-boss:${d.id}:${d.boss}`,
-          zone: z.id,
-          minLevel: 1,
-          ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
-        });
-      }
-      if (d.firstClear?.item === id) {
-        sites.push({
-          label: `dungeon-first-clear:${d.id}`,
-          zone: z.id,
-          minLevel: 1,
-          ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
-        });
-      }
+    if (ev.kind === 'treasure' && ev.item === id) {
+      sites.push({ label: `explore-cache@${z.id}`, zone: z.id, minLevel: 1 });
     }
   }
+  // Zone contextual loot (#165): rolls on every eligible battle in the
+  // zone — usable only while some battle table is eligible at all.
+  if (z.lootTable && dropTable(z.lootTable)?.entries.some((e) => e.item === id)) {
+    const battles = z.explore.filter((e) => e.kind === 'battle' || e.kind === 'elite');
+    const min = Math.min(...battles.map((e) => e.minPlayerLevel ?? 1));
+    sites.push({ label: `zone-loot:${z.lootTable}@${z.id}`, zone: z.id, minLevel: min });
+  }
+  return sites;
+}
+
+function dungeonItemSources(id: string, z: ZoneDef): SourceSite[] {
+  const sites: SourceSite[] = [];
+  // Dungeon floors, boss, and first clear — each named site must itself
+  // grant the item, and boss-tier sites carry their story gate.
+  const d = z.dungeon ? dungeonOf(z) : undefined;
+  if (d) {
+    for (const [fi, floor] of d.floors.entries()) {
+      if (floor.treasure?.item === id) {
+        sites.push({ label: `dungeon-cache:${d.id}:floor${fi + 1}`, zone: z.id, minLevel: 1 });
+      }
+      for (const e of floor.enemies) {
+        if (enemyDropsItem(e, id)) {
+          sites.push({ label: `dungeon:${d.id}:floor${fi + 1}:${e}`, zone: z.id, minLevel: 1 });
+        }
+      }
+    }
+    if (enemyDropsItem(d.boss, id)) {
+      sites.push({
+        label: `dungeon-boss:${d.id}:${d.boss}`,
+        zone: z.id,
+        minLevel: 1,
+        ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
+      });
+    }
+    if (d.firstClear?.item === id) {
+      sites.push({
+        label: `dungeon-first-clear:${d.id}`,
+        zone: z.id,
+        minLevel: 1,
+        ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
+      });
+    }
+  }
+  return sites;
+}
+
+function shopItemSources(id: string): SourceSite[] {
+  const sites: SourceSite[] = [];
   // Shop shelves: the shop must stock it in a rule the gate allows.
   for (const s of SHOPS) {
     for (const rule of s.stock) {
@@ -176,6 +193,11 @@ function itemSources(id: string): SourceSite[] {
       break; // one labeled site per shop is enough for reachability checks
     }
   }
+  return sites;
+}
+
+function questItemSources(id: string): SourceSite[] {
+  const sites: SourceSite[] = [];
   // Quest rewards: the finisher hands it over where they stand.
   for (const q of QUESTS) {
     if ((q.rewards.items?.[id] ?? 0) > 0) {
@@ -185,6 +207,11 @@ function itemSources(id: string): SourceSite[] {
       }
     }
   }
+  return sites;
+}
+
+function storyItemSources(id: string): SourceSite[] {
+  const sites: SourceSite[] = [];
   // Any other explicit structured grant site: story effects in authored
   // dialogue (grantItem), usable where the owning NPC stands.
   for (const d of DIALOGUES) {

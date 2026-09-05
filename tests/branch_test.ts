@@ -12,9 +12,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { withRev } from '../src/codec.ts';
-import { createPlayer } from '../src/engine/character.ts';
 import { onKill, syncAvailability } from '../src/engine/quests.ts';
-import { acceptQuest } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
 import { evalCondition } from '../src/engine/conditions.ts';
 import { applyDialogueChoice, applyStoryEffects } from '../src/engine/story.ts';
@@ -24,22 +22,11 @@ import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { fakeCtx, namedOutcome } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
+import { ferryHero } from './helpers_story.ts';
 
 const FERRY = 'npc_ferryman';
 const PLEDGE_NODE = 'n3';
 const PARENT = 'sq_shrine_pledge';
-
-function ferryHero(id: number): PlayerState {
-  const p = createPlayer(id, 'T', 'warrior');
-  p.currentZone = 'hollowmere';
-  p.unlockedZones.push('hollowmere');
-  p.flags['zone_hollowmere'] = true;
-  syncAvailability(p);
-  // The pledge parent (#147): the shared question is accepted and active
-  // BEFORE any committing response exists to advance it.
-  assert(acceptQuest(p, PARENT, FERRY).ok);
-  return p;
-}
 
 /** Routes a stored hero through the parent's offer, then to the pledge's
  * choice node through the real callback router (the same surface players

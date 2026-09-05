@@ -7,7 +7,7 @@
 import { assert, assertEquals } from '@std/assert';
 import { withRev } from '../src/codec.ts';
 import { createPlayer } from '../src/engine/character.ts';
-import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
+import { syncAvailability } from '../src/engine/quests.ts';
 import { applyDialogueChoice } from '../src/engine/story.ts';
 import { evalCondition } from '../src/engine/conditions.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
@@ -16,22 +16,11 @@ import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { fakeCtx, fakeCtxCapture } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
+import { ferryHero } from './helpers_story.ts';
 
 const FERRY = 'npc_ferryman';
 const DIALOGUE = 'dlg_ferry_promise';
 const CHOICE_NODE = 'n3';
-
-function ferryHero(id: number): PlayerState {
-  const p = createPlayer(id, 'T', 'warrior');
-  p.currentZone = 'hollowmere';
-  p.unlockedZones.push('hollowmere');
-  p.flags['zone_hollowmere'] = true;
-  syncAvailability(p);
-  // The pledge parent (#147): the shared question is active before any
-  // committing response exists to advance it.
-  assert(acceptQuest(p, 'sq_shrine_pledge', FERRY).ok);
-  return p;
-}
 
 /** A fresh hero in Emberdawn Village (Maren's zone). */
 function hero(id: number): PlayerState {

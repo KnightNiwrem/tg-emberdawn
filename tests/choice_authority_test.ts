@@ -10,24 +10,13 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
-import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
+import { syncAvailability } from '../src/engine/quests.ts';
 import { applyDialogueChoice } from '../src/engine/story.ts';
 import type { PlayerState } from '../src/engine/types.ts';
+import { ferryHero } from './helpers_story.ts';
 
 const DIALOGUE = 'dlg_ferry_promise';
 const CHOICE_NODE = 'n3';
-
-/** A hero standing at the Ferryman's dock in Hollowmere, carrying the
- * active pledge parent (#147). */
-function ferryHero(id: number): PlayerState {
-  const p = createPlayer(id, 'T', 'warrior');
-  p.currentZone = 'hollowmere';
-  p.unlockedZones.push('hollowmere');
-  p.flags['zone_hollowmere'] = true;
-  syncAvailability(p);
-  assert(acceptQuest(p, 'sq_shrine_pledge', 'npc_ferryman').ok);
-  return p;
-}
 
 /** The live scene: inside the Ferryman's promise dialogue, on its choice
  * node, optionally with a staged confirmation panel. */

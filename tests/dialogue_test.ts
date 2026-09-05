@@ -17,7 +17,12 @@ import { syncAvailability } from '../src/engine/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
 import { conditionRefs } from '../src/engine/conditions.ts';
 import { storyEffectRefs } from './helpers_story.ts';
-import type { StoryEffect } from '../src/content/types.ts';
+import type {
+  DialogueChoice,
+  DialogueDef,
+  DialogueNode,
+  StoryEffect,
+} from '../src/content/types.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
 import { renderDialogue } from '../src/render/views.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
@@ -27,6 +32,9 @@ import type { PlayerState } from '../src/engine/types.ts';
 
 const QUEST_IDS = QUESTS.map((q) => q.id);
 const ITEM_IDS = ITEMS.map((i) => i.id);
+const questIds = new Set(QUEST_IDS);
+const zoneIds = new Set(ZONES.map((z) => z.id));
+const itemIds = new Set(ITEM_IDS);
 
 /** Obvious incompatible bundles are statically rejected (#132, #146): one
  * effect surface — a choice's list or a line node's list — may not
@@ -58,9 +66,6 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
   const ids = new Set(DIALOGUES.map((d) => d.id));
   assertEquals(ids.size, DIALOGUES.length, 'dialogue ids are unique');
   const placedNpcs = new Set(ZONES.flatMap((z) => z.npcs.map((n) => n.id)));
-  const questIds = new Set(QUEST_IDS);
-  const zoneIds = new Set(ZONES.map((z) => z.id));
-  const itemIds = new Set(ITEM_IDS);
   for (const d of DIALOGUES) {
     assert(placedNpcs.has(d.npcId), `${d.id}: npc ${d.npcId} is not placed in any zone`);
     assert(d.nodes.length > 0, `${d.id}: no nodes`);
@@ -75,12 +80,7 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
         }
         // Line-entry effects resolve too (#132): every effect surface is
         // crawled, not only choices.
-        for (const e of n.effects ?? []) {
-          const r = storyEffectRefs(e);
-          for (const qid of r.quests) assert(questIds.has(qid), `${d.id}: unknown quest ${qid}`);
-          for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
-          for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
-        }
+        assertEffectReferences(d.id, n.effects ?? []);
         // Line bundles get the same incompatible-bundle gate as choices
         // (#146): no effect surface may start/accept AND lock/fail the
         // SAME quest — the runtime refuses that as contradictory content.
@@ -97,54 +97,7 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
         const choiceIds = new Set(n.choices.map((c) => c.id));
         assertEquals(choiceIds.size, n.choices.length, `${d.id}:${n.id}: choice ids unique`);
         for (const c of n.choices) {
-          assert(c.label.length > 0, `${d.id}:${n.id}:${c.id}: empty label`);
-          if (c.next !== undefined) {
-            assert(nodeIds.has(c.next), `${d.id}:${n.id}:${c.id}: missing next ${c.next}`);
-          }
-          // Availability conditions resolve (#132): choice `when` gates are
-          // crawled like every other condition surface.
-          if (c.when) {
-            const r = conditionRefs(c.when);
-            for (const qid of r.quests) {
-              assert(questIds.has(qid), `${d.id}:${n.id}:${c.id}: unknown quest ${qid}`);
-            }
-            for (const iid of r.items) {
-              assert(itemIds.has(iid), `${d.id}:${n.id}:${c.id}: unknown item ${iid}`);
-            }
-            for (const zid of r.zones) {
-              assert(zoneIds.has(zid), `${d.id}:${n.id}:${c.id}: unknown zone ${zid}`);
-            }
-          }
-          // Effect references resolve (quests, items, zones) and decision
-          // ids never collide with incompatible option sets.
-          for (const e of c.effects ?? []) {
-            const r = storyEffectRefs(e);
-            for (const qid of r.quests) assert(questIds.has(qid), `${d.id}: unknown quest ${qid}`);
-            for (const iid of r.items) assert(itemIds.has(iid), `${d.id}: unknown item ${iid}`);
-            for (const zid of r.zones) assert(zoneIds.has(zid), `${d.id}: unknown zone ${zid}`);
-          }
-          // Obvious incompatible bundles are statically rejected (#132,
-          // #146 — for choice AND line effect surfaces alike).
-          assertNoIncompatibleBundle(`${d.id}:${n.id}:${c.id}`, c.effects ?? []);
-          const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
-          if (dec && dec.kind === 'recordDecision') {
-            const prior = DECISION_CHOICES.get(dec.id);
-            if (prior) {
-              assert(
-                prior.choiceId !== dec.choiceId,
-                `${d.id}:${n.id}: decision ${dec.id} reused with duplicate option`,
-              );
-            }
-            DECISION_CHOICES.set(dec.id, { choiceId: dec.choiceId, from: `${d.id}:${c.id}` });
-          }
-          // Callback budget for choice selection + confirmation.
-          for (const action of ['ch', 'cf'] as const) {
-            const wire = withRev(9999, encodeCb({ v: 'dlg', a: action, arg: c.id }));
-            assert(
-              wire.length <= 64,
-              `${d.id}:${n.id}:${c.id} wire form too long (${wire.length})`,
-            );
-          }
+          assertDialogueChoice(d, n, c, nodeIds);
         }
       } else {
         assertEquals(
@@ -159,39 +112,98 @@ Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #
         assert(wire.length <= 64, `${d.id}:${n.id} wire form too long (${wire.length})`);
       }
     }
-    // Reachability: every node is visited from start via next links.
-    const seen = new Set<string>();
-    let cursor: string | undefined = d.start;
-    while (cursor && !seen.has(cursor)) {
-      seen.add(cursor);
-      const n = dialogueNode(d, cursor);
-      if (!n) break;
-      if (n.kind === 'line') cursor = n.next;
-      else if (n.kind === 'choice') {
-        // Follow every branch.
-        for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
-        cursor = undefined;
-      } else cursor = undefined;
-    }
-    for (const n of d.nodes) {
-      assert(seen.has(n.id), `${d.id}:${n.id}: unreachable node`);
-    }
-    // Terminals: every branch path terminates — on an explicit end node or
-    // on a final line that omits `next`, or on a choice without next.
-    assert(dWalkTerminates(d, d.start, new Set()), `${d.id}: every path terminates`);
-    // The dialogue is opened by an NPC topic OR by a quest flow
-    // (offer/turn-in/conversation) owned by the same NPC (#127).
-    const offered = ZONES.flatMap((z) => z.npcs).some((n) =>
-      n.id === d.npcId && (n.topics ?? []).some((t) => t.dialogue === d.id)
-    );
-    const questWired = QUESTS.some((q) =>
-      [q.offerDialogue, q.turnInDialogue, q.conversationDialogue].includes(d.id)
-    );
-    assert(offered || questWired, `${d.id}: nothing opens this dialogue`);
+    assertDialogueGraph(d);
   }
 });
 
 const DECISION_CHOICES = new Map<string, { choiceId: string; from: string }>();
+
+function assertKnownReferences(
+  from: string,
+  refs: { quests: string[]; items: string[]; zones: string[] },
+): void {
+  for (const qid of refs.quests) assert(questIds.has(qid), `${from}: unknown quest ${qid}`);
+  for (const iid of refs.items) assert(itemIds.has(iid), `${from}: unknown item ${iid}`);
+  for (const zid of refs.zones) assert(zoneIds.has(zid), `${from}: unknown zone ${zid}`);
+}
+
+function assertEffectReferences(from: string, effects: readonly StoryEffect[]): void {
+  for (const e of effects) assertKnownReferences(from, storyEffectRefs(e));
+}
+
+function assertDialogueChoice(
+  d: DialogueDef,
+  n: Extract<DialogueNode, { kind: 'choice' }>,
+  c: DialogueChoice,
+  nodeIds: Set<string>,
+): void {
+  assert(c.label.length > 0, `${d.id}:${n.id}:${c.id}: empty label`);
+  if (c.next !== undefined) {
+    assert(nodeIds.has(c.next), `${d.id}:${n.id}:${c.id}: missing next ${c.next}`);
+  }
+  // Availability conditions resolve (#132): choice `when` gates are
+  // crawled like every other condition surface.
+  if (c.when) {
+    assertKnownReferences(`${d.id}:${n.id}:${c.id}`, conditionRefs(c.when));
+  }
+  // Effect references resolve (quests, items, zones) and decision
+  // ids never collide with incompatible option sets.
+  assertEffectReferences(d.id, c.effects ?? []);
+  // Obvious incompatible bundles are statically rejected (#132,
+  // #146 — for choice AND line effect surfaces alike).
+  assertNoIncompatibleBundle(`${d.id}:${n.id}:${c.id}`, c.effects ?? []);
+  const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
+  if (dec && dec.kind === 'recordDecision') {
+    const prior = DECISION_CHOICES.get(dec.id);
+    if (prior) {
+      assert(
+        prior.choiceId !== dec.choiceId,
+        `${d.id}:${n.id}: decision ${dec.id} reused with duplicate option`,
+      );
+    }
+    DECISION_CHOICES.set(dec.id, { choiceId: dec.choiceId, from: `${d.id}:${c.id}` });
+  }
+  // Callback budget for choice selection + confirmation.
+  for (const action of ['ch', 'cf'] as const) {
+    const wire = withRev(9999, encodeCb({ v: 'dlg', a: action, arg: c.id }));
+    assert(
+      wire.length <= 64,
+      `${d.id}:${n.id}:${c.id} wire form too long (${wire.length})`,
+    );
+  }
+}
+
+function assertDialogueGraph(d: DialogueDef): void {
+  // Reachability: every node is visited from start via next links.
+  const seen = new Set<string>();
+  let cursor: string | undefined = d.start;
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const n = dialogueNode(d, cursor);
+    if (!n) break;
+    if (n.kind === 'line') cursor = n.next;
+    else if (n.kind === 'choice') {
+      // Follow every branch.
+      for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
+      cursor = undefined;
+    } else cursor = undefined;
+  }
+  for (const n of d.nodes) {
+    assert(seen.has(n.id), `${d.id}:${n.id}: unreachable node`);
+  }
+  // Terminals: every branch path terminates — on an explicit end node or
+  // on a final line that omits `next`, or on a choice without next.
+  assert(dWalkTerminates(d, d.start, new Set()), `${d.id}: every path terminates`);
+  // The dialogue is opened by an NPC topic OR by a quest flow
+  // (offer/turn-in/conversation) owned by the same NPC (#127).
+  const offered = ZONES.flatMap((z) => z.npcs).some((n) =>
+    n.id === d.npcId && (n.topics ?? []).some((t) => t.dialogue === d.id)
+  );
+  const questWired = QUESTS.some((q) =>
+    [q.offerDialogue, q.turnInDialogue, q.conversationDialogue].includes(d.id)
+  );
+  assert(offered || questWired, `${d.id}: nothing opens this dialogue`);
+}
 
 function walkFrom(
   d: NonNullable<ReturnType<typeof dialogue>>,

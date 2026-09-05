@@ -1,5 +1,9 @@
-/** Shared crawler for StoryEffect references (tests). */
+/** Shared story fixtures and reference crawler (tests). */
 
+import { assert } from '@std/assert';
+import { createPlayer } from '../src/engine/character.ts';
+import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
+import type { PlayerState } from '../src/engine/types.ts';
 import type { StoryEffect } from '../src/content/types.ts';
 
 export function storyEffectRefs(e: StoryEffect): {
@@ -26,4 +30,16 @@ export function storyEffectRefs(e: StoryEffect): {
       break;
   }
   return out;
+}
+
+/** At the Ferryman's dock with the pledge parent active before any
+ * committing response exists to advance it (#147). */
+export function ferryHero(id: number): PlayerState {
+  const p = createPlayer(id, 'T', 'warrior');
+  p.currentZone = 'hollowmere';
+  p.unlockedZones.push('hollowmere');
+  p.flags['zone_hollowmere'] = true;
+  syncAvailability(p);
+  assert(acceptQuest(p, 'sq_shrine_pledge', 'npc_ferryman').ok);
+  return p;
 }
