@@ -83,7 +83,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
   } else {
     // Dangerous zones read differently (#164) — without implying that
     // every action out here is a fight.
-    blocks.push(para('🌫️ Dangerous wilds — battles can find you; flee is always an option.'));
+    blocks.push(para('🌫️ Dangerous wilds — you can flee battles encountered while exploring.'));
   }
   if (d) {
     // Authored readiness surfaced (#73): the recommended level rides the
@@ -112,7 +112,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
     blocks.push(para(
       `${boss?.name ?? 'The boss'} waits at Lv ${
         boss?.level ?? '?'
-      }. This fight is tuned for Lv ${d.recommendedLevel} — you are Lv ${p.level} — and bosses cannot be fled: no escape, no Smoke Bomb, only defeat or victory.`,
+      }. Recommended Lv ${d.recommendedLevel}; you are Lv ${p.level}. You cannot flee this fight, even with a Smoke Bomb.`,
     ));
     blocks.push(
       buttonsRow([

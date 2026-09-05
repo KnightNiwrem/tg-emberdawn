@@ -5,6 +5,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
+import { zone } from '../src/content/zones.ts';
+import { enemy } from '../src/content/enemies.ts';
 import { retreatFromJourney, startJourney } from '../src/engine/journey.ts';
 import { battleAction } from '../src/handlers/battle.ts';
 import { travelAction, zoneAction } from '../src/handlers/hub.ts';
@@ -164,6 +166,27 @@ Deno.test('the hub preserves a live crossing; back never resets to the zone hub'
   p2.scene = { view: 'journey' };
   assertEquals(zoneAction(p2, { v: 'zone', a: 'hm' }).toast, undefined);
   assertEquals(p2.scene.view, 'journey');
+});
+
+Deno.test('the boss readiness panel keeps levels and one unambiguous escape restriction (#200)', () => {
+  const p = walker(2000, 'whisperwood', ['whisperwood']);
+  const d = zone('whisperwood')!.dungeon!;
+  const boss = enemy(d.boss)!;
+  p.level = d.recommendedLevel! - 1;
+  p.flags[`dgn_${d.id}_floor`] = d.floors.length + 1;
+  p.scene = { view: 'zone', arg: 'bossok' };
+  const before = JSON.stringify(p);
+  const view = JSON.stringify(renderZone(p));
+  assert(view.includes(`${boss.name} waits at Lv ${boss.level}`));
+  assert(view.includes(`Recommended Lv ${d.recommendedLevel}; you are Lv ${p.level}`));
+  assert(view.includes('You cannot flee this fight, even with a Smoke Bomb.'));
+  assert(
+    !view.includes('flee is always an option'),
+    'wilds guidance cannot contradict the warning',
+  );
+  assert(view.includes(encodeCb({ v: 'zone', a: 'dgb' })), 'explicit boss entry remains');
+  assert(view.includes(encodeCb({ v: 'zone', a: 'hm' })), 'return without entry remains');
+  assertEquals(JSON.stringify(p), before, 'the warning cannot start the fight');
 });
 
 // ── copy accuracy ────────────────────────────────────────────────────────
