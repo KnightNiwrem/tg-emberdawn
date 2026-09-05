@@ -24,6 +24,7 @@ import {
 } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { grantContextualDrops, rollDropTable } from './loot.ts';
+import { JOURNEY_BLOCK } from './journey.ts';
 import { itemName } from '../content/items.ts';
 
 /**
@@ -228,6 +229,9 @@ export function explore(
     };
   }
   if (p.battle) return { kind: 'result', lines: ['⚔️ Finish the fight in front of you first.'] };
+  // No exploring mid-crossing (#159/#166): the player is on the road, not
+  // in the wilds — the central mutation refuses, not only the handler.
+  if (p.journey) return { kind: 'result', lines: [JOURNEY_BLOCK] };
 
   // Safe havens never spawn battles — content tables should already be
   // battle-free; this guard keeps them that way regardless of content.
@@ -393,6 +397,9 @@ export function diveDungeon(
   d: DungeonDef,
   rng: Rng = defaultRng,
 ): { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } {
+  // A dive is zone-bound work (#166): a live crossing refuses it here at
+  // the central mutation, not only at the handler.
+  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const bossFloor = d.floors.length + 1;
   const floor = nextFloor(p, d);
 

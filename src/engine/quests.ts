@@ -14,6 +14,7 @@ import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp, xpRewardLabel } from './character.ts';
 import { npc, npcInZone } from '../content/quests.ts';
 import { evalCondition } from './conditions.ts';
+import { JOURNEY_BLOCK } from './journey.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
   let q = p.quests[id];
@@ -125,6 +126,12 @@ export function acceptQuest(
 ): { ok: boolean; msg: string; lines: string[]; ready: string[] } {
   const q = quest(id);
   if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'], ready: [] };
+  // A live crossing owns the interaction flow (#166): quest business is a
+  // zone-bound interaction — no contact can be made on the road.
+  if (p.journey) {
+    const msg = JOURNEY_BLOCK;
+    return { ok: false, msg, lines: [msg], ready: [] };
+  }
   // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
   // refused with guidance and never touches quest state.
   const refusal = contactRefusal(p.currentZone, npcId, q.startNpc);
@@ -329,6 +336,9 @@ export function turnInGoodsShortfall(p: PlayerState, id: string): string | undef
 export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInResult {
   const q = quest(id);
   if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
+  // A live crossing owns the interaction flow (#166): the handover waits
+  // for arrival — no turn-in happens on the road.
+  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK], ready: [] };
   const refusal = contactRefusal(p.currentZone, npcId, q.finishNpc);
   if (refusal) return { ok: false, lines: [refusal], ready: [] };
   const qp = p.quests[id];

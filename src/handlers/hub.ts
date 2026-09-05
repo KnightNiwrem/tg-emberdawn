@@ -6,7 +6,12 @@
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { bossGateBlock, diveDungeon, dungeonOf, explore, nextDiveIsBoss } from '../engine/world.ts';
-import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
+import {
+  advanceJourney,
+  JOURNEY_BLOCK,
+  retreatFromJourney,
+  startJourney,
+} from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell, shopAt } from '../engine/shops.ts';
@@ -42,7 +47,7 @@ function exploreAction(p: PlayerState): MutationResult {
   // the wilds — and the destination's wilds are not theirs yet.
   if (p.journey) {
     p.scene = { view: 'journey' };
-    return { toast: '🧭 Finish the crossing first.' };
+    return { toast: JOURNEY_BLOCK };
   }
   const outcome = explore(p);
   if (outcome.kind === 'battle') {
@@ -66,7 +71,7 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
   }
   if (p.journey) {
     p.scene = { view: 'journey' };
-    return { toast: '🧭 Finish the crossing first.' };
+    return { toast: JOURNEY_BLOCK };
   }
   const z = zoneDef(p.currentZone);
   const d = z ? dungeonOf(z) : undefined;
@@ -102,7 +107,7 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
   // Conversations wait for arrival (#159): no NPC contact mid-crossing.
   if (p.journey) {
     p.scene = { view: 'journey' };
-    return { toast: '🧭 Finish the crossing first.' };
+    return { toast: JOURNEY_BLOCK };
   }
   const z = zoneDef(p.currentZone);
   const npc = z?.npcs[npcIndex];
@@ -114,8 +119,15 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
 /** NPC topic-menu actions (#123). Every selection revalidates the live
  * scene context (view + NPC id), the NPC's physical presence in the
  * current zone, and the CURRENT quest/topic availability — stale, forged
- * or no-longer-valid topic callbacks are harmless refusals. */
+ * or no-longer-valid topic callbacks are harmless refusals. #166: a live
+ * crossing blocks every zone-bound interaction at this entry point too —
+ * currentZone still reads the origin mid-crossing, so presence alone
+ * cannot be the guard. Back stays open (navigation). */
 export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult {
+  if (p.journey && cb.a !== 'bk') {
+    p.scene = { view: 'journey' };
+    return { toast: JOURNEY_BLOCK };
+  }
   switch (cb.a) {
     case 'bk':
       // Leaving the scene invalidates its buttons (rev bump on commit).
@@ -201,7 +213,7 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       // No second edge while a crossing is live (#159).
       if (p.journey) {
         p.scene = { view: 'journey' };
-        return { toast: '🧭 Finish the crossing first.' };
+        return { toast: JOURNEY_BLOCK };
       }
       return go(p, 'travel');
     case 'ch':
@@ -216,7 +228,7 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       // No second errand while a crossing is live (#159).
       if (p.journey) {
         p.scene = { view: 'journey' };
-        return { toast: '🧭 Finish the crossing first.' };
+        return { toast: JOURNEY_BLOCK };
       }
       // Facility authority (#161): the button only opens the service the
       // current zone actually authors — a forged tap for an absent shop
@@ -227,7 +239,7 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
     case 'fg': {
       if (p.journey) {
         p.scene = { view: 'journey' };
-        return { toast: '🧭 Finish the crossing first.' };
+        return { toast: JOURNEY_BLOCK };
       }
       if (!forgeAt(p)) return { toast: 'There is no forge here.' };
       return go(p, 'forge');
@@ -320,7 +332,7 @@ export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResu
   // until arrival, origin counters wait for the road's end.
   if (p.journey) {
     p.scene = { view: 'journey' };
-    return { toast: '🧭 Finish the crossing first.' };
+    return { toast: JOURNEY_BLOCK };
   }
   // Server-side authority (#161): every trade action verifies the current
   // zone actually authors a shop — the renderer never grants access.
@@ -359,7 +371,7 @@ export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationRe
   // No forge work mid-crossing (#159).
   if (p.journey) {
     p.scene = { view: 'journey' };
-    return { toast: '🧭 Finish the crossing first.' };
+    return { toast: JOURNEY_BLOCK };
   }
   // Facility authority (#161): a forged tap where no forge stands is a
   // non-mutating refusal; the engine revalidates capability itself.
@@ -424,6 +436,13 @@ function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void
  * staged panel before the central op is consulted, so a forged or
  * mismatched `cf` is a harmless refusal. */
 export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
+  // #166: a live crossing owns the interaction flow — the mutating
+  // dialogue controls refuse here as well; Back and confirmation
+  // cancellation stay open (navigation only).
+  if (p.journey && cb.a !== 'bk' && cb.a !== 'cc') {
+    p.scene = { view: 'journey' };
+    return { toast: JOURNEY_BLOCK };
+  }
   const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
   if (cb.a === 'bk') {
     // Back/End/Not-now returns to the owning NPC's topic menu when they

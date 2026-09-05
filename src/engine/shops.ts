@@ -17,6 +17,7 @@ import { isEquippable, item, itemName, sellPrice } from '../content/items.ts';
 import { removeItem } from './inventory.ts';
 import { grantItem, questReadyLine } from './quests.ts';
 import { evalCondition } from './conditions.ts';
+import { JOURNEY_BLOCK } from './journey.ts';
 
 /** One resolvable shelf entry: the item and the price THIS shop charges
  * for it (authored local price rules included). */
@@ -67,9 +68,11 @@ export function offeredPrice(p: PlayerState, itemId: string): number | undefined
 }
 
 export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lines: string[] } {
-  // A fight in front of you forbids the counter (#161): no battle or
-  // active journey may open trade.
+  // A fight in front of you forbids the counter (#161); a live crossing
+  // does too (#166 — enforced here at the central mutation, not only in
+  // the handler): no battle or active journey may open trade.
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const def = item(itemId);
   if (!def) return { ok: false, lines: ['The shopkeeper blinks. "Never heard of it."'] };
   // Server-side authority (#161): the offering is re-resolved from the
@@ -100,8 +103,10 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
  * usable shop at the player's zone. No shop — no sale; the generic
  * inventory no longer sells at all (dropping remains a bag operation). */
 export function sell(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lines: string[] } {
-  // Same locality authority as buying (#161): a fight forbids trade.
+  // Same locality authority as buying (#161): a fight forbids trade —
+  // and so does a live crossing (#166, at the central mutation).
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const def = item(itemId);
   if (!def) return { ok: false, lines: ["That item doesn't exist."] };
   if (def.unique) return { ok: false, lines: ["🚫 That can't be sold."] };

@@ -40,6 +40,13 @@ export type JourneyStart =
   | { ok: true; step: JourneyStep }
   | { ok: false; refusal: string };
 
+/** The journey owns the interaction flow (#166): while a crossing is
+ * live, every zone-bound interaction — NPC/dialogue, quest business,
+ * explore, dungeon, shop and forge — is refused with this line, both at
+ * the central engine mutations and at the handler entry points (defense
+ * in depth). Navigation and the journey's own controls stay open. */
+export const JOURNEY_BLOCK = '🧭 Finish the crossing first.';
+
 /** The event pool eligible for the NEXT roll at the player's level:
  * battle events honor authored level bands (#73 rule), everything else
  * always rolls. */

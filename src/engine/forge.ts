@@ -21,6 +21,7 @@ import { forgeInZone } from '../content/facilities.ts';
 import { removeItem } from './inventory.ts';
 import { item, itemName } from '../content/items.ts';
 import { evalCondition } from './conditions.ts';
+import { JOURNEY_BLOCK } from './journey.ts';
 
 export const MAX_TEMPER = 5;
 
@@ -133,7 +134,10 @@ export function temper(
 ): { ok: boolean; lines: string[] } {
   // Server-side authority (#161): facility, capability, item, cost and
   // materials are all revalidated here — never trusted from a render.
+  // A fight forbids the anvil, and so does a live crossing (#166 —
+  // enforced at the central mutation, not only in the handler).
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const block = temperBlock(p, slot);
   if (block) return { ok: false, lines: [block] };
   const equipped = p.equipment[slot]!;

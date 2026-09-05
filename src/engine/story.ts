@@ -76,6 +76,7 @@ import {
 } from './quests.ts';
 import { onStoryEvent } from './quests.ts';
 import { evalCondition } from './conditions.ts';
+import { JOURNEY_BLOCK } from './journey.ts';
 
 /** The central story-path authorities. (StoryEffect itself is content
  * data — see content/types.ts.) */
@@ -408,6 +409,10 @@ export function validateStoryBundle(
   effects: readonly StoryEffect[],
   ctx: StoryContext,
 ): string | undefined {
+  // A live crossing owns the interaction flow (#166): no story bundle —
+  // not even a replay no-op — applies on the road. Preflight and
+  // application stay in lockstep (#137).
+  if (p.journey) return JOURNEY_BLOCK;
   if (p.storyReceipts.includes(receiptKey(ctx))) return undefined; // replay: no-op
   const run = runStoryBundle(structuredClone(p), effects, ctx);
   return run.ok ? undefined : run.refusal;
@@ -424,6 +429,10 @@ export function applyStoryEffects(
   effects: readonly StoryEffect[],
   ctx: StoryContext,
 ): StoryResult {
+  // A live crossing owns the interaction flow (#166): no story bundle —
+  // not even a replay no-op — applies on the road. The refusal throws,
+  // leaving the live player byte-for-byte unchanged (the contract below).
+  if (p.journey) throw new Error(`story bundle refused: ${JOURNEY_BLOCK}`);
   const receipt = receiptKey(ctx);
   if (p.storyReceipts.includes(receipt)) return emptyResult(); // replay: no-op
   const draft = structuredClone(p);
@@ -497,6 +506,10 @@ export function applyDialogueChoice(
   args: ChoiceApplyArgs,
 ): ChoiceApplyResult {
   const movedOn = { ok: false as const, refusal: 'That conversation has moved on.', lines: [] };
+  // A live crossing owns the interaction flow (#166): no conversation can
+  // be advanced on the road — the central story op refuses before any
+  // scene, ownership or availability check.
+  if (p.journey) return { ok: false, refusal: JOURNEY_BLOCK, lines: [] };
   // Scene authority: the player must be inside a dialogue, at a choice
   // node — the dialogue and node ids are read from the live scene itself.
   if (p.scene.view !== 'dialogue' || !p.scene.arg || !p.scene.arg2) return movedOn;

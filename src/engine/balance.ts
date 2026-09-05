@@ -23,7 +23,7 @@ import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
 import { diveDungeon, dungeonOf, encounterEligible, explore, nextDungeonFloor } from './world.ts';
-import { advanceJourney, startJourney } from './journey.ts';
+import { advanceJourney, retreatFromJourney, startJourney } from './journey.ts';
 import { completeTravelBattleEvent } from './journey.ts';
 import { resolveRouteById as resolveRouteForSim, usableRoutesFrom } from './routes.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
@@ -1980,7 +1980,14 @@ export function driveQuests(
     if (kind === 'road') travel.travelRounds += rounds;
     // Road fights attach their battle (the coordinator does); every exit
     // path clears it like the live Continue/flee/death flow does.
-    if (kind === 'road') p.battle = undefined;
+    if (kind === 'road') {
+      p.battle = undefined;
+      // #166: a road timeout maps to the live RETREAT flow — the crossing
+      // aborts back to the origin. A live journey must never survive a
+      // fight the sim walked away from, or every later zone-bound action
+      // (explore, shop, quests) would run from an impossible state.
+      if (result !== 'win' && p.journey) retreatFromJourney(p);
+    }
     // #111: record the attempt AFTER resolution — the diagnostic observes
     // the completed fight only.
     lastAttempt = {
