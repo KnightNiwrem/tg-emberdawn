@@ -290,14 +290,14 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Defeat Marsh Wisps while exploring Hollowmere Swamp. Their light will gather in my lamp. Return to me when the patrol is done and we can decide whether to give it to the crossing beacon. Your quest notes carry the tally.',
+          'Defeat Marsh Wisps while exploring Hollowmere Swamp. Their light will gather in my lamp. Return to me when the patrol is done and we can decide whether to give it to the crossing beacon.',
       },
       {
         id: 'a3',
         kind: 'line',
         speaker: 'npc',
         text:
-          'Defeat Marsh Leeches while exploring Hollowmere Swamp, then report to me. The keepers need the water intake clear enough to clean its filter baskets. Your quest notes carry the tally.',
+          'Defeat Marsh Leeches while exploring Hollowmere Swamp, then report to me. The keepers need the water intake clear enough to clean its filter baskets.',
       },
       {
         id: 'a4',

@@ -225,7 +225,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Hollow needs better equipment than most travelers bring. Its first chambers hold old iron caches, and Mycelid Drones carry ore in their husks. Please bring me two chunks. I'll pay for the iron and stock stronger work for you to buy. The ore is your contribution; there is no coin fee for this job.",
+          "The Hollow needs better equipment than most travelers bring. Its first chambers hold old iron caches, and Mycelid Drones carry ore in their husks. Please bring me two chunks. I'll pay for the iron and stock stronger work for you to buy.",
         next: 'oa',
       },
       {
@@ -794,7 +794,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'I have the Sunspire Key. The Brass Automatons outside the Vault would sound the alarm before you could use it. Defeat their patrol in the ruins, then report here. I will issue the key once the approach is secure. You will not find it in their wreckage.',
+          'I have the Sunspire Key. The Brass Automatons outside the Vault would sound the alarm before you could use it. Defeat their patrol in the ruins, then report here. I will issue the key once the approach is secure.',
         next: 'oa',
       },
       {
@@ -1515,7 +1515,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Defeat Aldric to break his hold on the crown. The warmth you freed in root, water, daylight, and thaw can then rejoin its source. You need no royal key; the stair opens onto the Sundered Throne. I have supplies for your ascent. His grief explains the theft. It does not give him the right to keep it.',
+          'Defeat Aldric to break his hold on the crown. The warmth you freed in root, water, daylight, and thaw can then rejoin its source. The stair opens onto the Sundered Throne. I have supplies for your ascent. His grief explains the theft. It does not give him the right to keep it.',
         next: 't2',
       },
       {
@@ -1765,7 +1765,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Giant Rats foul what grain they do not eat. I have children with fevers and too little clean food for them. Defeat the rats in the Outskirts or at the Whisperwood edge, then report to me. Leave the Ember Rats to Maren's patrol; this job is for the ordinary, oversized kind.",
+          'The Giant Rats foul what grain they do not eat. I have children with fevers and too little clean food for them. Defeat the Giant Rats in the Outskirts or at the Whisperwood edge, then report to me.',
         next: 'oa',
       },
       {
@@ -2486,7 +2486,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Fire Salamanders drive prey toward the lava, where it has nowhere left to run. Travelers are caught in the same hunt. Defeat the salamanders along the paths through the Cinder Wastes and report here. We count the creatures you face, not whole herds.',
+          'Fire Salamanders drive prey toward the lava, where it has nowhere left to run. Travelers are caught in the same hunt. Defeat the salamanders along the paths through the Cinder Wastes and report here.',
         next: 'oa',
       },
       {
