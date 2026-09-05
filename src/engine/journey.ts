@@ -27,7 +27,7 @@ import { grantItem, questReadyLine } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { arriveAt, encounterEligible } from './world.ts';
 import { grantContextualDrops, rollDropTable } from './loot.ts';
-import { resolveRouteById } from './routes.ts';
+import { departureCheck } from './routes.ts';
 
 /** One coordinator result: what the handler should show next. */
 export type JourneyStep =
@@ -102,8 +102,9 @@ function applyQuietEvent(p: PlayerState, ev: TravelEvent, rng: Rng): string[] {
 }
 
 /** Revalidation for departing on an edge (#159): no battle, no journey,
- * genuine adjacency, unlocked destination, currently-passing conditions,
- * usable plan. Callback data is never authority. */
+ * then the ONE departure authority (#168) — route identity, current
+ * origin, destination unlock, top-level route condition, usable plan.
+ * Callback data is never authority. */
 export function startJourney(
   p: PlayerState,
   edgeId: string,
@@ -111,17 +112,9 @@ export function startJourney(
 ): JourneyStart {
   if (p.battle) return { ok: false, refusal: '⚔️ Finish the fight first.' };
   if (p.journey) return { ok: false, refusal: '🧭 You are already on the road.' };
-  const resolved = resolveRouteById(p, edgeId);
-  if (!resolved) return { ok: false, refusal: "You can't find a road to there." };
-  if (resolved.from !== p.currentZone) {
-    return { ok: false, refusal: '🚫 That road does not start here.' };
-  }
-  if (!p.unlockedZones.includes(resolved.to)) {
-    return { ok: false, refusal: '🚫 That path is still closed to you.' };
-  }
-  if (resolved.eventCount > 0 && resolved.events.length === 0) {
-    return { ok: false, refusal: '🚫 That road cannot be crossed right now.' };
-  }
+  const checked = departureCheck(p, edgeId);
+  if (!checked.ok) return { ok: false, refusal: checked.refusal };
+  const resolved = checked.plan;
   const totalEvents = resolved.eventCount;
   if (totalEvents === 0) {
     // A zero-event edge is an immediate, welcoming crossing — the same

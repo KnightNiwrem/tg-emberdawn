@@ -8,6 +8,7 @@ import { conditionRefs, evalCondition } from '../src/engine/conditions.ts';
 import { createPlayer } from '../src/engine/character.ts';
 import { rollDropTable } from '../src/engine/loot.ts';
 import {
+  departureCheck,
   resolveRoute,
   resolveRouteById,
   routeUsable,
@@ -19,7 +20,7 @@ import { enemy } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
-import type { RouteDef, TravelEvent } from '../src/content/types.ts';
+import type { Condition, RouteDef, TravelEvent } from '../src/content/types.ts';
 
 // ── content integrity: the graph ─────────────────────────────────────────
 
@@ -380,6 +381,57 @@ Deno.test('routeUsable refuses a usable-only-by-name plan (conditions + empty ta
 Deno.test('resolveRouteById: unknown edge id resolves to undefined', () => {
   const p = playerWith(['emberdawn'], 'emberdawn');
   assertEquals(resolveRouteById(p, 'w_nope_nada'), undefined);
+});
+
+// ── the departure authority (#168) ───────────────────────────────────────
+
+Deno.test('departureCheck: a false top-level route condition refuses; truth opens the road', () => {
+  // Patch a gated condition onto an otherwise ungated edge (no shipped
+  // route authors a top-level `when` today — the gate must hold the
+  // moment one is authored), then restore the catalog.
+  const edge = route('w_outskirts_whisperwood')!;
+  const edgeAny = edge as typeof edge & { when?: Condition };
+  edgeAny.when = { flag: { id: 'road_gate_open' } };
+  try {
+    const p = playerWith(['emberdawn', 'outskirts', 'whisperwood'], 'outskirts');
+    // The gate is closed: enumeration, usability and departure all refuse.
+    assertEquals(routeUsable(p, edge), false);
+    assertEquals(
+      usableRoutesFrom(p).map((r) => r.id),
+      ['w_outskirts_emberdawn'],
+      'the gated road never even displays',
+    );
+    const closed = departureCheck(p, 'w_outskirts_whisperwood');
+    assertEquals(closed.ok, false);
+    assert(closed.ok === false && closed.refusal.includes('closed'));
+    // And it opens the moment the live condition turns true.
+    const open = playerWith(
+      ['emberdawn', 'outskirts', 'whisperwood'],
+      'outskirts',
+      { road_gate_open: true },
+    );
+    const ready = departureCheck(open, 'w_outskirts_whisperwood');
+    assert(ready.ok, 'the same road departs once its condition passes');
+    assertEquals(usableRoutesFrom(open).map((r) => r.id), [
+      'w_outskirts_emberdawn',
+      'w_outskirts_whisperwood',
+    ]);
+    assertEquals(routeUsable(open, edge), true);
+  } finally {
+    delete edgeAny.when;
+  }
+});
+
+Deno.test('departureCheck: one authority for identity, origin, unlock and plan', () => {
+  const p = playerWith(['emberdawn', 'outskirts'], 'outskirts');
+  const unknown = departureCheck(p, 'w_nope_nada');
+  assert(!unknown.ok && unknown.refusal.includes("can't find a road"));
+  const foreign = departureCheck(p, 'w_whisperwood_outskirts');
+  assert(!foreign.ok && foreign.refusal.includes('does not start here'));
+  const locked = departureCheck(p, 'w_outskirts_whisperwood');
+  assert(!locked.ok && locked.refusal.includes('closed'), 'destination lock refused');
+  // Every enumerated route passes the same check that startJourney applies.
+  for (const r of usableRoutesFrom(p)) assert(departureCheck(p, r.id).ok);
 });
 
 // ── deterministic fixtures ───────────────────────────────────────────────

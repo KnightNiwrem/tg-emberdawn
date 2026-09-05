@@ -22,6 +22,8 @@ import {
 import * as journeyMods from '../src/engine/journey.ts';
 import { diveDungeon, dungeonOf } from '../src/engine/world.ts';
 import { zone } from '../src/content/zones.ts';
+import { route } from '../src/content/routes.ts';
+import type { Condition } from '../src/content/types.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { withRev } from '../src/codec.ts';
@@ -235,6 +237,50 @@ Deno.test('router: the same forged callbacks behave identically during a journey
     const after = (await store.get(p.userId))!;
     assertEquals(footprint(after), before, `${data} mutates nothing mid-battle`);
     await store.set(p.userId, after);
+  }
+});
+
+Deno.test('router: a forged departure callback for a gated road refuses; the open road departs (#168)', async () => {
+  const store = new MemoryStore();
+  // Patch a top-level gate onto the zero-event Root-path (no shipped
+  // route authors one yet) and restore it after the test.
+  const edge = route('w_outskirts_whisperwood')!;
+  const edgeAny = edge as typeof edge & { when?: Condition };
+  edgeAny.when = { flag: { id: 'road_gate_open' } };
+  try {
+    const p = createPlayer(1668, 'Walker', 'warrior');
+    p.tutorial = 'done';
+    p.currentZone = 'outskirts';
+    await store.set(p.userId, p);
+    // The forged departure (current revision, live message copy) is
+    // refused: no arrival, no journey, no RNG consumption.
+    const live = (await store.get(p.userId))!;
+    const tap = fakeCtxCapture(
+      p.userId,
+      900000,
+      withRev(live.uiRev, 't:go:w_outskirts_whisperwood'),
+    );
+    await handleCallback(tap.ctx, store);
+    const refused = (await store.get(p.userId))!;
+    assertEquals(refused.currentZone, 'outskirts', 'the player never left');
+    assertEquals(refused.journey, undefined, 'no crossing started');
+    assertEquals(refused.stats.battlesWon, 0, 'nothing resolved on the refused tap');
+    // The same callback departs once the live condition turns true —
+    // the zero-event road arrives directly.
+    refused.flags['road_gate_open'] = true;
+    await store.set(refused.userId, refused);
+    const live2 = (await store.get(refused.userId))!;
+    const tap2 = fakeCtxCapture(
+      refused.userId,
+      900000,
+      withRev(live2.uiRev, 't:go:w_outskirts_whisperwood'),
+    );
+    await handleCallback(tap2.ctx, store);
+    const arrived = (await store.get(refused.userId))!;
+    assertEquals(arrived.currentZone, 'whisperwood', 'the opened road departs');
+    assertEquals(arrived.journey, undefined);
+  } finally {
+    delete edgeAny.when;
   }
 });
 

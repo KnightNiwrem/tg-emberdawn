@@ -82,19 +82,52 @@ export function resolveRouteById(p: PlayerState, edgeId: string): ResolvedRoute 
  * table). Destination unlock state is checked by the callers that
  * enumerate or depart. */
 export function routeUsable(p: PlayerState, r: RouteDef): boolean {
-  if (r.when && !evalCondition(p, r.when)) return false;
+  return departureCheck(p, r.id).ok;
+}
+
+/** The ONE authoritative departure resolver (#168): pure over the live
+ * player state. Returns the resolved plan exactly when the player may
+ * depart on `edgeId` RIGHT NOW — route identity, current origin,
+ * destination unlock, the top-level route condition, and the resolved
+ * variant's usable event plan — or the reason they may not. UI
+ * enumeration (`usableRoutesFrom`) and `startJourney` BOTH route through
+ * it, so the displayed and executable route sets cannot diverge and a
+ * forged departure callback for a closed road is refused without
+ * mutation or RNG consumption. */
+export type DepartureCheck =
+  | { ok: true; plan: ResolvedRoute }
+  | { ok: false; refusal: string };
+
+export function departureCheck(p: PlayerState, edgeId: string): DepartureCheck {
+  const r = edgeRoute(edgeId);
+  if (!r) return { ok: false, refusal: "You can't find a road to there." };
+  if (r.from !== p.currentZone) {
+    return { ok: false, refusal: '🚫 That road does not start here.' };
+  }
+  if (!p.unlockedZones.includes(r.to)) {
+    return { ok: false, refusal: '🚫 That path is still closed to you.' };
+  }
+  // The top-level route condition (#168): the same gate the travel UI's
+  // enumeration applies — a gated road is undepartable from ANY surface
+  // while its condition stands, and opens the moment the condition turns
+  // true.
+  if (r.when && !evalCondition(p, r.when)) {
+    return { ok: false, refusal: '🚫 That path is still closed to you.' };
+  }
   const plan = resolveRoute(p, r);
-  return plan.eventCount === 0 || plan.events.length > 0;
+  if (plan.eventCount > 0 && plan.events.length === 0) {
+    return { ok: false, refusal: '🚫 That road cannot be crossed right now.' };
+  }
+  return { ok: true, plan };
 }
 
 /** Outgoing edges the player could actually depart on RIGHT NOW: authored
  * adjacency from the current zone, an unlocked destination, and currently
  * passing conditions. The travel UI enumerates exactly this — never every
- * unlocked zone. */
+ * unlocked zone. The enumeration IS the departure authority's own filter,
+ * so what is displayed is exactly what startJourney will accept. */
 export function usableRoutesFrom(p: PlayerState): RouteDef[] {
-  return routesFrom(p.currentZone).filter((r) =>
-    p.unlockedZones.includes(r.to) && routeUsable(p, r)
-  );
+  return routesFrom(p.currentZone).filter((r) => departureCheck(p, r.id).ok);
 }
 
 /** All edges joining two zones in one direction (thin re-export so the

@@ -16,7 +16,7 @@ import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell, shopAt } from '../engine/shops.ts';
 import { forgeAt, temper } from '../engine/forge.ts';
-import { resolveRouteById } from '../engine/routes.ts';
+import { departureCheck } from '../engine/routes.ts';
 import { syncAvailability } from '../engine/quests.ts';
 import { npc, npcInZone } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';
@@ -256,16 +256,18 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
   }
   // Hazardous departures demand an informed, explicit choice (#164): an
   // expedition-grade road stages a confirmation panel first; starter and
-  // ordinary roads remain immediate and welcoming.
-  const plan = resolveRouteById(p, cb.arg);
+  // ordinary roads remain immediate and welcoming. #168: the staging ride
+  // goes through the ONE departure authority — a closed road never even
+  // stages a panel, and the same check startJourney applies decides here.
+  const check = departureCheck(p, cb.arg);
   if (
-    plan && plan.from === p.currentZone && plan.eventCount >= 3 && p.scene.arg !== `go:${cb.arg}`
+    check.ok && check.plan.eventCount >= 3 && p.scene.arg !== `go:${cb.arg}`
   ) {
     p.scene = { view: 'travel', arg: `go:${cb.arg}` };
     return {
       toast: `⚠️ ${
-        plan.name ?? 'That road'
-      } carries ${plan.eventCount} road events — confirm the departure.`,
+        check.plan.name ?? 'That road'
+      } carries ${check.plan.eventCount} road events — confirm the departure.`,
     };
   }
   // The journey coordinator revalidates everything server-side (#159):
