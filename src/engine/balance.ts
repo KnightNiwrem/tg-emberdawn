@@ -30,7 +30,8 @@ import {
   startJourney,
 } from './journey.ts';
 import { completeTravelBattleEvent } from './journey.ts';
-import { resolveRouteById as resolveRouteForSim, usableRoutesFrom } from './routes.ts';
+import { resolveRouteById as resolveRouteForSim } from './routes.ts';
+import { findRoutePath } from './pathfinding.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
 import { ENEMIES } from '../content/enemies.ts';
 import { isEquippable, item as itemDef, ITEMS } from '../content/items.ts';
@@ -437,26 +438,9 @@ export interface FightResult {
   duration1Applied: number;
 }
 
-/** Runs ONE real fight on a cloned hero. Never mutates the passed hero and
- * never bypasses combat: victory routes through resolveVictory, defeat
- * through the lethal-hit path. */
-export function runFight(
-  hero: PlayerState,
-  enemyId: string,
-  policy: Policy,
-  rng: Rng,
-  origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
-): FightResult {
-  const p = structuredClone(hero) as PlayerState;
-  // #101: the harness collects ONLY its own fight's trace — startBattle
-  // and every performAction return their entries explicitly, so nested or
-  // concurrent fights cannot cross-contaminate, no collector can leak on
-  // a throw, and no finally exists merely to detach telemetry.
-  const events: CombatTraceEntry[] = [];
-  let rounds = 0;
-  let lastWasGuard = false;
-  const seenIids = new Set<string>();
-  const result: FightResult = {
+// Metrics observe a completed engine operation; they never choose actions (#182).
+function emptyFightResult(): FightResult {
+  return {
     outcome: 'timeout',
     rounds: 0,
     hpPct: 0,
@@ -501,155 +485,187 @@ export function runFight(
     procHits: 0,
     duration1Applied: 0,
   };
-  {
-    // #80: the harness constructs battles through the SAME opening pipeline
-    // as live play — full hero context, seeded rng.
-    const started = startBattle(enemyId, origin, { player: p, rng });
-    if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
-    const b = started.battle;
-    p.battle = b;
-    events.push(...started.trace);
-    // Only metrics the current trace does not express remain line-based:
-    // crit/dodge markers, Shield absorption and expired/lost capacity.
-    const CRIT = '— critical';
-    const DODGE = 'slip aside';
-    const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
-    // #121 canonical wording: the pool is always "Shield".
-    const SHIELD_FADE = /(\d+) Shield capacity fades/;
-    /** Openings and rounds use the same remaining presentation metrics. */
-    const scanLines = (lines: readonly string[]): void => {
-      for (const line of lines) {
-        if (line.includes(CRIT)) result.crits++;
-        if (line.includes(DODGE)) result.dodges++;
-        const absorbed = SHIELD_ABSORB.exec(line);
-        if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
-        const faded = SHIELD_FADE.exec(line);
-        if (faded) result.shieldExpiryLost += Number(faded[1]);
-      }
-    };
-    if (b.opening?.lines.length) scanLines(b.opening.lines);
-    // #96: the opening's explicit adjudication — a terminal opening ends the
-    // fight before round 1; victory still routes through resolveVictory.
-    if (started.outcome === 'victory') {
-      resolveVictory(p, b, rng);
-      result.outcome = 'win';
-    } else if (started.outcome === 'defeat') {
-      result.outcome = 'lose';
-    }
-    while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
-      // #84: sample live instances BEFORE acting — opening effects surface on
-      // round 1, uptime counts observed rounds, applications count new iids.
-      for (const i of b.effectInstances) {
-        const key = `${i.side}:${i.defId}`;
-        result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
-        if (!seenIids.has(i.iid)) {
-          seenIids.add(i.iid);
-          result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
-          result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
-        }
-      }
-      const action = chooseAction(p, b, policy, lastWasGuard);
-      lastWasGuard = action.kind === 'guard';
-      const mpBefore = p.mp;
-      const res = performAction(p, b, action, rng);
-      rounds++;
-      events.push(...res.trace);
-      if (res.skipped) result.skippedRounds++;
-      if (!res.consumedTurn) result.invalidActions++;
-      result.mpSpent += Math.max(0, mpBefore - p.mp);
-      if (action.kind === 'skill' && res.consumedTurn) {
-        result.skillCasts[action.skillId] = (result.skillCasts[action.skillId] ?? 0) + 1;
-        const cast = skillDef(action.skillId);
-        if (cast) {
-          if (isBuffSkill(cast)) result.buffCasts++;
-          if (isShieldSkill(cast)) result.shieldCasts++;
-          if (isDotSkill(cast)) result.dotCasts++;
-          if (isPureDebuffSkill(cast)) result.debuffCasts++;
-          if (isCleanseSkill(cast)) result.cleanseCasts++;
-          if (isDispelSkill(cast)) result.dispelCasts++;
-        }
-      }
-      scanLines(res.lines);
-      if (action.kind === 'guard') {
-        result.guardRounds++;
-        result.mpFromGuard += Math.max(0, p.mp - mpBefore);
-      }
-      if (action.kind === 'item') result.itemsUsed++;
-      // #86: the engine's explicit terminal adjudication — shared with the
-      // live handler and the tutorial (one outcome authority).
-      if (res.outcome === 'victory') {
-        resolveVictory(p, b, rng);
-        result.outcome = 'win';
+}
+
+function aggregateFightTrace(result: FightResult, events: readonly CombatTraceEntry[]): void {
+  // #88/#95/#101: typed-entry aggregation — replacement-free sums from
+  // structured engine events (never parsed back out of presentation text).
+  // dealt/taken are GROSS per-event HP damage: enemy heals and lifesteal
+  // no longer subtract from damage dealt, and a same-round heal can never
+  // erase or invert damage taken. #106: they sum `hpLost` — the actual
+  // HP delta every damage family reports — so overkill (a 157 resolved
+  // blow onto a 1-HP target) contributes exactly 1, never the formula.
+  for (const e of events) {
+    switch (e.kind) {
+      case 'hpDamaged':
+        if (e.target === 'enemy') result.dealt += e.hpLost;
+        else result.taken += e.hpLost;
         break;
-      }
-      if (res.outcome === 'defeat') {
-        result.outcome = 'lose';
+      case 'hpRestored':
+        // Healing done / overheal for the hero (side player). applied is
+        // the post-clamp delta; attempted − applied is the overflow the
+        // target's full HP trimmed.
+        if (e.side === 'player') {
+          result.healDone += e.applied;
+          result.overheal += Math.max(0, e.attempted - e.applied);
+        }
         break;
-      }
-    }
-    // #88/#95/#101: typed-entry aggregation — replacement-free sums from
-    // structured engine events (never parsed back out of presentation text).
-    // dealt/taken are GROSS per-event HP damage: enemy heals and lifesteal
-    // no longer subtract from damage dealt, and a same-round heal can never
-    // erase or invert damage taken. #106: they sum `hpLost` — the actual
-    // HP delta every damage family reports — so overkill (a 157 resolved
-    // blow onto a 1-HP target) contributes exactly 1, never the formula.
-    for (const e of events) {
-      switch (e.kind) {
-        case 'hpDamaged':
-          if (e.target === 'enemy') result.dealt += e.hpLost;
-          else result.taken += e.hpLost;
-          break;
-        case 'hpRestored':
-          // Healing done / overheal for the hero (side player). applied is
-          // the post-clamp delta; attempted − applied is the overflow the
-          // target's full HP trimmed.
-          if (e.side === 'player') {
-            result.healDone += e.applied;
-            result.overheal += Math.max(0, e.attempted - e.applied);
-          }
-          break;
-        case 'periodicTick':
-          if (e.applied < 0) {
-            if (e.side === 'enemy') result.dotDealt += -e.applied;
-            else result.dotTaken += -e.applied;
-          } else if (e.side === 'player') {
-            result.hotHealing += e.applied;
-            result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
-          }
-          break;
-        case 'effectRemoved':
-          if (e.cause === 'expired') result.expiredRemovals++;
-          else if (e.cause === 'cleansed') result.cleanseRemovals++;
-          else if (e.cause === 'dispelled') result.dispelRemovals++;
-          else result.consumedRemovals++;
-          break;
-        case 'shieldBreak':
-          result.shieldBreaks++;
-          break;
-        case 'shieldGrant':
-          result.shieldGranted += e.applied + e.wasted;
-          result.shieldWasted += e.wasted;
-          break;
-        case 'procAttempt':
-          result.procAttempts++;
-          if (e.success) {
-            result.procHits++;
-            if (e.triggerKind !== 'battleStart') result.equipProcs++;
-          }
-          break;
-        case 'effectApplied':
-          // #93: only outcomes that activate a payload count as applications
-          // — extended/ignored recasts report the RETAINED instance.
-          if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
-            if (e.duration === 1) result.duration1Applied++;
-          }
-          break;
-        default:
-          break;
-      }
+      case 'periodicTick':
+        if (e.applied < 0) {
+          if (e.side === 'enemy') result.dotDealt += -e.applied;
+          else result.dotTaken += -e.applied;
+        } else if (e.side === 'player') {
+          result.hotHealing += e.applied;
+          result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
+        }
+        break;
+      case 'effectRemoved':
+        if (e.cause === 'expired') result.expiredRemovals++;
+        else if (e.cause === 'cleansed') result.cleanseRemovals++;
+        else if (e.cause === 'dispelled') result.dispelRemovals++;
+        else result.consumedRemovals++;
+        break;
+      case 'shieldBreak':
+        result.shieldBreaks++;
+        break;
+      case 'shieldGrant':
+        result.shieldGranted += e.applied + e.wasted;
+        result.shieldWasted += e.wasted;
+        break;
+      case 'procAttempt':
+        result.procAttempts++;
+        if (e.success) {
+          result.procHits++;
+          if (e.triggerKind !== 'battleStart') result.equipProcs++;
+        }
+        break;
+      case 'effectApplied':
+        // #93: only outcomes that activate a payload count as applications
+        // — extended/ignored recasts report the RETAINED instance.
+        if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
+          if (e.duration === 1) result.duration1Applied++;
+        }
+        break;
+      default:
+        break;
     }
   }
+}
+
+function scanFightLines(result: FightResult, lines: readonly string[]): void {
+  // Only metrics the current trace does not express remain line-based:
+  // crit/dodge markers, Shield absorption and expired/lost capacity.
+  const CRIT = '— critical';
+  const DODGE = 'slip aside';
+  const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
+  // #121 canonical wording: the pool is always "Shield".
+  const SHIELD_FADE = /(\d+) Shield capacity fades/;
+  for (const line of lines) {
+    if (line.includes(CRIT)) result.crits++;
+    if (line.includes(DODGE)) result.dodges++;
+    const absorbed = SHIELD_ABSORB.exec(line);
+    if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
+    const faded = SHIELD_FADE.exec(line);
+    if (faded) result.shieldExpiryLost += Number(faded[1]);
+  }
+}
+
+function sampleFightEffects(result: FightResult, b: BattleState, seenIids: Set<string>): void {
+  // #84: sample live instances BEFORE acting — opening effects surface on
+  // round 1, uptime counts observed rounds, applications count new iids.
+  for (const i of b.effectInstances) {
+    const key = `${i.side}:${i.defId}`;
+    result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
+    if (!seenIids.has(i.iid)) {
+      seenIids.add(i.iid);
+      result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
+      result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
+    }
+  }
+}
+
+function recordSkillCast(result: FightResult, skillId: string): void {
+  result.skillCasts[skillId] = (result.skillCasts[skillId] ?? 0) + 1;
+  const cast = skillDef(skillId);
+  if (cast) {
+    if (isBuffSkill(cast)) result.buffCasts++;
+    if (isShieldSkill(cast)) result.shieldCasts++;
+    if (isDotSkill(cast)) result.dotCasts++;
+    if (isPureDebuffSkill(cast)) result.debuffCasts++;
+    if (isCleanseSkill(cast)) result.cleanseCasts++;
+    if (isDispelSkill(cast)) result.dispelCasts++;
+  }
+}
+
+/** Runs ONE real fight on a cloned hero. Never mutates the passed hero and
+ * never bypasses combat: victory routes through resolveVictory, defeat
+ * through the lethal-hit path. */
+export function runFight(
+  hero: PlayerState,
+  enemyId: string,
+  policy: Policy,
+  rng: Rng,
+  origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
+): FightResult {
+  const p = structuredClone(hero) as PlayerState;
+  // #101: the harness collects ONLY its own fight's trace — startBattle
+  // and every performAction return their entries explicitly, so nested or
+  // concurrent fights cannot cross-contaminate, no collector can leak on
+  // a throw, and no finally exists merely to detach telemetry.
+  const events: CombatTraceEntry[] = [];
+  let rounds = 0;
+  let lastWasGuard = false;
+  const seenIids = new Set<string>();
+  const result = emptyFightResult();
+  // #80: the harness constructs battles through the SAME opening pipeline
+  // as live play — full hero context, seeded rng.
+  const started = startBattle(enemyId, origin, { player: p, rng });
+  if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
+  const b = started.battle;
+  p.battle = b;
+  events.push(...started.trace);
+  if (b.opening?.lines.length) scanFightLines(result, b.opening.lines);
+  // #96: the opening's explicit adjudication — a terminal opening ends the
+  // fight before round 1; victory still routes through resolveVictory.
+  if (started.outcome === 'victory') {
+    resolveVictory(p, b, rng);
+    result.outcome = 'win';
+  } else if (started.outcome === 'defeat') {
+    result.outcome = 'lose';
+  }
+  while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
+    sampleFightEffects(result, b, seenIids);
+    const action = chooseAction(p, b, policy, lastWasGuard);
+    lastWasGuard = action.kind === 'guard';
+    const mpBefore = p.mp;
+    const res = performAction(p, b, action, rng);
+    rounds++;
+    events.push(...res.trace);
+    if (res.skipped) result.skippedRounds++;
+    if (!res.consumedTurn) result.invalidActions++;
+    result.mpSpent += Math.max(0, mpBefore - p.mp);
+    if (action.kind === 'skill' && res.consumedTurn) {
+      recordSkillCast(result, action.skillId);
+    }
+    scanFightLines(result, res.lines);
+    if (action.kind === 'guard') {
+      result.guardRounds++;
+      result.mpFromGuard += Math.max(0, p.mp - mpBefore);
+    }
+    if (action.kind === 'item') result.itemsUsed++;
+    // #86: the engine's explicit terminal adjudication — shared with the
+    // live handler and the tutorial (one outcome authority).
+    if (res.outcome === 'victory') {
+      resolveVictory(p, b, rng);
+      result.outcome = 'win';
+      break;
+    }
+    if (res.outcome === 'defeat') {
+      result.outcome = 'lose';
+      break;
+    }
+  }
+  aggregateFightTrace(result, events);
   const s = statsOf(p);
   result.rounds = rounds;
   result.hpPct = s.maxHp > 0 ? p.hp / s.maxHp : 0;
@@ -1732,33 +1748,8 @@ export function driveQuests(
   };
   /** BFS over currently usable edges — adjacency, unlocks and conditions
    * all honored. Returns the edge-id path, or undefined when disconnected. */
-  const findPath = (toZone: string): string[] | undefined => {
-    if (p.currentZone === toZone) return [];
-    const prev = new Map<string, { from: string; edgeId: string }>();
-    const queue = [p.currentZone];
-    const seen = new Set([p.currentZone]);
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      const here = { ...p, currentZone: cur } as PlayerState;
-      for (const r of usableRoutesFrom(here)) {
-        if (seen.has(r.to)) continue;
-        seen.add(r.to);
-        prev.set(r.to, { from: cur, edgeId: r.id });
-        if (r.to === toZone) {
-          const path: string[] = [];
-          let at = toZone;
-          while (at !== p.currentZone) {
-            const step = prev.get(at)!;
-            path.unshift(step.edgeId);
-            at = step.from;
-          }
-          return path;
-        }
-        queue.push(r.to);
-      }
-    }
-    return undefined;
-  };
+  const findPath = (toZone: string): string[] | undefined =>
+    findRoutePath(p, (id) => id === toZone);
   /** #162: a determined traveler walks RESTED and STOCKED. Before roads
    * that roll events, the hero heals at the nearest safe haven (arrival
    * is the one authority — walking there IS the rest), tops up potions at
@@ -1769,24 +1760,13 @@ export function driveQuests(
     const origin = p.currentZone;
     const needsPrep = p.hp < s.maxHp * 0.9 || countOf(p, 'c_minor_potion') < 2;
     if (!needsPrep) return;
-    // BFS to the nearest safe haven; arrival heals through the engine.
-    const queue: { zone: string; path: string[] }[] = [{ zone: p.currentZone, path: [] }];
-    const seen = new Set([p.currentZone]);
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      const z = zoneDef(cur.zone);
-      if (z?.safeHaven && cur.path.length > 0) {
-        walkPath(cur.path);
-        break;
-      }
-      if (cur.path.length > 8) continue; // prep never crosses the world
-      const here = { ...p, currentZone: cur.zone } as PlayerState;
-      for (const r of usableRoutesFrom(here)) {
-        if (seen.has(r.to)) continue;
-        seen.add(r.to);
-        queue.push({ zone: r.to, path: [...cur.path, r.id] });
-      }
-    }
+    // The old search checked targets before its >8 expansion guard,
+    // so a haven exactly nine hops away remains eligible (#182).
+    const path = findRoutePath(p, (id) => zoneDef(id)?.safeHaven === true, {
+      includeStart: false,
+      maxHops: 9,
+    });
+    if (path) walkPath(path);
     if (shopInZone(p.currentZone)) shopHere();
     // Supplies: a haven without a counter sends the hero to the nearest
     // one that stocks heal potions (still under inPrep — no nested prep).
@@ -1920,28 +1900,11 @@ export function driveQuests(
         shop(); // a counter right here may already stock the shelf
         if (!short()) break;
       }
-      // BFS by hops over usable edges to the closest potion-stocking shop.
-      const queue: { zone: string; path: string[] }[] = [
-        { zone: p.currentZone, path: [] },
-      ];
-      const seen = new Set([p.currentZone]);
-      let walked = false;
-      while (queue.length > 0 && !walked) {
-        const cur = queue.shift()!;
-        if (cur.path.length > 0) {
-          const stock = resolveStock({ ...p, currentZone: cur.zone } as PlayerState);
-          if (stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId))) {
-            walked = walkPath(cur.path);
-            break;
-          }
-        }
-        const here = { ...p, currentZone: cur.zone } as PlayerState;
-        for (const r of usableRoutesFrom(here)) {
-          if (seen.has(r.to)) continue;
-          seen.add(r.to);
-          queue.push({ zone: r.to, path: [...cur.path, r.id] });
-        }
-      }
+      const path = findRoutePath(p, (id) => {
+        const stock = resolveStock({ ...p, currentZone: id });
+        return stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId));
+      }, { includeStart: false });
+      const walked = path !== undefined && walkPath(path);
       if (!walked) return; // nowhere to recover — keep playing honestly
     }
     if (shopInZone(p.currentZone)) shop();
