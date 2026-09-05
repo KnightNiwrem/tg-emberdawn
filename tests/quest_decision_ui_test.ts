@@ -48,7 +48,7 @@ Deno.test('quest decision UI: first offer highlights work and rewards and pairs 
   assertEquals(lists.length, 2);
   assertEquals(lists[0].items.length, 1);
   assert(visible(lists[0].items[0]).includes('Defeat Ember Rat ×4'));
-  assert(visible(lists[0].items[0]).includes('Emberdawn Outskirts (Explore)'));
+  assert(visible(lists[0].items[0]).includes('🗺️ Emberdawn Outskirts (Explore)'));
   const objective = lists[0].items[0].blocks[0];
   assert(objective.type === 'paragraph' && Array.isArray(objective.text));
   assertEquals(objective.text[0], { type: 'bold', text: 'Defeat Ember Rat ×4' });

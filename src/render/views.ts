@@ -39,7 +39,6 @@ import {
   cbBtn,
   disabledBtn,
   divider,
-  footer,
   heading,
   para,
   pct,
@@ -950,7 +949,6 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
       if (choices.length === 1) {
         blocks.push(divider());
         if (defer) {
-          blocks.push(footer('Not now leaves this conversation without choosing.'));
           row.push(cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' })));
         }
       }
@@ -959,7 +957,6 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     if (defer && choices.length !== 1) {
       blocks.push(
         divider(),
-        footer('Not now leaves this conversation without choosing.'),
         buttonsRow([cbBtn('✋ Not now', encodeCb({ v: 'dlg', a: 'bk' }))], 'left'),
       );
     }

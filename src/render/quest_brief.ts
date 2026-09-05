@@ -133,7 +133,7 @@ export function questBriefBlocks(
     const progress = mode === 'offer' ? '' : ` — ${Math.min(have, o.count ?? 1)}/${o.count ?? 1}`;
     const text = [{ type: 'bold' as const, text: `${objectiveLabel(o)}${progress}` }];
     const source = mode === 'turnIn' ? '' : objectiveSource(q, o);
-    objectives.push([para(source ? [...text, `\n📍 ${source}`] : text)]);
+    objectives.push([para(source ? [...text, `\n🗺️ ${source}`] : text)]);
   }
   blocks.push(list(objectives), heading('📍 Completion', 4));
   const fin = questFinisher(q.id)!;
