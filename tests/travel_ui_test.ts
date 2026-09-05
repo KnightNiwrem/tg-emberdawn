@@ -8,7 +8,7 @@ import { createPlayer } from '../src/engine/character.ts';
 import { retreatFromJourney, startJourney } from '../src/engine/journey.ts';
 import { battleAction } from '../src/handlers/battle.ts';
 import { travelAction, zoneAction } from '../src/handlers/hub.ts';
-import { renderHelp, renderJourney, renderTravel, renderZone } from '../src/render/views.ts';
+import { renderHelp, renderTravel, renderZone } from '../src/render/views.ts';
 import { tutorialRelease } from '../src/handlers/tutorial.ts';
 import { handleStart } from '../src/handlers/commands.ts';
 import { encodeCb, withRev } from '../src/codec.ts';

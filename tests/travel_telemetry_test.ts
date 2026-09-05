@@ -12,7 +12,6 @@ import { advanceJourney, type JourneyEventRecord, startJourney } from '../src/en
 import { simulateCampaign } from '../src/engine/balance.ts';
 import { route } from '../src/content/routes.ts';
 import type { TravelEvent } from '../src/content/types.ts';
-import { seeded } from './helpers.ts';
 
 function stub(...values: number[]): () => number {
   let i = 0;

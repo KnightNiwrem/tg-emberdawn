@@ -8,9 +8,9 @@
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
 import { battleAction } from '../src/handlers/battle.ts';
-import { addItem, countOf } from '../src/engine/inventory.ts';
+import { addItem } from '../src/engine/inventory.ts';
 import { startJourney } from '../src/engine/journey.ts';
-import { explore, travelDirect } from '../src/engine/world.ts';
+import { explore } from '../src/engine/world.ts';
 import { buy, sell } from '../src/engine/shops.ts';
 import { temper } from '../src/engine/forge.ts';
 import { acceptQuest, syncAvailability, turnInQuest } from '../src/engine/quests.ts';
