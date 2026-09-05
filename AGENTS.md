@@ -124,6 +124,11 @@ changes; `deno task test:pg:local` provisions a throwaway Docker Postgres. `npx 
 only — its "unlisted dependencies" warnings are false positives here: this is a Deno project and
 dependencies live in `deno.json`, not `package.json`.
 
+Follow [the code-quality review guidance](docs/code-quality.md) when acting on Fallow signals. The
+owner has deferred unused-code and export-visibility cleanup: retain unused functions and re-exports
+pending future use; do not run automatic removal or make them private merely to clear findings
+(#185).
+
 ## Repository layout
 
 - `src/engine/` — pure game logic

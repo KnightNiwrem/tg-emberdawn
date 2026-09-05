@@ -1,5 +1,10 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
-  "entry": ["src/main.ts", "src/persistence/migrate.ts"],
-  "ignorePatterns": ["dist/**", "coverage/**", "scripts/**"]
+  "entry": [
+    "src/main.ts",
+    "src/persistence/migrate.ts",
+    "scripts/balance.ts",
+    "scripts/webhook.ts"
+  ],
+  "ignorePatterns": ["dist/**", "coverage/**"]
 }
