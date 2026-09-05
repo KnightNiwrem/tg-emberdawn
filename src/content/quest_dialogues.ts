@@ -1798,7 +1798,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'How are the paths around the grain stores?',
         choices: [
           {
             id: 'handover',
@@ -1858,7 +1858,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to hand over the requested goods?',
+        prompt: "Let's see the iron.",
         choices: [
           {
             id: 'handover',
@@ -1912,7 +1912,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to hand over the requested goods?',
+        prompt: 'The lamp cups are ready.',
         choices: [
           {
             id: 'handover',
@@ -1980,7 +1980,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to hand over the requested goods?',
+        prompt: 'Is that her locket?',
         choices: [
           {
             id: 'handover',
@@ -2055,7 +2055,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Tell me where to set the marker.',
         choices: [
           {
             id: 'handover',
@@ -2116,7 +2116,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'The next boat is due. How did you fare against the raiders?',
         choices: [
           {
             id: 'handover',
@@ -2170,7 +2170,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'How quiet are the reeds now?',
         choices: [
           {
             id: 'handover',
@@ -2230,7 +2230,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Tell me where you scattered the scarabs.',
         choices: [
           {
             id: 'handover',
@@ -2291,7 +2291,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Which paths can I recommend to the next caravan?',
         choices: [
           {
             id: 'handover',
@@ -2344,7 +2344,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Tell me where their watch ended.',
         choices: [
           {
             id: 'handover',
@@ -2412,7 +2412,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Which supply paths did you clear?',
         choices: [
           {
             id: 'handover',
@@ -2465,7 +2465,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'How did you fare with the imps near our stores?',
         choices: [
           {
             id: 'handover',
@@ -2519,7 +2519,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'I will send word to the next shelter.',
         choices: [
           {
             id: 'handover',
@@ -2572,7 +2572,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Which approaches can the searchers use?',
         choices: [
           {
             id: 'handover',
@@ -2626,7 +2626,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'I will remember them as you found them.',
         choices: [
           {
             id: 'handover',
@@ -2679,7 +2679,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'The echoes have a little time to find their way now.',
         choices: [
           {
             id: 'handover',
@@ -2834,7 +2834,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'This should cover your first supplies.',
         choices: [
           {
             id: 'handover',
@@ -2895,7 +2895,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Where shall the light go?',
         choices: [
           {
             id: 'handover',
@@ -2983,7 +2983,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Ready to report on this work?',
+        prompt: 'Clean water is worth a place in the book.',
         choices: [
           {
             id: 'handover',
