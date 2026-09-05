@@ -38,6 +38,7 @@ import {
   renderResetConfirm,
   renderSell,
   renderShop,
+  renderShopItemDetail,
   renderTravel,
   renderTutorial,
   renderZone,
@@ -83,6 +84,8 @@ function renderFor(p: PlayerState): InputRichMessage {
     case 'shop':
       return p.scene.arg === 'sell'
         ? renderSell(p, Number(p.scene.arg2 ?? 0))
+        : p.scene.arg2 !== undefined
+        ? renderShopItemDetail(p, p.scene.arg2, Number(p.scene.arg ?? 0))
         : renderShop(p, Number(p.scene.arg ?? 0));
     case 'forge':
       return renderForge(p);

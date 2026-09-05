@@ -62,6 +62,16 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     await store.delete(p.userId);
     assertEquals(await store.get(p.userId), undefined);
 
+    // #187: an inspected shop item and its return page survive JSONB;
+    // the optional selection must re-pass the persisted-identity gate.
+    const shopper = createPlayer(1873, 'Shopper', 'warrior');
+    shopper.scene = { view: 'shop', arg: '1', arg2: 'c_minor_potion' };
+    await store.withLock(shopper.userId, () => store.set(shopper.userId, shopper));
+    const restored = (await store.get(shopper.userId))!;
+    assertEquals(restored, shopper);
+    assertResolvablePersistedIds(restored);
+    await store.delete(shopper.userId);
+
     // ── cross-instance serialization (#18) ────────────────────────────────
     // Two concurrent withLock sections must NOT interleave: a passthrough
     // (broken) lock would let both bodies run before either finishes —

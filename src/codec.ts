@@ -38,7 +38,7 @@ export type Cb =
   | { v: 'quests'; a: 'p'; arg: number }
   | { v: 'quests'; a: 'bk' }
   | { v: 'shop'; a: 'p'; arg: number }
-  | { v: 'shop'; a: 'buy' | 'sell'; arg: string }
+  | { v: 'shop'; a: 'buy' | 'sell' | 'view'; arg: string }
   | { v: 'shop'; a: 'bk' }
   | { v: 'forge'; a: 'w' | 'a' | 'bk' }
   | { v: 'travel'; a: 'go'; arg: string }
@@ -199,7 +199,7 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
     case 'h': {
       if (a === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };
       if (a === 'bk') return { v: 'shop', a: 'bk' };
-      const h = act(a, ['buy', 'sell'] as const);
+      const h = act(a, ['buy', 'sell', 'view'] as const);
       return h ? { v: 'shop', a: h, arg } : undefined;
     }
     case 'f': {

@@ -91,7 +91,7 @@ export function triggerDisclosure(def: ItemDef | undefined): string[] {
   });
 }
 
-/** The complete mechanical disclosure for an item (#120): bag effect for
+/** Generated effect disclosure for an item (#120): bag effect for
  * consumables plus every equipment trigger — all generated from
  * structured data. */
 export function itemMechanicsLines(def: ItemDef): string[] {
@@ -149,11 +149,11 @@ export function classRequirementText(def: ItemDef): string | null {
 
 /** Shared static item facts (#112, #120): stats, GENERATED mechanical
  * disclosure (bag effect + triggers), then optional flavor prose,
- * requirement. Bag and equipped detail wrappers layer their own headings
- * and actions over this so the two detail pages cannot drift. Flavor and
+ * requirement. Bag, equipped and shop detail wrappers layer their own headings
+ * and actions over this so the detail pages cannot drift. Flavor and
  * mechanics are visibly separate blocks; mechanics alone carry every
  * number. */
-function itemFactBlocks(def: ItemDef): InputRichBlock[] {
+export function itemFactBlocks(def: ItemDef): InputRichBlock[] {
   const blocks: InputRichBlock[] = [];
   if (def.stats) {
     const lines = Object.entries(def.stats)

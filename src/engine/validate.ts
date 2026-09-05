@@ -372,6 +372,13 @@ function validateScene(scene: SceneState, bad: Report): void {
       // arg is the item id whose detail is shown (#112).
       if (!item(arg)) bad('scene.arg', arg, 'unknown item id');
       return;
+    case 'shop':
+      // #187: arg2 selects an item only in buying mode; sell-mode arg2
+      // remains pagination. Availability is rechecked by the shop itself.
+      if (arg !== 'sell' && scene.arg2 !== undefined && !item(scene.arg2)) {
+        bad('scene.arg2', scene.arg2, 'unknown shop item id');
+      }
+      return;
     case 'quests':
       // arg (when set) selects a quest detail.
       if (arg && !quest(arg)) bad('scene.arg', arg, 'unknown quest id');

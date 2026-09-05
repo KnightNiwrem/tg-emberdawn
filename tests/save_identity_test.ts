@@ -258,6 +258,31 @@ Deno.test('identity gate: scene identity arguments (#141)', () => {
   expectProblems(vw, 'scene.view');
 });
 
+Deno.test('identity gate: shop selection is an item ID; sell pagination is not (#187)', () => {
+  const p = createPlayer(1871, 'Shopper', 'warrior');
+  p.scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' };
+  assertResolvablePersistedIds(p);
+  p.scene.arg2 = GONE;
+  expectProblems(p, 'scene.arg2');
+  p.scene = { view: 'shop', arg: 'sell', arg2: '1' };
+  assertResolvablePersistedIds(p);
+  p.scene = { view: 'shop', arg: '1' };
+  assertResolvablePersistedIds(p);
+});
+
+Deno.test('identity gate: an unresolved shop selection refuses /start without rewriting (#187)', async () => {
+  const p = createPlayer(1872, 'Shopper', 'warrior');
+  p.scene = { view: 'shop', arg: '0', arg2: GONE };
+  const store = new MemoryStore();
+  await store.set(p.userId, p);
+  const before = structuredClone(p);
+  const capture = fakeCtxCapture(p.userId);
+  await store.withLock(p.userId, () => handleStart(capture.ctx, store));
+  assertEquals(await store.get(p.userId), before);
+  assertEquals(capture.sends.length, 0);
+  assertEquals(capture.replies, [UNRESOLVABLE_SAVE_REPLY]);
+});
+
 Deno.test('identity gate: battle identities (#141)', () => {
   function withBattle(mutate: (p: PlayerState) => void): PlayerState {
     const p = createPlayer(981, 'T', 'warrior');

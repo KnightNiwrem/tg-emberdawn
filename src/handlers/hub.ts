@@ -9,7 +9,7 @@ import { bossGateBlock, diveDungeon, dungeonOf, explore, nextDiveIsBoss } from '
 import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
-import { buy, sell, shopAt } from '../engine/shops.ts';
+import { buy, offeredPrice, sell, shopAt } from '../engine/shops.ts';
 import { forgeAt, temper } from '../engine/forge.ts';
 import { departureCheck, JOURNEY_BLOCK } from '../engine/routes.ts';
 import { syncAvailability } from '../engine/quests.ts';
@@ -306,6 +306,7 @@ export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResu
     p.scene = { view: 'zone' };
     return {};
   }
+  if (p.battle) return { toast: '⚔️ Finish the fight first.' };
   // No trade mid-crossing (#159): destination facilities stay closed
   // until arrival, origin counters wait for the road's end.
   if (p.journey) {
@@ -315,9 +316,26 @@ export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResu
   // Server-side authority (#161): every trade action verifies the current
   // zone actually authors a shop — the renderer never grants access.
   if (!shopAt(p)) return { toast: 'There is no shop here.' };
+  if (cb.a === 'view') {
+    if (p.scene.view !== 'shop' || p.scene.arg === 'sell') {
+      return { toast: 'Open the shop’s buying page to inspect its stock.' };
+    }
+    if (offeredPrice(p, cb.arg) === undefined) {
+      return { toast: 'This item is no longer stocked here. Return to the shop.' };
+    }
+    // #187: buying keeps its page in arg; arg2 selects an optional detail.
+    // No new save fields or view IDs; selling still uses arg2 as its page.
+    p.scene = { view: 'shop', arg: p.scene.arg ?? '0', arg2: cb.arg };
+    return {};
+  }
   if (cb.a === 'p') {
-    // -1 switches to sell mode (selling happens only at a shop's counter)
-    if (cb.arg < 0) {
+    // Explicit mode switches: 0 is also the first SELL page, so it cannot
+    // double as Switch to buying (#187). Nonnegative args paginate.
+    if (cb.arg === -2) {
+      p.scene = { view: 'shop', arg: '0' };
+      return {};
+    }
+    if (cb.arg === -1) {
       p.scene = { view: 'shop', arg: 'sell', arg2: '0' };
       return {};
     }

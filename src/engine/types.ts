@@ -278,8 +278,10 @@ export interface SceneState {
   view: ViewId;
   /** Pagination / selection parameter for the current view (e.g. page, shop slot). */
   arg?: string;
-  /** Secondary parameter (e.g. page while in sell mode). For item details
-   * (#112): the origin context — the inventory page it came from, or 'eq'
+  /** Secondary parameter. For shop details (#187): the inspected item id,
+   * with the buy-list page in arg.
+   * Absent on the buy list; selling uses arg = 'sell' and arg2 = page.
+   * For bag item details (#112): the origin context — the inventory page, or 'eq'
    * when opened from the Equipment screen, so Back returns to the origin.
    * For dialogue scenes (#124/#126): the current NODE id. */
   arg2?: string;

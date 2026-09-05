@@ -162,6 +162,7 @@ Deno.test('router: current-revision forged callbacks cannot operate NPC, dialogu
     'dlg:ch:take_pledge',
     'dlg:cf:take_pledge',
     'h:buy:c_super_potion',
+    'h:view:c_super_potion',
     'h:sell:c_minor_potion',
     'f:w',
     'f:a',

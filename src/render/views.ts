@@ -16,7 +16,7 @@ import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
 import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
-import { itemMechanicsLines } from './menus.ts';
+import { itemFactBlocks } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { routesFrom } from '../content/routes.ts';
 import { forgeInZone, shopInZone } from '../content/facilities.ts';
@@ -25,7 +25,7 @@ import { resolveRoute, resolveRouteById, usableRoutesFrom } from '../engine/rout
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
 import { countOf } from '../engine/inventory.ts';
-import { temperLevel } from '../engine/forge.ts';
+import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
@@ -412,18 +412,69 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
         }`,
       } as RichText,
     ]));
-    // #120: GENERATED mechanics (bag effect + triggers) then optional
-    // flavor — visibly separate blocks, numbers only in the mechanics.
-    const mech = itemMechanicsLines(def);
-    if (mech.length > 0) blocks.push(para(mech.join('\n')));
+    // #187: every item has the same compact shelf presentation. Full
+    // stats and generated effects live together in its shop detail.
     if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
     blocks.push(buttonsRow([
+      cbBtn('🔍 Details', encodeCb({ v: 'shop', a: 'view', arg: id })),
       afford
         ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: id }), 'success')
         : disabledBtn(`${def.name} — too costly`),
     ], 'left'));
   }
   blocks.push(...shopTail(pg, pages, '💱 Switch to selling', -1));
+  return { blocks };
+}
+
+/** #187: inspect the CURRENT offering without bag ownership. Purchases
+ * keep this scene open; Back clears the selection and restores its page.
+ * Stock and price are resolved again on every render, including /start. */
+export function renderShopItemDetail(
+  p: PlayerState,
+  itemId: string,
+  page: number,
+): InputRichMessage {
+  const shop = shopAt(p);
+  const offering = offeringsAt(p).find((o) => o.itemId === itemId);
+  const def = item(itemId);
+  const back = cbBtn('⬅️ Shop', encodeCb({ v: 'shop', a: 'p', arg: page }));
+  if (!shop || !offering || !def) {
+    return {
+      blocks: [
+        heading('🏪 Shop item', 4),
+        para(
+          shop
+            ? 'This item is no longer stocked here. Return to the shop.'
+            : 'There is no shop here.',
+        ),
+        buttonsRow([back]),
+      ],
+    };
+  }
+  const blocks: Block[] = [
+    heading(`${defEmoji(def.kind)} ${def.name}`, 4),
+    para(
+      `🏪 ${shop.name}\n💰 ${p.gold} gold · Price: ${offering.price}g\nIn bag: ${
+        countOf(p, itemId)
+      }`,
+    ),
+    ...noticesBlocks(p),
+  ];
+  const temper = temperBonusOf(p, itemId);
+  if (temper > 0 && (def.kind === 'weapon' || def.kind === 'armor')) {
+    blocks.push(para(
+      `🔧 Forge mastery: +${
+        Math.round(temper * 100)
+      }% to the base stats below. Applies to every copy.`,
+    ));
+  }
+  blocks.push(...itemFactBlocks(def));
+  blocks.push(buttonsRow([
+    p.gold >= offering.price
+      ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
+      : disabledBtn(`${def.name} — too costly`),
+    back,
+  ], 'left'));
   return { blocks };
 }
 
@@ -463,7 +514,7 @@ export function renderSell(p: PlayerState, page: number): InputRichMessage {
       ),
     );
   }
-  blocks.push(...shopTail(pg, pages, '🛒 Switch to buying', 0));
+  blocks.push(...shopTail(pg, pages, '🛒 Switch to buying', -2));
   return { blocks };
 }
 
