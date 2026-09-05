@@ -76,10 +76,11 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   assertEquals(JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents }), before);
   const panel = JSON.stringify(renderDialogue(p));
   assert(panel.includes('cannot be changed'), 'permanence is stated');
-  assert(panel.includes("Starts The Shrine's Beacon"), 'the consequence hint renders');
+  assert(panel.includes("The Shrine's Beacon"), 'the selected quest brief renders');
+  assert(panel.includes('Defeat Marsh Wisp'), 'the brief names the objective');
   assert(
-    panel.includes('permanently closes The Water Intake'),
-    'the hint names the permanent exclusion',
+    panel.includes('Permanently closes: The Water Intake.'),
+    'the generated warning names the permanent exclusion',
   );
   assert(panel.includes('dlg:cf:promise'), 'Confirm carries the choice id only');
   assert(panel.includes('dlg:cc'), 'Go back is offered');

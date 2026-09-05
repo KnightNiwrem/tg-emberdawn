@@ -136,8 +136,6 @@ export const DIALOGUES: readonly DialogueDef[] = [
             label: 'Pledge to restore the beacon',
             when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
-            consequenceHint:
-              "Starts The Shrine's Beacon and permanently closes The Water Intake. You will defeat Marsh Wisps in Hollowmere and report to the Ferryman.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'promise' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
@@ -151,8 +149,6 @@ export const DIALOGUES: readonly DialogueDef[] = [
             label: 'Clear the intake without a pledge',
             when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
-            consequenceHint:
-              "Starts The Water Intake and permanently closes The Shrine's Beacon. You will defeat Marsh Leeches in Hollowmere and report to the Ferryman.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'decline' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
@@ -173,8 +169,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
               ],
             },
             irreversible: true,
-            consequenceHint:
-              "Your toxin work earns the keepers' trust. Starts The Shrine's Beacon and permanently closes The Water Intake, just like the pledge.",
+            consequenceHint: "Your toxin work earns the keepers' trust.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'vouch' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },

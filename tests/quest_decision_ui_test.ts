@@ -247,7 +247,7 @@ Deno.test('quest decision UI: confirmation separates the keepsake from exact for
       xpRewardLabel(p.level, q.rewards.xp),
       `${q.rewards.gold} gold`,
       'no combat effect',
-      'the beacon remains unlit',
+      'The beacon remains unlit',
       ...Object.entries(q.rewards.items ?? {}).map(([id, n]) => `${itemName(id)} ×${n}`),
     ]
   ) assert(text.includes(fact), fact);

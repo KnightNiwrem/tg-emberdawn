@@ -2908,7 +2908,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
             label: '🏮 Keep a lantern; forgo payment',
             irreversible: true,
             consequenceHint:
-              'Permanently end this job without its normal rewards. Receive a Wisp Lantern keepsake with no combat effect; the beacon remains unlit.',
+              'The beacon remains unlit. The lantern is a keepsake with no combat effect.',
             effects: [
               { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
               { kind: 'grantItem', itemId: 'q_wisp_lantern' },
