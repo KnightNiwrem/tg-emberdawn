@@ -152,6 +152,17 @@ prose.
 unrestricted — playful, nonliteral, even mechanically misleading; they were **not** "corrected" into
 rules text, and none carry the binding mechanical summary.
 
+**Consumable flavor addition (#188):** Codex (AI implementor/reviewer), 2026-09-05, reviewed the 11
+new `CONSUMABLES` descriptions in the #188 working diff based on `4f295c6`. Scope: Minor Potion,
+Potion, Greater Potion, Superior Potion, Elixir of Dawn, Minor Ether, Ether, Greater Ether,
+Cleansing Tonic, Smoke Bomb, and Phoenix Cinder. Disposition: **authored and approved**. Each line
+uses a concrete detail of the bottle, contents, scent, sound, or wrapping; potion and ether grades
+have distinct images. The prose is class-neutral, carries no numeric rules, and adds no named
+setting facts. Warmth and ash appear where the object supports them; tomorrow is not a repeated
+sign-off. Prices, levels, item IDs, and structured effects are unchanged. Exact effects remain
+generated in item Details, separately from flavor. This is a focused editorial pass, not a new
+full-corpus review.
+
 ### 6. UI/system/error copy
 
 **Files:** `src/render/views.ts`, `src/render/menus.ts`, `src/render/battle.ts`, user-facing engine

@@ -332,8 +332,8 @@ interface ConsumableDef {
   lvl: number;
   price: number;
   effect: NonNullable<ItemDef['effect']>;
-  /** Optional flavor (#120) — mechanics are generated from `effect`. */
-  desc?: string;
+  /** Every consumable has flavor (#188); mechanics are generated from `effect`. */
+  desc: string;
 }
 
 const CONSUMABLES: ConsumableDef[] = [
@@ -343,6 +343,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 1,
     price: 30,
     effect: { healHp: 60 },
+    desc: 'A small red bottle with a cork tied down for the road.',
   },
   {
     id: 'c_potion',
@@ -350,6 +351,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 8,
     price: 90,
     effect: { healHp: 180 },
+    desc: 'Bitter herbs settle beneath the glass. Shake before the long climb.',
   },
   {
     id: 'c_greater_potion',
@@ -357,6 +359,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 18,
     price: 220,
     effect: { healHp: 450 },
+    desc: 'Thick crimson cordial that leaves the scent of crushed pine.',
   },
   {
     id: 'c_super_potion',
@@ -364,6 +367,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 28,
     price: 500,
     effect: { healHp: 1000 },
+    desc: "The glass is padded in wool; the brewer's seal is still warm.",
   },
   {
     id: 'c_elixir',
@@ -371,6 +375,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 36,
     price: 1200,
     effect: { healHp: 9999 },
+    desc: 'Pale gold gathers at the bottom, even when you turn the vial.',
   },
   {
     id: 'c_minor_ether',
@@ -378,6 +383,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 1,
     price: 40,
     effect: { healMp: 40 },
+    desc: 'A blue mouthful that smells of rain on warm stone.',
   },
   {
     id: 'c_ether',
@@ -385,6 +391,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 10,
     price: 120,
     effect: { healMp: 120 },
+    desc: 'Silver flecks drift through the blue, too slowly to settle.',
   },
   {
     id: 'c_greater_ether',
@@ -392,6 +399,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 22,
     price: 300,
     effect: { healMp: 300 },
+    desc: 'The glass hums softly against its stopper.',
   },
   {
     id: 'c_antidote',
@@ -399,6 +407,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 5,
     price: 60,
     effect: { cureStatus: true },
+    desc: 'Sharp enough to smell through the cork.',
   },
   {
     id: 'c_smoke_bomb',
@@ -408,6 +417,7 @@ const CONSUMABLES: ConsumableDef[] = [
     // #98: a PURE escape item — the Cleansing Tonic owns the cleanse role,
     // and an undisclosed status wipe would be a hidden power boost.
     effect: { flee: true },
+    desc: 'A clay shell that leaves soot on everything it touches.',
   },
   {
     id: 'c_phoenix_feather',
@@ -415,6 +425,7 @@ const CONSUMABLES: ConsumableDef[] = [
     lvl: 16,
     price: 900,
     effect: { revivePct: 50 },
+    desc: 'A warm cinder nestled in a fold of ash-grey silk.',
   },
 ];
 
