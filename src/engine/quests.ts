@@ -303,6 +303,16 @@ export interface TurnInResult {
   ready: string[];
 }
 
+/** One rule for both the counter's validation and consumption (#180). */
+function collectRequirements(q: QuestDef): Map<string, number> {
+  const required = new Map<string, number>();
+  for (const obj of q.objectives) {
+    if (obj.kind !== 'collect') continue;
+    required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
+  }
+  return required;
+}
+
 /** The aggregated collect-goods check behind turnInQuest (#127): returns
  * the shortfall line, or undefined when the turn-in could proceed. The
  * story layer reaches it through the central turnInQuest authority, which
@@ -310,11 +320,7 @@ export interface TurnInResult {
 export function turnInGoodsShortfall(p: PlayerState, id: string): string | undefined {
   const q = quest(id);
   if (!q) return "That quest isn't ready to turn in.";
-  const required = new Map<string, number>();
-  for (const obj of q.objectives) {
-    if (obj.kind !== 'collect') continue;
-    required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
-  }
+  const required = collectRequirements(q);
   for (const [itemId, need] of required) {
     if (countOf(p, itemId) < need) {
       return `You no longer have enough ${itemName(itemId)} — the quest stays open.`;
@@ -348,11 +354,7 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
     qp.status = 'active';
     return { ok: false, lines: [shortfall], ready: [] };
   }
-  const required = new Map<string, number>();
-  for (const obj of q.objectives) {
-    if (obj.kind !== 'collect') continue;
-    required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
-  }
+  const required = collectRequirements(q);
   qp.status = 'done';
   const lines: string[] = [];
   // Collect objectives hand their goods over — samples, sigils and keys
