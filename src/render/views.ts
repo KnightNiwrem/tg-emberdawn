@@ -787,20 +787,11 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
   }
   // Read-only journal (#65): no lifecycle buttons render here — accepting
   // and turning in happen face-to-face with the quest's configured NPC, in
-  // the zone where they stand. The log NAMES that contact instead.
+  // the zone where they stand. The brief already names the finisher; an
+  // available quest also needs its starter, who may be a different person.
   const starter = questStarter(id);
-  const finisher = questFinisher(id);
   if (status === 'available' && starter) {
     blocks.push(para(`🤝 Start with ${starter.npc.name} — ${starter.zone.name}.`));
-  }
-  if ((status === 'active' || status === 'turnIn') && finisher) {
-    blocks.push(
-      para(
-        status === 'turnIn'
-          ? `🏁 Return to ${finisher.npc.name} — ${finisher.zone.name}.`
-          : `Finish with ${finisher.npc.name} — ${finisher.zone.name}.`,
-      ),
-    );
   }
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'quests', a: 'bk' }))]));
   return { blocks };

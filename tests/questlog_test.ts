@@ -98,20 +98,25 @@ Deno.test('the journal names the physical contact at every lifecycle stage (#65)
   p.quests['m1_embers'] = { status: 'done', counts: [] };
   syncAvailability(p);
 
-  // Available: names the STARTER and their zone.
+  // Available: delivery quests need both contacts, since they differ (#194).
   const avail = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
   assert(avail.includes('Start with Elder Maren — Emberdawn Village.'));
+  const destination = 'Blacksmith Bram — Emberdawn Village.';
+  assert(avail.includes(`Finish with ${destination}`));
+  assertEquals(avail.split(destination).length - 1, 1);
 
   // Active: objectives stay visible, and the finisher is named for the trip.
   p.quests['m2_letter'] = { status: 'active', counts: [1, 0] };
   grantItem(p, 'q_sealed_letter', 1);
   const active = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
-  assert(active.includes('Finish with Blacksmith Bram — Emberdawn Village.'));
+  assert(active.includes(`Finish with ${destination}`));
+  assertEquals(active.split(destination).length - 1, 1, 'one active completion contact');
 
   // Ready: names the FINISHER and their zone; the list label stays neutral.
   p.quests['m2_letter'] = { status: 'turnIn', counts: [1, 1] };
   const ready = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
-  assert(ready.includes('Return to Blacksmith Bram — Emberdawn Village.'));
+  assert(ready.includes(`Finish with ${destination}`));
+  assertEquals(ready.split(destination).length - 1, 1, 'one ready completion contact');
   const list = JSON.stringify(renderQuests(p));
   assert(list.includes('Ready — view details'), 'neutral ready label');
   // The status line may describe STATE ("Ready to turn in" — at the NPC);
