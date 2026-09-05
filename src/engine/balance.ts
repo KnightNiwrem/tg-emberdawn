@@ -1570,6 +1570,72 @@ function formatStallReport(stall: StallDiagnostic): string {
     `${last} failures={${Object.entries(stall.failures).map(([k, v]) => `${k}:${v}`).join(',')}}`;
 }
 
+/** One campaign fight's completed result; counters observe real engine actions. */
+export interface CampaignFightResult {
+  outcome: 'win' | 'death' | 'retreat' | 'fled';
+  rounds: number;
+  itemsUsed: number;
+  contextualDrops: number;
+}
+
+/** The campaign's fight runner (#178). Flee is an action selected by the
+ * road policy; its terminal outcome uses the same bookkeeping as any
+ * other action. Operates on the live simulation hero, never a clone. */
+export function runCampaignFight(
+  p: PlayerState,
+  b: BattleState,
+  kind: 'objective' | 'grind' | 'road',
+  rng: Rng,
+): CampaignFightResult {
+  const result: CampaignFightResult = {
+    outcome: 'retreat',
+    rounds: 0,
+    itemsUsed: 0,
+    contextualDrops: 0,
+  };
+  let lastWasGuard = false;
+  // Bound attempts too: a refused policy action must not hang the harness.
+  for (let attempts = 0; b.phase === 'active' && attempts < 200; attempts++) {
+    const escaping = kind === 'road' && result.rounds > 1 &&
+      p.hp < statsOf(p).maxHp * 0.2 && HEAL_ITEMS.every((id) => countOf(p, id) === 0);
+    const action: PlayerAction = escaping
+      ? { kind: 'flee' }
+      : chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
+    if (!escaping) lastWasGuard = action.kind === 'guard';
+    const res = performAction(p, b, action, rng);
+    if (res.consumedTurn) {
+      result.rounds++;
+      if (action.kind === 'item') result.itemsUsed++;
+    }
+    if (res.outcome === 'victory') {
+      resolveVictory(p, b, rng);
+      if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
+      result.contextualDrops = b.rewards?.contextual?.length ?? 0;
+      result.outcome = 'win';
+      break;
+    }
+    if (res.outcome === 'defeat') {
+      applyDeath(p);
+      p.battle = undefined;
+      p.journey = undefined;
+      result.outcome = 'death';
+      break;
+    }
+    if (res.outcome === 'fled') {
+      p.battle = undefined;
+      p.journey = undefined;
+      result.outcome = 'fled';
+      break;
+    }
+  }
+  if (kind === 'road') {
+    p.battle = undefined;
+    // A timeout abandons the crossing through the live retreat authority.
+    if (result.outcome !== 'win' && p.journey) retreatFromJourney(p);
+  }
+  return result;
+}
+
 /** Drives a quest list from a fresh post-prologue hero to `stopQuest`
  * completion (#88: generalized from the chapter-one driver). Exported for
  * diagnostics testing (#111): a list whose stop quest is unreachable
@@ -1912,87 +1978,15 @@ export function driveQuests(
     if (kind === 'objective') objective++;
     else if (kind === 'grind') grind++;
     else travel.travelBattles++;
-    let rounds = 0;
-    let lastWasGuard = false;
-    let result: 'win' | 'death' | 'retreat' | 'fled' = 'retreat';
-    while (b.phase === 'active' && rounds < 200) {
-      // #162 road-fight flee policy: a nearly spent hero with NO heal left
-      // in the bag tries the way out of an ordinary road fight (a failed
-      // flee just costs the round, exactly like live play).
-      if (
-        kind === 'road' && rounds > 1 && p.hp < statsOf(p).maxHp * 0.2 &&
-        HEAL_ITEMS.every((id) => countOf(p, id) === 0)
-      ) {
-        const flee = performAction(p, b, { kind: 'flee' }, rng);
-        if (flee.outcome === 'fled') {
-          travel.roadFlees++;
-          p.battle = undefined;
-          p.journey = undefined;
-          result = 'fled';
-          break;
-        }
-        if (flee.outcome === 'victory') {
-          resolveVictory(p, b, rng);
-          result = 'win';
-          break;
-        }
-        if (flee.outcome === 'defeat') {
-          applyDeath(p);
-          // Mirror the live death flow (hub deathAction): defeat ends the
-          // crossing and drops the battle.
-          p.battle = undefined;
-          p.journey = undefined;
-          deaths++;
-          result = 'death';
-          break;
-        }
-        rounds++;
-        continue;
-      }
-      const action = chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
-      lastWasGuard = action.kind === 'guard';
-      const res = performAction(p, b, action, rng);
-      // #74: count consumables when an item action is ACTUALLY consumed —
-      // never from inventory deltas, which drops and purchases drive
-      // negative.
-      if (action.kind === 'item' && res.consumedTurn) itemsUsed++;
-      rounds++;
-      // #86: the engine's explicit terminal adjudication.
-      if (res.outcome === 'victory') {
-        resolveVictory(p, b, rng);
-        // A road victory completes its pending journey event at the ONE
-        // owned point (#160), then the crossing resumes.
-        if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
-        // #169: contextual zone loot is measured from the STRUCTURED
-        // staged grant — never from rendered lines.
-        if (b.rewards?.contextual?.length) {
-          travel.contextualDrops += b.rewards.contextual.length;
-        }
-        result = 'win';
-        break;
-      }
-      if (res.outcome === 'defeat') {
-        applyDeath(p);
-        // Mirror the live death flow (hub deathAction): defeat drops the
-        // battle AND ends any open crossing.
-        p.battle = undefined;
-        p.journey = undefined;
-        deaths++;
-        if (kind === 'road') travel.roadDeaths++;
-        result = 'death';
-        break;
-      }
-    }
-    if (kind === 'road') travel.travelRounds += rounds;
-    // Road fights attach their battle (the coordinator does); every exit
-    // path clears it like the live Continue/flee/death flow does.
+    const resolved = runCampaignFight(p, b, kind, rng);
+    const { outcome: result, rounds } = resolved;
+    itemsUsed += resolved.itemsUsed;
+    travel.contextualDrops += resolved.contextualDrops;
+    if (result === 'death') deaths++;
     if (kind === 'road') {
-      p.battle = undefined;
-      // #166: a road timeout maps to the live RETREAT flow — the crossing
-      // aborts back to the origin. A live journey must never survive a
-      // fight the sim walked away from, or every later zone-bound action
-      // (explore, shop, quests) would run from an impossible state.
-      if (result !== 'win' && p.journey) retreatFromJourney(p);
+      travel.travelRounds += rounds;
+      if (result === 'death') travel.roadDeaths++;
+      if (result === 'fled') travel.roadFlees++;
     }
     // #111: record the attempt AFTER resolution — the diagnostic observes
     // the completed fight only.
