@@ -37,6 +37,9 @@ const WEAPONS: Record<ClassId, TierNames> = {
     ],
     desc: "A warrior's answer to most questions.",
     descByTier: {
+      1: 'Orange rust gathers where the old grip meets the blade.',
+      2: "A smith's square stamp sits just above the plain crossguard.",
+      3: 'A narrow fuller runs beneath a careful oil sheen.',
       4: "A knight's blade, kept the way oaths are kept.",
       5: 'Forged the night the Hollow burned clean, from the heat that cleanup left behind.',
       6: 'Sunspire work: balance like a held breath, edge like noon.',
@@ -57,6 +60,9 @@ const WEAPONS: Record<ClassId, TierNames> = {
     ],
     desc: 'Channels raw magic better than bare hands.',
     descByTier: {
+      1: 'Waxed cord binds the split below its crooked head.',
+      2: 'The grain curls around a knot polished smooth by a thumb.',
+      3: 'Small runes follow the wood grain from grip to crown.',
       4: "A sorcerer's rod: a bad day to be on the far end of it.",
       5: 'Cut from the tree that survived the Hollow. It grew back angry.',
       6: 'The scepter keeps its own hours, and they are all high noon.',
@@ -77,6 +83,9 @@ const WEAPONS: Record<ClassId, TierNames> = {
     ],
     desc: 'Small blade, big problems — for someone else.',
     descByTier: {
+      1: 'The handle is smooth where another hand wore it down.',
+      2: 'Fresh whetstone marks brighten an otherwise battered blade.',
+      3: 'Paired points curve inward above a dark leather grip.',
       4: "A fang you keep where light isn't.",
       5: "The kiss comes before the apology, and there's never one.",
       6: 'Sunspire steel, ground thin enough to argue with a lock.',
@@ -97,6 +106,9 @@ const WEAPONS: Record<ClassId, TierNames> = {
     ],
     desc: 'Faith, with a blunt instrument attached.',
     descByTier: {
+      1: 'Road dust has worked into the seams of its leather grip.',
+      2: 'A faded prayer ribbon is knotted beneath the iron head.',
+      3: 'Tiny flame marks circle the polished bronze collar.',
       4: "A warden's flail, swung with the patience of a psalm.",
       5: 'Its head holds a coal that has never once gone out.',
       6: 'Dawnbreaker: sunrise, condensed to a single struck note.',
@@ -127,6 +139,9 @@ const ARMORS: Record<ClassId, TierNames> = {
     ],
     desc: 'Heavy, dependable, unglamorous.',
     descByTier: {
+      1: 'Linen patches cover old tears in the quilted chest.',
+      2: 'Dark rings gather at the elbows, brightened by use.',
+      3: 'The breastplate bears the faint guide marks of a patient hammer.',
       4: 'Plate the way knights meant it: boring to fight against.',
       5: "Tempered in the Hollow's own heat. It came out stubborn.",
       6: 'Sunspire alloy: dents take days and apologies to form.',
@@ -147,6 +162,9 @@ const ARMORS: Record<ClassId, TierNames> = {
     ],
     desc: 'Woven with protective sigils.',
     descByTier: {
+      1: 'The hem has been let out and stitched back by several hands.',
+      2: 'Blue thread crosses the cuffs in a neat herringbone weave.',
+      3: 'The collar sigils are sewn in a finer thread than the cloth.',
       4: 'A vestment stitched for people who shout in libraries.',
       5: "Woven from the Hollow's silk, out of spite for the Hollow.",
       6: 'Regalia that reads the sun and stands in it all day.',
@@ -167,6 +185,9 @@ const ARMORS: Record<ClassId, TierNames> = {
     ],
     desc: 'Light enough to run in.',
     descByTier: {
+      1: 'Mismatched hides meet in thick, uneven seams.',
+      2: 'The stiff panels hold the curve of the mold they dried around.',
+      3: 'Brass studs have worn dull beneath the shoulder straps.',
       4: 'Shadow weave: it arrives a half-second before you do.',
       5: 'Cured over emberheat. Soft, warm, hard to catch.',
       6: 'Silks from the Sunspire vaults. They weigh nothing, cost plenty.',
@@ -187,6 +208,9 @@ const ARMORS: Record<ClassId, TierNames> = {
     ],
     desc: 'Blessed cloth that refuses to tear.',
     descByTier: {
+      1: 'A small hearth is stitched over the heart in red thread.',
+      2: 'The undyed cloth smells faintly of the cedar chest that held it.',
+      3: 'A border of pale flames climbs from the hem to the cuffs.',
       4: 'A cassock built for ward duty and long stands.',
       5: 'Emberlight thread. It hums at the hem on cold mornings.',
       6: 'A sunspire alb: laundered in light, folded in light.',
