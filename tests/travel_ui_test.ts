@@ -6,9 +6,11 @@
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer } from '../src/engine/character.ts';
 import { retreatFromJourney, startJourney } from '../src/engine/journey.ts';
+import { battleAction } from '../src/handlers/battle.ts';
 import { travelAction, zoneAction } from '../src/handlers/hub.ts';
 import { renderHelp, renderJourney, renderTravel, renderZone } from '../src/render/views.ts';
 import { tutorialRelease } from '../src/handlers/tutorial.ts';
+import { handleStart } from '../src/handlers/commands.ts';
 import { encodeCb, withRev } from '../src/codec.ts';
 import { fakeCtxCapture } from './helpers.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
@@ -190,20 +192,92 @@ Deno.test('/start re-centers a live crossing through the persisted scene', async
   const res = startJourney(p, 'w_whisperwood_hollowmere', () => 0.1);
   assert(res.ok && res.step.kind === 'battle');
   await store.set(p.userId, p);
-  // /start re-renders whatever the scene says; the battle view is rebuilt
-  // from the persisted battle without consuming anything.
   const cur = (await store.get(p.userId))!;
   assertEquals(cur.battle !== undefined, true);
   assertEquals(cur.journey !== undefined, true);
-  // The journey intermission is reachable from PlayerState alone.
-  p.battle!.enemy.hp = 0;
-  p.scene = { view: 'journey' };
-  const rendered = JSON.stringify(renderJourney(p));
-  assert(rendered.includes('Press on'));
-  assert(rendered.includes('Retreat'));
   // A stale tap on the OLD intermission render is refused untouched.
   const tapped = fakeCtxCapture(p.userId, 900, withRev(cur.uiRev, 'j:go'));
   await handleCallback(tapped.ctx, store);
   const after = (await store.get(p.userId))!;
   assertEquals(after.journey !== undefined, true, 'stale taps never consume rolls');
+});
+
+Deno.test('/start re-centers a battle-free crossing through the real handler (#170)', async () => {
+  const store = new MemoryStore();
+  // Reach a legitimate battle-free intermission: one travel battle won,
+  // Continued — the crossing stands with no battle attached.
+  const p = walker(1712, 'sunspire', ['sunspire', 'frostpeak']);
+  const res = startJourney(p, 'w_sunspire_frostpeak', () => 0.1);
+  assert(res.ok && res.step.kind === 'battle');
+  p.battle!.enemy.hp = 0;
+  battleAction(p, { v: 'battle', a: 'atk' });
+  battleAction(p, { v: 'battle', a: 'go' }); // Continue → the intermission
+  assertEquals(p.scene.view, 'journey');
+  assert(p.journey && !p.battle);
+  // The player wanders off into help/inventory views (#170 repro).
+  p.scene = { view: 'help' };
+  const snapshot = JSON.stringify({
+    journey: p.journey,
+    hp: p.hp,
+    mp: p.mp,
+    inv: p.inventory,
+    gold: p.gold,
+  });
+  await store.set(p.userId, p);
+
+  // The REAL handler re-centers the fresh live message on the crossing —
+  // with a store and a fake Telegram context, never a manual render.
+  const tap = fakeCtxCapture(p.userId, 900);
+  await handleStart(tap.ctx, store);
+  assertEquals(tap.sends.length, 1, 'a fresh message is delivered');
+  const sent = JSON.stringify(tap.sends[0]);
+  assert(sent.includes('Press on'), 'the journey panel renders in the fresh message');
+  assert(sent.includes('Retreat'), 'the intermission controls render');
+  // Nothing about the crossing moved: edge, snapshot, progress, report,
+  // HP, MP, gold, inventory — byte for byte.
+  const recentered = (await store.get(p.userId))!;
+  assertEquals(recentered.scene.view, 'journey', 'the scene persists as the crossing');
+  assertEquals(
+    JSON.stringify({
+      journey: recentered.journey,
+      hp: recentered.hp,
+      mp: recentered.mp,
+      inv: recentered.inventory,
+      gold: recentered.gold,
+    }),
+    snapshot,
+    'the crossing and the hero are untouched',
+  );
+});
+
+Deno.test('/start during a journey battle still restores battle or death (#170)', async () => {
+  const store = new MemoryStore();
+  // An ACTIVE travel fight resumes as a fight.
+  const fighting = walker(1713, 'sunspire', ['sunspire', 'frostpeak']);
+  const res = startJourney(fighting, 'w_sunspire_frostpeak', () => 0.1);
+  assert(res.ok && res.step.kind === 'battle');
+  fighting.scene = { view: 'help' };
+  fighting.messageId = 900;
+  await store.set(fighting.userId, fighting);
+  const tap = fakeCtxCapture(fighting.userId, 900);
+  await handleStart(tap.ctx, store);
+  const resumed = (await store.get(fighting.userId))!;
+  assertEquals(resumed.scene.view, 'battle', 'a live fight re-centers as a fight');
+  assertEquals(resumed.journey !== undefined, true, 'the crossing stands');
+
+  // A LOST travel fight stays on the death screen until the rise.
+  const fallen = walker(1714, 'sunspire', ['sunspire', 'frostpeak']);
+  const res2 = startJourney(fallen, 'w_sunspire_frostpeak', () => 0.1);
+  assert(res2.ok && res2.step.kind === 'battle');
+  fallen.battle!.enemy.hp = 999999;
+  fallen.hp = 1;
+  battleAction(fallen, { v: 'battle', a: 'atk' });
+  assertEquals(fallen.battle!.phase, 'lost');
+  fallen.scene = { view: 'inventory', arg: '0' };
+  fallen.messageId = 900;
+  await store.set(fallen.userId, fallen);
+  const tap2 = fakeCtxCapture(fallen.userId, 900);
+  await handleStart(tap2.ctx, store);
+  const risen = (await store.get(fallen.userId))!;
+  assertEquals(risen.scene.view, 'death', 'a lost fight re-centers on the death screen');
 });

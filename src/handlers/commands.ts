@@ -50,9 +50,12 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
   }
   existing.notices = ['🧭 The flame guides you back.'];
   // Resume whatever was happening — a live fight resumes as a fight, a lost
-  // one stays on the death screen. /start never mutates gameplay state.
+  // one stays on the death screen, and a battle-free crossing re-centers
+  // on the journey intermission (#170). /start never mutates gameplay state.
   if (existing.battle) {
     existing.scene = { view: existing.battle.phase === 'lost' ? 'death' : 'battle' };
+  } else if (existing.journey) {
+    existing.scene = { view: 'journey' };
   }
   existing.messageId = undefined; // force a fresh message, never an edit
   await commit(ctx, existing);
