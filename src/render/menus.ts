@@ -326,7 +326,7 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
   const temperMark = temper > 0 ? ` +${temper}` : '';
   blocks.push(heading(`${def.name}${temperMark}`, 4));
   blocks.push(...noticesBlocks(p));
-  blocks.push(para(`Equipped: ${SLOT_LABELS[slot]}. This piece is worn, not carried.`));
+  blocks.push(para(`Equipped: ${SLOT_LABELS[slot]}.`));
   if (temper > 0) {
     const pct = Math.round(temperBonusOf(p, id) * 100);
     blocks.push(para(`🔧 Forge-tempered +${temper} — +${pct}% to this item's own stats.`));
