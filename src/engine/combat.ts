@@ -1250,152 +1250,25 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'lifesteal': {
-        // Lifesteal always feeds the CASTER (#78) — enemy-side drains heal
-        // the enemy (#83: first enemy-side user is the Marsh Leech's Drain).
-        // #106: like every restoration, the formulaic drain is `attempted`
-        // and the max-HP-clamped delta is `applied` — the typed hpRestored
-        // entry carries both, and the line reports the APPLIED amount,
-        // never the formula.
-        if (ctx.lastDamage > 0) {
-          const attempted = Math.floor(ctx.lastDamage * spec.pct);
-          if (attempted > 0) {
-            const source = `${ctx.source.kind}:${ctx.source.name}`;
-            if (ctx.actor === 'player') {
-              const max = statsOf(ctx.p).maxHp;
-              const before = ctx.p.hp;
-              ctx.p.hp = Math.min(max, ctx.p.hp + attempted);
-              const applied = ctx.p.hp - before;
-              recordCombatEvent(ctx.trace, {
-                kind: 'hpRestored',
-                round: ctx.battle.round,
-                side: 'player',
-                source,
-                cause: ctx.cause,
-                attempted,
-                applied,
-              });
-              lines.push(`🩸 You drain ${applied} HP.`);
-            } else {
-              const maxHp = ctx.battle.enemy.maxHp;
-              const before = ctx.battle.enemy.hp;
-              ctx.battle.enemy.hp = Math.min(maxHp, ctx.battle.enemy.hp + attempted);
-              const applied = ctx.battle.enemy.hp - before;
-              recordCombatEvent(ctx.trace, {
-                kind: 'hpRestored',
-                round: ctx.battle.round,
-                side: 'enemy',
-                source,
-                cause: ctx.cause,
-                attempted,
-                applied,
-              });
-              lines.push(`🩸 ${ctx.battle.enemy.name} drains ${applied} HP from you!`);
-            }
-          }
-        }
+        lines.push(...applyLifestealEffect(ctx, spec));
         break;
       }
       case 'shield': {
-        // Capacity formula (heal parity): MAG-scaled when magPower is set,
-        // DEF-scaled when defPower is set (#81 — warrior wards scale off
-        // the stat the class actually has), flat otherwise. The caster's
-        // own sap scales it like any offense stat (#79).
-        const base = ctx.actor === 'player'
-          ? playerOffense(ctx.p, ctx.battle, 'mag')
-          : enemyOffense(ctx.battle, 'mag');
-        const defBase = ctx.actor === 'player' ? playerMitigation(ctx.p, ctx.battle, 'phys') : 0;
-        const amount = Math.round(
-          base * (spec.magPower ?? 0) * 2 + defBase * (spec.defPower ?? 0) * 2 +
-            (spec.amount ?? 0),
-        );
-        const seed = seedForSpec(
-          spec,
-          instanceDefId(ctx, spec, ei),
-          ctx.displayName,
-          side,
-          ctx.source,
-          amount,
-        );
-        const grant = grantShield(ctx.battle, side, seed, ctx.trace);
-        const line = defaultInstanceLine(ctx, spec, side, amount);
-        if (line) lines.push(line);
-        if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over Shield capacity — wasted.`);
-        if (grant.lost > 0) lines.push(`🛡️ ${grant.lost} Shield capacity fades.`);
+        lines.push(...applyShieldEffect(ctx, spec, side, ei));
         break;
       }
       case 'statmod':
       case 'control':
       case 'periodic': {
-        const defId = instanceDefId(ctx, spec, ei);
-        const seed = seedForSpec(
-          spec,
-          defId,
-          // All saps share one named condition (#77 copy) regardless of
-          // which move or skill sapped it.
-          defId === 'sap' ? 'Sapped' : ctx.displayName,
-          side,
-          ctx.source,
-        );
-        // #94: SPD's advertised rounds are INITIATIVE snapshots. An SPD
-        // statmod applied after this round's snapshot already happened
-        // spends no unit on it — its first decay defers, so an N-turn
-        // effect always covers N eligible snapshots (its dodge/flee value
-        // simply follows liveness, documented in AGENTS.md #72). Opening
-        // applications precede round 1's snapshot and keep their authored
-        // timing, so they still cover round 1..N.
-        if (spec.kind === 'statmod' && spec.stat === 'spd' && ctx.afterSnapshot) {
-          seed.timing = 'defer';
-        }
-        applyInstance(ctx.battle, seed, ctx.trace);
-        const line = defaultInstanceLine(ctx, spec, side);
-        if (line) lines.push(line);
+        lines.push(...applyStatusEffect(ctx, spec, side, ei));
         break;
       }
       case 'cleanse': {
-        const removed = removeTagged(
-          ctx.battle,
-          side,
-          spec.tags,
-          spec.max,
-          'cleansed',
-          ctx.trace,
-          // #105: the removal names its initiator — the skill, enemy move,
-          // or equipment trigger whose spec list is resolving.
-          ctx.source,
-        );
-        if (removed.length > 0 && !spec.quiet) {
-          const line = spec.line?.replace('{n}', String(removed.length)) ??
-            (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
-          if (line) lines.push(line);
-        }
-        // A removed ward contribution's capacity leaves the pool (#79).
-        for (const loss of applyShieldExpiry(ctx.battle, removed)) {
-          lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
-        }
+        lines.push(...applyCleanseEffect(ctx, spec, side));
         break;
       }
       case 'dispel': {
-        const removed = removeTagged(
-          ctx.battle,
-          side,
-          spec.tags,
-          spec.max,
-          'dispelled',
-          ctx.trace,
-          ctx.source, // #105: the dispel names the stripping skill/move/trigger
-        );
-        if (removed.length > 0 && !spec.quiet) {
-          lines.push(
-            spec.line?.replace('{n}', String(removed.length)) ??
-              (side === 'player'
-                ? '✨ Your beneficial effects are stripped away!'
-                : `✨ ${ctx.battle.enemy.name}'s beneficial effects are stripped.`),
-          );
-        }
-        // A stripped ward contribution's capacity leaves the pool (#79).
-        for (const loss of applyShieldExpiry(ctx.battle, removed)) {
-          lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
-        }
+        lines.push(...applyDispelEffect(ctx, spec, side));
         break;
       }
       case 'resource': {
@@ -1414,6 +1287,162 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
     }
+  }
+  return lines;
+}
+
+/** Lifesteal feeds the caster and reports the clamped HP delta (#106, #181). */
+function applyLifestealEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'lifesteal' }>,
+): string[] {
+  if (!(ctx.lastDamage > 0)) return [];
+  const attempted = Math.floor(ctx.lastDamage * spec.pct);
+  if (!(attempted > 0)) return [];
+  const target = ctx.actor === 'player' ? ctx.p : ctx.battle.enemy;
+  const max = ctx.actor === 'player' ? statsOf(ctx.p).maxHp : ctx.battle.enemy.maxHp;
+  const before = target.hp;
+  target.hp = Math.min(max, target.hp + attempted);
+  const applied = target.hp - before;
+  recordCombatEvent(ctx.trace, {
+    kind: 'hpRestored',
+    round: ctx.battle.round,
+    side: ctx.actor,
+    source: `${ctx.source.kind}:${ctx.source.name}`,
+    cause: ctx.cause,
+    attempted,
+    applied,
+  });
+  return [
+    ctx.actor === 'player'
+      ? `🩸 You drain ${applied} HP.`
+      : `🩸 ${ctx.battle.enemy.name} drains ${applied} HP from you!`,
+  ];
+}
+
+function applyShieldEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'shield' }>,
+  side: 'player' | 'enemy',
+  effectIndex: number,
+): string[] {
+  const lines: string[] = [];
+  // Capacity formula (heal parity): MAG-scaled when magPower is set,
+  // DEF-scaled when defPower is set (#81 — warrior wards scale off
+  // the stat the class actually has), flat otherwise. The caster's
+  // own sap scales it like any offense stat (#79).
+  const base = ctx.actor === 'player'
+    ? playerOffense(ctx.p, ctx.battle, 'mag')
+    : enemyOffense(ctx.battle, 'mag');
+  const defBase = ctx.actor === 'player' ? playerMitigation(ctx.p, ctx.battle, 'phys') : 0;
+  const amount = Math.round(
+    base * (spec.magPower ?? 0) * 2 + defBase * (spec.defPower ?? 0) * 2 +
+      (spec.amount ?? 0),
+  );
+  const seed = seedForSpec(
+    spec,
+    instanceDefId(ctx, spec, effectIndex),
+    ctx.displayName,
+    side,
+    ctx.source,
+    amount,
+  );
+  const grant = grantShield(ctx.battle, side, seed, ctx.trace);
+  const line = defaultInstanceLine(ctx, spec, side, amount);
+  if (line) lines.push(line);
+  if (grant.wasted > 0) lines.push(`🛡️ ${grant.wasted} over Shield capacity — wasted.`);
+  if (grant.lost > 0) lines.push(`🛡️ ${grant.lost} Shield capacity fades.`);
+  return lines;
+}
+
+function applyStatusEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'statmod' | 'control' | 'periodic' }>,
+  side: 'player' | 'enemy',
+  effectIndex: number,
+): string[] {
+  const lines: string[] = [];
+  const defId = instanceDefId(ctx, spec, effectIndex);
+  const seed = seedForSpec(
+    spec,
+    defId,
+    // All saps share one named condition (#77 copy) regardless of
+    // which move or skill sapped it.
+    defId === 'sap' ? 'Sapped' : ctx.displayName,
+    side,
+    ctx.source,
+  );
+  // #94: SPD's advertised rounds are INITIATIVE snapshots. An SPD
+  // statmod applied after this round's snapshot already happened
+  // spends no unit on it — its first decay defers, so an N-turn
+  // effect always covers N eligible snapshots (its dodge/flee value
+  // simply follows liveness, documented in AGENTS.md #72). Opening
+  // applications precede round 1's snapshot and keep their authored
+  // timing, so they still cover round 1..N.
+  if (spec.kind === 'statmod' && spec.stat === 'spd' && ctx.afterSnapshot) {
+    seed.timing = 'defer';
+  }
+  applyInstance(ctx.battle, seed, ctx.trace);
+  const line = defaultInstanceLine(ctx, spec, side);
+  if (line) lines.push(line);
+  return lines;
+}
+
+function applyCleanseEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'cleanse' }>,
+  side: 'player' | 'enemy',
+): string[] {
+  const lines: string[] = [];
+  const removed = removeTagged(
+    ctx.battle,
+    side,
+    spec.tags,
+    spec.max,
+    'cleansed',
+    ctx.trace,
+    // #105: the removal names its initiator — the skill, enemy move,
+    // or equipment trigger whose spec list is resolving.
+    ctx.source,
+  );
+  if (removed.length > 0 && !spec.quiet) {
+    const line = spec.line?.replace('{n}', String(removed.length)) ??
+      (side === 'player' ? '✨ Harmful effects are cleansed.' : undefined);
+    if (line) lines.push(line);
+  }
+  // A removed ward contribution's capacity leaves the pool (#79).
+  for (const loss of applyShieldExpiry(ctx.battle, removed)) {
+    lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
+  }
+  return lines;
+}
+
+function applyDispelEffect(
+  ctx: ExecCtx,
+  spec: Extract<EffectSpec, { kind: 'dispel' }>,
+  side: 'player' | 'enemy',
+): string[] {
+  const lines: string[] = [];
+  const removed = removeTagged(
+    ctx.battle,
+    side,
+    spec.tags,
+    spec.max,
+    'dispelled',
+    ctx.trace,
+    ctx.source, // #105: the dispel names the stripping skill/move/trigger
+  );
+  if (removed.length > 0 && !spec.quiet) {
+    lines.push(
+      spec.line?.replace('{n}', String(removed.length)) ??
+        (side === 'player'
+          ? '✨ Your beneficial effects are stripped away!'
+          : `✨ ${ctx.battle.enemy.name}'s beneficial effects are stripped.`),
+    );
+  }
+  // A stripped ward contribution's capacity leaves the pool (#79).
+  for (const loss of applyShieldExpiry(ctx.battle, removed)) {
+    lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
   }
   return lines;
 }
