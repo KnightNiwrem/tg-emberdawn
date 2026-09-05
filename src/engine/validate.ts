@@ -257,9 +257,10 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
     if (!zone(origin.zoneId)) bad('battle.origin', origin.zoneId, 'unknown origin zone');
   } else if (origin.kind === 'travel') {
     // Travel provenance (#159): the edge resolves, the player IS on that
-    // crossing, and the event index is the pending (or just-completed)
-    // roll. A travel battle without its matching journey is a corrupt
-    // combination — refused, never guessed back into shape.
+    // crossing, and the event index stands in the exact relation the
+    // coordinator produces FOR THIS BATTLE'S PHASE (#167). A travel battle
+    // without its matching journey is a corrupt combination — refused,
+    // never guessed back into shape.
     const r = route(origin.edgeId);
     if (!r) {
       bad('battle.origin', origin.edgeId, 'unknown travel edge');
@@ -272,16 +273,28 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
       if (journey.edgeId !== origin.edgeId) {
         bad('battle.origin', origin.edgeId, 'battle edge does not match the journey');
       }
+      // Phase-aware progress relation (#167): an ACTIVELY FIGHTING (or
+      // lost-but-unresolved) travel battle owns the PENDING roll — its
+      // eventIndex IS the journey's completedEvents, because a battle
+      // event consumes its roll only at its victory. A WON battle's roll
+      // is already complete (eventIndex === completedEvents − 1). The
+      // relation a save claims must match the phase it claims: a save
+      // that marks the event complete while the fight is still live (or
+      // vice versa) is a combination the coordinator cannot produce.
+      const ownsPendingRoll = origin.eventIndex === journey.completedEvents;
+      const rollAlreadyCompleted = origin.eventIndex === journey.completedEvents - 1;
+      const relation = b.phase === 'won' ? rollAlreadyCompleted : b.phase === 'fled'
+        ? false // flee clears the battle AND the crossing in one handler step
+        : ownsPendingRoll; // 'active' and 'lost' both keep the roll pending
       if (
         !Number.isInteger(origin.eventIndex) || origin.eventIndex < 0 ||
         origin.eventIndex >= journey.totalEvents ||
-        (origin.eventIndex !== journey.completedEvents &&
-          origin.eventIndex !== journey.completedEvents - 1)
+        !relation
       ) {
         bad(
           'battle.origin',
           String(origin.eventIndex),
-          'travel event index does not match the journey progress',
+          `travel event index does not match the journey progress (${b.phase} battle)`,
         );
       }
     }
@@ -484,13 +497,24 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
     if (!STORY_EVENT_NAMES.has(event)) bad('storyEvents', event, 'unknown story event');
   }
   validateScene(p.scene, bad);
-  // The journey and its battle are validated TOGETHER (#159): a travel
-  // battle needs its matching crossing, and a crossing with a battle of
-  // any other provenance is corrupt.
+  // The journey and its battle are validated TOGETHER (#159), and the
+  // combination is checked against the player's live location (#167):
+  // until the coordinator's final arrival, the player IS still at the
+  // edge origin — a save claiming any other currentZone while a crossing
+  // is live is a combination the runtime can never produce.
   if (p.journey && p.battle && p.battle.origin.kind !== 'travel') {
     bad('journey', p.journey.edgeId, 'active journey paired with a non-travel battle');
   }
-  if (p.journey) validateJourney(p.journey, bad);
+  if (p.journey) {
+    validateJourney(p.journey, bad);
+    if (p.currentZone !== p.journey.fromZone) {
+      bad(
+        'currentZone',
+        p.currentZone,
+        `not the live crossing origin (${p.journey.fromZone}) — send /reset to start fresh`,
+      );
+    }
+  }
   if (p.battle) validateBattle(p.battle, bad, p.journey);
   return problems;
 }

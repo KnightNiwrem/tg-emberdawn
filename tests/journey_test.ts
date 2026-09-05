@@ -485,3 +485,85 @@ Deno.test('every shipped crossing snapshot passes the identity gate', () => {
     }
   }
 });
+
+// ── cross-field journey corruption (#167) ────────────────────────────────
+
+Deno.test('corrupt cross-field combinations: location and phase-progress relations', () => {
+  // A live crossing keeps the player at the edge ORIGIN until arrival:
+  // moving currentZone elsewhere while the journey stands is a state the
+  // coordinator cannot produce.
+  const moved = traveler(1533, 'sunspire', 'frostpeak');
+  const movedRes = startJourney(moved, 'w_sunspire_frostpeak', stub(0.75, 0.1));
+  assert(movedRes.ok && movedRes.step.kind === 'battle');
+  moved.currentZone = 'frostpeak'; // both zones are valid — the combination is not
+  const locationProblems = findUnresolvedPersistedIds(moved);
+  assert(
+    locationProblems.some((x) => x.family === 'currentZone' && x.id === 'frostpeak'),
+    `mismatched currentZone/fromZone refused: ${JSON.stringify(locationProblems)}`,
+  );
+
+  // An ACTIVELY FIGHTING travel battle owns the PENDING roll: a save that
+  // already marks the event complete while the fight is live is refused.
+  const forgedDone = traveler(1534, 'sunspire', 'frostpeak');
+  const forgedRes = startJourney(forgedDone, 'w_sunspire_frostpeak', stub(0.1));
+  assert(forgedRes.ok && forgedRes.step.kind === 'battle');
+  forgedDone.journey!.completedEvents = 1;
+  const activeProblems = findUnresolvedPersistedIds(forgedDone);
+  assert(
+    activeProblems.some((x) => x.family === 'battle.origin' && x.detail.includes('active')),
+    `active battle with a completed event refused: ${JSON.stringify(activeProblems)}`,
+  );
+
+  // ...and a WON battle whose event was NOT completed is refused the same
+  // way — the relation must match the phase, in both directions.
+  const wonStale = traveler(1535, 'sunspire', 'frostpeak');
+  const wonRes = startJourney(wonStale, 'w_sunspire_frostpeak', stub(0.1));
+  assert(wonRes.ok && wonRes.step.kind === 'battle');
+  wonStale.battle!.enemy.hp = 0;
+  battleAction(wonStale, { v: 'battle', a: 'atk' });
+  assertEquals(wonStale.battle!.phase, 'won');
+  wonStale.journey!.completedEvents = 0; // undo the victory's completion
+  const wonProblems = findUnresolvedPersistedIds(wonStale);
+  assert(
+    wonProblems.some((x) => x.family === 'battle.origin' && x.detail.includes('won battle')),
+    `won battle with a pending event refused: ${JSON.stringify(wonProblems)}`,
+  );
+});
+
+Deno.test('valid lifecycle states all pass the cross-field gate', () => {
+  // Active battle at departure: pending roll owned by the fight.
+  const fighting = traveler(1536, 'sunspire', 'frostpeak');
+  const fightRes = startJourney(fighting, 'w_sunspire_frostpeak', stub(0.1));
+  assert(fightRes.ok && fightRes.step.kind === 'battle');
+  assertEquals(findUnresolvedPersistedIds(fighting), []);
+
+  // Victory staging: the event completed, the battle awaits Continue.
+  fighting.battle!.enemy.hp = 0;
+  battleAction(fighting, { v: 'battle', a: 'atk' });
+  assertEquals(findUnresolvedPersistedIds(fighting), []);
+
+  // Intermission: battle dropped, the crossing live, still at the origin.
+  battleAction(fighting, { v: 'battle', a: 'go' });
+  assertEquals(fighting.scene.view, 'journey');
+  assertEquals(fighting.battle, undefined);
+  assertEquals(findUnresolvedPersistedIds(fighting), []);
+
+  // Arrival boundary: the crossing cleared, the player at the destination.
+  const step = advanceJourney(fighting, stub(0.75));
+  assertEquals(step.kind, 'arrived');
+  assertEquals(fighting.currentZone, 'frostpeak');
+  assertEquals(findUnresolvedPersistedIds(fighting), []);
+});
+
+Deno.test('a defeat-staged travel battle keeps its pending roll and passes the gate', () => {
+  const p = traveler(1537, 'sunspire', 'frostpeak');
+  const res = startJourney(p, 'w_sunspire_frostpeak', stub(0.1));
+  assert(res.ok && res.step.kind === 'battle');
+  p.battle!.enemy.hp = 999999;
+  p.hp = 1;
+  battleAction(p, { v: 'battle', a: 'atk' });
+  assertEquals(p.battle!.phase, 'lost');
+  // The lost fight's roll never completed; the journey stands until the
+  // death confirm — and the persisted pair is exactly that relation.
+  assertEquals(findUnresolvedPersistedIds(p), []);
+});
