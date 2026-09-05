@@ -560,7 +560,15 @@ Deno.test('a defeat-staged travel battle keeps its pending roll and passes the g
   assert(res.ok && res.step.kind === 'battle');
   p.battle!.enemy.hp = 999999;
   p.hp = 1;
-  battleAction(p, { v: 'battle', a: 'atk' });
+  // The encounter stub does not govern the handler's combat RNG (#202).
+  // Pin this synchronous turn so a random dodge cannot keep the hero alive.
+  const realRandom = Math.random;
+  Math.random = () => 0.5;
+  try {
+    battleAction(p, { v: 'battle', a: 'atk' });
+  } finally {
+    Math.random = realRandom;
+  }
   assertEquals(p.battle!.phase, 'lost');
   // The lost fight's roll never completed; the journey stands until the
   // death confirm — and the persisted pair is exactly that relation.
