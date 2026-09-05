@@ -12,7 +12,7 @@ import { dialogue, dialogueNode } from '../content/dialogues.ts';
 import { evalCondition } from '../engine/conditions.ts';
 import { npcTopics } from '../engine/npc.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
-import { statsOf, xpProgress, xpRewardLabel } from '../engine/character.ts';
+import { statsOf, xpProgress } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
 import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
@@ -20,7 +20,13 @@ import { itemFactBlocks } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { routesFrom } from '../content/routes.ts';
 import { forgeInZone, shopInZone } from '../content/facilities.ts';
-import { dungeonOf, dungeonProgressLine, nextDiveIsBoss } from '../engine/world.ts';
+import {
+  dungeonCleared,
+  dungeonOf,
+  dungeonProgressLine,
+  nextDiveIsBoss,
+  zoneDescription,
+} from '../engine/world.ts';
 import { resolveRoute, resolveRouteById, usableRoutesFrom } from '../engine/routes.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
@@ -29,6 +35,7 @@ import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import { banner, bar, buttonsRow, cbBtn, disabledBtn, heading, para, pct, quote } from './rich.ts';
 import { encodeCb } from '../codec.ts';
 import { noticesBlocks } from './parts.ts';
+import { choiceQuestBlocks, questBriefBlocks, questRewardText } from './quest_brief.ts';
 
 type Block = InputRichBlock;
 
@@ -59,6 +66,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
   const z = zone(p.currentZone)!;
   const d = dungeonOf(z);
   const blocks = zoneHeader(p);
+  blocks.push(para({ type: 'italic', text: zoneDescription(p, z) }));
   if (z.safeHaven) {
     blocks.push(para('🔥 Safe haven — no battles, and full rest on arrival.'));
   } else {
@@ -71,6 +79,11 @@ export function renderZone(p: PlayerState): InputRichMessage {
     // dungeon line so the boss's tune point is never a hidden dependency.
     const rec = d.recommendedLevel !== undefined ? ` · Recommended Lv ${d.recommendedLevel}` : '';
     blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}${rec}`));
+    if (dungeonCleared(p, d)) {
+      blocks.push(
+        para('The chambers retain an echo of your first trial. You can face that echo again.'),
+      );
+    }
   }
 
   // Under-level boss confirmation (#73): the boss floor is inescapable, so
@@ -145,7 +158,7 @@ function renderTutorialHub(p: PlayerState): InputRichMessage {
   if (p.tutorial === 'maren') {
     blocks.push(banner('🔥 Your tale begins'));
     blocks.push(para(
-      "Every Dawncaller starts at the hearth. Elder Maren keeps the village's last ember — and its oldest hope. She is waiting for you.",
+      'The village hearth has failed to light this morning. Farmers wait beside sacks of seed they may have to eat instead of plant. You have come to help. Elder Maren calls you over to the ember she has kept alive.',
     ));
     blocks.push(
       buttonsRow([
@@ -159,8 +172,8 @@ function renderTutorialHub(p: PlayerState): InputRichMessage {
     blocks.push(banner('🌑 Just outside the village'));
     blocks.push(para(
       again
-        ? "The ash settles — the cinder mite is still out there, and Maren's ember still wants its first dawn."
-        : 'Past the last hearth-light, the ash stirs: a cinder mite, small and wayward. A perfect first lesson.',
+        ? 'The cinder mite is still beside the seed shed. You steady the ember lamp and prepare to face it again.'
+        : 'A cinder mite scratches at the seed shed, scattering hot ash against the door. You set the ember lamp on a stone where it will be safe.',
     ));
     blocks.push(
       buttonsRow([
@@ -184,10 +197,10 @@ export function renderTutorial(p: PlayerState): InputRichMessage {
       heading('🧓 Elder Maren', 3),
       ...noticesBlocks(p),
       quote(
-        '"The Flame dims a little more each season — but dim is not dark, and we are not done. Take this ember, Dawncaller. A small light is still a light."',
+        '“The Great Flame once warmed our hearths and brought the spring. King Aldric divided it and kept its renewing light in his crown. Now the growing seasons shrink, and this village is running out of food. We can still change that.”',
       ),
       para(
-        'She nods toward the fields. "A cinder mite has wandered from the ash, just past the hearth-light. It will not greet you politely. Go — and teach it what hope hits like."',
+        'Maren sets an ember lamp beside you. “A Dawncaller carries hearth-light back toward its source. That is work you can choose, and we will help you do it. First, stop the cinder mite outside our seed shed. Then come back to me. Bram and I have found a lead beneath the Whisperwood.”',
       ),
       buttonsRow([
         cbBtn('🔥 Take the ember and head out', encodeCb({ v: 'tut', a: 'out' }), 'success'),
@@ -732,29 +745,35 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
   const qp = p.quests[id];
   const blocks: Block[] = [];
   if (!q) {
-    blocks.push(para('That quest is a mystery even to the Archivist.'));
+    blocks.push(para('That quest is unavailable. Return to the Quest Log.'));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'quests', a: 'bk' }))]));
     return { blocks };
   }
-  blocks.push(heading(`${q.main ? '🏅' : '📜'} ${q.name}`, 4));
-  blocks.push(quote({ type: 'italic', text: q.summary }));
   blocks.push(...noticesBlocks(p));
   const status = qp?.status ?? 'unavailable';
-  if (status === 'active' || status === 'turnIn') {
+  if (status === 'available' || status === 'active' || status === 'turnIn') {
+    // The same actionable brief as the conversation, with no lifecycle controls.
+    blocks.push(
+      ...questBriefBlocks(
+        p,
+        q,
+        status === 'available' ? 'offer' : status === 'turnIn' ? 'turnIn' : 'progress',
+      ),
+    );
+    if (status === 'available') blocks.push(para(`✔️ Requires level ${q.level}.`));
+    if (status === 'turnIn') blocks.push(para(questStatusLine(p, id)));
+  } else {
+    blocks.push(heading(`${q.main ? '🏅' : '📜'} ${q.name}`, 4));
+    blocks.push(quote({ type: 'italic', text: q.summary }));
     blocks.push(para(questStatusLine(p, id)));
-  } else if (status === 'available') {
-    blocks.push(para(`✔️ Requires level ${q.level}.`));
+    blocks.push(
+      para(
+        p.questOutcomes[id]?.kind === 'resolved'
+          ? 'This quest ended with an alternate outcome. Its normal rewards were not granted.'
+          : `🎁 Rewards: ${questRewardText(p, q)}`,
+      ),
+    );
   }
-  const itemRewards = Object.entries(q.rewards.items ?? {})
-    .map(([iid, n]) => ` · ${itemName(iid)}${n > 1 ? ` ×${n}` : ''}`)
-    .join('');
-  // Reward preview reflects the real economy (#42): at the summit the XP
-  // portion renders as its conversion, never XP the player cannot receive.
-  blocks.push(
-    para(
-      `🎁 Rewards: ${xpRewardLabel(p.level, q.rewards.xp)} · ${q.rewards.gold} gold${itemRewards}`,
-    ),
-  );
   // Read-only journal (#65): no lifecycle buttons render here — accepting
   // and turning in happen face-to-face with the quest's configured NPC, in
   // the zone where they stand. The log NAMES that contact instead.
@@ -806,8 +825,9 @@ export function renderNpcTopics(p: PlayerState): InputRichMessage {
     blocks.push(heading(`🗣️ ${def.name}`, 4));
     blocks.push(...noticesBlocks(p));
     if (q) {
-      blocks.push(para([{ type: 'bold', text: q.name } as RichText]));
-      blocks.push(para(questStatusLine(p, q.id)));
+      blocks.push(
+        ...questBriefBlocks(p, q, p.quests[q.id]?.status === 'turnIn' ? 'turnIn' : 'progress'),
+      );
     }
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
     return { blocks };
@@ -884,6 +904,7 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
         if (choice.consequenceHint) {
           blocks.push(para({ type: 'italic', text: choice.consequenceHint } as RichText));
         }
+        blocks.push(...choiceQuestBlocks(p, choice));
         blocks.push(
           buttonsRow([
             cbBtn(
@@ -905,6 +926,8 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     blocks.push(quote(`“${node.prompt}”`));
     for (const c of node.choices) {
       if (c.when && !evalCondition(p, c.when)) continue;
+      if (c.consequenceHint) blocks.push(para(c.consequenceHint));
+      blocks.push(...choiceQuestBlocks(p, c));
       blocks.push(
         buttonsRow([cbBtn(c.label, encodeCb({ v: 'dlg', a: 'ch', arg: c.id }))], 'left'),
       );
@@ -978,7 +1001,7 @@ export function renderClassPicker(): InputRichMessage {
   const blocks: Block[] = [
     heading('🔥 Emberdawn', 2),
     para(
-      'The Great Flame is guttering — a king split it in half and hoarded its tomorrow. But embers are promises: someone has to carry the last light up the road and find the dawn. Choose who you will be on that road:',
+      'Spring comes later each year. The fields around Emberdawn no longer grow enough to feed the village. King Aldric stole the renewing light of the Great Flame, and someone must carry a living ember back to its source. You have come to help. Choose how you will face the road:',
     ),
   ];
   for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {

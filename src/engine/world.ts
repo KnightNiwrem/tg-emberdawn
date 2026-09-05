@@ -27,6 +27,12 @@ import { grantContextualDrops, rollDropTable } from './loot.ts';
 import { JOURNEY_BLOCK } from './routes.ts';
 import { applyQuietEvent } from './event_rewards.ts';
 import { itemName } from '../content/items.ts';
+import { evalCondition } from './conditions.ts';
+
+/** Recovery is derived from existing story state, never a second set of flags. */
+export function zoneDescription(p: PlayerState, z: ZoneDef): string {
+  return z.aftermath?.find((a) => evalCondition(p, a.when))?.text ?? z.desc;
+}
 
 /**
  * The ONE arrival authority (#159/#160): changes currentZone, restores a
@@ -39,7 +45,7 @@ export function arriveAt(p: PlayerState, toZone: string): string[] {
   const z = zone(toZone);
   p.currentZone = toZone;
   const lines = [`🧭 You arrive at ${z?.emoji ?? ''} ${z?.name ?? toZone}.`];
-  if (z) lines.push(z.desc);
+  if (z) lines.push(zoneDescription(p, z));
   if (z?.safeHaven) {
     const s = statsOf(p);
     p.hp = s.maxHp;

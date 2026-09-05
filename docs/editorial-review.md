@@ -6,7 +6,40 @@ and with what disposition**. It is not a prose specification, and no lexical bla
 model, or AI detector backs it — the machine-checkable facts stay in the test suite
 (`tests/dialogue_copy_test.ts`, `tests/quest_copy_test.ts`, `tests/dialogue_test.ts`).
 
-## Status of this record
+## Campaign rebase review: 2026-09-05 (#189–#191)
+
+**Reviewer:** Codex (AI implementor and editorial reviewer), acting on the owner's explicit
+permission to rewrite the campaign. **Reviewed base:** `0ee4768baf30c070abfd99406fe34e10381dbecf`;
+**reviewed result:** the accompanying version-13 campaign fix commit. No independent or human review
+is claimed. The older approvals below are historical provenance and are superseded for fields
+revised in this pass.
+
+**Disposition: edited and approved.** The full findings, chapter sequence, task/transaction
+corrections, retained choices, and validation evidence are recorded in
+[campaign-revision.md](campaign-revision.md). The setting and editorial requirements have been
+updated in [narrative-guide.md](narrative-guide.md).
+
+| Category                 | Scope and disposition                                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Quests and dialogue   | All 47 summaries and their 95 quest conversations reviewed and revised; concrete tasks, beneficiary, destination, report, and next lead replace vague repeated motifs                                                                             |
+| 2. NPC voices and topics | All 12 greetings/topics plus the four ambient/branch conversations reviewed and revised; optional history deepens mandatory explanations; the post-dawn Maren topic avoids repeating a failing-world account                                      |
+| 3. World                 | All ten regions, seven dungeons, exploration text, roads, and facility descriptions reviewed for coherence; region recovery added, remote boss scenes removed from NPC reports, stale or cryptic exploration/facility copy corrected where needed |
+| 4. Combat narration      | Mechanics and action prose retained; the new locket is an authored drop, and rematches retain their established echo interpretation                                                                                                               |
+| 5. Items and skills      | Quest items and connected materials revised; Pell's Locket and the Wisp Lantern are real objects; other equipment/skill identity and mechanics retained                                                                                           |
+| 6. UI                    | Class picker, prologue, release directions, acceptance/report panels, staged choices, journal and reminders reviewed; exact tasks and transactions derive from structured content                                                                 |
+
+The earlier exception for “Rangers never do” is retired: Pell now expresses attachment through the
+actual recovered locket rather than a narrator's generalization. Static topic quoting remains an
+intentional presentation distinction. Interpretations of warmth, morning, and remembrance must now
+follow a concrete fact; none substitute for an instruction.
+
+Signed: **Codex**, 2026-09-05. This is a deliberate editorial review of the implemented revision,
+not a certification by a prose classifier. Functional verification covers content integrity,
+progression for every class, dialogue and branch authority, actionable decision screens, inventory
+transactions, recovery on return visits, save refusal, and PostgreSQL round-trips. The ordinary four
+CI gates are required before committing.
+
+## Historical review status
 
 - **Review method:** AI-owned editorial pass (Claude, agent session), complete. Emberdawn is owned
   and implemented end to end by AI agents (#152); the editorial role is deliberately role-neutral —

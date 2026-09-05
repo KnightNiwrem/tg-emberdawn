@@ -264,7 +264,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         SLOW(0.25, 2, 'Webbed', '🕸️ The webbing binds your legs — Webbed!'),
       ),
     ],
-    drops: { m_ember_shard: 0.4 },
+    drops: { m_ember_shard: 0.4, q_pells_locket: 0.25 },
   }),
   mk({
     id: 'e_sprite',

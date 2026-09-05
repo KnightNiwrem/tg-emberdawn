@@ -111,7 +111,7 @@ export const SHOPS: readonly ShopDef[] = [
   {
     id: 'shop_bazaar',
     name: 'The Confiscated Counter',
-    desc: 'Curator Ombra sells what the cult never came back to claim. The ledgers approve.',
+    desc: 'Ombra sells recovered travel supplies beneath a patched awning beside the sundials.',
     stock: [
       {
         items: [
@@ -246,7 +246,7 @@ export const FORGES: readonly ForgeDef[] = [
     id: 'forge_bram',
     name: "Bram's Anvil",
     desc:
-      'The village forge, older than its chimney. Full craft for weapon and armor, to the fifth temper.',
+      'The village forge, older than its chimney. Bram keeps the family tools beside a map of the hearth channels.',
     capabilities: {
       slots: ['weapon', 'armor'],
       maxTemper: 5,
@@ -256,7 +256,7 @@ export const FORGES: readonly ForgeDef[] = [
     id: 'forge_ropewalk',
     name: 'The Ropewalk Forge',
     desc:
-      "Odo's shore forge, built for boat-iron. Careful work, but the deep craft waits on the Shrine's fall.",
+      "Boat fittings hang above Odo's anvil. The heavier tools arrive by river when the shrine's sluices run again.",
     capabilities: {
       slots: ['weapon', 'armor'],
       maxTemper: 3,

@@ -463,7 +463,8 @@ export const ROUTES: readonly RouteDef[] = [
       {
         kind: 'flavor',
         weight: 2,
-        text: 'Warm ash dunes roll to every horizon. Nothing follows. Probably.',
+        text:
+          'Tracks cross the warm ash behind you, then disappear beneath a fresh fall of cinders.',
       },
       {
         kind: 'rest',
@@ -535,7 +536,7 @@ export const ROUTES: readonly RouteDef[] = [
         kind: 'treasure',
         gold: 1200,
         weight: 1,
-        text: 'Value is a habit. The void indulged it here, once.',
+        text: 'A split travel chest rests on the ledge. Coins gleam between its broken boards.',
       },
     ],
   },

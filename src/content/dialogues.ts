@@ -27,7 +27,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'You want to know what the Great Flame is, and not the hearth-verse they teach children. Sit, then. It is the oldest fire — every ember in this valley was lit from it, directly or not.',
+          'The Great Flame is the first fire. Its warmth travels through roots, springs, and the hearths our grandparents built above them. It also carries the power to renew things: seed becoming wheat, winter giving way to spring. That is what people mean when they call it the source of dawn.',
         next: 'n2',
       },
       {
@@ -35,7 +35,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'Maren turns the last ember on its hearthstone so the light falls across the maps on her wall — the village, the wood, the drowned east.',
+          'Maren turns the ember on its hearthstone. Its light reaches a bowl of seed grain and the maps pinned behind it.',
         next: 'n3',
       },
       {
@@ -43,14 +43,14 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'What the Sundered King took was not wood and not oil. You cannot stack what he stole in a vault. He took the mornings we were owed — and folk can live a long time on less and less morning before they forget what it looked like.',
+          'Aldric divided it a century ago. Our hearths kept some warmth, but he took the renewing light into his crown. Day still follows night. Each season gives us less time to grow food, though, and each new fire is harder to light. That is the tomorrow he stole.',
         next: 'n4',
       },
       {
         id: 'n4',
         kind: 'line',
         speaker: 'player',
-        text: 'And you think it can be taken back.',
+        text: 'Why ask me to carry the ember?',
         next: 'n5',
       },
       {
@@ -58,7 +58,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'I think it was taken, which means someone can carry it back. That is the whole of my arithmetic, Dawncaller. Dim is not dark. Not yet.',
+          'Because you came to help, and you can still make the journey. Dawncaller is what we call someone who carries hearth-light out to restore its source. No bloodline and no prophecy. Bram will equip you, Lyra will tend you, and I will keep people working here. You do not have to mend the world alone.',
       },
     ],
   },
@@ -72,14 +72,15 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Six generations of my family have kept this fire, and every edge that ever held a line out there was hammered on this anvil.',
+          'Six generations of my family kept this forge. My grandfather drew the map of the channels under the village. I used to think keeping the anvil hot was enough. Hard to believe that when a farmer brings in a sound plough and has nothing growing behind it.',
         next: 'n2',
       },
       {
         id: 'n2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He lays one scarred hand flat on the anvil, the way other men touch shrines.',
+        text:
+          'Bram rests a scarred hand on the anvil. Beside it lie a plough fitting, a cooking pot, and an unfinished piece of armor.',
         next: 'n3',
       },
       {
@@ -87,7 +88,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'A forge is a promise that tomorrow needs tools. Whatever the dawn turns out to be, someone will have to cut a path to it. That part, I can still do.',
+          'The same fire makes all of these. Equipment for your road, tools for the fields, pots for what comes up. Bring me something I can work with and I can do my part. That is how this village has lasted.',
       },
     ],
   },
@@ -114,28 +115,29 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The shrine folk keep a ledger of who believes in the morning. Names, written down. Want yours in it?',
+          'The keepers can sponsor one task. You can pledge to restore their beacon by defeating Marsh Wisps, or clear Marsh Leeches from the water intake without making a pledge. Either helps the people here. Choose the work you mean to do; I will put that in the book.',
         next: 'n2',
       },
       {
         id: 'n2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He backs water and lets the ferry drift, waiting on your answer.',
+        text:
+          'The Ferryman opens the job ledger to two sketches: a lantern above the reeds and a basket sunk at a water intake.',
         next: 'n3',
       },
       {
         id: 'n3',
         kind: 'choice',
-        prompt: 'So — what do I tell them?',
+        prompt: 'Which job will you take: the beacon or the water intake?',
         choices: [
           {
             id: 'promise',
-            label: 'Put me down as a believer',
+            label: 'Pledge to restore the beacon',
             when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
             consequenceHint:
-              'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
+              "Starts The Shrine's Beacon and permanently closes The Water Intake. You will defeat Marsh Wisps in Hollowmere and report to the Ferryman.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'promise' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
@@ -146,11 +148,11 @@ export const DIALOGUES: readonly DialogueDef[] = [
           },
           {
             id: 'decline',
-            label: 'Keep my name off the ledger',
+            label: 'Clear the intake without a pledge',
             when: { questStatus: { questId: 'sq_shrine_pledge', is: 'active' } },
             irreversible: true,
             consequenceHint:
-              'The debt goes on the books all the same — and the road of the beacon closes for good.',
+              "Starts The Water Intake and permanently closes The Shrine's Beacon. You will defeat Marsh Leeches in Hollowmere and report to the Ferryman.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'decline' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
@@ -163,7 +165,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
             // Conditionally available response (#126): earned trust changes
             // what the shrine will hear. Re-evaluated at tap time.
             id: 'vouch',
-            label: 'Tell them the swamp already vouches for me',
+            label: 'Offer my proven help with the beacon',
             when: {
               all: [
                 { questStatus: { questId: 'm6_toxin', is: 'done' } },
@@ -172,7 +174,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
             },
             irreversible: true,
             consequenceHint:
-              'The shrine counts on you from now on — and the road of the unwritten name closes for good.',
+              "Your toxin work earns the keepers' trust. Starts The Shrine's Beacon and permanently closes The Water Intake, just like the pledge.",
             effects: [
               { kind: 'recordDecision', id: 'ferry_shrine_pledge', choiceId: 'vouch' },
               { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
@@ -188,21 +190,21 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Then the ledger says so — and it says what comes with it. The shrine's drowned beacon is yours to relight; the unwritten road closed behind you the moment the ink dried. Hold yourself to it.",
+          'I have written your pledge beside the beacon. Defeat the Marsh Wisps in Hollowmere and report to me. The keepers will give the intake job to someone else. You can collect the planning payment by finishing our first conversation whenever you wish.',
       },
       {
         id: 'n5',
         kind: 'line',
         speaker: 'npc',
         text:
-          'Fair enough. The water keeps no ledger, but the shrine does — and it writes debts for unwritten names too. Yours is on the books now, and the beacon road closed behind you the moment you turned away.',
+          'The intake, then. Defeat Marsh Leeches in Hollowmere and report to me. No oath required. The keepers will find someone else for the beacon. Our first conversation is also ready to finish; its planning payment is yours.',
       },
       {
         id: 'n6',
         kind: 'line',
         speaker: 'npc',
         text:
-          'That they do — you cleaned the runoff the Tyrant left. I will write the strongest line the ledger holds. The beacon is yours to relight, and the unwritten road closed behind you with the ink still wet.',
+          'Your sample work gives them good reason to trust you. I have put you down for the beacon. Defeat the Marsh Wisps in Hollowmere and return here. The intake job goes to someone else; the payment for choosing your assignment is ready as well.',
       },
     ],
   },
@@ -221,7 +223,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'a1',
         kind: 'choice',
-        prompt: "The ledger's open. What do you want of it?",
+        prompt: 'Would you like directions, or news of the work you finished?',
         choices: [
           {
             id: 'beacon',
@@ -266,7 +268,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
           },
           {
             id: 'debt',
-            label: 'What does the shrine expect of me?',
+            label: 'Remind me about the intake patrol',
             when: {
               all: [
                 { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
@@ -277,7 +279,7 @@ export const DIALOGUES: readonly DialogueDef[] = [
           },
           {
             id: 'paid',
-            label: 'How do the books read now?',
+            label: 'How is the water intake now?',
             when: {
               all: [
                 { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
@@ -293,35 +295,35 @@ export const DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The drowned shrine holds the beacon, and the marsh wisps smother its flame. Lay them to rest and carry their light back. The shrine will know its own again.',
+          'Defeat Marsh Wisps while exploring Hollowmere Swamp. Their light will gather in my lamp. Return to me when the patrol is done and we can decide whether to give it to the crossing beacon. Your quest notes carry the tally.',
       },
       {
         id: 'a3',
         kind: 'line',
         speaker: 'npc',
         text:
-          "Nothing holy — only what is owed. Leeches have grown fat on the shrine's seep. Cull them, and the books balance.",
+          'Defeat Marsh Leeches while exploring Hollowmere Swamp, then report to me. The keepers need the water intake clear enough to clean its filter baskets. Your quest notes carry the tally.',
       },
       {
         id: 'a4',
         kind: 'line',
         speaker: 'npc',
         text:
-          'It writes: light retained, debt forgiven. The beacon waits for a kinder hand. Walk warm, Dawncaller — the ledger does not begrudge you the glow.',
+          'The book says kept. You took the lantern and left the payment; the beacon remains unlit. The keepers will seek another source of light. Their work will take longer, but it is still work they mean to finish.',
       },
       {
         id: 'a5',
         kind: 'line',
         speaker: 'npc',
         text:
-          'It reads clean. The beacon took the wisp-light for its first breath, and the shrine writes you as the one who fed it. That page dries warm.',
+          'The beacon is lit. My passengers can find the crossing through the reeds again. The keepers check its wick every evening. You gave them something they can keep tending.',
       },
       {
         id: 'a6',
         kind: 'line',
         speaker: 'npc',
         text:
-          'Even. The leeches are out of the seep and the books read even. No name was ever written, but the shrine marks the debt paid all the same.',
+          'The intake baskets are being cleaned. You did the job and received the pay, with no pledge attached. The people who drink that water care more about the work than the ceremony.',
       },
     ],
   },

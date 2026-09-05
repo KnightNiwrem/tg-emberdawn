@@ -210,7 +210,7 @@ Deno.test('topics: an NPC with no quest business still exposes their conversatio
   const topics = npcTopics(p, 'npc_pell');
   assertEquals(topics.filter((t) => t.kind !== 'lore').length, 0);
   const view = JSON.stringify(renderNpcTopics(p));
-  assert(view.includes('You walk loud'), 'the authored greeting renders');
+  assert(view.includes('Stop there. Web across the next branch.'), 'the authored greeting renders');
   assert(view.includes('Ask about the spiders'), 'the authored lore topic renders');
   assert(view.includes('npc:bk'), 'Leave is offered');
   assert(!view.includes('dlg:'), 'no dialogue is reachable without business');

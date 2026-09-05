@@ -7,8 +7,13 @@
  *   deno task test:pg:local
  */
 
-import { assert, assertEquals, assertRejects } from '@std/assert';
-import { createPlayer } from '../src/engine/character.ts';
+import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert';
+import {
+  assertSupportedSaveVersion,
+  createPlayer,
+  CURRENT_STATE_VERSION,
+  SaveTooOldError,
+} from '../src/engine/character.ts';
 import { PgStore } from '../src/persistence/store.ts';
 import { assertResolvablePersistedIds } from '../src/engine/validate.ts';
 import { startBattle } from '../src/engine/combat.ts';
@@ -71,6 +76,30 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     assertEquals(restored, shopper);
     assertResolvablePersistedIds(restored);
     await store.delete(shopper.userId);
+
+    // #191: the current campaign's quest objects survive JSONB; storing an
+    // older checkpoint never stamps it current or repairs its payload.
+    const carrier = createPlayer(1910, 'Carrier', 'rogue');
+    carrier.currentZone = 'whisperwood';
+    carrier.quests.sq_locket = { status: 'turnIn', counts: [1] };
+    carrier.inventory.push({ id: 'q_pells_locket', qty: 1 }, { id: 'q_wisp_lantern', qty: 1 });
+    carrier.scene = { view: 'dialogue', arg: 'dlg_sq_locket_turnin', arg2: 'ta' };
+    await store.set(carrier.userId, carrier);
+    const current = (await store.get(carrier.userId))!;
+    assertEquals(current, carrier);
+    assertEquals(current.stateVersion, 13);
+    assertSupportedSaveVersion(current);
+    assertResolvablePersistedIds(current);
+    carrier.stateVersion = CURRENT_STATE_VERSION - 1;
+    await store.set(carrier.userId, carrier);
+    const retired = (await store.get(carrier.userId))!;
+    assertThrows(() => assertSupportedSaveVersion(retired), SaveTooOldError);
+    assertEquals(
+      await store.get(carrier.userId),
+      carrier,
+      'refusal leaves the stored JSON untouched',
+    );
+    await store.delete(carrier.userId);
 
     // ── cross-instance serialization (#18) ────────────────────────────────
     // Two concurrent withLock sections must NOT interleave: a passthrough

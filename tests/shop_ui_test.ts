@@ -63,7 +63,7 @@ Deno.test('shop: Details disclose equipment stats, requirements, triggers, consu
     ['a_warrior_1', ['+3 DEF', '+6 HP', '+2 RES']],
     ['t_9', ['+3 ATK', '+3 DEF', 'Bramble Bleed: 4 damage', '2 rounds', '30% chance', '3×/battle']],
     ['c_minor_potion', ['Restores 60 HP.']],
-    ['m_iron_chunk', ['Raw, heavy, honest.']],
+    ['m_iron_chunk', [item('m_iron_chunk')!.desc!]],
   ];
   for (const [id, facts] of cases) {
     const view = renderShopItemDetail(p, id, 1);
@@ -158,7 +158,7 @@ Deno.test('shop: inspect, save/load, buy, stale replay and Back retain the live 
     return capture;
   };
   const open = await tap({ v: 'shop', a: 'view', arg: 'm_iron_chunk' });
-  assert(JSON.stringify(open.edits).includes('Raw, heavy, honest.'));
+  assert(JSON.stringify(open.edits).includes(item('m_iron_chunk')!.desc!));
   const scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' } as const;
   assertEquals((await store.get(p.userId))!.scene, scene);
 
@@ -166,7 +166,7 @@ Deno.test('shop: inspect, save/load, buy, stale replay and Back retain the live 
   await store.set(p.userId, JSON.parse(JSON.stringify(await store.get(p.userId))));
   const start = fakeCtxCapture(p.userId);
   await store.withLock(p.userId, () => handleStart(start.ctx, store));
-  assert(JSON.stringify(start.sends).includes('Raw, heavy, honest.'));
+  assert(JSON.stringify(start.sends).includes(item('m_iron_chunk')!.desc!));
   assertEquals((await store.get(p.userId))!.scene, scene);
 
   const live = (await store.get(p.userId))!;

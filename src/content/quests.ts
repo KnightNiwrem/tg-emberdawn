@@ -1,5 +1,5 @@
 /**
- * Quest catalog: the main storyline (25 quests, 6 chapters + postgame) and
+ * Quest catalog: the main storyline (28 quests, 6 chapters + epilogue) and
  * side quests. Availability is derived from prereqs, level and zone flags.
  */
 
@@ -18,7 +18,7 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 1,
     summary:
-      'Elder Maren asks you to thin the ember-rats gnawing the hearth-roads — the first steps on a longer road.',
+      'Protect the seed grain in the Emberdawn Outskirts so the village can plant again. Report to Elder Maren.',
     objectives: [{ kind: 'kill', target: 'e_ember_rat', count: 4 }],
     rewards: { xp: 120, gold: 80, items: { q_sealed_letter: 1 } },
     startNpc: 'npc_maren',
@@ -34,7 +34,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 2,
     prereq: { questStatus: { questId: 'm1_embers', is: 'done' } },
-    summary: "Deliver Maren's sealed letter to Blacksmith Bram — the first clue toward the dawn.",
+    summary:
+      "Take Maren's letter to Blacksmith Bram in Emberdawn Village. Hear him read it, then leave it with him.",
     objectives: [
       { kind: 'collect', target: 'q_sealed_letter', count: 1 },
       { kind: 'storyEvent', target: 'heard_bram_reading', label: 'Hear Bram read the letter' },
@@ -53,7 +54,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 3,
     prereq: { questStatus: { questId: 'm2_letter', is: 'done' } },
-    summary: 'The wolf packs still grow bold as the Flame dims — thin them in the Whisperwood.',
+    summary:
+      'Defeat the Grey Wolves hunting along the Whisperwood paths. Return to Maren, then seek Warden Tom in the forest.',
     objectives: [{ kind: 'kill', target: 'e_wolf', count: 3 }],
     rewards: { xp: 250, gold: 120 },
     startNpc: 'npc_maren',
@@ -69,7 +71,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 5,
     prereq: { questStatus: { questId: 'm3_wolves', is: 'done' } },
     summary:
-      "Warden Tom marks the broods feeding the Hollow's rot — cut them down at the threshold.",
+      'Clear Woodfang Spiders and Thistle Sprites from the Whisperwood approach to the Rootbound Hollow. Report to Warden Tom.',
     objectives: [
       { kind: 'kill', target: 'e_spider', count: 3 },
       { kind: 'kill', target: 'e_sprite', count: 2 },
@@ -88,7 +90,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 6,
     prereq: { questStatus: { questId: 'm4_floors', is: 'done' } },
     summary:
-      "Bram wants real steel in your hands before the Hollow's heart — iron enough to work it.",
+      'Bring Iron Chunks to Bram in Emberdawn Village. He will stock better equipment for sale and pay you for the iron.',
     objectives: [{ kind: 'collect', target: 'm_iron_chunk', count: 2 }],
     rewards: { xp: 250, gold: 250, items: { c_potion: 2 } },
     startNpc: 'npc_bram',
@@ -105,7 +107,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 7,
     prereq: { questStatus: { questId: 'm5_arms', is: 'done' } },
-    summary: "Cleanse the Rootbound Hollow — reclaim the wood's warmth for what comes next.",
+    summary:
+      'Defeat Matriarch Aranya in the Rootbound Hollow beneath the Whisperwood. Report to Bram so he can check the hearth channel.',
     objectives: [{ kind: 'kill', target: 'e_aranya', count: 1 }],
     rewards: { xp: 400, gold: 250, items: { m_iron_chunk: 1 } },
   }),
@@ -120,7 +123,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 8,
     prereq: { questStatus: { questId: 'm3_roots', is: 'done' } },
-    summary: "Gather ember shards — seed-stock of the dawn — for Bram's forge.",
+    summary:
+      'Bring Ember Shards from the fields or Whisperwood to Bram. Help him steady the village hearth and prepare the road to Hollowmere.',
     objectives: [{ kind: 'collect', target: 'm_ember_shard', count: 6 }],
     rewards: {
       xp: 350,
@@ -145,7 +149,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 9,
     prereq: { questStatus: { questId: 'm4_blessing', is: 'done' } },
-    summary: 'Travel to Hollowmere — beyond it, word of stolen light.',
+    summary:
+      'Travel through the Whisperwood to Hollowmere Swamp and meet the Ferryman. Ask about the shrine on the old hearth channel.',
     objectives: [{ kind: 'reach', target: 'hollowmere' }],
     rewards: { xp: 300, gold: 150 },
   }),
@@ -160,7 +165,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 10,
     prereq: { questStatus: { questId: 'm5_fen', is: 'done' } },
-    summary: 'Collect toxin samples — proof that the poisoning can be undone.',
+    summary:
+      'Collect Toxin Samples from Marsh Leeches in Hollowmere and hand them to the Ferryman, who is tracing the poisoned water.',
     objectives: [{ kind: 'collect', target: 'q_toxin_sample', count: 4 }],
     rewards: { xp: 900, gold: 400, items: { c_antidote: 2 } },
   }),
@@ -176,7 +182,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 12,
     prereq: { questStatus: { questId: 'm6_toxin', is: 'done' } },
     summary:
-      'Descend into the Sunken Shrine and end Bog Tyrant Vosk — and the despair he feeds on.',
+      "Defeat Bog Tyrant Vosk in the Sunken Shrine beneath Hollowmere. Return to the Ferryman after freeing the shrine's waterworks.",
     objectives: [{ kind: 'kill', target: 'e_vosk', count: 1 }],
     rewards: { xp: 1400, gold: 700, flags: ['chapter2Done'] },
   }),
@@ -191,7 +197,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 13,
     prereq: { questStatus: { questId: 'm7_tyrant', is: 'done' } },
-    summary: "Hear the Ferryman's word about the ruins beyond — another piece of tomorrow waits.",
+    summary:
+      "Hear the Ferryman explain Ombra's request for help, then confirm your preparations with him to open the road to Sunspire.",
     objectives: [{
       kind: 'storyEvent',
       target: 'heard_ferrymans_word',
@@ -214,7 +221,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 15,
     prereq: { questStatus: { questId: 'm8_passage', is: 'done' } },
-    summary: 'Reach the Sunspire Ruins, where stolen time is hoarded.',
+    summary:
+      'Follow the road from Hollowmere to the Sunspire Ruins. Meet Curator Ombra to investigate the stolen daylight.',
     objectives: [{ kind: 'reach', target: 'sunspire' }],
     rewards: { xp: 400, gold: 200 },
   }),
@@ -229,7 +237,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 16,
     prereq: { questStatus: { questId: 'm9_spire', is: 'done' } },
-    summary: "Break the Sun Cult's hold on the ruins — they worship a sun they never share.",
+    summary:
+      'Defeat Sun Cultists patrolling the Sunspire Ruins. Report to Ombra so relief travelers can use the causeway again.',
     objectives: [{ kind: 'kill', target: 'e_cultist', count: 8 }],
     rewards: { xp: 1200, gold: 600, items: { c_ether: 2 } },
   }),
@@ -244,7 +253,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 17,
     prereq: { questStatus: { questId: 'm10_cult', is: 'done' } },
-    summary: 'Break the automatons guarding the Vault of Hours and claim its key.',
+    summary:
+      "Defeat Brass Automatons in Sunspire and report to Ombra. Ombra will issue the Sunspire Key needed for the Vault's keeper.",
     objectives: [{ kind: 'kill', target: 'e_automaton', count: 4 }],
     rewards: { xp: 1500, gold: 700, items: { q_sunspire_key: 1 } },
   }),
@@ -259,7 +269,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 19,
     prereq: { questStatus: { questId: 'm11_toll', is: 'done' } },
-    summary: 'Enter the Vault of Hours and end the Chronolich — give the stolen hours back.',
+    summary:
+      'Defeat the Chronolich in the Vault of Hours beneath Sunspire. Bring the Sunspire Key, then report to Ombra.',
     objectives: [{ kind: 'kill', target: 'e_chronolich', count: 1 }],
     rewards: { xp: 3600, gold: 1600, flags: ['chapter3Done'], unlockZones: ['frostpeak'] },
   }),
@@ -278,7 +289,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 22,
     prereq: { questStatus: { questId: 'm12_chronolich', is: 'done' } },
-    summary: 'Cross into Frostpeak Pass, where even the cold keeps a promise.',
+    summary:
+      'Travel north from Sunspire to Frostpeak Pass and meet Ice-Outcast Rho. Find out why the returning daylight has not thawed the mountain.',
     objectives: [{ kind: 'reach', target: 'frostpeak' }],
     rewards: { xp: 600, gold: 300 },
   }),
@@ -293,7 +305,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 23,
     prereq: { questStatus: { questId: 'm13_pass', is: 'done' } },
-    summary: 'Collect Frost Emblems from the wraiths — oaths that still believe in something.',
+    summary:
+      'Recover Frost Emblems from Frost Wraiths in Frostpeak Pass. Give them to Rho to identify the lost wardens and prepare the descent.',
     objectives: [{ kind: 'collect', target: 'q_frost_emblem', count: 3 }],
     rewards: { xp: 2400, gold: 900, items: { c_greater_potion: 2 } },
   }),
@@ -309,7 +322,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 25,
     prereq: { questStatus: { questId: 'm14_emblem', is: 'done' } },
     summary:
-      "Face Jormunis and free the Frostfire — the flame's twin, and winter's promise of spring.",
+      'Defeat Jormunis in the Glacier Maw at Frostpeak Pass. Free the Frostfire and report to Rho.',
     objectives: [{ kind: 'kill', target: 'e_jormunis', count: 1 }],
     rewards: { xp: 9000, gold: 3200, flags: ['chapter4Done'], unlockZones: ['cinder'] },
   }),
@@ -328,7 +341,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 30,
     prereq: { questStatus: { questId: 'm15_wyrm', is: 'done' } },
-    summary: 'Cross the Cinder Wastes, where a starving guardian still keeps faith.',
+    summary:
+      "Travel from Frostpeak to the Cinder Wastes. Find Ashen Monk Sorrel and ask about the Great Flame's surviving guardian.",
     objectives: [{ kind: 'reach', target: 'cinder' }],
     rewards: { xp: 900, gold: 450 },
   }),
@@ -343,7 +357,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 31,
     prereq: { questStatus: { questId: 'm16_ashes', is: 'done' } },
-    summary: "Hear Ashen Monk Sorrel's plea — the truth behind the hunger.",
+    summary:
+      "Listen to Sorrel's account of Ignivar and the King's drain on the Great Flame. Confirm that you understand before preparing the descent.",
     objectives: [{ kind: 'storyEvent', target: 'heard_sorrels_plea', label: "Hear Sorrel's plea" }],
     rewards: { xp: 1500, gold: 700, items: { c_super_potion: 1 } },
   }),
@@ -358,7 +373,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 32,
     prereq: { questStatus: { questId: 'm17_plea', is: 'done' } },
-    summary: 'Collect Cinder Sigils — the sorrow of the faithful, honored into a lamp.',
+    summary:
+      'Collect Cinder Sigils from Ashen Revenants in the Cinder Wastes. Give them to Sorrel for the vigil before facing Ignivar.',
     objectives: [{ kind: 'collect', target: 'q_cinder_sigil', count: 3 }],
     rewards: { xp: 4000, gold: 1500, items: { c_phoenix_feather: 1 } },
   }),
@@ -374,7 +390,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 34,
     prereq: { questStatus: { questId: 'm18_sigil', is: 'done' } },
     summary:
-      "Descend the Pyre Caldera and face Ignivar — free the flame, don't just end the fight.",
+      'Defeat Ignivar in the Pyre Caldera beneath the Cinder Wastes. Break the royal binding around his ember and report to Sorrel.',
     objectives: [{ kind: 'kill', target: 'e_ignivar', count: 1 }],
     rewards: { xp: 20000, gold: 6500, flags: ['chapter5Done'], unlockZones: ['umbra'] },
   }),
@@ -393,7 +409,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 38,
     prereq: { questStatus: { questId: 'm19_ignivar', is: 'done' } },
-    summary: 'Reach the Umbral Spire, raised by a man who decided tomorrow was over.',
+    summary:
+      'Follow the exposed road from the Cinder Wastes to the Umbral Spire. Meet the Archivist, who knows how Aldric bound the Flame.',
     objectives: [{ kind: 'reach', target: 'umbra' }],
     rewards: { xp: 1500, gold: 700 },
   }),
@@ -408,7 +425,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 39,
     prereq: { questStatus: { questId: 'm20_seam', is: 'done' } },
-    summary: 'Cut down the Crownsworn — knights still fighting a war of despair.',
+    summary:
+      "Defeat Crownsworn Blades on the Umbral Spire's approaches. Report to the Archivist before preparing to face Aldric.",
     objectives: [{ kind: 'kill', target: 'e_crownsworn', count: 10 }],
     rewards: { xp: 9000, gold: 3000 },
   }),
@@ -423,7 +441,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 40,
     prereq: { questStatus: { questId: 'm21_loyalty', is: 'done' } },
-    summary: 'Take counsel with the Archivist before climbing to the throne.',
+    summary:
+      "Hear the Archivist explain Aldric's decision and how to release the crown's light. Confirm your preparations before the throne ascent.",
     objectives: [{
       kind: 'storyEvent',
       target: 'heard_archivists_counsel',
@@ -440,7 +459,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 6,
     level: 41,
     prereq: { questStatus: { questId: 'm22_umbral_key', is: 'done' } },
-    summary: 'Face King Aldric the Sundered — despair with a crown on it.',
+    summary:
+      'Defeat King Aldric in the Sundered Throne atop the Umbral Spire. Return to the Archivist to preserve the crown as a record of the freed dawn.',
     objectives: [{ kind: 'kill', target: 'e_aldric', count: 1 }],
     rewards: {
       xp: 45000,
@@ -469,7 +489,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 7,
     level: 45,
     prereq: { questStatus: { questId: 'm23_aldric', is: 'done' } },
-    summary: 'Descend into the Abyss — the future needs a witness.',
+    summary:
+      'Descend from the Umbral Spire into the Abyss and meet the Echo of Maren. Investigate the wound left by the sundering.',
     objectives: [{ kind: 'reach', target: 'abyss' }],
     rewards: { xp: 20000, gold: 5000 },
   }),
@@ -485,7 +506,7 @@ export const QUESTS: readonly QuestDef[] = [
     level: 45,
     prereq: { questStatus: { questId: 'm24_below', is: 'done' } },
     summary:
-      'Face the Warden of the Void at the bottom of the Seam — and come back with the morning.',
+      'Clear the Endless Seam beneath the Abyss and defeat its Warden at the bottom. Return to the Echo after containing the breach.',
     objectives: [{ kind: 'dungeon', target: 'd_seam' }],
     rewards: {
       xp: 90000,
@@ -504,7 +525,8 @@ export const QUESTS: readonly QuestDef[] = [
     main: false,
     chapter: 1,
     level: 1,
-    summary: 'Cull the rats haunting field and wood.',
+    summary:
+      'Protect the village food stores by defeating Giant Rats in the Outskirts or Whisperwood. Report to Healer Lyra.',
     objectives: [{ kind: 'kill', target: 'e_rat', count: 6 }],
     rewards: { xp: 90, gold: 60, items: { c_minor_potion: 1 } },
     startNpc: 'npc_lyra',
@@ -519,7 +541,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 2,
     prereq: { flag: { id: 'zone_whisperwood' } },
-    summary: "Bring Bram iron from the wood's old diggings.",
+    summary:
+      "Bring Iron Chunks from the Rootbound Hollow to Bram in Emberdawn Village for repairs to the farmers' tools.",
     objectives: [{ kind: 'collect', target: 'm_iron_chunk', count: 3 }],
     rewards: { xp: 200, gold: 150 },
     startNpc: 'npc_bram',
@@ -529,12 +552,13 @@ export const QUESTS: readonly QuestDef[] = [
     id: 'sq_charm',
     offerDialogue: 'dlg_sq_charm_offer',
     turnInDialogue: 'dlg_sq_charm_turnin',
-    name: 'Charms Against Dimming',
+    name: 'Light for the Sickroom',
     main: false,
     chapter: 1,
     level: 3,
     prereq: { flag: { id: 'zone_whisperwood' } },
-    summary: "Gather ember shards for Lyra's warding charms.",
+    summary:
+      'Bring Ember Shards from the fields or Whisperwood to Lyra for lamps in the village sickroom.',
     objectives: [{ kind: 'collect', target: 'm_ember_shard', count: 4 }],
     rewards: { xp: 220, gold: 120, items: { c_minor_potion: 2 } },
     startNpc: 'npc_lyra',
@@ -549,8 +573,9 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 4,
     prereq: { flag: { id: 'zone_whisperwood' } },
-    summary: 'Recover a locket from the Woodfang spiders.',
-    objectives: [{ kind: 'kill', target: 'e_spider', count: 8 }],
+    summary:
+      "Recover Pell's Locket from a Woodfang Spider in the Whisperwood and return it to Ranger Pell.",
+    objectives: [{ kind: 'collect', target: 'q_pells_locket', count: 1 }],
     rewards: { xp: 400, gold: 250, items: { t_1: 1 } },
     // The anonymous ranger is now a real, placed contact (#63).
     startNpc: 'npc_pell',
@@ -567,7 +592,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 1,
     level: 5,
     prereq: { questStatus: { questId: 'm3_roots', is: 'done' } },
-    summary: 'Put the corrupted stag to rest.',
+    summary:
+      'Find the Corrupted Stag while exploring the Whisperwood. Put it to rest and report to Warden Tom.',
     objectives: [{ kind: 'kill', target: 'e_stag', count: 1 }],
     rewards: { xp: 500, gold: 300, items: { c_potion: 2 } },
   }),
@@ -582,7 +608,7 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 9,
     prereq: { flag: { id: 'zone_hollowmere' } },
-    summary: 'Reduce the boglin swarms.',
+    summary: "Defeat Boglins raiding Hollowmere's ferry landings, then report to the Ferryman.",
     objectives: [{ kind: 'kill', target: 'e_boglin', count: 10 }],
     rewards: { xp: 800, gold: 350 },
   }),
@@ -597,7 +623,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 2,
     level: 11,
     prereq: { flag: { id: 'zone_hollowmere' } },
-    summary: 'Silence the Fen Hags.',
+    summary:
+      'Defeat Fen Hags in Hollowmere Swamp so travelers can follow real ferry calls. Return to the Ferryman.',
     objectives: [{ kind: 'kill', target: 'e_fenhag', count: 5 }],
     rewards: { xp: 1100, gold: 450, items: { c_ether: 2 } },
   }),
@@ -617,17 +644,17 @@ export const QUESTS: readonly QuestDef[] = [
     turnInDialogue: 'dlg_sq_shrine_pledge_turnin',
     startNpc: 'npc_ferryman',
     finishNpc: 'npc_ferryman',
-    name: "The Shrine's Question",
+    name: 'A Task for the Shrine',
     main: false,
     chapter: 2,
     level: 1,
     prereq: { flag: { id: 'zone_hollowmere' } },
     summary:
-      'The shrine keeps a ledger of who still believes in the morning, and the Ferryman carries its question. Answer it, and a road opens.',
+      "Discuss the shrine's two jobs with the Ferryman. Choose one permanent assignment, then return to him to confirm your answer.",
     objectives: [{
       kind: 'storyEvent',
       target: 'shrine_allegiance_chosen',
-      label: 'Answer the shrine\u2019s question',
+      label: 'Choose a shrine task with the Ferryman',
     }],
     rewards: { xp: 500, gold: 250 },
   }),
@@ -648,7 +675,7 @@ export const QUESTS: readonly QuestDef[] = [
       ],
     },
     summary:
-      'You spoke for the shrine — now lay the marsh wisps smothering the drowned flame to rest and carry their light back.',
+      "Defeat Marsh Wisps in Hollowmere to free the shrine beacon's light. Report to the Ferryman to decide where the recovered light goes.",
     objectives: [{ kind: 'kill', target: 'e_wisp', count: 4 }],
     rewards: { xp: 900, gold: 400, items: { c_antidote: 1 } },
     // The only quest with an authored alternate resolution (#132): at
@@ -663,13 +690,13 @@ export const QUESTS: readonly QuestDef[] = [
     turnInDialogue: 'dlg_sq_ledger_debt_turnin',
     startNpc: 'npc_ferryman',
     finishNpc: 'npc_ferryman',
-    name: 'The Unwritten Debt',
+    name: 'The Water Intake',
     main: false,
     chapter: 2,
     level: 1,
     prereq: { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } },
     summary:
-      "Your name stays unwritten, but the debt is on the books — cull the marsh leeches growing fat on the shrine's seep.",
+      "Defeat Marsh Leeches around Hollowmere's water intake, then report to the Ferryman for the shrine keepers' payment.",
     objectives: [{ kind: 'kill', target: 'e_leech', count: 4 }],
     rewards: { xp: 850, gold: 380 },
   }),
@@ -684,7 +711,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 16,
     prereq: { flag: { id: 'zone_sunspire' } },
-    summary: 'Clear the gilded scarab swarms.',
+    summary:
+      'Defeat Gilded Scarabs in Sunspire to protect the remaining clockwork water pumps. Report to Ombra.',
     objectives: [{ kind: 'kill', target: 'e_scarab', count: 12 }],
     rewards: { xp: 1600, gold: 600 },
   }),
@@ -699,7 +727,7 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 3,
     level: 18,
     prereq: { flag: { id: 'zone_sunspire' } },
-    summary: 'Deal with the Spire Lynx pack.',
+    summary: 'Defeat Spire Lynxes hunting travelers in the Sunspire Ruins. Report to Ombra.',
     objectives: [{ kind: 'kill', target: 'e_spirelynx', count: 6 }],
     rewards: { xp: 2000, gold: 800, items: { t_2: 1 } },
   }),
@@ -714,7 +742,7 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 23,
     prereq: { flag: { id: 'zone_frostpeak' } },
-    summary: 'Release the Frost Wraiths from their vigil.',
+    summary: 'Release Frost Wraiths in battle while exploring Frostpeak Pass, then report to Rho.',
     objectives: [{ kind: 'kill', target: 'e_frostwraith', count: 8 }],
     rewards: { xp: 4000, gold: 1400 },
   }),
@@ -729,7 +757,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 4,
     level: 25,
     prereq: { flag: { id: 'zone_frostpeak' } },
-    summary: 'Drive the glacier yetis from the pass before they drive you.',
+    summary:
+      'Defeat Glacier Yetis in Frostpeak Pass or the Glacier Maw so supply carriers can pass. Return to Rho.',
     objectives: [{ kind: 'kill', target: 'e_yeti', count: 4 }],
     rewards: { xp: 5500, gold: 1800, items: { t_3: 1 } },
   }),
@@ -739,12 +768,13 @@ export const QUESTS: readonly QuestDef[] = [
     turnInDialogue: 'dlg_sq_imps_turnin',
     startNpc: 'npc_ashen',
     finishNpc: 'npc_ashen',
-    name: "The Flame's Hiccups",
+    name: 'Oil for the Shelter',
     main: false,
     chapter: 5,
     level: 31,
     prereq: { flag: { id: 'zone_cinder' } },
-    summary: 'Thin the ember imp flocks.',
+    summary:
+      "Defeat Ember Imps in the Cinder Wastes to protect Sorrel's stores of lamp oil. Report to Sorrel.",
     objectives: [{ kind: 'kill', target: 'e_emberimp', count: 14 }],
     rewards: { xp: 8000, gold: 2500 },
   }),
@@ -759,7 +789,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 5,
     level: 33,
     prereq: { flag: { id: 'zone_cinder' } },
-    summary: 'Break the salamander packs that herd travelers into lava.',
+    summary:
+      'Defeat Fire Salamanders in the Cinder Wastes to protect travelers from their hunting packs. Return to Sorrel.',
     objectives: [{ kind: 'kill', target: 'e_salamander', count: 8 }],
     rewards: { xp: 11000, gold: 3200, items: { t_4: 1 } },
   }),
@@ -769,12 +800,13 @@ export const QUESTS: readonly QuestDef[] = [
     turnInDialogue: 'dlg_sq_shades_turnin',
     startNpc: 'npc_archivist',
     finishNpc: 'npc_archivist',
-    name: 'Naming the Nameless',
+    name: 'Names for the Missing',
     main: false,
     chapter: 6,
     level: 39,
     prereq: { flag: { id: 'zone_umbra' } },
-    summary: 'Dissolve the Umbral Shades.',
+    summary:
+      'Defeat Umbral Shades in the Spire, then report to the Archivist so the scattered court records can be recovered.',
     objectives: [{ kind: 'kill', target: 'e_shade', count: 15 }],
     rewards: { xp: 18000, gold: 5000 },
   }),
@@ -789,7 +821,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 7,
     level: 45,
     prereq: { flag: { id: 'zone_abyss' } },
-    summary: 'Lay the Echoes of Heroes to rest.',
+    summary:
+      'Defeat Echoes of Heroes while exploring the Abyss. Release their repeated battles and report to the Echo of Maren.',
     objectives: [{ kind: 'kill', target: 'e_echo', count: 10 }],
     rewards: { xp: 60000, gold: 15000, items: { t_7: 1 } },
   }),
@@ -804,7 +837,8 @@ export const QUESTS: readonly QuestDef[] = [
     chapter: 7,
     level: 45,
     prereq: { flag: { id: 'zone_abyss' } },
-    summary: 'Hunt the Null Hounds.',
+    summary:
+      'Defeat Null Hounds in the Abyss to protect the wandering echoes. Report to the Echo of Maren.',
     objectives: [{ kind: 'kill', target: 'e_nullhound', count: 15 }],
     rewards: { xp: 70000, gold: 18000, items: { c_elixir: 2 } },
   }),

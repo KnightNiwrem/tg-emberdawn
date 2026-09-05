@@ -495,7 +495,7 @@ Deno.test('identity gate: explicit /reset clears an unresolvable save; newer sav
   await handleReset(reset.ctx, store);
   assertEquals(await store.get(983), undefined, 'the unresolvable save is deleted');
   assert(
-    JSON.stringify(reset.sends[0]).includes('Choose who you will be'),
+    JSON.stringify(reset.sends[0]).includes('Choose how you will face the road'),
     'the stateless class picker is delivered',
   );
 

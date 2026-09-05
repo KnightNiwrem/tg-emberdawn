@@ -105,8 +105,10 @@ export function clampPools(p: PlayerState): void {
  * v10 (#129): one-shot story-application receipts (storyReceipts).
  * v11 (#159): persisted journeys (PlayerState.journey).
  * v12 (#160): persisted last-safe-haven respawn provenance
- * (PlayerState.respawnHaven). */
-export const CURRENT_STATE_VERSION = 12;
+ * (PlayerState.respawnHaven).
+ * v13 (#189–#191): campaign rebase checkpoint; revised narrative identities
+ * and quest objects. All earlier development saves require /reset. */
+export const CURRENT_STATE_VERSION = 13;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */

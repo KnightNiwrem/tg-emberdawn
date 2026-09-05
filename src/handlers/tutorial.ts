@@ -95,9 +95,9 @@ export function grantTutorialReward(p: PlayerState): string[] {
  * teaches adjacency and road events; starter roads are safe by authoring.) */
 export function tutorialRelease(): string[] {
   return [
-    '🌅 Your first fight is yours. Maren will want to hear of it.',
-    "📜 Elder Maren's board has work — talk to her when you're ready.",
-    '🧭 The Emberdawn Outskirts are safe enough for a fresh blade (Lv 1–3); the Whisperwood beyond runs deeper (Lv 3–9). Weigh enemy levels before you engage — and 🏃 Flee is always an option, though it can fail.',
+    '🌅 The seed shed is safe for now. You bring the ember lamp back to Maren.',
+    '📜 Talk to Elder Maren in Emberdawn Village and choose Sparks of Trouble. She needs help protecting the grain before you follow the lead beneath the Whisperwood.',
+    '🧭 Start in the Emberdawn Outskirts (Lv 1–3). The Whisperwood is tougher (Lv 3–9). Check enemy levels before you engage; 🏃 Flee is available in ordinary battles, though it can fail.',
     '🛣️ The hearth-roads out of the village are safe and immediate. Farther roads roll road events as you walk — hostile, quiet, or helpful. Fleeing or retreating returns you to the road\u2019s origin.',
     '🔥 Arriving at a safe haven fully restores you; shops and forges wait where they were built.',
   ];

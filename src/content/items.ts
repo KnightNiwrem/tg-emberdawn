@@ -435,23 +435,29 @@ const MATERIALS: { id: string; name: string; lvl: number; price: number; desc: s
     name: 'Ember Shard',
     lvl: 1,
     price: 25,
-    desc: "A splinter of the world's dying flame.",
+    desc: 'Hardened sparks carried out of the hearth channels by roots and wandering creatures.',
   },
-  { id: 'm_iron_chunk', name: 'Iron Chunk', lvl: 6, price: 60, desc: 'Raw, heavy, honest.' },
+  {
+    id: 'm_iron_chunk',
+    name: 'Iron Chunk',
+    lvl: 6,
+    price: 60,
+    desc: "Ore from the old workings beneath the Whisperwood, often caught in a Mycelid's husk.",
+  },
   { id: 'm_mystic_dust', name: 'Mystic Dust', lvl: 12, price: 140, desc: 'Ground sigil-stone.' },
   {
     id: 'm_frost_core',
     name: 'Frost Core',
     lvl: 20,
     price: 320,
-    desc: 'Cold enough to hurt time.',
+    desc: 'A blue crystal formed where the Frostfire warmed the glacier from within.',
   },
   {
     id: 'm_cinder_heart',
     name: 'Cinder Heart',
     lvl: 30,
     price: 700,
-    desc: 'Still beating with heat.',
+    desc: 'Heat sealed into stone near the source of the Great Flame.',
   },
   {
     id: 'm_void_fragment',
@@ -463,19 +469,50 @@ const MATERIALS: { id: string; name: string; lvl: number; price: number; desc: s
 ];
 
 const QUEST_ITEMS: { id: string; name: string; desc: string }[] = [
-  { id: 'q_sealed_letter', name: 'Sealed Letter', desc: "Wax stamp bearing the Warden's crest." },
-  { id: 'q_toxin_sample', name: 'Toxin Sample', desc: "Swamp water that fizzes when it's angry." },
-  { id: 'q_sunspire_key', name: 'Sunspire Key', desc: 'A key of solid gold light, somehow cold.' },
-  { id: 'q_frost_emblem', name: 'Frost Emblem', desc: 'The mark of the Frostpeak wardens.' },
+  {
+    id: 'q_pells_locket',
+    name: "Pell's Locket",
+    desc:
+      'A small silver locket with a pressed fern beneath its lid. Spider silk clings to the broken chain.',
+  },
+  {
+    id: 'q_wisp_lantern',
+    name: 'Wisp Lantern',
+    desc:
+      'Blue light sealed in a ferry lantern. A keepsake from the beacon you chose to leave unlit.',
+  },
+  {
+    id: 'q_sealed_letter',
+    name: 'Sealed Letter',
+    desc:
+      "Maren's sketch of warm roots beneath cold soil, sealed with the village's rising-sun mark.",
+  },
+  {
+    id: 'q_toxin_sample',
+    name: 'Toxin Sample',
+    desc:
+      'A sealed vial of dark fluid taken from a creature in Hollowmere. The shrine water leaves the same black stain.',
+  },
+  {
+    id: 'q_sunspire_key',
+    name: 'Sunspire Key',
+    desc: "A brass key kept by Ombra. Its teeth match the keeper's seal in the Vault of Hours.",
+  },
+  {
+    id: 'q_frost_emblem',
+    name: 'Frost Emblem',
+    desc: "An enamel badge bearing a lost warden's name and a mark from the Glacier Maw route.",
+  },
   {
     id: 'q_cinder_sigil',
     name: 'Cinder Sigil',
-    desc: 'Branded into the air more than any object.',
+    desc: 'A clay disc stamped with the name of a keeper who died tending the Great Flame.',
   },
   {
     id: 'q_sundered_crown',
     name: 'The Sundered Crown',
-    desc: 'Half of a crown that once ruled the flame.',
+    desc:
+      'A broken crown, empty of the light Aldric hoarded. The fracture has cooled enough to touch.',
   },
 ];
 

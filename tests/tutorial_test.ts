@@ -157,7 +157,8 @@ Deno.test('prologue: every class reaches every lesson through real play (#69)', 
     // #74: the live outcome IS the canonical constructor state — the WHOLE
     // inventory, not just the potion count.
     assertEquals(p!.inventory, createPostTutorialPlayer(301, 'T', cid).inventory);
-    assert(release.json.includes("Maren's board has work"), `${cid}: next contact surfaced`);
+    assert(release.json.includes('Talk to Elder Maren'), `${cid}: next contact surfaced`);
+    assert(release.json.includes('choose Sparks of Trouble'), `${cid}: exact next topic surfaced`);
     assert(release.json.includes('Whisperwood'), `${cid}: next destination surfaced`);
     assert(release.json.includes('Flee'), `${cid}: fleeing taught before exploration`);
     assert(release.json.includes('🌾 Forage'), `${cid}: the real hub is open again`);

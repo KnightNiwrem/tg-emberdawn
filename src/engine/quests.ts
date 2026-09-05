@@ -260,7 +260,7 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
   let label: string;
   switch (o.kind) {
     case 'kill':
-      label = `Slay ${enemyName(o.target)}`;
+      label = `Defeat ${enemyName(o.target)}`;
       break;
     case 'collect':
       label = `Collect ${itemName(o.target)}`;
@@ -304,7 +304,7 @@ export interface TurnInResult {
 }
 
 /** One rule for both the counter's validation and consumption (#180). */
-function collectRequirements(q: QuestDef): Map<string, number> {
+export function collectRequirements(q: QuestDef): Map<string, number> {
   const required = new Map<string, number>();
   for (const obj of q.objectives) {
     if (obj.kind !== 'collect') continue;

@@ -13,6 +13,15 @@ export const STARTING_ZONES: readonly string[] = ['emberdawn', 'outskirts', 'whi
 export const ZONES: readonly ZoneDef[] = [
   {
     id: 'emberdawn',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'crownRestored' } },
+      'text':
+        'Sunlight reaches the village hearth. Farmers carry the saved grain out to the fields, and Lyra opens the sickroom shutters.',
+    }, {
+      'when': { 'flag': { 'id': 'chapter1Done' } },
+      'text':
+        'The hearth burns steadily above the repaired channel. Bram has set the spare tools outside his forge; the farmers are preparing the next planting.',
+    }],
     name: 'Emberdawn Village',
     emoji: '🏮',
     chapter: 1,
@@ -21,7 +30,7 @@ export const ZONES: readonly ZoneDef[] = [
     // beat, instead of hiding it one zone deeper.
     levels: [1, 7],
     desc:
-      'A village huddled around the last lit ember of the Great Flame — small, stubborn, and still planning for spring.',
+      'A shared hearth stands in the village square. Seed sacks wait under patched roofs; beyond them lie fields the farmers still intend to plant.',
     safeHaven: true,
     services: { shop: 'shop_bram', forge: 'forge_bram' },
     explore: [
@@ -41,7 +50,7 @@ export const ZONES: readonly ZoneDef[] = [
         kind: 'rest',
         healPct: 0.3,
         weight: 1,
-        text: 'You rest beneath a warm hearth-vent. Some HP and MP return.',
+        text: 'You rest beside the shared hearth while someone hangs wet gloves above the vent.',
       },
       {
         kind: 'flavor',
@@ -53,20 +62,28 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_maren',
         name: 'Elder Maren',
-        greeting:
-          "The Flame dims a little more each season, traveler — but dim is not dark, and we are not done. If you've come to help, the Warden's board has work.",
-        topics: [{
-          id: 'maren_flame',
-          label: 'Ask about the Great Flame',
-          text: '',
-          dialogue: 'dlg_maren_flame',
-        }],
+        greeting: 'Come warm your hands. The village has work for us both. Tell me what you need.',
+        topics: [
+          {
+            'id': 'maren_dawn',
+            'label': 'Ask about the first full sunrise',
+            'when': { 'flag': { 'id': 'crownRestored' } },
+            'text':
+              '“We opened the grain sacks this morning. For sowing, this time. Lyra says the children want to see what grows first. I will tell them about everyone who helped you reach the crown. Come sit awhile. You have brought the light home.”',
+          },
+          {
+            id: 'maren_flame',
+            label: 'Ask about the Great Flame',
+            text: '',
+            dialogue: 'dlg_maren_flame',
+            when: { not: { flag: { id: 'crownRestored' } } },
+          },
+        ],
       },
       {
         id: 'npc_bram',
         name: 'Blacksmith Bram',
-        greeting:
-          "Bring me ore and coin, and I'll keep your edge true. A forge is a promise that tomorrow needs tools.",
+        greeting: 'Tools for the fields, equipment for the road. Tell me what needs doing.',
         topics: [{
           id: 'bram_forge',
           label: 'Ask about the forge',
@@ -77,24 +94,29 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_lyra',
         name: 'Healer Lyra',
-        greeting: 'Drink, rest, mend. The Flame keeps its own — I just keep them walking.',
+        greeting: 'Clean water first. Then sit down and tell me where it hurts.',
         topics: [{
           id: 'lyra_work',
           label: 'Ask about her work',
           text:
-            '"Scrapes mend in a week. Nerve takes longer. I patch both, and I do not ask which you deserve — the village needs its people walking."',
+            '“The cold brings fevers, and hunger makes them linger. I can mend a scrape. Keeping a child well takes clean food, a warm bed, and someone who comes back to check. That is why I ask travelers for help with ordinary things.”',
         }],
       },
     ],
   },
   {
     id: 'outskirts',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'crownRestored' } },
+      'text':
+        'New furrows cross the fields around the repaired seed sheds. Rats still shelter in the hedges, but the farmers have begun planting again.',
+    }],
     name: 'Emberdawn Outskirts',
     emoji: '🌾',
     chapter: 1,
     levels: [1, 3],
     desc:
-      'Hearth-roads and stubble fields where ember-rats and rootlings gnaw. Farmers speak of a tusked boar that took the bridge path.',
+      'Scorched fence posts divide the stubble fields. Rats shelter beneath grain sheds, and a tusked boar has churned the bridge path into mud.',
     safeHaven: false,
     lootTable: 'dt_ember_fields',
     explore: [
@@ -116,12 +138,17 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'whisperwood',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'rootboundCleared' } },
+      'text':
+        'Fresh buds push through the loosened silk near the Hollow. Its root channel runs warm again. Surviving broods still haunt the forest paths.',
+    }],
     name: 'Whisperwood',
     emoji: '🌲',
     chapter: 1,
     levels: [3, 9],
     desc:
-      "An ancient forest whose roots still carry the Flame's warmth. The whispers have turned sour — but roots remember.",
+      'Old roots break through the forest paths, warm beneath their bark. Dense silk covers the entrance to the Rootbound Hollow below the trees.',
     safeHaven: false,
     lootTable: 'dt_whisper_roots',
     explore: [
@@ -159,13 +186,18 @@ export const ZONES: readonly ZoneDef[] = [
         weight: 1,
         text: 'You rest beneath a warm root — one of the few still so kind.',
       },
-      { kind: 'flavor', weight: 2, text: 'The leaves whisper. It sounds like counting.' },
+      {
+        kind: 'flavor',
+        weight: 2,
+        text: 'Old path marks show through the bark where the rangers have cleared away moss.',
+      },
     ],
     dungeon: {
       id: 'd_rootbound',
       name: 'Rootbound Hollow',
       emoji: '🕸️',
-      desc: "The forest's root-cathedral, now strangled in silk.",
+      desc:
+        'A buried meeting of the hearth roots. Spider silk seals the warm channels beneath the forest.',
       boss: 'e_aranya',
       bossGate: { quest: 'm3_roots', requireDone: false },
       recommendedLevel: 7,
@@ -184,35 +216,40 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_warden_tom',
         name: 'Warden Tom',
-        greeting: 'Keep to the paths. The Hollow ate two rangers this moon.',
+        greeting: 'Stay where I can see you until we have talked. The paths need watching.',
         topics: [{
           id: 'tom_wood',
           label: 'Ask about the wood',
           text:
-            '"The Whisperwood was kind once. Whatever rots the roots comes from deeper in — the Hollow is a symptom, not the sickness. Mind the paths until we know better."',
+            "“The roots carried hearth warmth long before we built our shelters here. Aranya's brood found that warmth and nested around it. The King's theft weakened the forest; the brood made a local wound worse. Clearing one does not excuse the other.”",
         }],
       },
       {
         id: 'npc_pell',
         name: 'Ranger Pell',
-        greeting: 'You walk loud. The wood forgives it — spiders don’t. Speak, or move on.',
+        greeting: 'Stop there. Web across the next branch. Tell me what you saw.',
         topics: [{
           id: 'pell_spiders',
           label: 'Ask about the spiders',
           text:
-            '"Woodfangs take shin, hoof, and heirloom alike. Kill them where they nest, or carry nothing soft and nothing slow."',
+            "“Woodfangs wrap what they cannot eat. Packs. Buckles. My mother's locket. Look at the webbing they carry, not just the holes they leave. I have spent too long tracking them alone.”",
         }],
       },
     ],
   },
   {
     id: 'mirefoot',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'chapter2Done' } },
+      'text':
+        'Clean current moves beneath the landing. Odo sorts a new shipment of tools while the ferry crews repair the downstream moorings.',
+    }],
     name: 'Mirefoot Landing',
     emoji: '⛺',
     chapter: 2,
     levels: [9, 16],
     desc:
-      'A pole-landing at the swamp\u2019s edge — the last dry boards before the fen, and Odo\u2019s ropewalk forge, built for boat-iron.',
+      "Dry planks and raised shelters mark the swamp's edge. Odo repairs boat fittings beside a ropewalk; beyond the landing, painted poles mark the road into the fen.",
     safeHaven: true,
     services: { forge: 'forge_ropewalk' },
     explore: [
@@ -245,24 +282,29 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_odo',
         name: 'Odo the Slowsmith',
         greeting:
-          "Slow iron is sound iron. I'll take an hour your village smith wouldn't, and the work will outlive us both.",
+          'Set it down. I would rather spend time on the rivet than send you out with a leaking boat.',
         topics: [{
           id: 'odo_craft',
           label: 'Ask about the ropewalk forge',
           text:
-            '"Boat-iron teaches patience — the water tests every rivet, and it does not accept apologies. When the Shrine\u2019s rot is cleared out, the deep tools come downriver, and I\u2019ll match any forge this side of the ice."',
+            '“I came here to repair one ferry. Then the road drowned and everyone needed a boat. So I built the ropewalk forge. Once the shrine keepers can send tools downriver again, I can take on heavier work. Until then, a sound crossing is enough to be proud of.”',
         }],
       },
     ],
   },
   {
     id: 'hollowmere',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'sunkenCleared' } },
+      'text':
+        'The shrine sluices are running. Clear water cuts a narrow course through the fen; the drowned houses and the creatures sheltering in them remain.',
+    }],
     name: 'Hollowmere Swamp',
     emoji: '🌫️',
     chapter: 2,
     levels: [9, 16],
     desc:
-      'A drowned lowland where the water burns cold with toxin. Something crowned itself here — but crowns come off.',
+      'Roof ridges rise from brown water. Ferry poles lead between the drowned houses toward the Sunken Shrine and its blocked waterworks.',
     safeHaven: false,
     lootTable: 'dt_mire_roads',
     services: { shop: 'shop_ferry' },
@@ -306,7 +348,8 @@ export const ZONES: readonly ZoneDef[] = [
       id: 'd_sunken',
       name: 'Sunken Shrine',
       emoji: '🌊',
-      desc: 'A temple to the Flame, drowned when the swamp crept in.',
+      desc:
+        'The drowned shrine was built above a warm spring. Its sluices once carried clean water across the lowland.',
       boss: 'e_vosk',
       bossGate: { quest: 'm7_tyrant', requireDone: false },
       recommendedLevel: 14,
@@ -321,16 +364,15 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_ferryman',
         name: 'The Ferryman',
-        greeting:
-          "Coin for crossing, truth for free: don't drink the water, don't kneel to the Tyrant.",
+        greeting: 'Watch the loose board. I have room for your news as well as your baggage.',
         topics: [{
           id: 'ferry_water',
           label: 'Ask about the water',
           text:
-            '"The poison is patient. It waits in the low places for the desperate. Boil what you drink, keep to the poles and paths, and the swamp will let you keep most of what you brought."',
+            '“This was farmland. When the hearth channels failed, the spring lost its current and the low ground flooded. Vosk dammed the warm water left beneath the shrine. His claim made a bad season into a business. The keepers are trying to put water back where people can use it.”',
         }, {
           id: 'ferry_promise',
-          label: 'Speak for you at the shrine',
+          label: 'Choose a shrine task',
           dialogue: 'dlg_ferry_promise',
           // The pledge exists only while it is carried and unanswered
           // (#132, #147): the topic requires the pledge parent quest ACTIVE
@@ -345,7 +387,7 @@ export const ZONES: readonly ZoneDef[] = [
           },
         }, {
           id: 'ferry_ledger',
-          label: 'Ask about the shrine ledger',
+          label: 'Ask about my shrine work',
           dialogue: 'dlg_ferry_aftermath',
           // The ledger's aftermath (#132): reacts to the recorded decision
           // and to the beacon route's named resolution.
@@ -356,12 +398,17 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'sunspire',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'vaultCleared' } },
+      'text':
+        'The clocks advance through the afternoon. Ombra has set seed trays in the returning light, while caravans pick their way through the damaged streets.',
+    }],
     name: 'Sunspire Ruins',
     emoji: '🏛️',
     chapter: 3,
     levels: [16, 23],
     desc:
-      'A desert city of solar clockwork, abandoned by its people and inherited by a cult. The gears still turn. So will tomorrow.',
+      'Brass channels cross the streets of a ruined clockwork city. Water jars stand beside broken sundials; below the paving lies the Vault of Hours.',
     safeHaven: false,
     lootTable: 'dt_sun_flats',
     services: { shop: 'shop_bazaar' },
@@ -396,7 +443,8 @@ export const ZONES: readonly ZoneDef[] = [
       id: 'd_vault',
       name: 'Vault of Hours',
       emoji: '⏳',
-      desc: "The city's time-vault. Every hour stolen from the Flame is kept here.",
+      desc:
+        "The old city's daylight store, turned into a hoard for the crown. The keeper's hourglass stands in its deepest chamber.",
       boss: 'e_chronolich',
       bossGate: { quest: 'm12_chronolich', requireDone: false, item: 'q_sunspire_key' },
       recommendedLevel: 21,
@@ -411,23 +459,29 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_curator',
         name: 'Curator Ombra',
-        greeting: 'Every relic here once told the time. Now they just tell the end of it.',
+        greeting: 'Set anything fragile on the cloth. News can go straight into the record.',
         topics: [{
           id: 'ombra_records',
           label: 'Ask about the ledgers',
           text:
-            '"A dishonest city still deserves honest books. I record what remains, and what was taken, and who profited. Ledgers outlast looters — that is the whole art."',
+            "“I keep names beside the stolen things. A clock without its owner is a curiosity; a clock taken from a family tells us who needs it back. Aldric's collectors preferred numbers. It made the theft easier to overlook.”",
         }],
       },
     ],
   },
   {
     id: 'frostpeak',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'glacierCleared' } },
+      'text':
+        'Meltwater runs beneath the watch shelters. Blue light travels freely under the glacier again. Snow still covers the higher paths.',
+    }],
     name: 'Frostpeak Pass',
     emoji: '🏔️',
     chapter: 4,
     levels: [23, 31],
-    desc: "A frozen mountain pass where the Flame's twin — the Frostfire — sleeps in the ice.",
+    desc:
+      'Watch shelters cling to a steep mountain pass. Blue light glows beneath the glacier where the wardens once tended the Frostfire.',
     safeHaven: false,
     lootTable: 'dt_high_pass',
     services: { shop: 'shop_outcast' },
@@ -441,7 +495,7 @@ export const ZONES: readonly ZoneDef[] = [
         kind: 'elite',
         enemy: 'e_yeti',
         weight: 1,
-        text: 'The snowbank stands up. It has opinions about visitors.',
+        text: 'A Glacier Yeti rises from the snow beside the supply path.',
       },
       { kind: 'treasure', gold: 380, weight: 1, text: 'A frozen caravan, its strongbox intact.' },
       {
@@ -462,7 +516,8 @@ export const ZONES: readonly ZoneDef[] = [
       id: 'd_glacier',
       name: 'The Glacier Maw',
       emoji: '🧊',
-      desc: 'A blue cave that breathes. Deep inside, a heartbeat made of ice.',
+      desc:
+        'A passage through blue ice to the sheltered Frostfire. The old wardens marked the turns with their emblems.',
       boss: 'e_jormunis',
       bossGate: { quest: 'm15_wyrm', requireDone: false },
       recommendedLevel: 29,
@@ -480,25 +535,29 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_outcast',
         name: 'Ice-Outcast Rho',
-        greeting:
-          "The wyrm isn't cruel. It's cold in the way mountains are cold. Don't take it personal.",
+        greeting: 'Come to the sheltered side of the fire. You can tell me about the climb there.',
         topics: [{
           id: 'rho_pass',
           label: 'Ask about the pass',
           text:
-            '"The mountain froze everyone else\'s promises but mine. I keep watch because someone unfrozen should be counting who goes up and who comes down."',
+            '“I left my watch to bring a fevered child down the mountain. The wardens named me oathbreaker. When the freeze came, I was below it. They were not. I keep the shelter because someone should be here when their families come looking.”',
         }],
       },
     ],
   },
   {
     id: 'cinder',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'pyreCleared' } },
+      'text':
+        'Sorrel tends a small living ember in the shelter kiln. Above the Caldera, the broken royal binding no longer draws light from the earth.',
+    }],
     name: 'Cinder Wastes',
     emoji: '🌋',
     chapter: 5,
     levels: [31, 39],
     desc:
-      "Ash dunes around a dying caldera. The Flame's greatest child hides here, starving — and a heart that starves is a heart that hasn't stopped.",
+      "Ash covers the roads between ruined kilns. The Pyre Caldera rises beyond Sorrel's shelter, at the source of the Great Flame's buried channels.",
     safeHaven: false,
     lootTable: 'dt_ash_road',
     services: { shop: 'shop_ashcaravan', forge: 'forge_warden' },
@@ -532,14 +591,18 @@ export const ZONES: readonly ZoneDef[] = [
         weight: 1,
         text: 'You shelter behind a magma vein and let its warmth knit you.',
       },
-      { kind: 'flavor', weight: 2, text: 'The ash falls softly, like the sky is apologizing.' },
+      {
+        kind: 'flavor',
+        weight: 2,
+        text: 'Under a layer of ash, a kiln door still bears the handprint of its maker.',
+      },
     ],
     dungeon: {
       id: 'd_pyre',
       name: 'Pyre Caldera',
       emoji: '🔥',
       desc:
-        "The caldera's throat. At the bottom, the Last Flame gutters in a cage of its own making.",
+        'A descent through ash and hardened lava to the source chamber where Ignivar guarded the Great Flame.',
       boss: 'e_ignivar',
       bossGate: { quest: 'm19_ignivar', requireDone: false },
       recommendedLevel: 37,
@@ -557,25 +620,29 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_ashen',
         name: 'Ashen Monk Sorrel',
-        greeting:
-          'Ignivar does not want to fight you. But he will, because everything here wants him dead.',
+        greeting: 'There is a place beside the kiln. Rest while we talk.',
         topics: [{
           id: 'sorrel_flame',
           label: 'Ask about the starving flame',
           text:
-            '"He guarded the Flame for a thousand years, and when it began to fail, we called the hunger his fault. Starving is not falling. Hold on to that before you judge anything out here."',
+            '“I used to lead prayers blaming Ignivar for our hunger. Then I saw the royal binding drawing light from him while he tried to feed the land. I cannot unsay those prayers. I can tend this fire and make sure the next person hears the truth.”',
         }],
       },
     ],
   },
   {
     id: 'umbra',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'crownRestored' } },
+      'text':
+        "Daylight enters the Spire through the fractured throne room. The crown's hoard is empty; scattered servants and old shadows still occupy the lower rooms.",
+    }],
     name: 'Umbral Spire',
     emoji: '🌑',
     chapter: 6,
     levels: [39, 45],
     desc:
-      'A tower standing in the space between flame and shadow, where the Sundered King waits — and where the seam lets in one thin, stubborn light.',
+      "A dark tower rises above the broken hearth channels. The old court's records lie below the stair to the Sundered Throne.",
     safeHaven: false,
     lootTable: 'dt_night_roads',
     explore: [
@@ -615,7 +682,8 @@ export const ZONES: readonly ZoneDef[] = [
       id: 'd_throne',
       name: 'The Sundered Throne',
       emoji: '👑',
-      desc: 'The throne room at the top of everything, split down the middle like its king.',
+      desc:
+        'The royal stair climbs through rooms split by the sundering. At its summit stands the vessel that held the stolen dawn.',
       boss: 'e_aldric',
       bossGate: { quest: 'm23_aldric', requireDone: false },
       recommendedLevel: 43,
@@ -630,25 +698,29 @@ export const ZONES: readonly ZoneDef[] = [
       {
         id: 'npc_archivist',
         name: 'The Archivist',
-        greeting:
-          'I keep the record of deeds done and dawns owed. Yours has grown into one of the longer entries. Keep it that way.',
+        greeting: 'You have come far. Let us keep an accurate account of what it cost.',
         topics: [{
           id: 'archivist_record',
           label: 'Ask about the record',
           text:
-            '"Memory is the one wealth the King never thought to steal. So I keep it — page by page — against the day it matters. Today may be that day."',
+            '“I copied the order that divided the Flame. Its title promised the preservation of the realm. I recorded the first losses as exceptions, then kept recording exceptions for years. These pages are evidence of my part in it. They must survive me.”',
         }],
       },
     ],
   },
   {
     id: 'abyss',
+    aftermath: [{
+      'when': { 'flag': { 'id': 'seamCleared' } },
+      'text':
+        "The breach has settled. The paths of the Seam remain, holding echoes of old battles, but the world's light no longer drains into them.",
+    }],
     name: 'The Abyss',
     emoji: '🌌',
     chapter: 7,
     levels: [45, 45],
     desc:
-      'The seam beneath the world, exposed when the crown was sundered. What fell through still climbs, and someone has to guard the morning.',
+      'Stairs descend beneath the Spire into a wound left by the sundering. Memories take visible shape here, repeating journeys the living have already left behind.',
     safeHaven: false,
     lootTable: 'dt_night_roads',
     explore: [
@@ -659,13 +731,13 @@ export const ZONES: readonly ZoneDef[] = [
         kind: 'elite',
         enemy: 'e_warden',
         weight: 1,
-        text: 'The dark organizes itself into a Warden. This will hurt.',
+        text: 'A reflection of the Warden forms across the path. The true breach lies deeper.',
       },
       {
         kind: 'treasure',
         gold: 1600,
         weight: 1,
-        text: 'Value is a habit. The void indulges it, sometimes.',
+        text: "A fallen traveler's coin pouch lies caught between the stair stones.",
       },
       {
         kind: 'treasure',
@@ -689,7 +761,8 @@ export const ZONES: readonly ZoneDef[] = [
       id: 'd_seam',
       name: 'The Endless Seam',
       emoji: '🕳️',
-      desc: "The void's own wound, crawling with what fell through. Cleared trials repeat.",
+      desc:
+        'The deepest part of the wound beneath the world. Its chambers retain echoes of every trial endured here.',
       boss: 'e_warden',
       bossGate: { quest: 'm25_silence', requireDone: false },
       recommendedLevel: 43,
@@ -705,12 +778,12 @@ export const ZONES: readonly ZoneDef[] = [
         id: 'npc_echo',
         name: 'Echo of Maren',
         greeting:
-          'Even I end up as an echo here, it seems. Go on then, hero — the seam likes you better than most.',
+          'There you are. Stay near the path marker; the echoes wander when they remember too much.',
         topics: [{
           id: 'echo_self',
           label: 'Ask how she is here',
           text:
-            '"I sought the crown once, long before you. The seam keeps what climbs down it, and I kept walking. What remains is a hope that never learned to stop."',
+            '“Maren crossed the edge of the Seam in her youth. She found the wound, could not mend it alone, and went home. I am the memory she left here. She is living her life above. I keep this path, and remember why she wanted to return.”',
         }],
       },
     ],

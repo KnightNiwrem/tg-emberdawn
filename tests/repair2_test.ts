@@ -283,7 +283,7 @@ Deno.test('/reset deletes an incompatible pre-launch save and presents the class
   await handleReset(reset.ctx, store);
   assertEquals(await store.get(941), undefined, 'the unloadable save is deleted');
   assert(
-    JSON.stringify(reset.sends[0]).includes('Choose who you will be'),
+    JSON.stringify(reset.sends[0]).includes('Choose how you will face the road'),
     'the stateless class picker is delivered',
   );
 
@@ -834,7 +834,7 @@ Deno.test('/reset → Yes deletes the save and returns to the stateless class pi
   assertEquals(await store.get(931), undefined, 'confirmed reset deletes the save outright');
   assertEquals(del.edits.length, 1, 'picker delivered by editing the confirmation');
   assert(
-    JSON.stringify(del.edits[0]).includes('Choose who you will be'),
+    JSON.stringify(del.edits[0]).includes('Choose how you will face the road'),
     'the class picker is what was delivered',
   );
 
@@ -847,7 +847,7 @@ Deno.test('/reset → Yes deletes the save and returns to the stateless class pi
   const start = fakeCtxCapture(931);
   await handleStart(start.ctx, store);
   assert(
-    JSON.stringify(start.sends[0]).includes('Choose who you will be'),
+    JSON.stringify(start.sends[0]).includes('Choose how you will face the road'),
     '/start presents character creation',
   );
   assertEquals(await store.get(931), undefined, '/start must not persist while picking');

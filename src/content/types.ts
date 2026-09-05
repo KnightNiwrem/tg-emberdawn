@@ -650,6 +650,8 @@ export interface ZoneDef {
   /** Recommended level range [min, max]. */
   levels: [number, number];
   desc: string;
+  /** First matching recovery replaces the base description on arrival and at the hub. */
+  aftermath?: { when: Condition; text: string }[];
   explore: ExploreEvent[];
   dungeon?: DungeonDef;
   /** Friendly rest point: full heal on entering zone. */

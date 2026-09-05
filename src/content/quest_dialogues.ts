@@ -34,7 +34,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Maren looks to the fields.',
+        text: 'Maren sets a scorched seed sack on the hearthstone.',
         next: 'o2',
       },
       {
@@ -42,13 +42,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Ember-rats have come down from the ash to gnaw at the hearth-roads. Thin them out, so the village keeps heart enough to hope. The Outskirts, just past the fields — and mind the boar.',
+          'We have enough grain for supper or for sowing. We need both. Ember Rats are burning through the seed sacks in the Outskirts. Defeat the ones feeding there, then come back to me. Bram and I have a plan for the failing hearth, but first we must keep the village fed.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you carry this for us?',
+        prompt: 'Will you protect the seed grain in the Outskirts?',
         choices: [
           {
             id: 'accept',
@@ -69,7 +69,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "You've bought us quiet nights. This goes to Bram. The road you'll walk starts at his forge.",
+          'You have given the farmers room to repair their stores. I have a letter for Bram about the warmth beneath the Whisperwood. He knows the old channels that carried fire to our hearth. Will you give me your report?',
         next: 't2',
       },
       {
@@ -83,12 +83,12 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't3',
         kind: 'line',
         speaker: 'narrator',
-        text: 'She presses the letter into your hands.',
+        text: 'She presses the letter into your hands. The seal bears a small rising sun.',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Is the work done, then?',
+        prompt: 'Ready to report on the Ember Rats?',
         choices: [
           {
             id: 'handover',
@@ -110,13 +110,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The wolves grow bold as the Flame dims. They were the first to feel the rot, out under the Whisperwood. Thin the packs, so the wood keeps heart enough to hope.',
+          'Bram has told me about the blocked hearth channel. Warden Tom can guide you to its source, but Grey Wolves have taken the forest paths. Their usual prey is dying in the cold. Defeat the packs threatening travelers in the Whisperwood and report back before you go deeper.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you carry this for us?',
+        prompt: 'Will you clear the Grey Wolves from the forest paths?',
         choices: [
           {
             id: 'accept',
@@ -137,13 +137,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Quiet returns to the treeline. The wood remembers kindness slowly — but it does remember.',
+          'The woodcutters have brought their first load home without an escort. Thank you. Warden Tom waits in the Whisperwood. Tell him you are looking for the blocked channel beneath the Rootbound Hollow.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Is the work done, then?',
+        prompt: 'Can I record the wolf patrol finished?',
         choices: [
           {
             id: 'handover',
@@ -164,13 +164,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Keep to the paths. The silk-broods and their sprite-kin are feeding the Hollow. Cut them down at the threshold, before you think of going deeper.',
+          'The warm roots meet under the Rootbound Hollow. Aranya has webbed them shut. Her Woodfang Spiders and the Thistle Sprites drive us off the approach. Defeat them in the Whisperwood first. I lost two rangers down there. I will not send you in unprepared.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Can I count on you?',
+        prompt: 'Will you clear the spiders and sprites from the approach?',
         choices: [
           {
             id: 'accept',
@@ -191,13 +191,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Threshold's holding. Deeper's worse. The Hollow's heart has a keeper now — and it isn't kind. Ready yourself.",
+          'You have made a working gap in their patrols. Aranya still holds the chamber below. Go back to Bram in the village for supplies before you ask him about the descent.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Report: is it done?',
+        prompt: 'Ready to report on both patrols?',
         choices: [
           {
             id: 'handover',
@@ -225,13 +225,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Hollow's heart will not fall to a rusty edge. Mycelids carry good iron in their husks — bring me two chunks, and I'll see you descend armed like a Dawncaller, not a dawdler.",
+          "The Hollow needs better equipment than most travelers bring. Its first chambers hold old iron caches, and Mycelid Drones carry ore in their husks. Please bring me two chunks. I'll pay for the iron and stock stronger work for you to buy. The ore is your contribution; there is no coin fee for this job.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: 'Will you bring the iron for my next batch?',
         choices: [
           {
             id: 'accept',
@@ -257,7 +257,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Done, then?',
+        prompt: 'Ready to hand over the iron for the new stock?',
         choices: [
           {
             id: 'handover',
@@ -279,7 +279,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'There. Steel worth the name, priced fair, on my rack — take your pick before you descend. You will not get a kinder offer closer to the dark.',
+          'There. Stronger equipment is on my rack, ready to buy. The payment for your iron will help with the cost. Choose what suits you, then ask me about Aranya and the Rootbound Hollow.',
       },
     ],
   },
@@ -292,7 +292,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram arms you properly.',
+        text: 'Bram unrolls a stained map beside the forge.',
         next: 'o2',
       },
       {
@@ -300,13 +300,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Follow the warm roots into the Hollow. Cut loose what's choking them, and the wood will remember how to grow.",
+          'Aranya has wrapped the channel in silk and filled it with her brood. That is why the village hearth is cold while the buried roots still burn. Descend the Rootbound Hollow in the Whisperwood and defeat her in its deepest chamber. Come back to me when the channel is free.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: 'Will you defeat Aranya and release the trapped warmth?',
         choices: [
           {
             id: 'accept',
@@ -327,20 +327,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "The Hollow's silk slackens and greys. Warmth seeps back into the roots like blood into a numb limb — the wood exhales, and somewhere above, a bud opens out of season.",
+          'Bram holds his palm above the forge vent. For the first time since you met him, he has to draw it back.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Done, then?',
+        prompt: 'Is Aranya defeated and the root channel clear?',
         choices: [
           {
             id: 'handover',
             label: '📜 Report the Hollow cleansed',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm3_roots' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        'id': 't2',
+        'kind': 'line',
+        'speaker': 'npc',
+        'text':
+          'The channel is flowing. Now we need to keep the village hearth steady while you travel. Ask me about Ember Shards; I can use them to finish the repair.',
       },
     ],
   },
@@ -354,13 +362,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The wood bleeds ember-shards where the rot was cut. Bring me enough, and I'll hammer them into a keepsake that carries a promise: the light isn't gone, only scattered.",
+          "The channel runs warm again. Now I need Ember Shards to keep our hearth lit while you are away. The creatures in the fields and Whisperwood carry them. Bring them here; I'll set some into the hearth and strike a Lucky Coin from the rest. Then we can look beyond our own doorstep.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: 'Will you bring the shards to secure the village hearth?',
         choices: [
           {
             id: 'accept',
@@ -380,7 +388,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram holds out his hands for the shards.',
+        text: 'Bram sets a shallow tray beside the hearth for your Ember Shards.',
         next: 'ta',
       },
       {
@@ -388,13 +396,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'Bram quenches the shard-steel with a hiss that sounds like relief, and presses the finished keepsake into your hand.',
+          'Bram fits the shards around the hearth vent, then stamps the remaining metal into a Lucky Coin. He ties it on a cord and gives it to you.',
         next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Done, then?',
+        prompt: 'Ready to give the shards to the hearth and forge?',
         choices: [
           {
             id: 'handover',
@@ -409,7 +417,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The swamp east carries the same rot — and maybe another piece of the dawn. Go when you're ready.",
+          "The hearth can hold while you travel. Our channel runs east into Hollowmere, where the shrine has gone silent. Ask me about the road into the fen. I'll mark Mirefoot Landing as well; you can rest there.",
       },
     ],
   },
@@ -423,20 +431,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'East of the wood the water turns dark and thoughtful. A man still poles a ferry through the Hollowmere fen. Roads that drowned still lead somewhere — go find the piece of tomorrow the swamp kept warm.',
+          'Our channel continues east beneath Hollowmere. The Sunken Shrine once kept that water warm enough to feed the fields. Find the Ferryman in Hollowmere Swamp; he still knows the drowned roads. Go through the Whisperwood. Mirefoot Landing offers a dry place to rest on the way.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He nods at the keepsake cooling on its cord.',
+        text: 'Bram follows the eastward channel on his map with a blunt fingernail.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: 'Will you find the Ferryman in Hollowmere?',
         choices: [
           {
             id: 'accept',
@@ -456,7 +464,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Ferryman poles you across black water.',
+        text: 'The Ferryman draws his boat alongside the landing where you wait.',
         next: 't2',
       },
       {
@@ -464,13 +472,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "You're for the Shrine, then. Everybody who still believes in morning is, eventually.",
+          'Warmth in the village again? That is good news. Here it pools beneath a shrine nobody can use. Vosk holds the waterworks, and the fen is poisoning itself. Start with the water. I have a job that may tell us how to help.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: "You came from Bram's forge. Ready to tell me what happened there?",
         choices: [
           {
             id: 'handover',
@@ -491,13 +499,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Leeches carry the toxin whole. Fetch samples. What can be named can be countered — and what's countered makes room for something better.",
+          'The village channel empties into this fen. Its warmth has nowhere to go since Vosk took the shrine and stopped its sluices. Marsh Leeches carry the poison in their bodies. Bring me samples from them. I can compare the toxin with the water around the shrine and find the source.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: 'Will you collect the leech samples for me?',
         choices: [
           {
             id: 'accept',
@@ -518,19 +526,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "That's the brew. Drained from the Flame's runoff. The Tyrant didn't poison the swamp — he claimed its despair. Take that claim back.",
+          'Keep those samples sealed until I have a tray ready. If they match the shrine water, we will know where the poison starts.',
         next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He uncorks one vial and holds it to the light.',
+        text:
+          'He uncorks a sample beside a jar of shrine water. Both leave the same black stain on the tray. The Ferryman sets out clean bottles of antidote for you.',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: 'Ready to hand over the Toxin Samples?',
         choices: [
           {
             id: 'handover',
@@ -552,13 +561,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The Shrine drowns slowly. Hope drowns faster. Go down and raise something before the water finishes the job.',
+          'The samples match. Vosk has dammed the warm spring under the Sunken Shrine and sells the only clean water back to the people here. Go through the shrine and defeat him. The keepers can reopen the sluices once he is gone. Report to me when they have their chance.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: 'Will you defeat Vosk in the Sunken Shrine?',
         choices: [
           {
             id: 'accept',
@@ -579,13 +588,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "Vosk deflates with a sound like a dying bell. The water around the Shrine clears a hand's breadth — the first clean light in years, and the frogs sing like it's spring.",
+          'The Ferryman lowers a white cup into the current. A narrow stream of clear water runs through the brown.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: "Will you report Vosk's defeat to the shrine keepers?",
         choices: [
           {
             id: 'handover',
@@ -606,17 +615,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Word travels faster than boats. There's a city of gears east — Sunspire. A cult there is bottling hours. Whoever holds the hours holds the future.",
+          "Ombra, the curator in Sunspire, sent a request with the last boat. The city's clocks are drawing light out of this same channel and storing it underground. Freeing our water will not stop that theft. Ombra needs someone who can reach the Vault of Hours. Will you hear the route?",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: "Will you take Ombra's request and discuss the east road?",
         choices: [
           {
             id: 'accept',
-            label: '🤝 Accept',
+            label: '🤝 Hear the route to Sunspire',
             effects: [{ 'kind': 'acceptQuest', 'questId': 'm8_passage' }, {
               'kind': 'storyEvent',
               'event': 'heard_ferrymans_word',
@@ -636,13 +645,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Take the east road. And mind the sentinels. They only remember half their orders — the half worth keeping, with luck.',
+          'Follow the road east from Hollowmere to the Sunspire Ruins. Find Curator Ombra among the broken sundials. I can mark the firm ground on your map. Once we finish here, ask me about the journey to the city.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: 'Ready for me to mark the road to Sunspire?',
         choices: [
           {
             id: 'handover',
@@ -663,20 +672,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'You heard my word about the gears — now go stand under them. A Curator keeps honest ledgers in a dishonest city. Show him the swamp still sends believers east.',
+          'Ombra asked for help, and you know why. Follow the east road to the Sunspire Ruins and find the curator by the sundials. Tell Ombra the shrine water is flowing again. Then ask what those clocks are taking from it.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He poles for the far shore.',
+        text: 'The Ferryman points beyond the reeds toward a broken line of towers.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: 'Will you carry our news to Curator Ombra?',
         choices: [
           {
             id: 'accept',
@@ -696,7 +705,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Curator Ombra looks you over like an acquisition.',
+        text: 'Curator Ombra sets aside a broken clock as you approach.',
         next: 't2',
       },
       {
@@ -704,13 +713,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Good. The Vault steals time from the Flame — tomorrow, measured in hours. Its keeper must be taught that futures belong to the living.',
+          'The water reaches us clearer now. Thank you. The old city once spread daylight through the hearth channels; its Vault now stores it for Aldric. The Chronolich keeps that machinery running, and the Sun Cult guards it. We must reach the machinery.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Will you tell me what you restored in Hollowmere?',
         choices: [
           {
             id: 'handover',
@@ -731,13 +740,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "They call it devotion. It's despair wearing hymns — kneeling to a sun they've decided never rises for anyone else. Thin their ranks until the singing stops.",
+          'The Sun Cult promised its followers daylight when everyone else went dark. Its patrols now seize water and food from travelers to supply the Vault. Defeat the Sun Cultists in the ruins. Breaking those patrols gives the relief caravans a chance to reach us.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you break the cult patrols in the ruins?',
         choices: [
           {
             id: 'accept',
@@ -758,13 +767,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'The hymns have stopped. The desert wind sounds almost like rest — and real pilgrims, the hopeful kind, begin drifting back toward the ruins.',
+          'Ombra unrolls a list of caravans beside a map of the causeway. Several names have fresh arrival marks.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Ready to report the cult patrols defeated?',
         choices: [
           {
             id: 'handover',
@@ -785,13 +794,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Vault only opens for its own key. The automatons carry it. Break them, and we wind tomorrow's door open.",
+          'I have the Sunspire Key. The Brass Automatons outside the Vault would sound the alarm before you could use it. Defeat their patrol in the ruins, then report here. I will issue the key once the approach is secure. You will not find it in their wreckage.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you disable the Brass Automaton patrol?',
         choices: [
           {
             id: 'accept',
@@ -811,17 +820,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The last automaton folds with a sound like a struck hour.',
+        text: 'Ombra lays a small key case beside the patrol map. Its clasp remains shut.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Is the automaton patrol defeated?',
         choices: [
           {
             id: 'handover',
-            label: '🗝️ Report the toll paid',
+            label: '🗝️ Report the patrol and receive the key',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm11_toll' }],
             next: 't2',
           },
@@ -832,7 +841,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'A key of cold gold light sits in the wreckage — the Sunspire Key, and it is warm on one side only. The side that faces morning.',
+          "Ombra opens the case and gives you the Sunspire Key. Its teeth follow the pattern of a clock's escapement.",
       },
     ],
   },
@@ -845,7 +854,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ombra turns the Sunspire Key over once and hands it back.',
+        text: "Ombra points to the keeper's chamber on a plan of the Vault.",
         next: 'o2',
       },
       {
@@ -853,13 +862,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The Vault keeps its own ledger, and the door collects its due from a fight that is WON — not from one merely begun. Go down. End the hour that stole itself, and give the stolen hours back.',
+          "The Chronolich was Aldric's keeper of calendars. It stores daylight in its hourglass so the King can choose who gets another morning. Enter the Vault of Hours and defeat it. Breaking its hold will return the stored light to the hearth channels. The Sunspire Key opens the keeper's seal.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you face the Chronolich in the Vault of Hours?',
         choices: [
           {
             id: 'accept',
@@ -880,7 +889,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "The Chronolich's hourglass shatters, and stolen time pours out — hours return to the Flame in a ribbon of light. Ombra nods once.",
+          "The hands of Ombra's clock move past the mark where they always stopped. Sunlight reaches a covered seed tray beside the desk.",
         next: 't2',
       },
       {
@@ -888,13 +897,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "North. The flame's twin sleeps in Frostpeak. Wake it, and winter gets an ending too.",
+          'The light is returning to the channel. Yet the northern branch remains cold. It leads to Frostpeak, where the wardens tended the Frostfire. Speak with me about the mountain road when you are ready to go on.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Ready to report the stored hours released?',
         choices: [
           {
             id: 'handover',
@@ -915,20 +924,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "North. Frostpeak keeps the flame's twin under blue ice, and an outcast named Rho keeps watch over the pass — the mountain froze everyone else's promises but his. Wake what winter only pretended to bury.",
+          'The old maps show another branch of the Great Flame beneath Frostpeak. The wardens called it Frostfire: the warmth that lets roots survive winter and wake in spring. Daylight has returned, but the pass stays frozen. Go north to Ice-Outcast Rho. Rho sent the last warning before the road closed.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ombra closes the Vault’s ledger behind you.',
+        text: 'Ombra lays the northern survey beside the Vault plan.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you investigate the Frostfire with Rho?',
         choices: [
           {
             id: 'accept',
@@ -948,7 +957,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho eyes your weapons.',
+        text: 'Rho brushes snow from a place beside the watch fire.',
         next: 't2',
       },
       {
@@ -956,13 +965,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "You'll want more than iron where you're going. But hear me: the Maw doesn't guard the Frostfire. It guards its dreaming — and dreams are worth waking carefully.",
+          'So daylight is moving again. Up here, even sunlit snow stays frozen. Jormunis has coiled around the Frostfire and will not release it. I can help you reach the Glacier Maw, but first I need to recover the route marks my fellow wardens carried.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Finished?',
+        prompt: "Will you tell me what happened to Sunspire's clocks?",
         choices: [
           {
             id: 'handover',
@@ -983,13 +992,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The wraiths were wardens once. They froze mid-oath, still believing. Their marks still open old roads. Three, and the way to the Maw is yours.',
+          'Those Frost Wraiths were my fellow wardens. They stayed on watch when Jormunis froze the pass. Their emblems bear the marks of the old route into the Glacier Maw. Release them in battle and bring me the emblems. I can read the route and give their families names to mourn.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'You up for it?',
+        prompt: "Will you recover the lost wardens' Frost Emblems?",
         choices: [
           {
             id: 'accept',
@@ -1009,20 +1018,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho holds out his hands for the emblems.',
+        text: "Rho spreads a cloth beside the fire for the wardens' emblems.",
         next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho aligns the emblems, and the ice remembers a door.',
+        text: 'Rho reads the names on the emblems and lays them beside a worn route chart.',
         next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Finished?',
+        prompt: 'Ready to entrust the Frost Emblems to me?',
         choices: [
           {
             id: 'handover',
@@ -1036,7 +1045,8 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't3',
         kind: 'line',
         speaker: 'npc',
-        text: 'The Maw is open. What sleeps inside — wake it gently. Some futures start as dreams.',
+        text:
+          'This marks the descent. I will send the names down to their families when a caravan comes. Ask me about Jormunis before you enter the deepest chamber. The wyrm was a guardian once; it still thinks it is protecting the fire.',
       },
     ],
   },
@@ -1048,15 +1058,15 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'o1',
         kind: 'line',
-        speaker: 'narrator',
+        speaker: 'npc',
         text:
-          'The Maw breathes around you. Deep in the blue, a heartbeat made of ice — and coiled around it, the wyrm.',
+          'Jormunis coils around the Frostfire in the deepest chamber of the Glacier Maw. The wyrm was meant to shelter it through winter. With the seasons failing, it never loosened its grip. You must defeat Jormunis to free the fire. Its fear has buried a whole valley in ice.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'You up for it?',
+        prompt: 'Will you face Jormunis and free the Frostfire?',
         choices: [
           {
             id: 'accept',
@@ -1077,20 +1087,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'Jormunis uncoils one last time, and the Frostfire rises free — streaming through the mountain toward the Cinder Wastes. Winter, it turns out, was never the enemy. It was a promise waiting to thaw.',
+          "Water drips from Rho's shelter roof. Rho catches a drop on one finger and looks toward the glacier.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Finished?',
+        prompt: 'Ready to report the Frostfire released?',
         choices: [
           {
             id: 'handover',
             label: '🔥 Report the Frostfire freed',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm15_wyrm' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        'id': 't2',
+        'kind': 'line',
+        'speaker': 'npc',
+        'text':
+          'The spring is running beneath the glacier again. It has uncovered the road into the Cinder Wastes. I need you to take word to Sorrel there; ask me about the journey when you are ready.',
       },
     ],
   },
@@ -1104,13 +1122,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'South of the glacier the world burned and stubbornly kept going. The Cinder Wastes hide a monk named Sorrel, tending a starving flame nobody else would feed. Tell him the Frostfire lives — proof travels better than hope alone.',
+          'The thaw has uncovered the road into the Cinder Wastes. Follow it to Ashen Monk Sorrel. Sorrel tends Ignivar, the guardian at the source of these channels. Tell him the Frostfire is moving again. If the source is still failing, he will know what is draining it.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'You up for it?',
+        prompt: 'Will you take news of the thaw to Sorrel?',
         choices: [
           {
             id: 'accept',
@@ -1130,7 +1148,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Sorrel finds you before the imps do.',
+        text: 'Sorrel waves you toward the shelter of a ruined kiln.',
         next: 't2',
       },
       {
@@ -1138,13 +1156,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "You came with the Frostfire's wake. Then you're the one Ignivar's been burning to meet. Follow me — hope travels light, but you'll want company anyway.",
+          "A thaw at last. The fire in my kiln answered it this morning. Ignivar is still starving, though. The King's binding keeps drawing from the source. Before you prepare for the Caldera, hear what happened to its guardian.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Will you tell me what Rho saw at the glacier?',
         choices: [
           {
             id: 'handover',
@@ -1165,17 +1183,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Listen before you swing. Ignivar guarded the Flame for a thousand years. Then the Sundered King began drinking it, and everyone blamed the hunger on the guardian. Despair is easy. Listen harder.',
+          'Ignivar guarded the Great Flame long before Aldric was born. When the King split it, he bound its source to his crown. Ignivar has been trying to feed both the land and that endless drain. We blamed the guardian for the ruined harvests. I did too. I stayed to put that wrong right.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: 'Will you hear how Ignivar can be freed?',
         choices: [
           {
             id: 'accept',
-            label: '🤝 Accept',
+            label: '🕯️ Hear how to free Ignivar',
             effects: [{ 'kind': 'acceptQuest', 'questId': 'm17_plea' }, {
               'kind': 'storyEvent',
               'event': 'heard_sorrels_plea',
@@ -1195,13 +1213,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "He'll fight you anyway. Pride burns hotter than starvation. But when he falls — and he will — know that the true thief is above the sky, in a tower that isn't entirely real. And that endings here have always been doorways.",
+          "Ignivar's body has hardened around the royal binding. He attacks anyone who approaches it. You will have to break that shell in battle; his living ember can survive outside it. The binding will lead us to Aldric. I will stay here to tend what remains of the guardian.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Do you understand why Ignivar must be faced?',
         choices: [
           {
             id: 'handover',
@@ -1222,13 +1240,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The revenants are the Flame's old faithful. Their sorrow brands the ash with sigils. Bring me three — grief, honored, becomes a lamp. That's how we calm the Caldera.",
+          "Ashen Revenants carry the Cinder Sigils of our old order. They died trying to feed the Flame and still repeat the journey. Release them and bring me their sigils. I will name the dead at the kiln and prepare a fire for Ignivar's ember. He must have somewhere to return to.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: 'Will you recover the Cinder Sigils for the vigil?',
         choices: [
           {
             id: 'accept',
@@ -1248,20 +1266,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Sorrel holds out her hands for the sigils.',
+        text: 'Sorrel places an empty bowl on the kiln ledge for the sigils.',
         next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The sigils cool in Sorrel’s hands.',
+        text: 'Sorrel sets the sigils around the kiln and speaks the names marked on them.',
         next: 't3',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Ready to hand over the Cinder Sigils?',
         choices: [
           {
             id: 'handover',
@@ -1276,7 +1294,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Caldera's throat is open. Go down gently. He's been waiting to be understood for a very long time — and being understood is its own dawn.",
+          "Their vigil is finished. The kiln is ready to shelter Ignivar's ember when his shell breaks. Ask me about the descent before you go. I will keep this fire lit.",
       },
     ],
   },
@@ -1288,15 +1306,15 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 'o1',
         kind: 'line',
-        speaker: 'narrator',
+        speaker: 'npc',
         text:
-          "At the caldera's bottom, the Last Flame gutters in a cage of its own cinders. It looks up. It is so tired — and still, stubbornly, burning.",
+          'The vigil fire is ready. Descend the Pyre Caldera and face Ignivar at its bottom. Break the hardened shell around his ember. When the royal binding gives way, we should be able to see where it carries the stolen light. Return here afterward. You should not bear that sight alone.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: 'Will you free Ignivar from the royal binding?',
         choices: [
           {
             id: 'accept',
@@ -1317,20 +1335,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "Ignivar's last ember drifts free — and instead of dying, it funnels upward, toward a spire that stands where the sky has a seam.",
+          "A small ember burns in Sorrel's kiln. Above it, a fading thread of light points toward the dark tower beyond the ash.",
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'The thief. The Umbral Spire. Go finish this — not for vengeance. For morning.',
+        text:
+          'He is here. Small enough for this kiln, and no longer feeding the crown. The released binding points to the Umbral Spire. Ask me how to reach it. We have freed the source; now someone must open the vessel holding what was stolen.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Ready to tell me how the binding broke?',
         choices: [
           {
             id: 'handover',
@@ -1351,13 +1370,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The thief keeps a tower in the seam of the sky. An Archivist stacks his yesterdays up there and calls the pile a future. Climb, Dawncaller — make the man remember what hours are FOR.',
+          "The broken binding has exposed the road to the Umbral Spire. Aldric waits at its summit. Seek the Archivist below the throne: a keeper of the old court who has been trying to warn us. Ask how to release the light still held in the crown. I will keep Ignivar's ember safe here.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: 'Will you seek the Archivist in the Umbral Spire?',
         choices: [
           {
             id: 'accept',
@@ -1377,7 +1396,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: "The Archivist's pen never stops moving.",
+        text: 'The Archivist places a court record beside an empty page headed with your name.',
         next: 't2',
       },
       {
@@ -1385,13 +1404,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The King split the Flame because he stopped believing in morning. Despair, hoarded, becomes a crown. Mend the crown, and belief comes home.',
+          'The drain has stopped. The crown still holds what Aldric took. He divided the Great Flame to stop a world that had hurt him, and called its stillness peace. First we must break the Crownsworn patrols. Then I will tell you what the court records say of his decision.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall the record show it complete?',
+        prompt: 'Will you give your account of the broken binding?',
         choices: [
           {
             id: 'handover',
@@ -1412,13 +1431,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "They were knights once. Now they're the King's habit, still fighting his wars. Give them rest — even loyalty deserves a future.",
+          "The Crownsworn swore to protect Aldric's people. His crown now compels them to protect his prison instead. Their patrols attack anyone approaching the throne. Defeat the Crownsworn Blades here in the Spire. I will record their names as servants released, not traitors punished.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will the record show you willing?',
+        prompt: 'Will you defeat the Crownsworn patrols?',
         choices: [
           {
             id: 'accept',
@@ -1439,13 +1458,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          'The last of the Crownsworn kneels as it falls — not to you, but to some old, remembered king, finally let go. The stair to the throne is clear.',
+          'The Archivist opens a roll of the royal guard. Beside the names is a column headed Released.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall the record show it complete?',
+        prompt: 'Ready to report the Crownsworn patrols defeated?',
         choices: [
           {
             id: 'handover',
@@ -1466,17 +1485,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The Crownsworn carried a key out of habit, but grief was the only lock. Before you climb — let me tell you what the last king chose to forget.',
+          "A century ago, Aldric's daughter died during the long famine. He ordered the Great Flame divided, believing he could stop all change before it took anyone else. He kept the power of renewal in his crown and left us dwindling warmth. His people still suffered. He called each loss a reason to tighten his grip.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will the record show you willing?',
+        prompt: 'Will you hear what must be done at the throne?',
         choices: [
           {
             id: 'accept',
-            label: '🤝 Accept',
+            label: '📜 Hear how to release the crown',
             effects: [{ 'kind': 'acceptQuest', 'questId': 'm22_umbral_key' }, {
               'kind': 'storyEvent',
               'event': 'heard_archivists_counsel',
@@ -1495,21 +1514,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The door was never locked, only mourned shut.',
+        text:
+          'Defeat Aldric to break his hold on the crown. The warmth you freed in root, water, daylight, and thaw can then rejoin its source. You need no royal key; the stair opens onto the Sundered Throne. I have supplies for your ascent. His grief explains the theft. It does not give him the right to keep it.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          'The throne room doors swing inward on a room split down the middle — half ember, half ash, and one thin line of light running down the seam.',
+        text: 'The Archivist sets a sealed supply flask beside the plan of the throne ascent.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall the record show it complete?',
+        prompt: 'Ready to take the supplies and prepare for Aldric?',
         choices: [
           {
             id: 'handover',
@@ -1530,20 +1549,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The stair is clear and the hour is yours. Up there sits a man who decided a hundred years ago that morning was a rumor. Do not hate him — out-wait him. Crowns break where patience will not.',
+          'Aldric waits at the top of the Sundered Throne. He will try to keep the crown and the future bound to him. Defeat him. Let the released light return to the world, then come back to me. We must leave a record of what happened, so nobody calls this theft salvation again.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Archivist’s pen is motionless for the first time.',
+        text: 'The Archivist caps the ink and looks directly at you.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will the record show you willing?',
+        prompt: 'Will you face Aldric and end his hold on the Flame?',
         choices: [
           {
             id: 'accept',
@@ -1563,17 +1582,18 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Archivist waits among the settling light, pen still.',
+        text:
+          'The Archivist waits beneath a window that has never admitted sunlight before. A broken crown rests on the desk.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall the record show it complete?',
+        prompt: "Will you give your account of Aldric's defeat?",
         choices: [
           {
             id: 'handover',
-            label: '👑 Report the crown whole',
+            label: "👑 Report Aldric's defeat",
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm23_aldric' }],
             next: 't2',
           },
@@ -1584,7 +1604,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "The crown halves meet in your hands with a sound like a held breath released. Light runs down the Spire, through the Seam, into every ember in the world — and the Flame roars back to life not as it was, but as it could be. Somewhere far below, the village of Emberdawn lights its lamps without knowing why, and children sleep dreaming of mornings they've never seen. But the Seam below the world is still open, and the future is worth guarding.",
+          'The Archivist places the empty crown in your hands. Beyond the window, light runs through the channels you reopened. Far below, the village fields catch a full sunrise. The harvest still needs planting. For the first time in years, it has the warmth to grow.',
       },
     ],
   },
@@ -1598,20 +1618,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The sundering opened a seam beneath the world. Echoes drift down it — everyone who ever sought the crown, still climbing, still believing. One of them wears Maren's face. Go down and bear witness: the future is worth guarding, even from below.",
+          'The Flame is free. The wound Aldric tore beneath it remains: the Seam, reached through the Abyss below this tower. It catches memories and draws loose light out of the channels. Maren crossed its edge in her youth and returned; an echo of her stayed behind. Find that echo. She knows the descent.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Archivist’s pen is still, at last.',
+        text:
+          'The Archivist turns the map over. A narrow stair runs from the tower foundations into the Abyss.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will the record show you willing?',
+        prompt: "Will you meet Maren's echo in the Abyss?",
         choices: [
           {
             id: 'accept',
@@ -1631,7 +1652,8 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Echo of Maren smiles like sunrise through water.',
+        text:
+          "The woman at the edge of the path has Maren's face, without its years. Light passes through her sleeve.",
         next: 't2',
       },
       {
@@ -1639,13 +1661,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Even I end up an echo here, it seems. Go on then, Dawncaller — the dark down there has never once met anyone like you.',
+          'She got home, then. Good. I am the memory this place kept when she crossed its edge. She was young and tried to carry the whole task alone. You have brought half the world with you, by the sound of it. Let me help with the last stretch.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Can we call it done, hero?',
+        prompt: 'Will you tell me how Maren and the village are faring?',
         choices: [
           {
             id: 'handover',
@@ -1666,13 +1688,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Warden doesn't threaten. It doesn't need to. The dark at the Seam's bottom arranges itself, patient as arithmetic. Rest, sharpen, and go down when you can carry the morning back up.",
+          'The Warden formed around the wound to contain it. Now it strikes at every living thing that approaches. Descend the Endless Seam and overcome it at the bottom. The light you carry can settle the breach once its guard relents. A wandering reflection of the Warden cannot do that. Come back to me afterward.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you go where I cannot?',
+        prompt: 'Will you face the Warden at the bottom of the Endless Seam?',
         choices: [
           {
             id: 'accept',
@@ -1693,20 +1715,36 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "The silence, when it comes, is gentle. The Seam closes like a book finishing itself — not an ending; a period before the next sentence. Above, the world's flame burns steady, and this time, nobody is drinking it. You came looking for tomorrow. You're standing in it.",
+          'The wind rising from the Seam grows quiet. The paths below remain, but loose sparks no longer fall into them.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Can we call it done, hero?',
+        prompt: 'Ready to report the breach contained?',
         choices: [
           {
             id: 'handover',
-            label: '🌙 Report the silence kept',
+            label: '🌅 Report the breach contained',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'm25_silence' }],
+            next: 't2',
           },
         ],
+      },
+      {
+        'id': 't2',
+        'kind': 'line',
+        'speaker': 'npc',
+        'text':
+          'The breach is quiet. Its old chambers will still remember their battles, but they no longer feed on the world above. You can go home. Tell Maren that the road she could not finish alone has brought someone back.',
+        'next': 't3',
+      },
+      {
+        'id': 't3',
+        'kind': 'line',
+        'speaker': 'narrator',
+        'text':
+          'You turn toward the stair. Above you wait a village hearth, fields ready for planting, and people who have kept a place for you.',
       },
     ],
   },
@@ -1719,20 +1757,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Lyra sighs.',
+        text: 'Lyra folds a clean bandage beside a bowl of thin porridge.',
         next: 'o2',
       },
       {
         id: 'o2',
         kind: 'line',
         speaker: 'npc',
-        text: "Rats in the grain, rats at the wood's edge. Six fewer would be medicinal.",
+        text:
+          "The Giant Rats foul what grain they do not eat. I have children with fevers and too little clean food for them. Defeat the rats in the Outskirts or at the Whisperwood edge, then report to me. Leave the Ember Rats to Maren's patrol; this job is for the ordinary, oversized kind.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you help me mend this?',
+        prompt: 'Will you help protect our food from the Giant Rats?',
         choices: [
           {
             id: 'accept',
@@ -1752,13 +1791,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Cleaner streets and calmer granaries. The village thanks you.',
+        text:
+          'Fewer bites, fewer fouled sacks. That gives me a chance to treat the patients I already have. Tell me how the rat patrol went.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Are the granaries quiet?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -1778,13 +1818,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Iron runs under the Whisperwood. Three chunks and I can keep your edge honest.',
+        text:
+          "The farmers need plough fittings and nails before the next planting. Bring Iron Chunks from the Rootbound Hollow. Its early chambers have old ore caches; the Mycelid Drones carry more. I'll pay you for this batch. Any iron promised for your descent equipment is a separate order.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: "Will you gather iron for the farmers' tools?",
         choices: [
           {
             id: 'accept',
@@ -1804,19 +1845,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram holds out a scarred palm.',
+        text: 'Bram sets an empty basket beside a pile of broken plough fittings.',
         next: 'ta',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: "Good stock. Now we're cooking.",
+        text:
+          'Good iron. That will put the broken ploughs back in the fields. Here is your payment.',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Done, then?',
+        prompt: 'Ready to hand over the requested goods?',
         choices: [
           {
             id: 'handover',
@@ -1838,13 +1880,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The dimming frightens the children. Ember shards make good luck-charms. Four would do.',
+          'The sickroom lamps keep going out before the children fall asleep. Ember Shards hold a little steady warmth. Bring me a batch from the fields or Whisperwood. I can fit them into the lamp cups and stop waking patients to change the wicks.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you help me mend this?',
+        prompt: 'Will you bring Ember Shards for the sickroom lamps?',
         choices: [
           {
             id: 'accept',
@@ -1864,13 +1906,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Lyra holds out her hands for the shards.',
+        text: 'Lyra sets the empty lamp cups in a row beside the beds.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'All handed over?',
+        prompt: 'Ready to hand over the requested goods?',
         choices: [
           {
             id: 'handover',
@@ -1884,7 +1926,8 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The charms go up over doorways one by one. The village glows a little prouder.',
+        text:
+          'Lyra fits the shards into the lamp cups. A child watches the steady light, then settles back against a pillow.',
       },
     ],
   },
@@ -1897,7 +1940,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ranger Pell sharpens a knife that has seen this argument before.',
+        text: 'Pell searches the torn strap of a pack for a broken chain link.',
         next: 'o2',
       },
       {
@@ -1905,13 +1948,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "A spider took more than my blood. Took my mother's locket. Eight spiders' worth of persuasion should get it back.",
+          "Lost my mother's locket when the Woodfangs dragged off my pack. It has a pressed fern under the lid. Search the spiders in the Whisperwood. One of them still has it in the webbing it carries. Bring it back to me.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Coming, or not?',
+        prompt: "Will you find my mother's locket?",
         choices: [
           {
             id: 'accept',
@@ -1931,17 +1974,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Pell waits at the wood’s edge, saying nothing.',
+        text: 'Pell waits with an open palm. A pale mark circles the place a chain once lay.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Done?',
+        prompt: 'Ready to hand over the requested goods?',
         choices: [
           {
             id: 'handover',
-            label: '🧿 Say it is recovered',
+            label: "🧿 Hand over Pell's Locket",
             effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_locket' }],
             next: 't2',
           },
@@ -1952,7 +1995,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'narrator',
         text:
-          "The locket, scratched but whole. Pell doesn't say thank you. Rangers never do. But the nod lasts longer than words.",
+          'Pell opens the locket. The pressed fern is still under its lid. Pell closes it carefully and gives you a Lucky Coin from a coat pocket.',
       },
     ],
   },
@@ -1972,13 +2015,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o2',
         kind: 'line',
         speaker: 'npc',
-        text: "That stag guarded the wood before I did. Whatever's riding it now — end it kindly.",
+        text:
+          'The Corrupted Stag still roams the Whisperwood. The rot reached it before we freed the Hollow, and now it charges anything alive. I knew it when it led lost children back to the paths. Find it in the forest. End its suffering, then tell me where it fell.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Can I count on you?',
+        prompt: 'Will you put the Corrupted Stag to rest?',
         choices: [
           {
             id: 'accept',
@@ -1998,20 +2042,20 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The stag falls like a laid-down burden. Tom adds a second cairn stone.',
+        text: 'Tom rests a hand on the small cairn beside his shelter.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'Rest now, old friend.',
+        text: 'I will mark the place you found it. Thank you for going back for an old guardian.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Report: is it done?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2031,13 +2075,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Boglins travel in numbers and opinions. Reduce both.',
+        text:
+          "Boglins raid the baskets waiting for my ferry. Yesterday they took a family's whole supply of flour. Defeat the raiders around Hollowmere and come back to me. People should be able to set a basket down without standing guard over it.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: 'Will you clear the Boglin raiders from Hollowmere?',
         choices: [
           {
             id: 'accept',
@@ -2056,21 +2101,22 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 't1',
         kind: 'line',
-        speaker: 'npc',
-        text: 'Quieter water already. Should hold a week. Maybe two.',
+        speaker: 'narrator',
+        text:
+          'A basket of bread waits beside the mooring rope. The Ferryman keeps it within reach of his pole.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'He poles past, eyes already downriver.',
+        text: 'He points out a new mooring post where the raiders tore the old rope loose.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2091,13 +2137,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The hags sing at night. Their songs stick to your ribs. Five silences, and the swamp sleeps.',
+          'Fen Hags imitate the calls we use to find each other in the mist. Travelers follow them into deep water. Defeat the hags out in Hollowmere and report back. My passengers have enough trouble finding dry ground without false directions.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Do we cross together?',
+        prompt: "Will you stop the Fen Hags' false calls?",
         choices: [
           {
             id: 'accept',
@@ -2117,13 +2163,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The night goes quiet. Even the frogs seem grateful.',
+        text:
+          'The Ferryman answers a call from the far bank. An answering lantern rises through the reeds.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall we call it square?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2144,13 +2191,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Scarabs strip the clockwork for gold. A dozen fewer, and the city's heart can beat again.",
+          'Gilded Scarabs strip brass from the water pumps. We can mend the old channels only while enough machinery remains. Defeat the scarabs in the Sunspire Ruins, then report here. I would prefer to catalogue a working pump for once.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you protect the pumps from Gilded Scarabs?',
         choices: [
           {
             id: 'accept',
@@ -2169,21 +2216,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
       {
         id: 't1',
         kind: 'line',
-        speaker: 'npc',
-        text: 'The gears turn easier.',
+        speaker: 'narrator',
+        text: 'Ombra tests a repaired pump handle. Water splashes into a waiting jar.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ombra sounds almost pleased.',
+        text: 'Ombra notes the water level on the jar with visible satisfaction.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2204,13 +2251,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The lynx were pets of the old astronomers. Their children hunt pilgrims now. Six of them, and the roads open.',
+          'The old astronomers kept lynxes to hunt vermin. Their descendants now hunt anyone carrying food through the ruins. Defeat the Spire Lynxes stalking those paths. The relief travelers need to reach the water pumps safely.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Shall I enter you in the ledger?',
+        prompt: 'Will you clear the hunting lynxes from the paths?',
         choices: [
           {
             id: 'accept',
@@ -2230,20 +2277,21 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ombra records six strokes in a ledger that has seen everything.',
+        text: "Ombra marks the places you indicate on the travelers' map.",
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'The roads thank you, in their way.',
+        text:
+          'I will pass these sightings to the next caravan. They should know both where you cleared the way and where to keep watch.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall I close the ledger?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2263,13 +2311,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'They froze mid-oath, all of them. Eight unkept promises, wandering. Unstick them.',
+        text:
+          'Frost Wraiths still walk the old watch circuit. They challenge travelers who cannot remember a password from a century ago. Defeat them in the pass. Breaking the frost around them releases the trapped memory. I will keep their names here.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'You up for it?',
+        prompt: 'Will you release the Frost Wraiths from their watch?',
         choices: [
           {
             id: 'accept',
@@ -2289,13 +2338,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Eight oaths, released. The pass feels lighter, like a held breath let go.',
+        text: "Rho leaves a space for your report beside the wardens' memorial.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Finished?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2315,13 +2364,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "Yetis respect two things. Size and consequences. You're not big. Be convincing.",
+        text:
+          'Glacier Yetis have moved onto the supply paths. They attack the carriers and tear open their packs. Defeat the ones holding the pass or sheltering in the Glacier Maw. They are defending feeding ground, but we need those supplies too.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'You up for it?',
+        prompt: 'Will you drive the Glacier Yetis off the supply paths?',
         choices: [
           {
             id: 'accept',
@@ -2341,28 +2391,28 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          'The last yeti goes down — and the rest of the snowbank decides, loudly, to be elsewhere.',
+        text: 'Rho counts the supply packs stacked beneath the shelter roof.',
         next: 't2',
       },
       {
         id: 't2',
         kind: 'line',
         speaker: 'npc',
-        text: 'Four arguments. Yours carried more weight.',
+        text:
+          'The last carriers got through with everything they brought. I will keep watch for the yetis returning. Take your pay.',
         next: 't3',
       },
       {
         id: 't3',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Rho watches the snow settle.',
+        text: "Rho hangs a dry pair of carrier's mittens beside the fire.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Finished?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2382,13 +2432,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "Imps are the Flame's hiccups. Fourteen fewer hiccups, and the Wastes breathe.",
+        text:
+          'Ember Imps break our oil jars to feed on the burning spills. That oil keeps the shelter lamps alight for travelers. Defeat the imps in the Cinder Wastes and come back to me. We can mend the jars if they leave us enough to put in them.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: 'Will you protect the shelter stores from Ember Imps?',
         choices: [
           {
             id: 'accept',
@@ -2408,17 +2459,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The ash falls a little softer. Sorrel takes it as a good omen.',
+        text: 'Sorrel sets an unbroken oil jar beside the shelter lamp.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
-            label: '🔥 Report the hiccups cured',
+            label: '🔥 Report the oil stores protected',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_imps' }],
           },
         ],
@@ -2435,13 +2486,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Salamanders herd travelers into lava. Old instinct, no malice in it. Break eight of the herds and the paths stay open.',
+          'Fire Salamanders drive prey toward the lava, where it has nowhere left to run. Travelers are caught in the same hunt. Defeat the salamanders along the paths through the Cinder Wastes and report here. We count the creatures you face, not whole herds.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you walk this road with me?',
+        prompt: "Will you break the Fire Salamanders' hunt?",
         choices: [
           {
             id: 'accept',
@@ -2461,13 +2512,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The lava stays hungry, but it dines alone now.',
+        text:
+          "The next travelers have reached shelter without abandoning their packs. Tell me where you broke the salamanders' hunt so I can warn those going out.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'May we call this mercy done?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2487,13 +2539,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'Shades fear names. Yours is spoken by whatever you wield. Same thing, down here.',
+        text:
+          'Umbral Shades gather wherever the stolen light leaves a shadow. They attack the people recovering records from the Spire. Defeat them on the approaches. Those pages hold names of the displaced; their families have waited long enough for an answer.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will the record show you willing?',
+        prompt: 'Will you clear the Umbral Shades from the records?',
         choices: [
           {
             id: 'accept',
@@ -2513,17 +2566,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: "Fifteen names, given by force. The Spire's dark recedes a polite distance.",
+        text: 'The Archivist spreads recovered pages on the desk to dry.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Shall the record show it complete?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
-            label: '📜 Report the shades named',
+            label: '📜 Report the shades defeated',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_shades' }],
           },
         ],
@@ -2540,13 +2593,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Every echo was somebody. Ten honors, hero. Give them what they never got: an ending.',
+          'Some Echoes of Heroes are caught in the last battle they remember. They see every visitor as the enemy they once faced. Meet them in battle out in the Abyss and defeat them. Then they can put it down. Come back and tell me; I can remember them without the fighting.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you go where I cannot?',
+        prompt: 'Will you release the Echoes of Heroes from their battles?',
         choices: [
           {
             id: 'accept',
@@ -2566,13 +2619,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Ten echoes, honored. The Abyss feels almost like a place where stories end well.',
+        text:
+          'The Echo listens as you describe the figures you met. She repeats each description carefully.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Can we call it done, hero?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2592,13 +2646,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The hounds hunt echoes. Unfair, even down here. Quiet fifteen of them.',
+        text:
+          'Null Hounds tear through the echoes and scatter what little they remember. Defeat the hounds hunting out in the Abyss, then report to me. These memories are all that some families have left. They deserve time to be found.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you go where I cannot?',
+        prompt: 'Will you protect the echoes from the Null Hounds?',
         choices: [
           {
             id: 'accept',
@@ -2618,13 +2673,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The hounds fall silent. The echoes get to keep their memories a while longer.',
+        text: 'A distant figure walks past the path marker without looking over its shoulder.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Can we call it done, hero?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2644,7 +2699,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The sealed letter sits warm where Maren pressed it.',
+        text: "Maren points out Bram's forge across the village square.",
         next: 'o2',
       },
       {
@@ -2652,13 +2707,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Everything the letter says, I trust to your hands alone. Bram's forge was the last to touch the Great Flame. If tomorrow can be found, his fire knows where to look.",
+          "The letter describes what I found at the forest edge: cold soil above roots that still give off heat. Bram has his family's map of the old hearth channels. Take this to his forge here in the village. Listen to what he finds, then leave the letter with him.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you carry this for us?',
+        prompt: 'Will you take the letter to Bram and hear his answer?',
         choices: [
           {
             id: 'accept',
@@ -2678,8 +2733,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'c1',
         kind: 'line',
         speaker: 'narrator',
-        text:
-          'Bram takes the sealed letter, cracks the wax with his thumb, and reads. Hope flickers across his face like a struck flint.',
+        text: 'You hold the letter open while Bram traces its sketch with a soot-dark finger.',
         next: 'c2',
       },
       {
@@ -2687,7 +2741,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The Flame isn't just dying — its tomorrow was stolen and scattered. The Whisperwood roots still carry warmth. Follow it. Find where the light went.",
+          "Maren found living warmth under dead soil. This matches my grandfather's map: the village hearth is fed through the Whisperwood roots. Something is blocking the channel at the Rootbound Hollow. We can free it. Speak to Maren about reaching Warden Tom in the forest; he knows what has nested there.",
         effects: [{ 'kind': 'storyEvent', 'event': 'heard_bram_reading' }],
       },
     ],
@@ -2701,13 +2755,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'Bram holds out his hand for the letter.',
+        text: 'Bram opens the drawer beside his anvil and holds out a hand for the letter.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Do we have a bargain?',
+        prompt: "Will you leave Maren's letter with me?",
         choices: [
           {
             id: 'handover',
@@ -2722,7 +2776,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The letter goes in the drawer of things that matter — the one I open on hard days. What Maren sealed, we've both read now, and the road is the same road.",
+          "I'll keep the letter with the map. Maren can arrange the forest patrol; go back to her next. We have a place to look now, and a reason to believe the hearth can recover.",
       },
     ],
   },
@@ -2747,13 +2801,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The shrine across the water keeps a ledger of who still believes in the morning. It has one question left in it, and I am the one who carries it. Will you hear it?',
+          'The shrine keepers have two jobs: free the beacon from Marsh Wisps, or clear Marsh Leeches from their water intake. They can fund one assignment for you. Accept this invitation, then ask me to choose a shrine task. We will discuss both before you commit.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you carry the question?',
+        prompt: "Will you discuss the shrine's two jobs with me?",
         choices: [
           {
             id: 'accept',
@@ -2774,13 +2828,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'The ledger holds your answer now, written the way you gave it. The shrine pays whoever answers — belief and refusal both keep a ledger busy.',
+          "You chose your assignment. I can give you the keepers' planning payment now; the work itself remains a separate job. Your choice stands whichever task you finish first.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Is the question closed, then?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2800,13 +2854,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: "The pact is in the ledger — the drowned beacon's light is yours to return.",
+        text:
+          "The Marsh Wisps have drawn the beacon's light into the mist. Defeat them in Hollowmere and it will gather in my ferry lamp. Then return here. We can give it to the shrine for the crossing beacon, as we agreed.",
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you take up the beacon?',
+        prompt: 'Will you clear the Marsh Wisps for the beacon?',
         choices: [
           {
             id: 'accept',
@@ -2826,7 +2881,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Ferryman reads the clean air around you and nods slowly.',
+        text: 'The Ferryman lifts a lamp whose wick burns pale blue.',
         next: 't2',
       },
       {
@@ -2834,13 +2889,13 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "The wisps are quiet, and their light rides with you — the shrine felt every one go out. Given, it becomes the beacon's first breath. Kept, it stays yours on the road. The ledger writes either name.",
+          "The wisps' light has gathered in this lamp. I can use it to relight the shrine beacon and pay you as agreed. Or I can seal it in a lantern for you to keep. That leaves the beacon dark, and you give up the payment. The lantern is a keepsake; it will not help you in battle.",
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'So which is it?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
@@ -2850,11 +2905,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
           },
           {
             id: 'keep',
-            label: '🔥 Keep the light for the road',
+            label: '🏮 Keep a lantern; forgo payment',
             irreversible: true,
             consequenceHint:
-              'The shrine\'s reward stays behind — the light is yours, and the ledger writes "kept" permanently.',
-            effects: [{ 'kind': 'resolveQuest', 'questId': 'sq_shrine_pact', 'outcome': 'kept' }],
+              'Permanently end this job without its normal rewards. Receive a Wisp Lantern keepsake with no combat effect; the beacon remains unlit.',
+            effects: [
+              { kind: 'resolveQuest', questId: 'sq_shrine_pact', outcome: 'kept' },
+              { kind: 'grantItem', itemId: 'q_wisp_lantern' },
+            ],
             next: 't4',
           },
         ],
@@ -2864,14 +2922,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          'Given, then. Watch the drowned flame catch it — the beacon breathes, and the shrine pays what it owes.',
+          'The keepers take the lamp to the beacon. A blue light rises over the crossing, high enough to see above the reeds. Here is the payment we agreed.',
       },
       {
         id: 't4',
         kind: 'line',
-        speaker: 'npc',
+        speaker: 'narrator',
         text:
-          'Kept, then. The ledger writes: light retained. The beacon waits for another hand — no refund, and no resentment. Walk warm.',
+          'The Ferryman seals the blue light in a small lantern and gives it to you. The beacon remains dark. He closes the job in his ledger without taking out the payment.',
       },
     ],
   },
@@ -2884,13 +2942,14 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 'o1',
         kind: 'line',
         speaker: 'npc',
-        text: 'The unwritten name is on the books all the same — the shrine expects its due.',
+        text:
+          'You chose the water intake. Marsh Leeches block its mouth and foul the baskets used to filter water. Defeat them in Hollowmere, then report to me. The keepers will pay for the work without asking you to make a promise at their shrine.',
         next: 'oa',
       },
       {
         id: 'oa',
         kind: 'choice',
-        prompt: 'Will you settle the debt?',
+        prompt: 'Will you clear the Marsh Leeches from the intake?',
         choices: [
           {
             id: 'accept',
@@ -2910,7 +2969,7 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         id: 't1',
         kind: 'line',
         speaker: 'narrator',
-        text: 'The Ferryman counts your tally against a knot in his line.',
+        text: 'The Ferryman checks your report against a sketch of the intake.',
         next: 't2',
       },
       {
@@ -2918,17 +2977,17 @@ export const QUEST_DIALOGUES: readonly DialogueDef[] = [
         kind: 'line',
         speaker: 'npc',
         text:
-          "Fat on the shrine's seep, every one. The books read even again — and a shrine out of debt can afford to be generous with its own.",
+          'That gives the keepers room to clean the intake. Here is the payment for your patrol. You kept your name off their pledge book, and still helped their neighbors.',
         next: 'ta',
       },
       {
         id: 'ta',
         kind: 'choice',
-        prompt: 'Is the debt settled, then?',
+        prompt: 'Ready to report on this work?',
         choices: [
           {
             id: 'handover',
-            label: '📜 Settle the debt with the shrine',
+            label: '📜 Report the intake patrol',
             effects: [{ 'kind': 'turnInQuest', 'questId': 'sq_ledger_debt' }],
           },
         ],

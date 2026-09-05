@@ -46,7 +46,10 @@ Deno.test('choices: both responses render, deferral is offered, prompt is separa
   assert(view.includes('dlg:ch:promise'), 'the first response renders');
   assert(view.includes('dlg:ch:decline'), 'the second response renders');
   assert(view.includes('dlg:bk'), 'Not now deferral renders');
-  assert(view.includes('So — what do I tell them?'), 'the NPC prompt is shown');
+  assert(
+    view.includes('Which job will you take: the beacon or the water intake?'),
+    'the NPC prompt is shown',
+  );
   assert(!view.includes('confirm'), 'no confirmation is staged yet');
 });
 
@@ -72,8 +75,11 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   assertEquals(JSON.stringify({ d: p.decisions, f: p.flags, e: p.storyEvents }), before);
   const panel = JSON.stringify(renderDialogue(p));
   assert(panel.includes('cannot be changed'), 'permanence is stated');
-  assert(panel.includes('The shrine counts on you'), 'the consequence hint renders');
-  assert(panel.includes('unwritten name closes'), 'the hint names the permanent exclusion');
+  assert(panel.includes("Starts The Shrine's Beacon"), 'the consequence hint renders');
+  assert(
+    panel.includes('permanently closes The Water Intake'),
+    'the hint names the permanent exclusion',
+  );
   assert(panel.includes('dlg:cf:promise'), 'Confirm carries the choice id only');
   assert(panel.includes('dlg:cc'), 'Go back is offered');
   // Abandon: back to the choice list, still zero mutation.
