@@ -6,6 +6,26 @@ and with what disposition**. It is not a prose specification, and no lexical bla
 model, or AI detector backs it — the machine-checkable facts stay in the test suite
 (`tests/dialogue_copy_test.ts`, `tests/quest_copy_test.ts`, `tests/dialogue_test.ts`).
 
+## Redundancy review: 2026-09-05 (#192)
+
+**Reviewer:** Codex (AI implementor and editorial reviewer), following the owner's request to remove
+redundant handover explanations, push that fix, then review the wider content. **Reviewed base:**
+`7a3a2cf56d202d87fca44b99c193441ace84d63b`. No independent or human review is claimed.
+
+**Disposition:** the requested completion/handover deletions are implemented in `7a3a2cf` and passed
+all five hosted CI jobs. The subsequent review identified nine groups of follow-up candidates; these
+are documented recommendations, not additional changes to player-facing copy. Scope, examples,
+proposed wording, and intentionally retained information are recorded in
+[copy-redundancy-review.md](copy-redundancy-review.md).
+
+The pass read the current quest/dialogue, world, item/skill, enemy, and service prose and reviewed
+the UI that presents it. In-context inspection confirmed the active journal repeats its completion
+contact twice; inventory counts found 16 generic report prompts, three generic handover prompts, and
+eight equipment descriptions reused across 24 early items. Such counts support the findings; they
+are not a lexical prose-approval rule.
+
+Signed: **Codex**, 2026-09-05.
+
 ## Campaign rebase review: 2026-09-05 (#189–#191)
 
 **Reviewer:** Codex (AI implementor and editorial reviewer), acting on the owner's explicit
