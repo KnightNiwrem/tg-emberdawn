@@ -24,6 +24,17 @@ function walker(id: number, at: string, unlocked: string[]): ReturnType<typeof c
   return p;
 }
 
+/** Pin only synchronous handler work; no random override survives the call. */
+function withFixedRandom<T>(value: number, run: () => T): T {
+  const realRandom = Math.random;
+  Math.random = () => value;
+  try {
+    return run();
+  } finally {
+    Math.random = realRandom;
+  }
+}
+
 // ── the travel view ──────────────────────────────────────────────────────
 
 Deno.test('travel lists only adjacent authorized edges, never every unlocked zone', () => {
@@ -95,10 +106,18 @@ Deno.test('perilous departures stage an explicit confirmation; starter roads sta
   void go;
   retreatFromJourney(p);
   // A two-event road never stages: it departs on the first tap.
-  const q = walker(1705, 'sunspire', ['sunspire', 'frostpeak']);
-  travelAction(q, { v: 'travel', a: 'go', arg: 'w_sunspire_frostpeak' });
-  assert(q.journey !== undefined, 'ordinary roads depart immediately');
-  retreatFromJourney(q);
+  // Both a battle and an all-quiet crossing depart immediately (#186).
+  for (const roll of [0.1, 0.8]) {
+    const q = walker(1705, 'sunspire', ['sunspire', 'frostpeak']);
+    withFixedRandom(
+      roll,
+      () => travelAction(q, { v: 'travel', a: 'go', arg: 'w_sunspire_frostpeak' }),
+    );
+    assertEquals(q.scene.view, roll === 0.1 ? 'battle' : 'zone');
+    assertEquals(q.currentZone, roll === 0.1 ? 'sunspire' : 'frostpeak');
+    assertEquals(q.journey !== undefined, roll === 0.1);
+    retreatFromJourney(q);
+  }
   // Zero-event roads are immediate too.
   const r = walker(1706, 'mirefoot', ['mirefoot', 'hollowmere']);
   travelAction(r, { v: 'travel', a: 'go', arg: 'w_mirefoot_hollowmere' });
@@ -271,7 +290,8 @@ Deno.test('/start during a journey battle still restores battle or death (#170)'
   assert(res2.ok && res2.step.kind === 'battle');
   fallen.battle!.enemy.hp = 999999;
   fallen.hp = 1;
-  battleAction(fallen, { v: 'battle', a: 'atk' });
+  // The enemy strike must land: a random dodge leaves this fixture alive (#186).
+  withFixedRandom(0.5, () => battleAction(fallen, { v: 'battle', a: 'atk' }));
   assertEquals(fallen.battle!.phase, 'lost');
   fallen.scene = { view: 'inventory', arg: '0' };
   fallen.messageId = 900;
