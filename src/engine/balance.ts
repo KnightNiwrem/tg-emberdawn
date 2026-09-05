@@ -23,7 +23,12 @@ import { countOf, removeItem } from './inventory.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
 import { diveDungeon, dungeonOf, encounterEligible, explore, nextDungeonFloor } from './world.ts';
-import { advanceJourney, retreatFromJourney, startJourney } from './journey.ts';
+import {
+  advanceJourney,
+  type JourneyTelemetry,
+  retreatFromJourney,
+  startJourney,
+} from './journey.ts';
 import { completeTravelBattleEvent } from './journey.ts';
 import { resolveRouteById as resolveRouteForSim, usableRoutesFrom } from './routes.ts';
 import { createPostTutorialPlayer } from './tutorial.ts';
@@ -1454,29 +1459,48 @@ export interface StallDiagnostic {
   failures: Record<string, number>;
 }
 
-/** #162: route-level travel metrics, collected from the REAL journeys the
- * campaign sim walks — no teleport or economy bypass exists to hide
- * compound attrition. */
+/** #162/#169: route-level travel metrics, collected from the REAL journeys
+ * the campaign sim walks — no teleport or economy bypass exists to hide
+ * compound attrition. Every event metric comes from the coordinator's
+ * STRUCTURED telemetry records (#169) — rendered prose is never parsed,
+ * so changing narrative text cannot change telemetry. */
 export interface TravelMetrics {
   /** Departures per edge id. */
   edgeAttempts: Record<string, number>;
   /** Successful final arrivals per edge id. */
   edgeArrivals: Record<string, number>;
-  /** Resolved event outcomes by authored kind (flavor/rest/treasure/
-   * battle) across every road the sim walked. */
+  /** Resolved road events by structured kind (flavor/rest/treasure/
+   * battle) across every road the sim walked — one count per resolved
+   * roll, exactly once. Battle records emit when the road PRESENTS a
+   * fight, so this sum can never be lower than `travelBattles`. */
   eventOutcomes: Record<string, number>;
+  /** The same composition per edge id (#169: per-road tuning reads its
+   * own road, not a global blend). */
+  eventOutcomesByEdge: Record<string, Record<string, number>>;
   /** Road fights and the rounds they took. */
   travelBattles: number;
   travelRounds: number;
   /** Deaths and successful flee-escapes on roads. */
   roadDeaths: number;
   roadFlees: number;
-  /** Contextual (non-enemy-table) item finds granted on roads (#158). */
+  /** Contextual (#158) item grants on roads, measured from STRUCTURED
+   * grants only (#169): the coordinator's post-filter `granted` lists and
+   * staged victory `rewards.contextual` — never found-item lines. */
   contextualDrops: number;
-  /** Mean HP fraction on final arrival, over `arrivalSamples`. */
+  /** Raw SUM of per-arrival HP/MP fractions (#169: unambiguous — divide
+   * by `arrivalSamples` for the mean; the finalized means below are what
+   * reports print). The samples are PRE-arrival: the road's condition
+   * when the last coordinator call began, BEFORE any safe-haven full
+   * heal masks it. */
+  hpArrivalSumPct: number;
+  mpArrivalSumPct: number;
+  /** Finalized MEANS over `arrivalSamples`, in [0,1] (#169 — the old
+   * field documented a mean but stored the unnormalized sum). */
   hpPctOnArrival: number;
+  mpPctOnArrival: number;
   arrivalSamples: number;
-  /** Every forced road event the main story required. */
+  /** Every forced road event the main story required — the derived sum
+   * of `eventOutcomes`, finalized with the means. */
   totalRoadEvents: number;
 }
 
@@ -1615,12 +1639,16 @@ export function driveQuests(
       edgeAttempts: {},
       edgeArrivals: {},
       eventOutcomes: {},
+      eventOutcomesByEdge: {},
       travelBattles: 0,
       travelRounds: 0,
       roadDeaths: 0,
       roadFlees: 0,
       contextualDrops: 0,
+      hpArrivalSumPct: 0,
+      mpArrivalSumPct: 0,
       hpPctOnArrival: 0,
+      mpPctOnArrival: 0,
       arrivalSamples: 0,
       totalRoadEvents: 0,
     },
@@ -1630,46 +1658,34 @@ export function driveQuests(
     aranyaGearTier: 0,
     aranyaDeathsBefore: 0,
   };
-  // #162: route-level travel metrics — collected from the REAL journeys
-  // the sim walks; no simulation-only travel or economy bypass exists.
+  // #162/#169: route-level travel metrics — collected from the REAL
+  // journeys the sim walks; no simulation-only travel or economy bypass
+  // exists. Every event metric arrives through the coordinator's
+  // structured telemetry sink — never through rendered prose.
   const travel: TravelMetrics = {
     edgeAttempts: {},
     edgeArrivals: {},
     eventOutcomes: {},
+    eventOutcomesByEdge: {},
     travelBattles: 0,
     travelRounds: 0,
     roadDeaths: 0,
     roadFlees: 0,
     contextualDrops: 0,
+    hpArrivalSumPct: 0,
+    mpArrivalSumPct: 0,
     hpPctOnArrival: 0,
+    mpPctOnArrival: 0,
     arrivalSamples: 0,
     totalRoadEvents: 0,
   };
-  /** Classifies a burst's resolved events by matching its lines against
-   * the road's authored table (the coordinator reports exactly the burst's
-   * events, once, in either the paused report or the arrival lines). */
-  const countEvents = (edgeId: string, lines: readonly string[]): void => {
-    const r = routeDef(edgeId);
-    if (!r) return;
-    const table = [...(r.events ?? [])];
-    for (const v of r.variants ?? []) table.push(...(v.events ?? []));
-    for (const line of lines) {
-      if (line.includes('bars the way')) {
-        travel.eventOutcomes.battle = (travel.eventOutcomes.battle ?? 0) + 1;
-        travel.totalRoadEvents++;
-        continue;
-      }
-      const ev = table.find((e) => 'text' in e && line.includes(e.text));
-      if (ev && ev.kind !== 'battle') {
-        travel.eventOutcomes[ev.kind] = (travel.eventOutcomes[ev.kind] ?? 0) + 1;
-        travel.totalRoadEvents++;
-      }
-      // Contextual drops ride the found-item lines (#158): counted when a
-      // material/consumable the enemy table doesn't carry shows up.
-      if (line.startsWith('🎁') && !table.some((e) => 'text' in e && line.includes(e.text))) {
-        travel.contextualDrops++;
-      }
-    }
+  /** The structured telemetry sink (#169): one record per resolved road
+   * event, emitted by the coordinator at its resolution point. */
+  const onJourneyEvent: JourneyTelemetry = (e) => {
+    travel.eventOutcomes[e.kind] = (travel.eventOutcomes[e.kind] ?? 0) + 1;
+    const byEdge = travel.eventOutcomesByEdge[e.edgeId] ??= {};
+    byEdge[e.kind] = (byEdge[e.kind] ?? 0) + 1;
+    if (e.granted?.length) travel.contextualDrops += e.granted.length;
   };
   /** BFS over currently usable edges — adjacency, unlocks and conditions
    * all honored. Returns the edge-id path, or undefined when disconnected. */
@@ -1746,27 +1762,35 @@ export function driveQuests(
    * recovers through the same flow a player would. */
   const crossEdge = (edgeId: string): boolean => {
     travel.edgeAttempts[edgeId] = (travel.edgeAttempts[edgeId] ?? 0) + 1;
-    const start = startJourney(p, edgeId, rng);
+    // Pre-arrival condition sampling (#169): HP/MP captured BEFORE every
+    // coordinator call; on arrival, the last sample is the road's own
+    // condition — never the safe-haven full heal that masks it.
+    let preHp = p.hp;
+    let preMp = p.mp;
+    const start = startJourney(p, edgeId, rng, onJourneyEvent);
     if (!start.ok) return false;
     let step = start.step;
     let guard = 0;
     while (guard++ < 60) {
       if (step.kind === 'arrived') {
         travel.edgeArrivals[edgeId] = (travel.edgeArrivals[edgeId] ?? 0) + 1;
-        // Arrival condition sampling: HP/MP when the road ends (#162).
         const s = statsOf(p);
-        travel.hpPctOnArrival += s.maxHp > 0 ? p.hp / s.maxHp : 0;
+        travel.hpArrivalSumPct += s.maxHp > 0 ? preHp / s.maxHp : 0;
+        travel.mpArrivalSumPct += s.maxMp > 0 ? preMp / s.maxMp : 0;
         travel.arrivalSamples++;
-        countEvents(edgeId, step.lines);
         return true;
       }
       if (step.kind === 'progress') {
-        step = advanceJourney(p, rng);
+        preHp = p.hp;
+        preMp = p.mp;
+        step = advanceJourney(p, rng, onJourneyEvent);
         continue;
       }
       const outcome = fight(step.battle, 'road');
       if (outcome === 'win') {
-        step = advanceJourney(p, rng);
+        preHp = p.hp;
+        preMp = p.mp;
+        step = advanceJourney(p, rng, onJourneyEvent);
         continue;
       }
       return false;
@@ -1962,6 +1986,11 @@ export function driveQuests(
         // A road victory completes its pending journey event at the ONE
         // owned point (#160), then the crossing resumes.
         if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
+        // #169: contextual zone loot is measured from the STRUCTURED
+        // staged grant — never from rendered lines.
+        if (b.rewards?.contextual?.length) {
+          travel.contextualDrops += b.rewards.contextual.length;
+        }
         result = 'win';
         break;
       }
@@ -2486,6 +2515,17 @@ export function driveQuests(
   report.totalGrindFights = grind;
   report.totalEncounterAttempts = explores;
   report.totalItemsUsed = itemsUsed;
+  // #169: finalize the derived travel metrics — the explicit means over
+  // arrival samples and the derived event total (the exact sum of the
+  // structured outcome counts, by construction).
+  const outcomes = Object.values(travel.eventOutcomes).reduce((a, n) => a + n, 0);
+  travel.totalRoadEvents = outcomes;
+  travel.hpPctOnArrival = travel.arrivalSamples > 0
+    ? travel.hpArrivalSumPct / travel.arrivalSamples
+    : 0;
+  travel.mpPctOnArrival = travel.arrivalSamples > 0
+    ? travel.mpArrivalSumPct / travel.arrivalSamples
+    : 0;
   report.travel = travel;
   return report;
 }

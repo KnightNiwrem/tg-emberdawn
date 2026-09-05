@@ -151,7 +151,7 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
       const granted = contextual.filter((d) => questDropAllowed(p, d.item));
       if (granted.length > 0) {
         rewards.contextual = granted;
-        lines.push(...grantContextualDrops(p, granted));
+        lines.push(...grantContextualDrops(p, granted).lines);
         ready.push(...onItemGain(p));
       }
     }

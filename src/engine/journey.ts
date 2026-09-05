@@ -47,6 +47,33 @@ export type JourneyStart =
  * in depth). Navigation and the journey's own controls stay open. */
 export const JOURNEY_BLOCK = '🧭 Finish the crossing first.';
 
+/**
+ * Structured journey telemetry (#169): plain records emitted by the
+ * coordinator at each road event's RESOLUTION point, in order. Consumers
+ * key on these records, never on rendered prose — changing narrative text
+ * cannot change telemetry, and no line parsing exists anywhere.
+ *  - quiet events (flavor/rest/treasure) emit when they fully resolve;
+ *  - battle events emit when the road PRESENTS the fight (the roll is
+ *    spent on it; a lost/fled fight aborts the crossing with the record
+ *    already emitted — attempt/arrival counts carry the abort);
+ *  - `granted` lists the contextual items the event actually put in the
+ *    bag (the structured grant, post-relevance-filter).
+ */
+export interface JourneyEventRecord {
+  edgeId: string;
+  /** The event's position in the snapshotted plan. */
+  index: number;
+  /** The resolved event's authored kind ('battle' for road fights). */
+  kind: TravelEvent['kind'];
+  /** For battle records: the enemy the road presented. */
+  enemy?: string;
+  /** Contextual item ids this event granted (structured, post-filter). */
+  granted?: string[];
+}
+
+/** Caller-owned telemetry sink: a plain callback, never a global. */
+export type JourneyTelemetry = (e: JourneyEventRecord) => void;
+
 /** The event pool eligible for the NEXT roll at the player's level:
  * battle events honor authored level bands (#73 rule), everything else
  * always rolls. */
@@ -64,22 +91,30 @@ function rollEvent(events: readonly TravelEvent[], level: number, rng: Rng): Tra
   return pool[weightedIndex(rng, pool.map((e) => e.weight))]!;
 }
 
-/** Resolves ONE non-interactive event exactly once; returns its lines.
- * Battle events never reach here. */
-function applyQuietEvent(p: PlayerState, ev: TravelEvent, rng: Rng): string[] {
+/** Resolves ONE non-interactive event exactly once; returns its lines and
+ * the structured list of items it granted. Battle events never reach here. */
+function applyQuietEvent(
+  p: PlayerState,
+  ev: TravelEvent,
+  rng: Rng,
+): { lines: string[]; granted: string[] } {
   switch (ev.kind) {
     case 'flavor':
-      return [`${ev.text}`];
+      return { lines: [`${ev.text}`], granted: [] };
     case 'rest': {
       const s = statsOf(p);
       const healHp = Math.floor(s.maxHp * ev.healPct);
       const healMp = Math.floor(s.maxMp * ev.healPct);
       p.hp = Math.min(s.maxHp, p.hp + healHp);
       p.mp = Math.min(s.maxMp, p.mp + healMp);
-      return [`🌙 ${ev.text}`, `💚 +${healHp} HP · 💧 +${healMp} MP`];
+      return {
+        lines: [`🌙 ${ev.text}`, `💚 +${healHp} HP · 💧 +${healMp} MP`],
+        granted: [],
+      };
     }
     case 'treasure': {
       const lines = [`✨ ${ev.text}`];
+      const granted: string[] = [];
       if (ev.gold) {
         const g = randInt(rng, Math.floor(ev.gold * 0.8), Math.ceil(ev.gold * 1.3));
         p.gold += g;
@@ -87,17 +122,21 @@ function applyQuietEvent(p: PlayerState, ev: TravelEvent, rng: Rng): string[] {
       }
       if (ev.item) {
         lines.push(`🎁 Found: ${itemName(ev.item)}`);
+        granted.push(ev.item);
         for (const qid of grantItem(p, ev.item, 1)) lines.push(questReadyLine(qid));
       }
       if (ev.dropTable) {
         // Contextual route resources (#158) through the ONE shared grant
-        // site — quest-kind drops stay relevance-filtered (#165).
-        lines.push(...grantContextualDrops(p, rollDropTable(ev.dropTable, rng)));
+        // site — quest-kind drops stay relevance-filtered (#165). The
+        // granted ids are the STRUCTURED grant (#169).
+        const rolled = grantContextualDrops(p, rollDropTable(ev.dropTable, rng));
+        lines.push(...rolled.lines);
+        granted.push(...rolled.granted);
       }
-      return lines;
+      return { lines, granted };
     }
     default:
-      return ['The road is quiet.'];
+      return { lines: ['The road is quiet.'], granted: [] };
   }
 }
 
@@ -109,6 +148,7 @@ export function startJourney(
   p: PlayerState,
   edgeId: string,
   rng: Rng = defaultRng,
+  telemetry?: JourneyTelemetry,
 ): JourneyStart {
   if (p.battle) return { ok: false, refusal: '⚔️ Finish the fight first.' };
   if (p.journey) return { ok: false, refusal: '🧭 You are already on the road.' };
@@ -132,7 +172,7 @@ export function startJourney(
     report: [],
   };
   p.journey = journey;
-  return { ok: true, step: advanceJourney(p, rng) };
+  return { ok: true, step: advanceJourney(p, rng, telemetry) };
 }
 
 /** Continues the active journey: resolves the next rolls in order,
@@ -140,7 +180,11 @@ export function startJourney(
  * completes. Never rerolls completed events; stale/double taps are
  * rejected upstream by the revision guard and the battle/journey guards
  * here. */
-export function advanceJourney(p: PlayerState, rng: Rng = defaultRng): JourneyStep {
+export function advanceJourney(
+  p: PlayerState,
+  rng: Rng = defaultRng,
+  telemetry?: JourneyTelemetry,
+): JourneyStep {
   const j = p.journey;
   if (!j) return { kind: 'progress', lines: ['You are not on the road.'] };
   if (p.battle) return { kind: 'progress', lines: ['⚔️ Finish the fight first.'] };
@@ -159,6 +203,15 @@ export function advanceJourney(p: PlayerState, rng: Rng = defaultRng): JourneySt
         // The fight is attached immediately: a paused crossing is ALWAYS a
         // journey + travel-battle pair, never a half-state (#159).
         p.battle = started.battle;
+        // The road PRESENTED a fight — the roll is spent on it (#169):
+        // the battle record emits here, at its resolution point, never
+        // from rendered prose.
+        telemetry?.({
+          edgeId: j.edgeId,
+          index,
+          kind: 'battle',
+          enemy: ev.enemy,
+        });
         // A battle event consumes its roll only at its completion point —
         // victory (or an opening-terminal adjudication) marks it below;
         // the journey stays paused with the roll pending at `index`.
@@ -179,7 +232,14 @@ export function advanceJourney(p: PlayerState, rng: Rng = defaultRng): JourneySt
       j.completedEvents = index + 1;
       continue;
     }
-    report.push(...applyQuietEvent(p, ev, rng));
+    const resolved = applyQuietEvent(p, ev, rng);
+    report.push(...resolved.lines);
+    telemetry?.({
+      edgeId: j.edgeId,
+      index,
+      kind: ev.kind,
+      ...(resolved.granted.length > 0 ? { granted: resolved.granted } : {}),
+    });
     j.completedEvents = index + 1;
   }
   // All rolls consumed — final arrival, exactly once.

@@ -150,30 +150,28 @@ Deno.test('zone loot: a zone without a table and a table that misses both grant 
 Deno.test('zone loot: relevance filter gates quest-kind contextual drops at the shared grant site', () => {
   // The ONE shared contextual grant site serves travel treasure AND
   // victory zone loot; quest-kind drops obey the central relevance filter
-  // exactly like ordinary enemy drops (#2).
+  // exactly like ordinary enemy drops (#2), and the structured granted
+  // list reports what actually entered the bag (#169).
   const suppressed = createPlayer(1655, 'T', 'warrior');
-  assertEquals(
-    grantContextualDrops(suppressed, [{ item: 'q_toxin_sample', qty: 1 }]),
-    [],
-    'no open quest → the contextual drop never enters the bag',
-  );
+  const suppressedOut = grantContextualDrops(suppressed, [{ item: 'q_toxin_sample', qty: 1 }]);
+  assertEquals(suppressedOut.lines, [], 'no open quest → no grant line');
+  assertEquals(suppressedOut.granted, [], 'no open quest → the drop never enters the bag');
   assertEquals(countOf(suppressed, 'q_toxin_sample'), 0);
 
   const needs = createPlayer(1656, 'T', 'warrior');
   needs.quests['m6_toxin'] = { status: 'active', counts: [0] };
   addItem(needs, 'q_toxin_sample', 3);
-  const lines = grantContextualDrops(needs, [{ item: 'q_toxin_sample', qty: 1 }]);
+  const out = grantContextualDrops(needs, [{ item: 'q_toxin_sample', qty: 1 }]);
   assertEquals(countOf(needs, 'q_toxin_sample'), 4, 'granted while an open quest needs it');
-  assert(lines.some((l) => l.includes('ready to turn in')), 'the completing grant readies m6');
+  assertEquals(out.granted, ['q_toxin_sample'], 'the structured grant names the item');
+  assert(out.lines.some((l) => l.includes('ready to turn in')), 'the completing grant readies m6');
 
   const capped = createPlayer(1657, 'T', 'warrior');
   capped.quests['m6_toxin'] = { status: 'active', counts: [0] };
   addItem(capped, 'q_toxin_sample', 4);
-  assertEquals(
-    grantContextualDrops(capped, [{ item: 'q_toxin_sample', qty: 1 }]),
-    [],
-    'cap reached → suppressed',
-  );
+  const cappedOut = grantContextualDrops(capped, [{ item: 'q_toxin_sample', qty: 1 }]);
+  assertEquals(cappedOut.lines, [], 'cap reached → suppressed');
+  assertEquals(cappedOut.granted, [], 'cap reached → nothing granted');
   assertEquals(countOf(capped, 'q_toxin_sample'), 4);
 });
 

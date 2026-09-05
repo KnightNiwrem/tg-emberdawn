@@ -39,17 +39,21 @@ export function rollDropTable(
  * quest-kind drops ALWAYS obey the central relevance filter (#2) and every
  * grant routes through the central item path (collect objectives can
  * complete on the spot, and readiness is announced through questReadyLine).
- * Returns the presentation lines in grant order.
+ * Returns the presentation lines in grant order AND the structured list of
+ * item ids that actually entered the bag (#169: telemetry reads this, never
+ * the rendered lines).
  */
 export function grantContextualDrops(
   p: PlayerState,
   drops: readonly ContextualDrop[],
-): string[] {
+): { lines: string[]; granted: string[] } {
   const lines: string[] = [];
+  const granted: string[] = [];
   for (const drop of drops) {
     if (!questDropAllowed(p, drop.item)) continue;
+    granted.push(drop.item);
     lines.push(`🎁 Found: ${itemName(drop.item)}${drop.qty > 1 ? ` ×${drop.qty}` : ''}`);
     for (const qid of grantItem(p, drop.item, drop.qty)) lines.push(questReadyLine(qid));
   }
-  return lines;
+  return { lines, granted };
 }
