@@ -16,7 +16,13 @@ import {
 } from '../src/engine/story.ts';
 import { createPlayer } from '../src/engine/character.ts';
 import { addItem } from '../src/engine/inventory.ts';
-import { acceptQuest, questExcluded, syncAvailability } from '../src/engine/quests.ts';
+import {
+  acceptQuest,
+  levelLockedMain,
+  questExcluded,
+  syncAvailability,
+} from '../src/engine/quests.ts';
+import { quest } from '../src/content/quests.ts';
 import { npcTopics } from '../src/engine/npc.ts';
 import { findUnresolvedPersistedIds } from '../src/engine/validate.ts';
 import type { PlayerState } from '../src/engine/types.ts';
@@ -337,8 +343,67 @@ Deno.test('topics: authored availability conditions gate lore topics (#125)', ()
 Deno.test('quests: declarative prereq conditions gate availability (#125)', () => {
   const p = hero(1313);
   p.level = 45;
+  syncAvailability(p);
+  assertEquals(p.quests['m25_silence'], undefined);
   p.quests['m24_below'] = { status: 'done', counts: [1] };
-  // m25_silence has no `prereq` authored; legacy fields still gate it.
   syncAvailability(p);
   assertEquals(p.quests['m25_silence']?.status, 'available');
+});
+
+Deno.test('quests: level guidance shares nested story conditions and exclusions (#174)', () => {
+  const q = quest('m2_letter')!;
+  const original = q.prereq;
+  q.prereq = {
+    all: [
+      original!,
+      { any: [{ flag: { id: 'offer_open' } }, { flag: { id: 'alternate_offer' } }] },
+      { not: { flag: { id: 'offer_blocked' } } },
+    ],
+  };
+  try {
+    const p = hero(1740);
+    p.quests['m1_embers'] = { status: 'done', counts: [4] };
+    syncAvailability(p);
+    assertEquals(p.quests[q.id], undefined);
+    assertEquals(levelLockedMain(p), undefined, 'unmet story conditions hide the level hint');
+
+    p.flags['offer_open'] = false; // existence, not truthiness
+    syncAvailability(p);
+    assertEquals(p.quests[q.id], undefined, 'level still gates acceptance');
+    assertEquals(levelLockedMain(p)?.id, q.id);
+    delete p.flags['offer_open'];
+    p.flags['alternate_offer'] = 0;
+    assertEquals(levelLockedMain(p)?.id, q.id, 'either defined flag satisfies any');
+
+    p.flags['offer_blocked'] = true;
+    assertEquals(levelLockedMain(p), undefined, 'negated conditions also hide the hint');
+    delete p.flags['offer_blocked'];
+    p.level = q.level;
+    syncAvailability(p);
+    assertEquals(p.quests[q.id]?.status, 'available');
+    assertEquals(levelLockedMain(p), undefined, 'no hint once the level is sufficient');
+
+    for (const kind of ['locked', 'failed'] as const) {
+      const excluded = hero(1741);
+      excluded.quests['m1_embers'] = { status: 'done', counts: [4] };
+      excluded.flags['offer_open'] = true;
+      excluded.questOutcomes[q.id] = { kind, at: 0 };
+      assertEquals(levelLockedMain(excluded), undefined, `${kind} quests never get a level hint`);
+      excluded.level = q.level;
+      syncAvailability(excluded);
+      assertEquals(excluded.quests[q.id], undefined, `${kind} quests stay unavailable`);
+    }
+  } finally {
+    q.prereq = original;
+  }
+});
+
+Deno.test('quests: authored flag prerequisites preserve existence semantics (#174)', () => {
+  for (const value of [undefined, false, 0, 'visited'] as const) {
+    const p = hero(1742);
+    p.level = 2;
+    if (value !== undefined) p.flags['zone_whisperwood'] = value;
+    syncAvailability(p);
+    assertEquals(p.quests['sq_ore']?.status, value === undefined ? undefined : 'available');
+  }
 });

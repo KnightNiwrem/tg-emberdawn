@@ -1,7 +1,20 @@
 import type { Context } from 'grammy';
-import type { EffectInstance, QuestOutcome } from '../src/engine/types.ts';
+import type { EffectInstance, PlayerState, QuestOutcome } from '../src/engine/types.ts';
 import type { SkillDef, StatKey } from '../src/content/types.ts';
 import { type EffectArena, statPct } from '../src/engine/effects.ts';
+import { arriveAt } from '../src/engine/world.ts';
+import { zone } from '../src/content/zones.ts';
+
+/** Arrange a test arrival through the real arrival authority, without
+ * route events. Gameplay and campaign simulation use the journey engine. */
+export function travelDirect(p: PlayerState, zoneId: string): { ok: boolean; lines: string[] } {
+  const z = zone(zoneId);
+  if (!z) return { ok: false, lines: ["You can't find a road to there."] };
+  if (!p.unlockedZones.includes(zoneId) || p.currentZone === zoneId) {
+    return { ok: false, lines: ['🚫 That path is still closed to you.'] };
+  }
+  return { ok: true, lines: arriveAt(p, zoneId) };
+}
 
 /** A resolved record's named outcome (#150): undefined for anything that is
  * not a resolution — `outcome` is a resolved-only field on QuestOutcome. */

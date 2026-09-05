@@ -14,7 +14,7 @@ import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { grantXp, xpRewardLabel } from './character.ts';
 import { npc, npcInZone } from '../content/quests.ts';
 import { evalCondition } from './conditions.ts';
-import { JOURNEY_BLOCK } from './journey.ts';
+import { JOURNEY_BLOCK } from './routes.ts';
 
 function progress(p: PlayerState, id: string): QuestProgress {
   let q = p.quests[id];
@@ -25,13 +25,10 @@ function progress(p: PlayerState, id: string): QuestProgress {
   return q;
 }
 
-function prereqsMet(p: PlayerState, q: QuestDef): boolean {
-  if (q.prereqQuest && p.quests[q.prereqQuest]?.status !== 'done') return false;
-  if (q.prereqFlags && !q.prereqFlags.some((f) => p.flags[f] !== undefined)) return false;
-  // Declarative prereq condition (#125): the shared condition language,
-  // evaluated when present. ANDed with the legacy fields above.
-  if (q.prereq && !evalCondition(p, q.prereq)) return false;
-  return p.level >= q.level;
+/** Story eligibility shared by availability and level-locked guidance.
+ * Level stays separate so the journal can explain an unmet level gate. */
+function storyEligible(p: PlayerState, q: QuestDef): boolean {
+  return !questExcluded(p, q.id) && (!q.prereq || evalCondition(p, q.prereq));
 }
 
 /** Permanent quest resolutions (#125): a locked or failed quest can never
@@ -47,11 +44,11 @@ export function syncAvailability(p: PlayerState): string[] {
   const newly: string[] = [];
   for (const q of QUESTS) {
     const cur = p.quests[q.id]?.status;
-    if ((cur === undefined || cur === 'unavailable') && !questExcluded(p, q.id)) {
-      if (prereqsMet(p, q)) {
-        progress(p, q.id).status = 'available';
-        newly.push(q.id);
-      }
+    if (
+      (cur === undefined || cur === 'unavailable') && storyEligible(p, q) && p.level >= q.level
+    ) {
+      progress(p, q.id).status = 'available';
+      newly.push(q.id);
     }
   }
   // Pre-owned collectibles can complete a quest the moment it becomes
@@ -61,7 +58,7 @@ export function syncAvailability(p: PlayerState): string[] {
 }
 
 /** The next main quest the STORY has unlocked but the LEVEL still gates
- * (#33): prerequisite quest done / flags set, player level short. The quest
+ * (#33): story conditions pass, player level short. The quest
  * log names it during grind gaps — without an accept path. undefined while
  * the story itself still gates the next quest (never reveal it early) and
  * when the campaign is complete. */
@@ -69,8 +66,7 @@ export function levelLockedMain(p: PlayerState): QuestDef | undefined {
   for (const q of QUESTS) {
     if (!q.main) continue;
     if ((p.quests[q.id]?.status ?? 'unavailable') === 'done') continue;
-    if (q.prereqQuest && p.quests[q.prereqQuest]?.status !== 'done') return undefined;
-    if (q.prereqFlags && !q.prereqFlags.some((f) => p.flags[f] !== undefined)) return undefined;
+    if (!storyEligible(p, q)) return undefined;
     return p.level >= q.level ? undefined : q;
   }
   return undefined;
@@ -380,10 +376,6 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
   // reconciled final state, not from this intermediate flip.
   const ready = onItemGain(p);
   for (const f of r.flags ?? []) p.flags[f] = true;
-  if (r.unlockZone && !p.unlockedZones.includes(r.unlockZone)) {
-    p.unlockedZones.push(r.unlockZone);
-    lines.push(`🗺️ New area unlocked: ${zoneDef(r.unlockZone)?.name ?? r.unlockZone}`);
-  }
   for (const zid of r.unlockZones ?? []) {
     if (!p.unlockedZones.includes(zid)) {
       p.unlockedZones.push(zid);

@@ -14,6 +14,11 @@ import { route as edgeRoute, routesBetween, routesFrom } from '../content/routes
 import { evalCondition } from './conditions.ts';
 import type { PlayerState } from './types.ts';
 
+/** A live crossing owns the interaction flow (#166): zone-bound actions
+ * refuse at both engine and handler entry points. Keep the shared refusal
+ * here so their guards need no dependency on the journey coordinator. */
+export const JOURNEY_BLOCK = '🧭 Finish the crossing first.';
+
 /** The resolved crossing plan for a route: which variant applies, how many
  * forced event rolls the crossing carries, and which table supplies them.
  * `variantId: 'base'` marks the unmodified base plan. */

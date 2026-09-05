@@ -18,7 +18,6 @@ import {
   explore,
   nextDiveIsBoss,
   resolveVictory,
-  travelDirect,
 } from '../src/engine/world.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
@@ -26,7 +25,7 @@ import { isEquippable, item as itemDef } from '../src/content/items.ts';
 import { isDamageSkill, skill as skillDef, skillMaxDamagePower } from '../src/content/skills.ts';
 import type { SkillDef } from '../src/content/types.ts';
 import { zone as zoneDef } from '../src/content/zones.ts';
-import { seeded } from './helpers.ts';
+import { seeded, travelDirect } from './helpers.ts';
 
 function goto(p: PlayerState, zoneId: string): void {
   if (p.currentZone !== zoneId) travelDirect(p, zoneId);

@@ -6,17 +6,12 @@
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { bossGateBlock, diveDungeon, dungeonOf, explore, nextDiveIsBoss } from '../engine/world.ts';
-import {
-  advanceJourney,
-  JOURNEY_BLOCK,
-  retreatFromJourney,
-  startJourney,
-} from '../engine/journey.ts';
+import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, sell, shopAt } from '../engine/shops.ts';
 import { forgeAt, temper } from '../engine/forge.ts';
-import { departureCheck } from '../engine/routes.ts';
+import { departureCheck, JOURNEY_BLOCK } from '../engine/routes.ts';
 import { syncAvailability } from '../engine/quests.ts';
 import { npc, npcInZone } from '../content/quests.ts';
 import { dialogue, dialogueNode } from '../content/dialogues.ts';

@@ -274,6 +274,7 @@ export function startBattle(
             round: battle.round,
             item: it.name,
             trigger: tg.name,
+            triggerKind: tg.trigger,
             success: false,
           });
           opening.push(
@@ -288,6 +289,7 @@ export function startBattle(
           round: battle.round,
           item: it.name,
           trigger: tg.name,
+          triggerKind: tg.trigger,
           success: true,
         });
         opening.push(...runOpening(
@@ -473,6 +475,7 @@ function runReactiveTriggers(
           round: battle.round,
           item: it.name,
           trigger: tg.name,
+          triggerKind: tg.trigger,
           success: false,
         });
         continue;
@@ -498,6 +501,7 @@ function runReactiveTriggers(
         round: battle.round,
         item: it.name,
         trigger: tg.name,
+        triggerKind: tg.trigger,
         success: true,
       });
       lines.push(...executeSpecs(ctx, tg.effects).map((l) => `⚡ ${l}`));

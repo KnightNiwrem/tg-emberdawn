@@ -104,5 +104,9 @@ stay-and-fight defensive tool; Flee still uses SPD separately.
 
 `scripts/balance.ts` (run via `deno task balance`) simulates seeded fights per class against the
 content catalog and snapshots results in `tests/balance_snapshot.json` (`deno task balance:update`
-refreshes it). It parses some generic battle-text lines (the SHIELD_FADE and SHIELD_WASTE regexes in
-`src/engine/balance.ts`) — keep those regexes in sync if the generic effect copy changes.
+refreshes it). Shield grants/waste and equipment procs come from structured trace entries (#176):
+`shieldGranted` sums applied + wasted grant capacity on both sides; `equipProcs` counts successful
+reactive triggers, including during openings, while `procHits` also includes battle-start
+activations. The trace's `triggerKind` distinguishes the authored trigger from its display name. One
+remaining line scanner measures crit/dodge markers, Shield absorption and expiry/loss — keep those
+markers and the SHIELD_ABSORB/SHIELD_FADE regexes in sync if their generic effect copy changes.

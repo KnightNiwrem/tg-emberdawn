@@ -319,7 +319,7 @@ Deno.test('tx: failure after an earlier success leaves the player byte-for-byte 
 
 Deno.test('tx: a flag set earlier in the bundle opens availability for a later start', () => {
   const p = hero(1515);
-  p.level = 2; // sq_ore: level 2, prereqFlags zone_whisperwood, starter Bram
+  p.level = 2; // sq_ore: level 2, requires zone_whisperwood flag, starter Bram
   syncAvailability(p);
   assertEquals(p.quests['sq_ore']?.status ?? 'unavailable', 'unavailable', 'the gate is shut');
   const r = applyStoryEffects(p, [

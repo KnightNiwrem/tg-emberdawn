@@ -40,13 +40,6 @@ export type JourneyStart =
   | { ok: true; step: JourneyStep }
   | { ok: false; refusal: string };
 
-/** The journey owns the interaction flow (#166): while a crossing is
- * live, every zone-bound interaction — NPC/dialogue, quest business,
- * explore, dungeon, shop and forge — is refused with this line, both at
- * the central engine mutations and at the handler entry points (defense
- * in depth). Navigation and the journey's own controls stay open. */
-export const JOURNEY_BLOCK = '🧭 Finish the crossing first.';
-
 /**
  * Structured journey telemetry (#169): plain records emitted by the
  * coordinator at each road event's RESOLUTION point, in order. Consumers

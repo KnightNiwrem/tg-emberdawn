@@ -113,8 +113,10 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 
 - One declarative condition language (`Condition` in `src/content/types.ts`, evaluated pure in
   `src/engine/conditions.ts`) is shared by NPC topic availability (`NpcTopicDef.when`), quest
-  prereqs (`QuestDef.prereq`, ANDed with the legacy `prereqQuest`/`prereqFlags`), and dialogue
-  choices. Content integrity validates condition references (`tests/quest_copy_test.ts`).
+  prerequisites (`QuestDef.prereq`), and dialogue choices. Quest availability and level-locked
+  guidance share story eligibility, including permanent exclusions; the numeric `level` requirement
+  stays separate. A flag condition without `equals` tests existence, including false/0 values.
+  Content integrity validates condition references (`tests/quest_copy_test.ts`).
 - Quest terminal state is queryable (#132): the `questOutcome` condition matches a quest's permanent
   resolution in `p.questOutcomes` by terminal kind and/or named outcome. Semantics: ordinary
   `turnInQuest` completion persists NO outcome entry (query completion with `questStatus: 'done'`);

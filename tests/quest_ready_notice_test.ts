@@ -16,7 +16,7 @@ import {
   questReadyLine,
   syncAvailability,
 } from '../src/engine/quests.ts';
-import { resolveVictory, travelDirect } from '../src/engine/world.ts';
+import { resolveVictory } from '../src/engine/world.ts';
 import { startJourney } from '../src/engine/journey.ts';
 import { battleAction, enterBattle } from '../src/handlers/battle.ts';
 import { dialogueAction, npcAction } from '../src/handlers/hub.ts';
@@ -24,7 +24,7 @@ import { dialogue } from '../src/content/dialogues.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 import { withRev } from '../src/codec.ts';
-import { fakeCtxCapture, seeded } from './helpers.ts';
+import { fakeCtxCapture, seeded, travelDirect } from './helpers.ts';
 
 const readyHits = (lines: string[]): string[] =>
   lines.filter((l) => l.includes('ready to turn in'));

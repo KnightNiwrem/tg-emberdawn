@@ -23,6 +23,7 @@
  * "HP that actually moved" read hpLost/applied, never resolved/attempted. */
 
 import type { EffectSource } from './types.ts';
+import type { EquipTrigger } from '../content/types.ts';
 
 export type CombatSide = 'player' | 'enemy';
 
@@ -112,6 +113,9 @@ export type CombatTraceEntry =
     kind: 'procAttempt';
     round: number;
     item: string;
+    /** Authored trigger kind, separate from its display name. A reactive
+     * trigger can fire during an opening; phase alone cannot identify it. */
+    triggerKind: EquipTrigger['trigger'];
     trigger: string;
     /** True when the attempt executed its effects; false on a missed chance
      * roll. Gated attempts (maxProcs/cooldown) are not attempts at all. */

@@ -7,7 +7,6 @@
 import { assert, assertEquals } from '@std/assert';
 import { createPlayer, CURRENT_STATE_VERSION, statsOf } from '../src/engine/character.ts';
 import { performAction, startBattle } from '../src/engine/combat.ts';
-import { travelDirect } from '../src/engine/world.ts';
 import { addItem } from '../src/engine/inventory.ts';
 import {
   advanceJourney,
@@ -28,7 +27,7 @@ import { handleCallback } from '../src/handlers/callbacks.ts';
 import { withRev } from '../src/codec.ts';
 import { renderJourney } from '../src/render/views.ts';
 import { acceptQuest, syncAvailability } from '../src/engine/quests.ts';
-import { fakeCtxCapture, seeded } from './helpers.ts';
+import { fakeCtxCapture, seeded, travelDirect } from './helpers.ts';
 
 /** A stub rng returning a FIXED sequence, then repeating the last value —
  * journey tables are hand-indexed against the stub in each test. */
@@ -416,7 +415,7 @@ Deno.test('reach objectives complete only on final arrival, once (#159)', () => 
   syncAvailability(p);
   assert(acceptQuest(p, 'm5_fen', 'npc_bram').ok, 'Bram stands in Emberdawn');
   assertEquals(p.quests['m5_fen']!.status, 'active');
-  assert(travelDirect(p, 'mirefoot').ok, 'the sim shim reaches the landing');
+  assert(travelDirect(p, 'mirefoot').ok, 'the arrival fixture reaches the landing');
   // Departure is NOT arrival: the reach objective stays open mid-crossing.
   const res = startJourney(p, 'w_mirefoot_hollowmere');
   assert(res.ok && res.step.kind === 'arrived', 'the poled crossing is deterministic');

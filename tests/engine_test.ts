@@ -35,13 +35,7 @@ import {
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
-import {
-  diveDungeon,
-  dungeonOf,
-  explore,
-  resolveVictory,
-  travelDirect,
-} from '../src/engine/world.ts';
+import { diveDungeon, dungeonOf, explore, resolveVictory } from '../src/engine/world.ts';
 import { startJourney } from '../src/engine/journey.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
@@ -64,6 +58,7 @@ import {
   seeded,
   statmodSpec,
   statPct,
+  travelDirect,
 } from './helpers.ts';
 import { semanticTags } from '../src/engine/effects.ts';
 import type { EffectSpec, EffectTag } from '../src/content/types.ts';
@@ -400,7 +395,9 @@ Deno.test('quest objectives are satisfiable by content design', () => {
     for (const iid of Object.keys(q.rewards.items ?? {})) {
       assert(item(iid), `missing reward item ${iid} in ${q.id}`);
     }
-    if (q.rewards.unlockZone) assert(zone(q.rewards.unlockZone), `missing unlock zone in ${q.id}`);
+    for (const zid of q.rewards.unlockZones ?? []) {
+      assert(zone(zid), `missing unlock zone ${zid} in ${q.id}`);
+    }
   }
 });
 
@@ -900,13 +897,13 @@ Deno.test('save gate: unversioned and older saves fail clearly, unmutated (#44, 
 Deno.test('world: every zone is reachable from the starting zones', () => {
   const granted = new Set<string>(STARTING_ZONES);
   for (const q of QUESTS) {
-    const u = q.rewards.unlockZone;
-    if (u) granted.add(u);
     for (const uz of q.rewards.unlockZones ?? []) granted.add(uz);
   }
   for (const z of ZONES) {
-    const u = z.dungeon?.firstClear?.unlockZone;
-    if (u) granted.add(u);
+    for (const uz of z.dungeon?.firstClear?.unlockZones ?? []) {
+      assert(zone(uz), `missing first-clear unlock zone ${uz} in ${z.id}`);
+      granted.add(uz);
+    }
   }
   for (const z of ZONES) {
     assert(granted.has(z.id), `zone ${z.id} cannot be unlocked by any content`);

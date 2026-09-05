@@ -24,14 +24,14 @@ import {
 } from './quests.ts';
 import { defaultRng, randInt, type Rng, weightedIndex } from './rng.ts';
 import { grantContextualDrops, rollDropTable } from './loot.ts';
-import { JOURNEY_BLOCK } from './journey.ts';
+import { JOURNEY_BLOCK } from './routes.ts';
 import { itemName } from '../content/items.ts';
 
 /**
  * The ONE arrival authority (#159/#160): changes currentZone, restores a
  * safe haven, runs onZoneEnter (the zone flag + reach objectives), and
  * syncs availability — exactly once, only here. The journey coordinator
- * calls it on final arrival; the sim-only shim below routes through it;
+ * calls it on final arrival; test arrival fixtures also route through it;
  * nothing else may move the player between zones.
  */
 export function arriveAt(p: PlayerState, toZone: string): string[] {
@@ -57,23 +57,6 @@ export function arriveAt(p: PlayerState, toZone: string): string[] {
   }
   syncAvailability(p);
   return lines;
-}
-
-/**
- * SIMULATION/TEST-ONLY direct travel (#159 — removed by #162): places the
- * player at `zoneId` through the ONE arrival authority without a journey
- * or route events. Live play never calls this — departures go through the
- * journey coordinator (engine/journey.ts), which enforces adjacency,
- * unlocks and conditions. The balance harness keeps it until it learns to
- * walk the real graph.
- */
-export function travelDirect(p: PlayerState, zoneId: string): { ok: boolean; lines: string[] } {
-  const z = zone(zoneId);
-  if (!z) return { ok: false, lines: ["You can't find a road to there."] };
-  if (!p.unlockedZones.includes(zoneId) || p.currentZone === zoneId) {
-    return { ok: false, lines: ['🚫 That path is still closed to you.'] };
-  }
-  return { ok: true, lines: arriveAt(p, zoneId) };
 }
 
 export type ExploreOutcome =
@@ -518,9 +501,11 @@ function onDungeonVictory(
       ready.push(...grantItem(p, fc.item, 1));
     }
     for (const f of fc.flags ?? []) p.flags[f] = true;
-    if (fc.unlockZone && !p.unlockedZones.includes(fc.unlockZone)) {
-      p.unlockedZones.push(fc.unlockZone);
-      lines.push(`🗺️ New area unlocked: ${zone(fc.unlockZone)?.name ?? fc.unlockZone}`);
+    for (const zid of fc.unlockZones ?? []) {
+      if (!p.unlockedZones.includes(zid)) {
+        p.unlockedZones.push(zid);
+        lines.push(`🗺️ New area unlocked: ${zone(zid)?.name ?? zid}`);
+      }
     }
     lines.push(...xpLines);
   }

@@ -38,7 +38,7 @@ import {
 import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { npcAction, shopAction, zoneAction } from '../src/handlers/hub.ts';
 import { npcTopics } from '../src/engine/npc.ts';
-import { explore, resolveVictory, travelDirect } from '../src/engine/world.ts';
+import { explore, resolveVictory } from '../src/engine/world.ts';
 import {
   npc,
   quest,
@@ -66,6 +66,7 @@ import {
   modRemaining,
   seeded,
   statPct,
+  travelDirect,
 } from './helpers.ts';
 
 // ── /start is pure re-centering (P0-2) ───────────────────────────────────
@@ -1557,7 +1558,7 @@ Deno.test("quest contacts are reachable at the quest's point in the progression 
     const fz = zoneOfNpc(q.finishNpc)!.id;
     assert(unlocked.has(sz), `${q.id}: starter zone ${sz} is unreachable at its point`);
     assert(unlocked.has(fz), `${q.id}: finisher zone ${fz} is unreachable at its point`);
-    if (q.rewards.unlockZone) unlocked.add(q.rewards.unlockZone);
+    for (const zid of q.rewards.unlockZones ?? []) unlocked.add(zid);
   }
 });
 

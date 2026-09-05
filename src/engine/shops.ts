@@ -17,7 +17,7 @@ import { isEquippable, item, itemName, sellPrice } from '../content/items.ts';
 import { removeItem } from './inventory.ts';
 import { grantItem, questReadyLine } from './quests.ts';
 import { evalCondition } from './conditions.ts';
-import { JOURNEY_BLOCK } from './journey.ts';
+import { JOURNEY_BLOCK } from './routes.ts';
 
 /** One resolvable shelf entry: the item and the price THIS shop charges
  * for it (authored local price rules included). */

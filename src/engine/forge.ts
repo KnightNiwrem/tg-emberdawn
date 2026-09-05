@@ -21,7 +21,7 @@ import { forgeInZone } from '../content/facilities.ts';
 import { removeItem } from './inventory.ts';
 import { item, itemName } from '../content/items.ts';
 import { evalCondition } from './conditions.ts';
-import { JOURNEY_BLOCK } from './journey.ts';
+import { JOURNEY_BLOCK } from './routes.ts';
 
 export const MAX_TEMPER = 5;
 

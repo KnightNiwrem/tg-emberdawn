@@ -24,7 +24,8 @@ and must stay green.
 6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
    engine also filters them). Battles belong in the wilds players travel to.
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest or dungeon
-   `unlockZone` reward — the zone-reachability test enforces this.
+   `unlockZones` reward array — the zone-reachability test enforces this. Quests and dungeon
+   first-clears list zones in authored order; existing unlocks are not granted or announced again.
 8. `learnLevel: 1` skills are granted at creation. Save-schema questions after persisted-shape
    changes follow `emberdawn-persistence`.
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or

@@ -18,7 +18,6 @@ import {
   dungeonOf,
   explore,
   resolveVictory,
-  travelDirect,
 } from '../src/engine/world.ts';
 import { onLethalHit, performAction, startBattle } from '../src/engine/combat.ts';
 import { applyInstance } from '../src/engine/effects.ts';
@@ -28,7 +27,7 @@ import { ENEMIES, enemy } from '../src/content/enemies.ts';
 import { SHOPS } from '../src/content/facilities.ts';
 import type { BattleState, PlayerState } from '../src/engine/types.ts';
 import type { DungeonDef } from '../src/content/types.ts';
-import { seeded } from './helpers.ts';
+import { seeded, travelDirect } from './helpers.ts';
 
 // ── content maps: where can each enemy be fought? ─────────────────────────
 

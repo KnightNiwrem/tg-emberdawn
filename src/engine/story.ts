@@ -76,7 +76,7 @@ import {
 } from './quests.ts';
 import { onStoryEvent } from './quests.ts';
 import { evalCondition } from './conditions.ts';
-import { JOURNEY_BLOCK } from './journey.ts';
+import { JOURNEY_BLOCK } from './routes.ts';
 
 /** The central story-path authorities. (StoryEffect itself is content
  * data — see content/types.ts.) */

@@ -535,10 +535,6 @@ export interface QuestDef {
   name: string;
   main: boolean;
   chapter: number;
-  /** Auto-granted when this flag set contains any of these flags. */
-  prereqFlags?: string[];
-  /** Quest id that must be done first. */
-  prereqQuest?: string;
   /** Level requirement to pick up. */
   level: number;
   summary: string;
@@ -563,10 +559,7 @@ export interface QuestDef {
     items?: Record<string, number>;
     /** Flags set on completion. */
     flags?: string[];
-    /** Zone unlocked on completion. */
-    unlockZone?: string;
-    /** Additional zones unlocked on completion (#161: multi-zone rewards,
-     * e.g. a settlement beside the main destination). */
+    /** Zones unlocked on completion, in authored order. */
     unlockZones?: string[];
   };
   /** NPC id whose dialogue offers (starts) this quest — the physical
@@ -575,8 +568,8 @@ export interface QuestDef {
   /** NPC id whose dialogue accepts the turn-in — independent of the starter
    * so delivery flows (start with A, finish with B) are expressible (#63). */
   finishNpc: string;
-  /** Optional declarative prereq (#125): the shared condition language,
-   * ANDed with the legacy prereqQuest/prereqFlags fields. */
+  /** Story prerequisites in the shared condition language. Combined with
+   * the separate level requirement and permanent quest exclusions. */
   prereq?: Condition;
   /** Legal NAMED completion outcomes (#132) this quest can be resolved
    * with (`resolveQuest` story effects and `questOutcome` conditions are
@@ -640,7 +633,13 @@ export interface DungeonDef {
    * (inescapable) demands an explicit confirmation before it starts. */
   recommendedLevel?: number;
   /** First-clear rewards, granted when the boss falls. */
-  firstClear?: { xp: number; gold: number; item?: string; flags?: string[]; unlockZone?: string };
+  firstClear?: {
+    xp: number;
+    gold: number;
+    item?: string;
+    flags?: string[];
+    unlockZones?: string[];
+  };
 }
 
 export interface ZoneDef {

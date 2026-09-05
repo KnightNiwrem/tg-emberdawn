@@ -380,11 +380,14 @@ export interface FightResult {
   dodges: number;
   healDone: number;
   overheal: number;
+  /** New grant capacity on both sides: applied pool growth + wasted
+   * capacity. Reapplications adding no capacity contribute zero. */
   shieldGranted: number;
   shieldAbsorbed: number;
   shieldWasted: number;
   shieldExpiryLost: number;
-  /** Reactive equipment procs that fired this fight (#82). */
+  /** Successful reactive equipment triggers, including reactions during
+   * openings. Excludes battleStart activations (included in procHits). */
   equipProcs: number;
   /** Rounds lost to control (the hero was stunned out of acting) (#84). */
   skippedRounds: number;
@@ -506,55 +509,22 @@ export function runFight(
     const b = started.battle;
     p.battle = b;
     events.push(...started.trace);
-    // Line metric regexes (#84): only presentation the events cannot express
-    // — crit/dodge markers and the shield grant/absorb/waste/fade
-    // decomposition. #95: dealt/taken/heals come ONLY from typed events.
+    // Only metrics the current trace does not express remain line-based:
+    // crit/dodge markers, Shield absorption and expired/lost capacity.
     const CRIT = '— critical';
     const DODGE = 'slip aside';
-    const SHIELD_GRANT = /absorbing up to (\d+)/;
     const SHIELD_ABSORB = /🛡️ (\d+) absorbed/;
-    const SHIELD_WASTE = /(\d+) over Shield capacity/;
     // #121 canonical wording: the pool is always "Shield".
     const SHIELD_FADE = /(\d+) Shield capacity fades/;
-    /** Line-metric scan (#74 regexes) — now also fed the resolved opening
-     * log ONCE per fight (#84): opening shields are outcomes of the fight
-     * and must count toward grant/absorb metrics. #95: dealt/taken/heals
-     * come ONLY from typed events — never from presentation text. */
+    /** Openings and rounds use the same remaining presentation metrics. */
     const scanLines = (lines: readonly string[]): void => {
       for (const line of lines) {
         if (line.includes(CRIT)) result.crits++;
         if (line.includes(DODGE)) result.dodges++;
-        const granted = SHIELD_GRANT.exec(line);
-        if (granted) result.shieldGranted += Number(granted[1]);
         const absorbed = SHIELD_ABSORB.exec(line);
         if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
-        const wasted = SHIELD_WASTE.exec(line);
-        if (wasted) result.shieldWasted += Number(wasted[1]);
         const faded = SHIELD_FADE.exec(line);
         if (faded) result.shieldExpiryLost += Number(faded[1]);
-        // ⚡-prefixed lines are reactive equipment procs (#82).
-        if (line.startsWith('⚡ ')) result.equipProcs++;
-      }
-    };
-    /** Round-line scan (#88): only per-event regexes remain — dealt/taken/
-     * heals now come from per-round HP deltas, so strike/DoT/heal text can
-     * never double-count or miss (DoT lines never matched the strike
-     * regexes). Shield grant/absorb/waste/fade stay line-parsed: that
-     * decomposition isn't recoverable from HP deltas. */
-    const scanRoundLines = (lines: readonly string[]): void => {
-      for (const line of lines) {
-        if (line.includes(CRIT)) result.crits++;
-        if (line.includes(DODGE)) result.dodges++;
-        const granted = SHIELD_GRANT.exec(line);
-        if (granted) result.shieldGranted += Number(granted[1]);
-        const absorbed = SHIELD_ABSORB.exec(line);
-        if (absorbed) result.shieldAbsorbed += Number(absorbed[1]);
-        const wasted = SHIELD_WASTE.exec(line);
-        if (wasted) result.shieldWasted += Number(wasted[1]);
-        const faded = SHIELD_FADE.exec(line);
-        if (faded) result.shieldExpiryLost += Number(faded[1]);
-        // ⚡-prefixed lines are reactive equipment procs (#82).
-        if (line.startsWith('⚡ ')) result.equipProcs++;
       }
     };
     if (b.opening?.lines.length) scanLines(b.opening.lines);
@@ -599,7 +569,7 @@ export function runFight(
           if (isDispelSkill(cast)) result.dispelCasts++;
         }
       }
-      scanRoundLines(res.lines);
+      scanLines(res.lines);
       if (action.kind === 'guard') {
         result.guardRounds++;
         result.mpFromGuard += Math.max(0, p.mp - mpBefore);
@@ -657,9 +627,16 @@ export function runFight(
         case 'shieldBreak':
           result.shieldBreaks++;
           break;
+        case 'shieldGrant':
+          result.shieldGranted += e.applied + e.wasted;
+          result.shieldWasted += e.wasted;
+          break;
         case 'procAttempt':
           result.procAttempts++;
-          if (e.success) result.procHits++;
+          if (e.success) {
+            result.procHits++;
+            if (e.triggerKind !== 'battleStart') result.equipProcs++;
+          }
           break;
         case 'effectApplied':
           // #93: only outcomes that activate a payload count as applications
@@ -673,7 +650,6 @@ export function runFight(
       }
     }
   }
-  if (result.outcome === 'timeout') result.outcome = 'timeout';
   const s = statsOf(p);
   result.rounds = rounds;
   result.hpPct = s.maxHp > 0 ? p.hp / s.maxHp : 0;
@@ -827,6 +803,7 @@ export interface CellStat {
   dodgesPerFight: number;
   healPerFight: number;
   overhealPerFight: number;
+  /** Mean new Shield grant capacity (applied + wasted), both sides. */
   avgShieldGranted: number;
   avgShieldAbsorbed: number;
   avgShieldWasted: number;
@@ -2297,7 +2274,7 @@ export function driveQuests(
       const ds = dungeonSourceFor(target);
       if (ds) {
         goto(ds.zoneId);
-        const res = diveDungeonLocal(p, ds.d, rng);
+        const res = diveDungeon(p, ds.d, rng);
         if (res.ok && res.battle) {
           if (fight(res.battle, 'objective') !== 'win') restock();
         } else {
@@ -2326,7 +2303,7 @@ export function driveQuests(
       const d = dungeonOf(zoneDef(zoneId)!);
       if (!d) return false;
       goto(zoneId);
-      const res = diveDungeonLocal(p, d, rng);
+      const res = diveDungeon(p, d, rng);
       if (!res.ok || !res.battle) {
         restock();
         continue;
@@ -2528,16 +2505,6 @@ export function driveQuests(
     : 0;
   report.travel = travel;
   return report;
-}
-
-// Local shims so the progression sim never imports handler code. These
-// re-export the pure engine entry points under stable local names.
-function diveDungeonLocal(
-  p: PlayerState,
-  d: NonNullable<ZoneDef['dungeon']>,
-  rng: Rng,
-): { ok: boolean; battle?: BattleState; lines: string[] } {
-  return diveDungeon(p, d, rng);
 }
 
 function seededRng(seed: number): Rng {
