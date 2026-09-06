@@ -208,12 +208,21 @@ export const ZONES: readonly ZoneDef[] = [
       bossGate: { quest: 'm3_roots', requireDone: false },
       recommendedLevel: 7,
       floors: [
-        // #73: the first two normal floors GUARANTEE the two Iron Chunks
+        // #73: the first battle cache and the abandoned pack GUARANTEE two Iron Chunks
         // m5_arms asks for — the quest's taught route (Mycelid iron in the
         // Hollow) must be reliable, not a 4.8% dice roll. Mycelids keep
         // their ordinary 30% bonus drop on top.
         { enemies: ['e_spider', 'e_mycelid'], treasure: { gold: 60, item: 'm_iron_chunk' } },
-        { enemies: ['e_mycelid', 'e_thornling'], treasure: { item: 'm_iron_chunk' } },
+        { enemies: ['e_mycelid', 'e_thornling'] },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Abandoned Pack',
+            text:
+              'You follow a narrow root into a hollow beneath the webbing. A split pack lies beside the path, its canvas stiff with soil. Beyond it, fresh silk covers the descent.',
+          },
+          treasure: { item: 'm_iron_chunk' },
+        },
         { enemies: ['e_thornling', 'e_spider', 'e_mycelid'], treasure: { item: 'c_potion' } },
       ],
       firstClear: { xp: 400, gold: 250, item: 't_12', flags: ['rootboundCleared'] },
@@ -361,7 +370,16 @@ export const ZONES: readonly ZoneDef[] = [
       recommendedLevel: 14,
       floors: [
         { enemies: ['e_drowned', 'e_boglin'], treasure: { gold: 140 } },
-        { enemies: ['e_drowned', 'e_serpent'], treasure: { item: 'c_ether' } },
+        { enemies: ['e_drowned', 'e_serpent'] },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Sluice Walk',
+            text:
+              "You cross a narrow ledge above the stopped sluice. A keeper's supply tin sits wedged between the stones. Water presses against the sealed gate below.",
+          },
+          treasure: { item: 'c_ether' },
+        },
         { enemies: ['e_serpent', 'e_drowned', 'e_leech'] },
       ],
       firstClear: { xp: 1400, gold: 700, item: 't_13', flags: ['sunkenCleared'] },
@@ -457,6 +475,14 @@ export const ZONES: readonly ZoneDef[] = [
       floors: [
         { enemies: ['e_chronowisp', 'e_automaton'], treasure: { gold: 260 } },
         { enemies: ['e_automaton', 'e_chronowisp', 'e_sentinel'] },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Daylight Ledger',
+            text:
+              'You pass a desk beneath a shuttered window. The open ledger lists daylight collected from farms outside the city. Each entry bears the royal seal.',
+          },
+        },
         { enemies: ['e_automaton', 'e_chronowisp'], treasure: { item: 'c_greater_potion' } },
       ],
       firstClear: { xp: 3600, gold: 1600, item: 't_14', flags: ['vaultCleared'] },
@@ -536,6 +562,14 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_iceling', 'e_frostwraith'], treasure: { gold: 420 } },
         {
           enemies: ['e_yeti', 'e_frostwraith', 'e_iceling'],
+        },
+        {
+          enemies: [],
+          discovery: {
+            name: "The Warden's Shelf",
+            text:
+              "You edge along a shelf marked with the old wardens' emblems. A supply niche opens above the ice. Far below, roots run toward the sheltered flame.",
+          },
           treasure: { item: 'c_greater_ether' },
         },
         { enemies: ['e_yeti', 'e_marauder', 'e_iceling'] },
@@ -621,6 +655,14 @@ export const ZONES: readonly ZoneDef[] = [
         { enemies: ['e_cinderhound', 'e_salamander'], treasure: { gold: 700 } },
         {
           enemies: ['e_forge_warden', 'e_revenant', 'e_salamander'],
+        },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Binding Channel',
+            text:
+              'You follow a dry channel cut through the lava. Scorch marks spread from its iron grate. Royal bands cross the stone ahead, drawing heat toward the surface.',
+          },
           treasure: { item: 'c_phoenix_feather' },
         },
         { enemies: ['e_magmaslime', 'e_forge_warden', 'e_revenant'] },
@@ -700,7 +742,16 @@ export const ZONES: readonly ZoneDef[] = [
       recommendedLevel: 43,
       floors: [
         { enemies: ['e_crownsworn', 'e_shattered'], treasure: { gold: 1200 } },
-        { enemies: ['e_nightgaunt', 'e_horror', 'e_regalia'], treasure: { item: 'c_elixir' } },
+        { enemies: ['e_nightgaunt', 'e_horror', 'e_regalia'] },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Divided Gallery',
+            text:
+              "You cross a gallery split down the middle. A servant's tray stands beside the fracture. Portraits above it show the same king growing older.",
+          },
+          treasure: { item: 'c_elixir' },
+        },
         { enemies: ['e_crownsworn', 'e_regalia', 'e_watcher'] },
       ],
       firstClear: { xp: 45000, gold: 15000, item: 't_17', flags: ['crownRestored'] },
@@ -779,7 +830,16 @@ export const ZONES: readonly ZoneDef[] = [
       recommendedLevel: 43,
       floors: [
         { enemies: ['e_voidspawn', 'e_nullhound'], treasure: { gold: 1800 } },
-        { enemies: ['e_echo', 'e_voidspawn', 'e_nullhound'], treasure: { item: 'c_elixir' } },
+        { enemies: ['e_echo', 'e_voidspawn', 'e_nullhound'] },
+        {
+          enemies: [],
+          discovery: {
+            name: 'The Path Marker',
+            text:
+              'You reach a cairn built from pale stones. A supply tin sits beneath its base. The next marker stands within sight, close enough to keep the path through the dark.',
+          },
+          treasure: { item: 'c_elixir' },
+        },
         { enemies: ['e_echo', 'e_nullhound', 'e_voidspawn'] },
       ],
       firstClear: { xp: 90000, gold: 30000, item: 't_18', flags: ['seamCleared'] },

@@ -44,7 +44,7 @@ import { ENEMIES, enemy } from '../content/enemies.ts';
 import { item } from '../content/items.ts';
 import { npc, quest, QUESTS } from '../content/quests.ts';
 import { skill } from '../content/skills.ts';
-import { zone } from '../content/zones.ts';
+import { zone, ZONES } from '../content/zones.ts';
 import { route } from '../content/routes.ts';
 import { dropTable } from '../content/loot.ts';
 import type { StoryEffect, TravelEvent } from '../content/types.ts';
@@ -310,6 +310,22 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
     ) {
       // Floors are 1-based; floors.length + 1 is the boss floor (world.ts).
       bad('battle.origin', String(origin.floor), 'floor outside the dungeon');
+    } else {
+      const d = z.dungeon;
+      const bossFloor = origin.floor === d.floors.length + 1;
+      if (origin.boss !== bossFloor || b.enemy.isBoss !== bossFloor) {
+        bad(
+          'battle.origin',
+          String(origin.floor),
+          'boss classification does not match authored floor',
+        );
+      }
+      const room = d.floors[origin.floor - 1];
+      if (!bossFloor && room.discovery) {
+        bad('battle.origin', String(origin.floor), 'discovery floor cannot contain a battle');
+      } else if (bossFloor ? b.enemy.id !== d.boss : !room.enemies.includes(b.enemy.id)) {
+        bad('battle.enemy', b.enemy.id, 'enemy does not belong to the authored dungeon floor');
+      }
     }
   }
   for (const id of Object.keys(b.cooldowns)) {
@@ -476,6 +492,14 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
     }
   }
   for (const key of Object.keys(p.flags)) {
+    if (key.startsWith('dgn_')) {
+      const known = ZONES.some((z) =>
+        z.dungeon &&
+        (key === `dgn_${z.dungeon.id}_boss` ||
+          z.dungeon.floors.some((_, index) => key === `dgn_${z.dungeon!.id}_cache_${index + 1}`))
+      );
+      if (!known) bad('flags', key, 'unknown dungeon reward identity');
+    }
     for (const prefix of ['gather_', 'gatherReset_']) {
       if (key.startsWith(prefix) && !zone(key.slice(prefix.length))) {
         bad('flags', key, 'unknown gathering zone id');
@@ -526,6 +550,43 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
         `not the live crossing origin (${p.journey.fromZone}) — send /reset to start fresh`,
       );
     }
+  }
+  if (p.dungeonRun) {
+    const run = p.dungeonRun;
+    const d = zone(run.zoneId)?.dungeon;
+    if (!d || d.id !== run.dungeonId) {
+      bad('dungeonRun', run.dungeonId, 'unknown dungeon for run zone');
+    }
+    if (p.currentZone !== run.zoneId) bad('dungeonRun', run.zoneId, 'run is outside current zone');
+    if (p.journey) bad('dungeonRun', run.dungeonId, 'run cannot coexist with a journey');
+    if (
+      !Number.isInteger(run.nextFloor) || run.nextFloor < 1 ||
+      (d && run.nextFloor > d.floors.length + 1)
+    ) {
+      bad('dungeonRun.nextFloor', String(run.nextFloor), 'floor outside the dungeon');
+    }
+    if (p.battle) {
+      const b = p.battle;
+      const origin = b.origin;
+      if (
+        origin.kind !== 'dungeon' || origin.zoneId !== run.zoneId ||
+        origin.dungeonId !== run.dungeonId ||
+        (b.phase === 'won'
+          ? origin.boss || origin.floor + 1 !== run.nextFloor
+          : b.phase !== 'active' || origin.floor !== run.nextFloor)
+      ) {
+        bad('dungeonRun', run.dungeonId, 'battle does not match run progress');
+      }
+    }
+  } else if (
+    p.battle?.origin.kind === 'dungeon' &&
+    (p.battle.phase === 'active' || (p.battle.phase === 'won' && !p.battle.origin.boss))
+  ) {
+    bad(
+      'battle.origin',
+      p.battle.origin.dungeonId,
+      'unfinished dungeon battle sequence without a run',
+    );
   }
   if (p.battle) validateBattle(p.battle, bad, p.journey);
   return problems;

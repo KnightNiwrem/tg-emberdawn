@@ -3,12 +3,12 @@
  * Each handler mutates PlayerState only — I/O lives in session.ts.
  */
 
+import { DUNGEON_BLOCK } from '../engine/dungeon_run.ts';
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { bossGateBlock, diveDungeon, dungeonOf, explore, nextDiveIsBoss } from '../engine/world.ts';
+import { abandonDungeon, bossGateBlock, diveDungeon, dungeonOf, explore } from '../engine/world.ts';
 import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
-import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, offeredPrice, sell, shopAt } from '../engine/shops.ts';
 import { gather } from '../engine/gathering.ts';
 import { craft, recipesAt } from '../engine/crafting.ts';
@@ -73,24 +73,19 @@ function diveAction(p: PlayerState, confirmed = false): MutationResult {
   const z = zoneDef(p.currentZone);
   const d = z ? dungeonOf(z) : undefined;
   if (!z || !d) return { toast: 'No dungeon here.' };
-  const boss = enemyDef(d.boss);
-  if (
-    !confirmed &&
-    nextDiveIsBoss(p, d) &&
-    d.recommendedLevel !== undefined &&
-    p.level < d.recommendedLevel
-  ) {
+  if (!p.dungeonRun && !confirmed) {
     p.scene = { view: 'zone', arg: 'bossok' };
-    return {
-      toast: `Readiness check: ${boss?.name ?? 'the boss'} is Lv ${
-        boss?.level ?? '?'
-      }, tuned for Lv ${d.recommendedLevel}. This fight cannot be fled.`,
-    };
+    return {};
+  }
+  if (confirmed && (p.dungeonRun || p.scene.view !== 'zone' || p.scene.arg !== 'bossok')) {
+    return { toast: 'Open the dungeon entrance first.' };
   }
   const res = diveDungeon(p, d);
   if (!res.ok || !res.battle) {
+    if (!res.ok) return { toast: res.lines[0] ?? bossGateBlock(p, d) };
     p.notices = res.lines;
-    return { toast: res.lines[0] ?? bossGateBlock(p, d) };
+    p.scene = { view: 'zone' };
+    return {};
   }
   // #96: enterBattle resolves the opening's explicit adjudication.
   return enterBattle(p, res.battle, res.outcome ?? 'ongoing', res.lines);
@@ -194,6 +189,9 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
 }
 
 export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResult {
+  if (p.dungeonRun && !['hm', 'dg', 'dx', 'ch', 'inv', 'sk', 'q'].includes(cb.a)) {
+    return { toast: DUNGEON_BLOCK };
+  }
   switch (cb.a) {
     case 'hm':
       // Returning "home" from any panel preserves a live crossing (#159):
@@ -236,6 +234,13 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
     }
     case 'dg':
       return diveAction(p);
+    case 'dx': {
+      const res = abandonDungeon(p);
+      if (!res.ok) return { toast: res.lines[0] };
+      p.notices = res.lines;
+      p.scene = { view: 'zone' };
+      return {};
+    }
     case 'dgb':
       // Explicit confirmation for an under-level boss dive (#73).
       return diveAction(p, true);

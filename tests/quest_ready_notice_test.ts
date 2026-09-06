@@ -103,6 +103,8 @@ Deno.test('ready notice: a dungeon objective completed by the boss clear surface
     boss: true,
   } as const;
 
+  p.currentZone = origin.zoneId;
+  p.dungeonRun = { zoneId: origin.zoneId, dungeonId: origin.dungeonId, nextFloor: origin.floor };
   const b = startBattle('e_warden', origin, { player: p, rng: seeded(43) })!.battle;
   b.enemy.hp = 0;
   const lines = resolveVictory(p, b, seeded(44));
@@ -115,6 +117,7 @@ Deno.test('ready notice: a dungeon objective completed by the boss clear surface
   );
 
   // A rematch clear never repeats it.
+  p.dungeonRun = { zoneId: origin.zoneId, dungeonId: origin.dungeonId, nextFloor: origin.floor };
   const rematch = startBattle('e_warden', origin, { player: p, rng: seeded(45) })!.battle;
   rematch.enemy.hp = 0;
   assertEquals(readyHits(resolveVictory(p, rematch, seeded(46))), [], 'rematch stays silent');

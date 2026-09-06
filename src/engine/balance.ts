@@ -20,9 +20,17 @@ import { performAction, type PlayerAction, startBattle } from './combat.ts';
 import { resolveVictory } from './world.ts';
 import { buy, resolveStock } from './shops.ts';
 import { countOf, removeItem } from './inventory.ts';
+import { useRecoveryItem } from './supplies.ts';
 import { acceptQuest, onStoryEvent, syncAvailability, turnInQuest } from './quests.ts';
 import { clampPools } from './character.ts';
-import { diveDungeon, dungeonOf, encounterEligible, explore, nextDungeonFloor } from './world.ts';
+import {
+  abandonDungeon,
+  diveDungeon,
+  dungeonOf,
+  encounterEligible,
+  explore,
+  nextDungeonFloor,
+} from './world.ts';
 import {
   advanceJourney,
   type JourneyTelemetry,
@@ -1599,6 +1607,7 @@ export function runCampaignFight(
   kind: 'objective' | 'grind' | 'road',
   rng: Rng,
 ): CampaignFightResult {
+  p.battle = b;
   const result: CampaignFightResult = {
     outcome: 'retreat',
     rounds: 0,
@@ -1640,10 +1649,78 @@ export function runCampaignFight(
       break;
     }
   }
+  // Live Continue dismisses a terminal battle before any next floor or world action.
+  if (result.outcome !== 'retreat') p.battle = undefined;
+  if (result.outcome === 'retreat' && b.origin.kind === 'dungeon') {
+    p.battle = undefined;
+    abandonDungeon(p);
+  }
   if (kind === 'road') {
     p.battle = undefined;
     // A timeout abandons the crossing through the live retreat authority.
     if (result.outcome !== 'win' && p.journey) retreatFromJourney(p);
+  }
+  return result;
+}
+
+/** Use only carried supplies between rooms; thresholds leave some missing
+ * resources rather than spending a whole potion on trivial damage. */
+function prepareDungeonFloor(p: PlayerState): number {
+  if (!p.dungeonRun || p.battle) return 0;
+  let used = 0;
+  for (
+    const [pool, maximum, shelf] of [
+      ['hp', 'maxHp', HEAL_ITEMS],
+      ['mp', 'maxMp', MP_ITEMS],
+    ] as const
+  ) {
+    while (p[pool] < statsOf(p)[maximum] * 0.75) {
+      const id = shelf.find((candidate) => countOf(p, candidate) > 0);
+      if (!id || !useRecoveryItem(p, id).ok) break;
+      used++;
+    }
+  }
+  return used;
+}
+
+/** One uninterrupted, real dungeon run. Callers prepare gear, quest access and
+ * a finite inventory before entry. Every floor shares one hero: no pool refill,
+ * remote shop, or cloned per-fight state conceals attrition. */
+export function runDungeon(
+  hero: PlayerState,
+  dungeon: DungeonDef,
+  rng: Rng,
+): {
+  outcome: 'win' | 'death' | 'retreat' | 'fled' | 'blocked';
+  itemsUsed: number;
+  rounds: number;
+  floors: { floor: number; hp: number; mp: number; battle: boolean }[];
+} {
+  const p = structuredClone(hero);
+  const result: ReturnType<typeof runDungeon> = {
+    outcome: 'blocked',
+    itemsUsed: 0,
+    rounds: 0,
+    floors: [],
+  };
+  for (let step = 0; step <= dungeon.floors.length; step++) {
+    result.itemsUsed += prepareDungeonFloor(p);
+    const floor = nextDungeonFloor(p, dungeon);
+    const entered = diveDungeon(p, dungeon, rng);
+    if (!entered.ok) return result;
+    result.floors.push({ floor, hp: p.hp, mp: p.mp, battle: !!entered.battle });
+    if (!entered.battle) continue;
+    const fought = runCampaignFight(p, entered.battle, 'objective', rng);
+    result.rounds += fought.rounds;
+    result.itemsUsed += fought.itemsUsed;
+    if (fought.outcome !== 'win') {
+      result.outcome = fought.outcome;
+      return result;
+    }
+    if (entered.battle.origin.kind === 'dungeon' && entered.battle.origin.boss) {
+      result.outcome = 'win';
+      return result;
+    }
   }
   return result;
 }
@@ -1877,6 +1954,7 @@ export function driveQuests(
    * deaths and aborted crossings by resting at the nearest shop — the
    * same loop a determined player runs. The sim can no longer teleport. */
   const goto = (zoneId: string): void => {
+    if (p.dungeonRun && p.currentZone !== zoneId) abandonDungeon(p);
     let guard = 0;
     while (p.currentZone !== zoneId && guard++ < 25) {
       if (walkTo(zoneId)) return;
@@ -1887,6 +1965,7 @@ export function driveQuests(
    * NEAREST unlocked shop — havens passed on the way heal on arrival —
    * then shop at the physical counter. */
   const restock = (): void => {
+    if (p.dungeonRun) abandonDungeon(p);
     let guard = 0;
     // Recovery targets a counter that actually stocks HEAL potions — an
     // antidote-only shelf cannot sustain a road walk.
@@ -2000,11 +2079,16 @@ export function driveQuests(
     if (trinket && statWeight(trinket) > statWeight(p.equipment.trinket ?? '')) {
       equipFromBag(trinket);
     }
-    // Supplies before steel: top the heal shelf up to 6 with whatever the
-    // counter stocks (cheapest first), then chase gear upgrades.
+    // Pack for an uninterrupted descent: prefer the strongest local
+    // healing supply, and carry MP supplies for classes with costly rotations.
     const stocked = (): number => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0);
-    for (const id of ['c_minor_potion', 'c_potion', 'c_greater_potion', 'c_super_potion']) {
-      while (stocked() < 6 && buy(p, id).ok) { /* the shelf carries it */ }
+    for (const id of HEAL_ITEMS) {
+      while (stocked() < 10 && buy(p, id).ok) { /* the shelf carries it */ }
+    }
+    for (const id of MP_ITEMS) {
+      while (MP_ITEMS.reduce((n, itemId) => n + countOf(p, itemId), 0) < 4 && buy(p, id).ok) {
+        /* Finite supplies paid for at this counter. */
+      }
     }
   }
 
@@ -2230,7 +2314,7 @@ export function driveQuests(
         const res = diveDungeon(p, ds.d, rng);
         if (res.ok && res.battle) {
           if (fight(res.battle, 'objective') !== 'win') restock();
-        } else {
+        } else if (!res.ok) {
           restock();
         }
         continue;
@@ -2256,11 +2340,13 @@ export function driveQuests(
       const d = dungeonOf(zoneDef(zoneId)!);
       if (!d) return false;
       goto(zoneId);
+      itemsUsed += prepareDungeonFloor(p);
       const res = diveDungeon(p, d, rng);
-      if (!res.ok || !res.battle) {
+      if (!res.ok) {
         restock();
         continue;
       }
+      if (!res.battle) continue; // Authored discovery; retain the same run and resources.
       const isBoss = res.battle.origin.kind === 'dungeon' && res.battle.origin.boss;
       if (isBoss && report.aranyaLevel === 0 && zoneId === 'whisperwood') {
         report.aranyaLevel = p.level;

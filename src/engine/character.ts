@@ -107,8 +107,10 @@ export function clampPools(p: PlayerState): void {
  * v12 (#160): persisted last-safe-haven respawn provenance
  * (PlayerState.respawnHaven).
  * v13 (#189–#191): campaign rebase checkpoint; revised narrative identities
- * and quest objects. All earlier development saves require /reset. */
-export const CURRENT_STATE_VERSION = 13;
+ * and quest objects.
+ * v14 (#207): consecutive dungeon attempts with separate permanent cache receipts.
+ * All earlier development saves require /reset. */
+export const CURRENT_STATE_VERSION = 14;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */
@@ -182,8 +184,10 @@ export function grantXp(p: PlayerState, xp: number): string[] {
     p.xp -= xpForNextLevel(p.level);
     p.level++;
     const s = statsOf(p);
-    p.hp = s.maxHp;
-    p.mp = s.maxMp;
+    if (!p.dungeonRun) {
+      p.hp = s.maxHp;
+      p.mp = s.maxMp;
+    }
     msgs.push(`⬆️ Level up! You are now level ${p.level}.`);
     const learned = skillsLearnedAt(p.classId, p.level);
     for (const sk of learned) {
@@ -202,6 +206,7 @@ export function xpProgress(p: PlayerState): { current: number; needed: number } 
 /** Applies death penalties; the player wakes at their LAST reached safe
  * haven (#160 — never merely the first haven in the catalog) with 50% HP. */
 export function applyDeath(p: PlayerState): string {
+  delete p.dungeonRun;
   p.stats.deaths++;
   const lost = Math.floor(p.gold * 0.1);
   p.gold -= lost;

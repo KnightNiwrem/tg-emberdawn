@@ -1,4 +1,5 @@
 /** Processing revalidates local facilities and all costs before mutating inventory. */
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import { recipe, type RecipeDef, RECIPES } from '../content/crafting.ts';
 import { itemName } from '../content/items.ts';
 import { countOf, removeItem } from './inventory.ts';
@@ -13,6 +14,7 @@ export function recipesAt(p: PlayerState): RecipeDef[] {
 
 export function recipeBlock(p: PlayerState, id: string): string | undefined {
   if (p.battle) return '⚔️ Finish the fight first.';
+  if (p.dungeonRun) return DUNGEON_BLOCK;
   if (p.journey) return JOURNEY_BLOCK;
   const r = recipe(id);
   if (!r || !r.zones.includes(p.currentZone)) return 'That recipe is not available here.';

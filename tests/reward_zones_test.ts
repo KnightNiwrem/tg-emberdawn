@@ -61,6 +61,8 @@ Deno.test('dungeon first-clear rewards: all zone entries resolve once in authore
     p.level = 45;
     const before = [...p.unlockedZones];
     const win = (): string[] => {
+      p.currentZone = 'whisperwood';
+      p.dungeonRun = { zoneId: p.currentZone, dungeonId: d.id, nextFloor: d.floors.length + 1 };
       const b = startBattle(d.boss, {
         kind: 'dungeon',
         zoneId: 'whisperwood',

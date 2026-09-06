@@ -165,8 +165,8 @@ Deno.test('travel victories grant rewards and kill hooks but never dungeon progr
   // A live kill objective over a road enemy (sq_boglins hunts Boglins).
   syncAvailability(p);
   p.quests['sq_boglins'] = { status: 'active', counts: [0] };
-  // A dungeon mid-dive in the same region: its floor pointer must not move.
-  p.flags['dgn_d_rootbound_floor'] = 2;
+  // Previously earned dungeon caches survive ordinary road battles.
+  p.flags['dgn_d_rootbound_cache_1'] = true;
   const res = startJourney(p, 'w_whisperwood_hollowmere', stub(0.1));
   assert(res.ok && res.step.kind === 'battle');
   p.battle!.enemy.hp = 0;
@@ -181,7 +181,7 @@ Deno.test('travel victories grant rewards and kill hooks but never dungeon progr
   const d = dungeonOf(zone('whisperwood')!)!;
   assertEquals(
     nextDungeonFloor(p, d),
-    2,
+    1,
     'travel battles never advance dungeon floors',
   );
 });

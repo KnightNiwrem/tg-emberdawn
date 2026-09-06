@@ -16,6 +16,7 @@
  *    completion point, inside the caller's per-user lock.
  */
 
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import type { BattleState, JourneyState, PlayerState } from './types.ts';
 import type { TravelEvent } from '../content/types.ts';
 import { zone } from '../content/zones.ts';
@@ -91,6 +92,7 @@ export function startJourney(
   rng: Rng = defaultRng,
   telemetry?: JourneyTelemetry,
 ): JourneyStart {
+  if (p.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK };
   if (p.battle) return { ok: false, refusal: '⚔️ Finish the fight first.' };
   if (p.journey) return { ok: false, refusal: '🧭 You are already on the road.' };
   const checked = departureCheck(p, edgeId);

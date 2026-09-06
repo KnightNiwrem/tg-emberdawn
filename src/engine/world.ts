@@ -25,6 +25,7 @@ import {
 import { defaultRng, type Rng, weightedIndex } from './rng.ts';
 import { grantContextualDrops, rollDropTable } from './loot.ts';
 import { JOURNEY_BLOCK } from './routes.ts';
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import { applyQuietEvent } from './event_rewards.ts';
 import { itemName } from '../content/items.ts';
 import { evalCondition } from './conditions.ts';
@@ -42,6 +43,7 @@ export function zoneDescription(p: PlayerState, z: ZoneDef): string {
  * nothing else may move the player between zones.
  */
 export function arriveAt(p: PlayerState, toZone: string): string[] {
+  if (p.dungeonRun) return [DUNGEON_BLOCK];
   const z = zone(toZone);
   p.currentZone = toZone;
   const lines = [`🧭 You arrive at ${z?.emoji ?? ''} ${z?.name ?? toZone}.`];
@@ -160,7 +162,10 @@ export function resolveVictory(p: PlayerState, b: BattleState, rng: Rng = defaul
   if (b.origin.kind === 'dungeon') {
     const z = zone(b.origin.zoneId);
     const d = z ? dungeonOf(z) : undefined;
-    if (d && d.id === b.origin.dungeonId) {
+    if (
+      d && d.id === b.origin.dungeonId && p.dungeonRun?.dungeonId === d.id &&
+      p.dungeonRun.zoneId === b.origin.zoneId && p.dungeonRun.nextFloor === b.origin.floor
+    ) {
       if (b.origin.boss) {
         lines.push(...onDungeonVictory(p, d, ready).lines);
         // Location-specific story objectives key on the dungeon clear, never
@@ -197,11 +202,9 @@ export function encounterEligible(
   return level >= (e.minPlayerLevel ?? 1) && level <= (e.maxPlayerLevel ?? MAX_EXPLORE_LEVEL);
 }
 
-/** True when the NEXT dive would be the boss floor (or a rematch) — used by
- * the zone view to demand explicit confirmation before an under-level
- * inescapable fight (#73). */
+/** True only when the active run has reached its final chamber. */
 export function nextDiveIsBoss(p: PlayerState, d: DungeonDef): boolean {
-  return nextFloor(p, d) >= d.floors.length + 1 || dungeonCleared(p, d);
+  return nextFloor(p, d) >= d.floors.length + 1;
 }
 
 export function explore(
@@ -209,6 +212,7 @@ export function explore(
   rng: Rng = defaultRng,
   now: number = Date.now(),
 ): ExploreOutcome {
+  if (p.dungeonRun) return { kind: 'result', lines: [DUNGEON_BLOCK] };
   const z = zone(p.currentZone);
   // A broken zone reference is a system fault: state it plainly and give
   // the player the working exit (#128 — system text is clear, never coy).
@@ -306,27 +310,21 @@ export function dungeonOf(z: ZoneDef): DungeonDef | undefined {
   return z.dungeon;
 }
 
-function floorKey(d: DungeonDef): string {
-  return `dgn_${d.id}_floor`;
-}
-
 function bossKey(d: DungeonDef): string {
   return `dgn_${d.id}_boss`;
 }
 
 /** Next floor the player will face (1-based); floors.length+1 = boss. */
 function nextFloor(p: PlayerState, d: DungeonDef): number {
-  const f = p.flags[floorKey(d)];
-  return typeof f === 'number' ? f : 1;
+  return p.dungeonRun?.dungeonId === d.id ? p.dungeonRun.nextFloor : 1;
 }
 
-/** True once this dungeon's boss has been defeated (rematches stay open). */
-/** The next uncleared normal floor (1-based); past the last floor = boss
- * floor. Exported for the balance sim + tests to enumerate floors (#73). */
+/** Next floor in this attempt; a fresh entry or rematch always begins at one. */
 export function nextDungeonFloor(p: PlayerState, d: DungeonDef): number {
   return nextFloor(p, d);
 }
 
+/** Permanent first-clear record, independent of the active descent. */
 export function dungeonCleared(p: PlayerState, d: DungeonDef): boolean {
   return p.flags[bossKey(d)] === true;
 }
@@ -356,75 +354,69 @@ export function bossGateBlock(p: PlayerState, d: DungeonDef): string | undefined
   return undefined;
 }
 
-/**
- * Enters the dungeon: normal floors are open once the zone is; the boss
- * floor (and rematches after clearing) are story-gated. Starting a fight
- * NEVER advances progress — that happens only on victory (see
- * `onDungeonFloorVictory` / `onDungeonVictory`), so fleeing or dying
- * simply leaves the floor pending.
- */
+/** Starts at floor one, or continues the same uninterrupted descent. */
 export function diveDungeon(
   p: PlayerState,
-  d: DungeonDef,
+  requested: DungeonDef,
   rng: Rng = defaultRng,
 ): { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } {
-  // A dive is zone-bound work (#166): a live crossing refuses it here at
-  // the central mutation, not only at the handler.
   if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
-  const bossFloor = d.floors.length + 1;
+  if (p.battle) return { ok: false, lines: ['Finish the current battle first.'] };
+  const d = zone(p.currentZone)?.dungeon;
+  if (!d || d.id !== requested.id) return { ok: false, lines: ['That dungeon is not here.'] };
+  if (p.dungeonRun && (p.dungeonRun.zoneId !== p.currentZone || p.dungeonRun.dungeonId !== d.id)) {
+    return { ok: false, lines: [DUNGEON_BLOCK] };
+  }
   const floor = nextFloor(p, d);
-
-  if (floor >= bossFloor || dungeonCleared(p, d)) {
+  const boss = floor === d.floors.length + 1;
+  if (boss) {
     const block = bossGateBlock(p, d);
     if (block) return { ok: false, lines: [block] };
-    const started = startBattle(d.boss, {
-      kind: 'dungeon',
-      zoneId: p.currentZone,
-      dungeonId: d.id,
-      floor: bossFloor,
-      boss: true,
-    }, { player: p, rng });
-    if (!started) {
-      return {
-        ok: false,
-        lines: ['The way is blocked by nothing at all, which is somehow worse.'],
-      };
-    }
-    const again = dungeonCleared(p, d) ? ' again' : '';
-    return {
-      ok: true,
-      battle: started.battle,
-      outcome: started.outcome,
-      lines: [
-        `${d.emoji} You descend to the deepest chamber. ${enemyDef(d.boss)?.name ?? d.boss} (Lv ${
-          enemyDef(d.boss)?.level ?? '?'
-        }) awaits${again}.`,
-      ],
-    };
   }
-
-  const pool = d.floors[floor - 1]?.enemies ?? [d.boss];
-  const enemyId = pool[Math.floor(rng() * pool.length)] ?? d.boss;
+  const room = d.floors[floor - 1];
+  const enemyId = boss ? d.boss : room?.enemies[Math.floor(rng() * room.enemies.length)];
+  if (!boss && room?.discovery) {
+    p.dungeonRun ??= { zoneId: p.currentZone, dungeonId: d.id, nextFloor: 1 };
+    const ready: string[] = [];
+    const lines = [
+      `${d.emoji} Floor ${floor}: ${room.discovery.name}`,
+      room.discovery.text,
+      ...onDungeonFloorVictory(p, d, floor, ready),
+    ];
+    for (const id of [...new Set(ready)]) lines.push(questReadyLine(id));
+    return { ok: true, lines };
+  }
+  if (!enemyId || !enemyDef(enemyId)) {
+    return { ok: false, lines: ['This dungeon floor is unavailable.'] };
+  }
+  p.dungeonRun ??= { zoneId: p.currentZone, dungeonId: d.id, nextFloor: 1 };
   const started = startBattle(enemyId, {
     kind: 'dungeon',
     zoneId: p.currentZone,
     dungeonId: d.id,
     floor,
-    boss: false,
+    boss,
   }, { player: p, rng });
-  if (!started) {
-    return { ok: false, lines: ['The way is blocked by nothing at all, which is somehow worse.'] };
-  }
+  if (!started) return { ok: false, lines: ['This dungeon floor is unavailable.'] };
   return {
     ok: true,
     battle: started.battle,
     outcome: started.outcome,
     lines: [
-      `${d.emoji} Floor ${floor}: ${enemyDef(enemyId)?.name ?? enemyId} (Lv ${
-        enemyDef(enemyId)?.level ?? '?'
+      `${d.emoji} Floor ${floor}: ${enemyDef(enemyId)!.name} (Lv ${
+        enemyDef(enemyId)!.level
       }) bars the way.`,
     ],
   };
+}
+
+/** Leaving preserves earned loot, but never the next floor. */
+export function abandonDungeon(p: PlayerState): { ok: boolean; lines: string[] } {
+  if (p.battle || p.journey || !p.dungeonRun) {
+    return { ok: false, lines: ['There is no descent you can leave here.'] };
+  }
+  delete p.dungeonRun;
+  return { ok: true, lines: ['You return to the entrance. Your next descent begins at floor 1.'] };
 }
 
 /**
@@ -441,8 +433,11 @@ function onDungeonFloorVictory(
 ): string[] {
   const lines: string[] = [];
   if (floor >= d.floors.length + 1) return lines; // boss victories route elsewhere
-  if (nextFloor(p, d) !== floor) return lines; // floor already cleared
-  p.flags[floorKey(d)] = floor + 1;
+  if (!p.dungeonRun || p.dungeonRun.dungeonId !== d.id || nextFloor(p, d) !== floor) return lines;
+  p.dungeonRun.nextFloor = floor + 1;
+  const cacheKey = `dgn_${d.id}_cache_${floor}`;
+  if (p.flags[cacheKey]) return lines;
+  p.flags[cacheKey] = true;
   const t = d.floors[floor - 1]?.treasure;
   if (t) {
     if (t.gold) {
@@ -467,6 +462,7 @@ function onDungeonVictory(
   const lines: string[] = [];
   const firstClear = !dungeonCleared(p, d);
   p.flags[bossKey(d)] = true;
+  delete p.dungeonRun;
   if (firstClear) {
     // A keyed gate's story key is spent by the FIRST VICTORIOUS descent —
     // entry alone never consumes it, so a lost fight stays retryable.

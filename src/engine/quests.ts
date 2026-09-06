@@ -4,6 +4,7 @@
  *   unavailable → available → active → turnIn → done
  */
 
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import type { PlayerState, QuestProgress } from './types.ts';
 import type { Objective, QuestDef } from '../content/types.ts';
 import { quest, QUESTS } from '../content/quests.ts';
@@ -124,8 +125,8 @@ export function acceptQuest(
   if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'], ready: [] };
   // A live crossing owns the interaction flow (#166): quest business is a
   // zone-bound interaction — no contact can be made on the road.
-  if (p.journey) {
-    const msg = JOURNEY_BLOCK;
+  if (p.journey || p.dungeonRun) {
+    const msg = p.dungeonRun ? DUNGEON_BLOCK : JOURNEY_BLOCK;
     return { ok: false, msg, lines: [msg], ready: [] };
   }
   // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
@@ -340,6 +341,7 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
   if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
   // A live crossing owns the interaction flow (#166): the handover waits
   // for arrival — no turn-in happens on the road.
+  if (p.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK], ready: [] };
   if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK], ready: [] };
   const refusal = contactRefusal(p.currentZone, npcId, q.finishNpc);
   if (refusal) return { ok: false, lines: [refusal], ready: [] };

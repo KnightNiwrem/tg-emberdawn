@@ -320,6 +320,7 @@ export function startBattle(
     // #96: explicit opening adjudication — a lethal strike in either
     // direction ends the fight before round 1 exists.
     outcome = adjudicate();
+    if (outcome === 'defeat') delete p.dungeonRun;
     if (outcome === 'victory' || outcome === 'defeat') {
       recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
     }
@@ -807,6 +808,7 @@ export function performAction(
   if (battle.enemy.hp <= 0 || p.hp <= 0) {
     const outcome: BattleOutcome = battle.enemy.hp <= 0 ? 'victory' : 'defeat';
     recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
+    if (outcome === 'defeat') delete p.dungeonRun;
     return { battle, lines: [], skipped: false, consumedTurn: false, outcome, trace };
   }
 
@@ -936,6 +938,7 @@ export function performAction(
     if (outcome === 'victory' || outcome === 'defeat') {
       recordCombatEvent(trace, { kind: 'terminal', round: actedRound, outcome });
     }
+    if (outcome === 'defeat' || outcome === 'fled') delete p.dungeonRun;
     return { battle, lines, skipped, consumedTurn: true, outcome, trace };
   };
 

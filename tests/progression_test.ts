@@ -13,6 +13,7 @@ import { quest, QUESTS, zoneOfNpc } from '../src/content/quests.ts';
 import { addItem, countOf } from '../src/engine/inventory.ts';
 import { createPlayer, statsOf } from '../src/engine/character.ts';
 import {
+  abandonDungeon,
   diveDungeon,
   dungeonCleared,
   dungeonOf,
@@ -46,6 +47,7 @@ for (const z of ZONES) {
 
 function goto(p: PlayerState, zoneId: string): void {
   if (p.currentZone === zoneId) return;
+  if (p.dungeonRun) assert(abandonDungeon(p).ok);
   assert(travelDirect(p, zoneId).ok, `travel to ${zoneId} blocked`);
 }
 
@@ -60,7 +62,8 @@ function winBattle(p: PlayerState, b: BattleState, rng: () => number): void {
 function diveUntilBoss(p: PlayerState, d: DungeonDef, rng: () => number): void {
   for (;;) {
     const res = diveDungeon(p, d, rng);
-    assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
+    assert(res.ok, `dive blocked: ${res.lines[0]}`);
+    if (!res.battle) continue;
     const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
     winBattle(p, res.battle!, rng);
     if (bossHit) break;
@@ -75,7 +78,8 @@ function killEnemy(p: PlayerState, enemyId: string, rng: () => number): void {
     const d = dungeonOf(zone(boss.zoneId)!)!;
     for (let i = 0; i < 24; i++) {
       const res = diveDungeon(p, d, rng);
-      assert(res.ok && res.battle, `dive blocked: ${res.lines[0]}`);
+      assert(res.ok, `dive blocked: ${res.lines[0]}`);
+      if (!res.battle) continue;
       const origin = res.battle!.origin;
       const isBoss = origin.kind === 'dungeon' && origin.boss;
       winBattle(p, res.battle!, rng);

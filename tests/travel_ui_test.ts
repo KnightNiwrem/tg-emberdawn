@@ -133,8 +133,8 @@ Deno.test('safe and dangerous zone hubs are visibly and functionally distinct', 
   const home = walker(1707, 'emberdawn', ['emberdawn', 'outskirts']);
   const homeView = JSON.stringify(renderZone(home));
   assert(homeView.includes('Safe haven'));
-  assert(homeView.includes("Bram's Forge-stall"), 'the local shop renders by name');
-  assert(homeView.includes("Bram's Anvil"));
+  assert(homeView.includes(encodeCb({ v: 'zone', a: 'sh' })), 'local shop remains accessible');
+  assert(homeView.includes(encodeCb({ v: 'zone', a: 'fg' })), 'local forge remains accessible');
   const wilds = walker(1708, 'whisperwood', ['whisperwood', 'outskirts']);
   const wildsView = JSON.stringify(renderZone(wilds));
   assert(wildsView.includes('Dangerous wilds'), 'danger zones present themselves');
@@ -173,13 +173,12 @@ Deno.test('the boss readiness panel keeps levels and one unambiguous escape rest
   const d = zone('whisperwood')!.dungeon!;
   const boss = enemy(d.boss)!;
   p.level = d.recommendedLevel! - 1;
-  p.flags[`dgn_${d.id}_floor`] = d.floors.length + 1;
   p.scene = { view: 'zone', arg: 'bossok' };
   const before = JSON.stringify(p);
   const view = JSON.stringify(renderZone(p));
-  assert(view.includes(`${boss.name} waits at Lv ${boss.level}`));
-  assert(view.includes(`Recommended Lv ${d.recommendedLevel}; you are Lv ${p.level}`));
-  assert(view.includes('You cannot flee this fight, even with a Smoke Bomb.'));
+  assert(view.includes(`${boss.name} · Lv ${boss.level}`));
+  assert(view.includes(`Recommended Lv ${d.recommendedLevel} · Your level: ${p.level}`));
+  assert(view.includes('The boss cannot be fled, even with a Smoke Bomb.'));
   assert(
     !view.includes('flee is always an option'),
     'wilds guidance cannot contradict the warning',

@@ -344,6 +344,8 @@ export interface PlayerState {
   skills: string[];
   scene: SceneState;
   battle?: BattleState;
+  /** One consecutive descent; leaving or losing discards its progress. */
+  dungeonRun?: DungeonRun;
   /** The active persisted journey (#159): a crossing in progress. The
    * player is still at `fromZone` until the coordinator's final arrival. */
   journey?: JourneyState;
@@ -374,4 +376,11 @@ export interface DerivedStats {
   res: number;
   spd: number;
   luck: number;
+}
+
+/** Persisted progress within the current uninterrupted dungeon attempt. */
+export interface DungeonRun {
+  zoneId: string;
+  dungeonId: string;
+  nextFloor: number;
 }

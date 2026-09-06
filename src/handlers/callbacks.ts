@@ -3,6 +3,7 @@
  * live-message rules as everything else, and an existing character can never
  * be replaced by a stale or forged button. */
 
+import { DUNGEON_BLOCK } from '../engine/dungeon_run.ts';
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
 import { answerCallbackBestEffort } from './ack.ts';
@@ -77,6 +78,14 @@ function dispatch(
   // only gameplay views, exhaustively — no silent default.
   cb: Exclude<NonNullable<ReturnType<typeof decodeCb>>, { v: 'meta' }>,
 ): MutationResult {
+  if (player.dungeonRun && player.battle && cb.v !== 'battle') {
+    return { toast: 'Finish the current battle first.' };
+  }
+  if (
+    player.dungeonRun && ['travel', 'journey', 'shop', 'forge', 'npc', 'dlg', 'tut'].includes(cb.v)
+  ) {
+    return { toast: DUNGEON_BLOCK };
+  }
   switch (cb.v) {
     case 'zone':
       return zoneAction(player, cb);

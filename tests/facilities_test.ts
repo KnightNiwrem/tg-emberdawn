@@ -22,7 +22,7 @@ import { item } from '../src/content/items.ts';
 import { quest } from '../src/content/quests.ts';
 import { zone, ZONES } from '../src/content/zones.ts';
 import { conditionRefs } from '../src/engine/conditions.ts';
-import { renderZone } from '../src/render/views.ts';
+import { renderForge, renderShop, renderZone } from '../src/render/views.ts';
 
 // ── content integrity ────────────────────────────────────────────────────
 
@@ -342,7 +342,7 @@ Deno.test('full forge reaches +5; mastery carries across forges', () => {
 
 // ── rendering follows presence ───────────────────────────────────────────
 
-Deno.test('the zone hub renders services only where they exist, by local name', () => {
+Deno.test('the hub shows available services and their panels retain local names', () => {
   const p = createPlayer(713, 'T', 'warrior');
   p.tutorial = 'done';
   p.currentZone = 'outskirts';
@@ -351,11 +351,14 @@ Deno.test('the zone hub renders services only where they exist, by local name', 
   assert(!wilds.includes('forge'), 'the wilds render no forge');
   p.currentZone = 'emberdawn';
   const home = JSON.stringify(renderZone(p));
-  assert(home.includes("Bram's Forge-stall"), 'the local shop renders by its own name');
-  assert(home.includes("Bram's Anvil"), 'the local forge renders by its own name');
+  assert(home.includes('🏪 Shop'), 'the local shop has a compact hub control');
+  assert(home.includes('⚒️ Temper'), 'the local forge has a compact hub control');
+  assert(JSON.stringify(renderShop(p, 0)).includes("Bram's Forge-stall"));
+  assert(JSON.stringify(renderForge(p)).includes("Bram's Anvil"));
   p.currentZone = 'mirefoot';
   const landing = JSON.stringify(renderZone(p));
-  assert(landing.includes('The Ropewalk Forge'));
+  assert(landing.includes('⚒️ Temper'));
+  assert(JSON.stringify(renderForge(p)).includes('The Ropewalk Forge'));
   assert(!landing.includes('🏪'), 'no shop button where no shop stands');
 });
 

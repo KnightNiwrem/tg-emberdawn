@@ -56,6 +56,7 @@
  * engine/quests.ts, the same core acceptQuest uses.
  */
 
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import type { PlayerState, QuestStatus } from './types.ts';
 import type { StoryEffect } from '../content/types.ts';
 import { npcInZone, quest as questDef } from '../content/quests.ts';
@@ -472,6 +473,7 @@ export function validateStoryBundle(
   // A live crossing owns the interaction flow (#166): no story bundle —
   // not even a replay no-op — applies on the road. Preflight and
   // application stay in lockstep (#137).
+  if (p.dungeonRun) return DUNGEON_BLOCK;
   if (p.journey) return JOURNEY_BLOCK;
   if (p.storyReceipts.includes(receiptKey(ctx))) return undefined; // replay: no-op
   const run = runStoryBundle(structuredClone(p), effects, ctx);
@@ -492,6 +494,7 @@ export function applyStoryEffects(
   // A live crossing owns the interaction flow (#166): no story bundle —
   // not even a replay no-op — applies on the road. The refusal throws,
   // leaving the live player byte-for-byte unchanged (the contract below).
+  if (p.dungeonRun) throw new Error(`story bundle refused: ${DUNGEON_BLOCK}`);
   if (p.journey) throw new Error(`story bundle refused: ${JOURNEY_BLOCK}`);
   const receipt = receiptKey(ctx);
   if (p.storyReceipts.includes(receipt)) return emptyResult(); // replay: no-op
@@ -569,6 +572,7 @@ export function applyDialogueChoice(
   // A live crossing owns the interaction flow (#166): no conversation can
   // be advanced on the road — the central story op refuses before any
   // scene, ownership or availability check.
+  if (p.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK, lines: [] };
   if (p.journey) return { ok: false, refusal: JOURNEY_BLOCK, lines: [] };
   // Scene authority: the player must be inside a dialogue, at a choice
   // node — the dialogue and node ids are read from the live scene itself.

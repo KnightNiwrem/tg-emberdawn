@@ -10,6 +10,7 @@
  * forbid all trade.
  */
 
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import type { PlayerState } from './types.ts';
 import type { ShopDef } from '../content/types.ts';
 import { shopInZone } from '../content/facilities.ts';
@@ -72,6 +73,7 @@ export function buy(p: PlayerState, itemId: string, qty = 1): { ok: boolean; lin
   // does too (#166 — enforced here at the central mutation, not only in
   // the handler): no battle or active journey may open trade.
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK] };
   if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const def = item(itemId);
   if (!def) return { ok: false, lines: ['The shopkeeper blinks. "Never heard of it."'] };
@@ -106,6 +108,7 @@ export function sell(p: PlayerState, itemId: string, qty = 1): { ok: boolean; li
   // Same locality authority as buying (#161): a fight forbids trade —
   // and so does a live crossing (#166, at the central mutation).
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK] };
   if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const def = item(itemId);
   if (!def) return { ok: false, lines: ["That item doesn't exist."] };

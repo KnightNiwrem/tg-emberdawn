@@ -17,6 +17,7 @@ import {
 import { PgStore } from '../src/persistence/store.ts';
 import { assertResolvablePersistedIds } from '../src/engine/validate.ts';
 import { startBattle } from '../src/engine/combat.ts';
+import { zone } from '../src/content/zones.ts';
 import { route } from '../src/content/routes.ts';
 
 const url = Deno.env.get('TEST_PG_URL');
@@ -60,6 +61,23 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     assertEquals(await store.get(p.userId), p);
     assertResolvablePersistedIds((await store.get(p.userId))!);
 
+    // An active uninterrupted dungeon run survives JSONB and its identity gate.
+    const delver = createPlayer(2070, 'Delver', 'warrior');
+    delver.currentZone = 'whisperwood';
+    delver.hp = 17;
+    delver.mp = 2;
+    delver.dungeonRun = {
+      zoneId: 'whisperwood',
+      dungeonId: zone('whisperwood')!.dungeon!.id,
+      nextFloor: 1,
+    };
+    delver.scene = { view: 'zone' };
+    await store.set(delver.userId, delver);
+    const continued = (await store.get(delver.userId))!;
+    assertEquals(continued, delver);
+    assertResolvablePersistedIds(continued);
+    await store.delete(delver.userId);
+
     // upsert overwrites
     p.gold = 1;
     await store.set(p.userId, p);
@@ -90,7 +108,7 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     await store.set(carrier.userId, carrier);
     const current = (await store.get(carrier.userId))!;
     assertEquals(current, carrier);
-    assertEquals(current.stateVersion, 13);
+    assertEquals(current.stateVersion, 14);
     assertSupportedSaveVersion(current);
     assertResolvablePersistedIds(current);
     carrier.stateVersion = CURRENT_STATE_VERSION - 1;

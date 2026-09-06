@@ -10,6 +10,7 @@ export type Cb =
   | { v: 'zone'; a: 'gp' }
   | { v: 'zone'; a: 'cp'; arg: number }
   | { v: 'zone'; a: 'dg' }
+  | { v: 'zone'; a: 'dx' }
   | { v: 'zone'; a: 'dgb' }
   | { v: 'zone'; a: 'tv' }
   | { v: 'zone'; a: 'ch' }
@@ -154,7 +155,7 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
       if (a === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
       const z = act(
         a,
-        ['hm', 'ex', 'dg', 'dgb', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg', 'gp'] as const,
+        ['hm', 'ex', 'dg', 'dx', 'dgb', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg', 'gp'] as const,
       );
       return z ? { v: 'zone', a: z } : undefined;
     }

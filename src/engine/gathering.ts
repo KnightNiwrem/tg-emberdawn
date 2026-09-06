@@ -1,4 +1,5 @@
 /** Bounded gathering, with location and inventory authority in the engine. */
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import {
   type GatheringActivity,
   type GatheringSite,
@@ -53,6 +54,7 @@ export function gather(
 ): { ok: boolean; lines: string[] } {
   const refuse = (line: string) => ({ ok: false, lines: [line] });
   if (p.battle) return refuse('⚔️ Finish the fight before gathering.');
+  if (p.dungeonRun) return refuse(DUNGEON_BLOCK);
   if (p.journey) return refuse(JOURNEY_BLOCK);
   const site = gatheringOptions(p, now).find((s) => s.activity === activity);
   if (!site) return refuse('That gathering activity is unavailable here.');

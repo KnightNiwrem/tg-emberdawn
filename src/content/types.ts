@@ -610,9 +610,12 @@ export type ExploreEvent =
   };
 
 export interface DungeonFloor {
-  /** Cache granted ONCE, on first clearing the floor (#73) — deterministic,
-   * never rerolled (cleared floors cannot be refought). */
+  /** Cache granted once per hero, on first clearing this floor. Repeating
+   * a run never replenishes its cache. */
   treasure?: { gold?: number; item?: string };
+  /** Noncombat rooms have no enemies and carry an authored discovery.
+   * Discoveries advance the run without restoring HP or MP. */
+  discovery?: { name: string; text: string };
   enemies: string[];
 }
 
@@ -628,9 +631,8 @@ export interface DungeonDef {
    * requireDone, at least active) before the boss can be faced. Normal
    * floors stay open as soon as the zone is unlocked. */
   bossGate?: { quest: string; requireDone?: boolean; item?: string };
-  /** Authored readiness (#73): the level the boss fight is tuned for. The
-   * zone view surfaces it, and an under-level dive into the boss floor
-   * (inescapable) demands an explicit confirmation before it starts. */
+  /** Authored boss readiness, disclosed in the dungeon entry panel.
+   * Under-level entry requires confirmation before the run starts. */
   recommendedLevel?: number;
   /** First-clear rewards, granted when the boss falls. */
   firstClear?: {

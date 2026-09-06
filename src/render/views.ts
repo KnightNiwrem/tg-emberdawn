@@ -23,13 +23,7 @@ import { itemFactBlocks, itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { routesFrom } from '../content/routes.ts';
 import { forgeInZone, shopInZone } from '../content/facilities.ts';
-import {
-  dungeonCleared,
-  dungeonOf,
-  dungeonProgressLine,
-  nextDiveIsBoss,
-  zoneDescription,
-} from '../engine/world.ts';
+import { bossGateBlock, dungeonOf, nextDungeonFloor, zoneDescription } from '../engine/world.ts';
 import { resolveRoute, resolveRouteById, usableRoutesFrom } from '../engine/routes.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { levelLockedMain, questStatusLine } from '../engine/quests.ts';
@@ -37,7 +31,6 @@ import { countOf } from '../engine/inventory.ts';
 import { temperBonusOf, temperLevel } from '../engine/forge.ts';
 import {
   banner,
-  bar,
   buttonsRow,
   cbBtn,
   disabledBtn,
@@ -60,12 +53,16 @@ function zoneHeader(p: PlayerState): Block[] {
   const c = CLASSES[p.classId];
   return [
     heading(`${z.emoji} ${z.name}`, 3),
-    ...noticesBlocks(p),
+    ...noticesBlocks({
+      ...p,
+      notices: p.notices.filter((line) =>
+        line !== zoneDescription(p, z) &&
+        line !== `🧭 You arrive at ${z.emoji} ${z.name}.`
+      ),
+    }),
     para([
       { type: 'bold', text: `${c.emoji} ${p.name} · Lv ${p.level} ${c.name}` } as RichText,
-      `\n❤️ ${p.hp}/${s.maxHp} ${bar(p.hp, s.maxHp)}\n💧 ${p.mp}/${s.maxMp} ${
-        bar(p.mp, s.maxMp)
-      }\n💰 ${p.gold} gold`,
+      `\n❤️ ${p.hp}/${s.maxHp} · 💧 ${p.mp}/${s.maxMp} · 💰 ${p.gold}`,
     ]),
   ];
 }
@@ -77,6 +74,7 @@ export function renderZone(p: PlayerState): InputRichMessage {
   // action for the current step — travel, explore, shops and the NPC list
   // are withheld until the prologue releases the player into the real hub.
   if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
+  if (p.dungeonRun) return renderDungeonRun(p);
   if (p.scene.arg === 'gather') return renderGathering(p);
   if (p.scene.arg === 'craft') return renderCrafting(p);
   const z = zone(p.currentZone)!;
@@ -84,113 +82,119 @@ export function renderZone(p: PlayerState): InputRichMessage {
   const blocks = zoneHeader(p);
   blocks.push(para({ type: 'italic', text: zoneDescription(p, z) }));
   if (z.safeHaven) {
-    blocks.push(para('🔥 Safe haven — no battles, and full rest on arrival.'));
+    blocks.push(para('🔥 Safe haven · Full rest on arrival.'));
   } else {
     // Dangerous zones read differently (#164) — without implying that
     // every action out here is a fight.
-    blocks.push(para('🌫️ Dangerous wilds — you can flee battles encountered while exploring.'));
+    blocks.push(para('🌫️ Dangerous wilds · You can flee exploration battles.'));
   }
-  // Under-level boss confirmation (#73): the boss floor is inescapable, so
-  // diving into it below the authored readiness level demands an informed,
-  // explicit choice — a full-screen warning instead of the action rows.
-  if (
-    d &&
-    p.scene.arg === 'bossok' &&
-    nextDiveIsBoss(p, d) &&
-    d.recommendedLevel !== undefined &&
-    p.level < d.recommendedLevel
-  ) {
-    const boss = enemyDef(d.boss);
-    blocks.push(banner('☠️ Readiness warning'));
-    blocks.push(para(
-      `${boss?.name ?? 'The boss'} waits at Lv ${
-        boss?.level ?? '?'
-      }. Recommended Lv ${d.recommendedLevel}; you are Lv ${p.level}. You cannot flee this fight, even with a Smoke Bomb.`,
-    ));
-    blocks.push(
-      buttonsRow([
-        cbBtn('⚔️ Face it anyway', encodeCb({ v: 'zone', a: 'dgb' }), 'danger'),
-        cbBtn("⬅️ Not yet — I'll prepare", encodeCb({ v: 'zone', a: 'hm' }), 'primary'),
-      ]),
-    );
-    return { blocks };
-  }
+  if (d && p.scene.arg === 'bossok') return renderDungeonEntrance(p);
 
-  // Keep local activities together; nonexistent activities have no placeholder (#205).
-  blocks.push(heading('Activities', 4));
   const activities = [cbBtn(
-    z.safeHaven ? '🧭 Search surroundings' : '🧭 Explore',
+    z.safeHaven ? '🧭 Search' : '🧭 Explore',
     encodeCb({ v: 'zone', a: 'ex' }),
     'success',
   )];
   if (gatheringOptions(p).length) {
-    activities.push(cbBtn('🧺 Gather resources', encodeCb({ v: 'zone', a: 'gp' })));
+    activities.push(cbBtn('🧺 Gather', encodeCb({ v: 'zone', a: 'gp' })));
   }
-  blocks.push(buttonsRow(activities, 'left'));
+  blocks.push(buttonsRow(activities));
   if (d) {
-    // Keep progress and readiness beside the action they inform.
-    const rec = d.recommendedLevel !== undefined ? ` · Recommended Lv ${d.recommendedLevel}` : '';
-    blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}${rec}`));
-    if (dungeonCleared(p, d)) {
+    blocks.push(buttonsRow([
+      cbBtn(`${d.emoji} ${d.name}`, encodeCb({ v: 'zone', a: 'dg' }), 'primary'),
+    ]));
+  }
+
+  if (z.npcs.length) {
+    blocks.push(para({ type: 'bold', text: 'Talk' }));
+    for (let i = 0; i < z.npcs.length; i += 2) {
       blocks.push(
-        para('The chambers retain an echo of your first trial. You can face that echo again.'),
+        buttonsRow(
+          z.npcs.slice(i, i + 2).map((n, j) =>
+            cbBtn(n.name, encodeCb({ v: 'zone', a: 'tk', arg: i + j }))
+          ),
+        ),
       );
     }
-    blocks.push(buttonsRow([
-      cbBtn(`${d.emoji} Dive`, encodeCb({ v: 'zone', a: 'dg' }), 'primary'),
-    ], 'left'));
   }
-
-  if (z.npcs.length > 0) {
-    blocks.push(heading('People', 4));
-    for (let i = 0; i < z.npcs.length; i++) {
-      blocks.push(buttonsRow([
-        cbBtn(z.npcs[i]!.name, encodeCb({ v: 'zone', a: 'tk', arg: i })),
-      ], 'left'));
-    }
+  const services = [];
+  if (shopAt(p)) services.push(cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })));
+  if (forgeAt(p)) services.push(cbBtn('⚒️ Temper', encodeCb({ v: 'zone', a: 'fg' })));
+  if (recipesAt(p).length) {
+    services.push(cbBtn('🛠️ Craft', encodeCb({ v: 'zone', a: 'cp', arg: 0 })));
   }
-
-  // Services are authored locally. Long counter names get their own rows.
-  const localShop = shopAt(p);
-  const localForge = forgeAt(p);
-  const workshops = recipesAt(p).length > 0;
-  if (localShop || localForge || workshops) {
-    blocks.push(heading('Services', 4));
-    if (localShop) {
-      blocks.push(buttonsRow([
-        cbBtn(`🏪 ${localShop.name}`, encodeCb({ v: 'zone', a: 'sh' })),
-      ], 'left'));
-    }
-    if (localForge) {
-      blocks.push(buttonsRow([
-        cbBtn(`⚒️ ${localForge.name}`, encodeCb({ v: 'zone', a: 'fg' })),
-      ], 'left'));
-    }
-    if (workshops) {
-      blocks.push(buttonsRow([
-        cbBtn('🛠️ Local workshops', encodeCb({ v: 'zone', a: 'cp', arg: 0 })),
-      ], 'left'));
-    }
-  }
-
-  // Personal menus and global navigation hold the same positions in every zone.
+  if (services.length) blocks.push(para({ type: 'bold', text: 'Services' }), buttonsRow(services));
   blocks.push(
-    heading('Your hero', 4),
+    para({ type: 'bold', text: 'Your hero' }),
     buttonsRow([
       cbBtn('🧍 Character', encodeCb({ v: 'zone', a: 'ch' })),
       cbBtn('🎒 Inventory', encodeCb({ v: 'zone', a: 'inv' })),
-    ], 'left'),
+    ]),
     buttonsRow([
       cbBtn('📜 Quests', encodeCb({ v: 'zone', a: 'q' })),
       cbBtn('✨ Skills', encodeCb({ v: 'zone', a: 'sk' })),
-    ], 'left'),
-    divider(),
+    ]),
     buttonsRow([
       cbBtn('🚶 Travel', encodeCb({ v: 'zone', a: 'tv' })),
       cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
-    ], 'left'),
+    ]),
   );
   return { blocks };
+}
+
+/** Run rules live at the entrance, never in the location's activity list. */
+export function renderDungeonEntrance(p: PlayerState): InputRichMessage {
+  const d = zone(p.currentZone)!.dungeon!;
+  const blocks: Block[] = [
+    heading(`${d.emoji} ${d.name}`, 3),
+    para(`Recommended Lv ${d.recommendedLevel} · Your level: ${p.level}`),
+    para(`${enemyDef(d.boss)!.name} · Lv ${enemyDef(d.boss)!.level}`),
+    para(
+      'Start at floor 1 and continue through the final chamber. Leaving, fleeing or defeat ends this attempt. Re-entry starts again at floor 1.',
+    ),
+    para(
+      'No free rest or town services inside. Bring potions and ethers; you can use carried supplies between floors. Level-ups do not restore HP or MP during a run.',
+    ),
+    para('The boss cannot be fled, even with a Smoke Bomb. Earlier floors allow retreat.'),
+  ];
+  const gate = bossGateBlock(p, d);
+  if (gate) blocks.push(para(gate), para('You may explore the earlier floors, then leave.'));
+  blocks.push(buttonsRow([
+    cbBtn('Enter dungeon', encodeCb({ v: 'zone', a: 'dgb' }), 'primary'),
+    cbBtn('Not now', encodeCb({ v: 'zone', a: 'hm' })),
+  ]));
+  return { blocks };
+}
+
+export function renderDungeonRun(p: PlayerState): InputRichMessage {
+  const d = zone(p.dungeonRun!.zoneId)!.dungeon!;
+  const next = nextDungeonFloor(p, d);
+  const gate = next > d.floors.length ? bossGateBlock(p, d) : undefined;
+  return {
+    blocks: [
+      heading(`${d.emoji} ${d.name}`, 3),
+      ...noticesBlocks(p),
+      para(`❤️ ${p.hp}/${statsOf(p).maxHp} · 💧 ${p.mp}/${statsOf(p).maxMp}`),
+      para(
+        next > d.floors.length
+          ? 'The final chamber lies ahead.'
+          : `Next: floor ${next} of ${d.floors.length + 1}`,
+      ),
+      ...(gate ? [para(gate)] : []),
+      buttonsRow([
+        ...(gate ? [] : [
+          cbBtn(
+            next > d.floors.length ? 'Face the boss' : 'Continue',
+            encodeCb({ v: 'zone', a: 'dg' }),
+            'primary',
+          ),
+        ]),
+        cbBtn('🎒 Supplies', encodeCb({ v: 'zone', a: 'inv' })),
+      ]),
+      para('Leaving ends this attempt. Your next entry starts at floor 1.'),
+      buttonsRow([cbBtn('Leave dungeon', encodeCb({ v: 'zone', a: 'dx' }))]),
+    ],
+  };
 }
 
 /** Local materials and tool requirements remain visible before spending a charge. */
@@ -1140,6 +1144,7 @@ export function renderHelp(): InputRichMessage {
           '🏪 ⚒️ Shops and forges live where they are built — each with its own stock and craft. Better gear means reaching the region that sells it.\n' +
           '⚔️ Battles — your free action, Skills, Items, Guard, Flee. Free actions are class-typed: Warrior/Rogue attack with ATK, Mage/Cleric with MAG. SPD pays off: outspeeding a foe slips its damaging blows aside (baseline 2%, hard cap 20%).\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
+          '🏰 Dungeons — each entry starts at floor 1. No free rest inside; bring supplies. Leaving or fleeing restarts your next attempt.\n' +
           '⚒️ Forges — temper gear up to +5 using regional materials and a fee. All copies of the same gear share its temper level.\n' +
           '🧺 Gathering — local plants, ores and fish; 3 shared charges per location replenish 6 hours after the last use. Picks and rods are reusable; fishing spends bait.\n' +
           '🛠️ Workshops — brew, cook and smelt where offered. Inspect materials in your bag for sources and uses.\n' +

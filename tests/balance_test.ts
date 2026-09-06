@@ -20,6 +20,7 @@ import {
   MATRIX_LEVELS,
   POLICIES,
   runCell,
+  runDungeon,
   runFight,
   seededRng,
   simulateCampaign,
@@ -400,7 +401,7 @@ Deno.test('balance: the collection planner sees explore AND dungeon-floor source
   assert(d, 'the Whisperwood authors a dungeon');
   assert(dungeonFloorsYield('m_iron_chunk', d, 1), '#73 caches on floors 1-2');
   assert(dungeonFloorsYield('m_iron_chunk', d, 3), 'Mycelids still roam floor 3');
-  assert(!dungeonFloorsYield('m_iron_chunk', d, 4), 'fully cleared → no source');
+  assert(!dungeonFloorsYield('m_iron_chunk', d, d.floors.length + 1), 'no normal floors remain');
   // Wild drops still resolve through eligibility: rats drop ember shards.
   assert(exploreDropZonesFor('m_ember_shard', ['outskirts'], 1).includes('outskirts'));
 });
@@ -1285,5 +1286,57 @@ Deno.test('balance cells keep combat samples stable when reward tables consume e
     enemies.forEach((e, i) => {
       e.drops = originals[i];
     });
+  }
+});
+
+Deno.test('balance: every class can finish a prepared uninterrupted dungeon run', () => {
+  // Reviewed preparation lane: ordinary best equippable gear, +3 weapon/armor,
+  // ten region-appropriate potions and four ethers. No inherited floor progress,
+  // boss trophies, infinite inventory, or healing trip between fights.
+  for (const z of ZONES) {
+    const d = z.dungeon;
+    if (!d) continue;
+    assertExists(d.recommendedLevel);
+    for (const cid of CLASS_IDS) {
+      let wins = 0;
+      for (let seed = 0; seed < 30; seed++) {
+        const p = makeHero(cid, d.recommendedLevel, 'best');
+        p.currentZone = z.id;
+        for (const slot of ['weapon', 'armor'] as const) {
+          p.flags[`forge_i_${p.equipment[slot]}`] = 3;
+        }
+        const stats = statsOf(p);
+        p.hp = stats.maxHp;
+        p.mp = stats.maxMp;
+        const potion = d.recommendedLevel < 10
+          ? 'c_minor_potion'
+          : d.recommendedLevel < 20
+          ? 'c_potion'
+          : d.recommendedLevel < 30
+          ? 'c_greater_potion'
+          : 'c_super_potion';
+        p.inventory = [{ id: potion, qty: 10 }, { id: 'c_ether', qty: 4 }];
+        if (d.bossGate) {
+          p.quests[d.bossGate.quest] = { status: 'active', counts: [] };
+          if (d.bossGate.item) p.inventory.push({ id: d.bossGate.item, qty: 1 });
+        }
+        const original = structuredClone(p);
+        const result = runDungeon(p, d, seededRng(7300 + seed));
+        assertEquals(p, original, 'the run harness must not mutate its fixture');
+        assertEquals(result.floors[0]?.floor, 1, 'every independent run starts at one');
+        if (result.outcome === 'win') {
+          wins++;
+          assertEquals(result.floors.length, d.floors.length + 1);
+          assertEquals(
+            result.floors.map((f) => f.floor),
+            Array.from({ length: d.floors.length + 1 }, (_, i) => i + 1),
+          );
+          assert(result.floors.some((f) => !f.battle), 'runs include authored discoveries');
+        }
+      }
+      // Mage remains vulnerable to an unlucky burst under a simple rotation;
+      // success is attainable, not guaranteed by the recommendation.
+      assert(wins >= (cid === 'mage' ? 21 : 27), `${z.id}/${cid}: ${wins}/30 prepared runs won`);
+    }
   }
 });

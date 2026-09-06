@@ -15,6 +15,7 @@
  * work is worth.
  */
 
+import { DUNGEON_BLOCK } from './dungeon_run.ts';
 import type { MaterialCost } from '../content/crafting.ts';
 import type { PlayerState } from './types.ts';
 import type { ForgeDef } from '../content/types.ts';
@@ -138,6 +139,7 @@ export function temper(
   // A fight forbids the anvil, and so does a live crossing (#166 —
   // enforced at the central mutation, not only in the handler).
   if (p.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
+  if (p.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK] };
   if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   const block = temperBlock(p, slot);
   if (block) return { ok: false, lines: [block] };

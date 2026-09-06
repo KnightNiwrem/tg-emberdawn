@@ -84,21 +84,24 @@ stay-and-fight defensive tool; Flee still uses SPD separately.
 - Boss semantics (no flee, Smoke Bomb refused, `bossesSlain`) come from the encounter — only a
   dungeon boss floor (`origin.boss`) is boss-classified. The Abyss overworld Warden is a farmable
   elite: fleeable, smokeable, not counted.
-- Dungeon floors advance on victory only; boss floors are story-gated via `bossGate` (kill-quest
-  bosses use `requireDone: false`). Victory bookkeeping routes through `resolveVictory()` in
+- Dungeon battle floors advance on victory; discovery floors advance through their explicit
+  continuation. Boss floors are story-gated via `bossGate` (kill-quest bosses use
+  `requireDone: false`). Victory bookkeeping routes through `resolveVictory()` in
   `src/engine/world.ts` — overworld kills never touch dungeon state.
-- Dungeon floors are independent dives: leaving to heal at a safe haven between floors is intended
-  play, not an exploit. Tune encounters assuming the player can realistically arrive at full HP. See
-  `emberdawn-design-decisions` for the attrition non-goal.
+- Dungeons are consecutive runs from floor 1 through the boss. Leaving, fleeing, or defeat abandons
+  temporary floor progress; re-entry starts over. No hub facilities or rest are available inside a
+  run. Discovery rooms never restore HP/MP. Collected floor caches and first-clear rewards remain
+  consumed across retries, while ordinary earned loot and quest progress remain earned. See
+  `docs/dungeon-runs.md` and `emberdawn-design-decisions`.
 - Encounter eligibility: battle/elite explore events carry authored `minPlayerLevel` /
   `maxPlayerLevel`; `explore()` filters them before weighting, so low-level protection lives in
   content (authorable, testable), not ad-hoc engine checks. Ordinary enemies have no ceiling —
   returning to earlier areas must keep working end-game. Whisperwood hostiles start at level 3 and
   its elite (e_stag) at 5; the Emberdawn Outskirts (Lv 1–3) are the repeatable low-level wilds, and
   Emberdawn Village stays a battle-free safe haven.
-- Every dungeon authors `recommendedLevel`; the zone view surfaces it, and diving into the boss
-  floor under it demands an explicit confirmation (`z:dgb`) — bosses cannot be fled, so entry must
-  be informed.
+- Every dungeon authors `recommendedLevel`; the dedicated entry panel surfaces it, and starting a
+  run under it demands an explicit confirmation (`z:dgb`). Bosses cannot be fled, so entry must
+  disclose that commitment before the run starts.
 
 ## Balance harness
 

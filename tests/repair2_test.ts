@@ -48,7 +48,7 @@ import {
   zoneOfNpc,
 } from '../src/content/quests.ts';
 import { enemy } from '../src/content/enemies.ts';
-import { STARTING_ZONES } from '../src/content/zones.ts';
+import { STARTING_ZONES, zone } from '../src/content/zones.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import {
   renderEquippedItemDetail,
@@ -1444,11 +1444,17 @@ Deno.test('every level-cap reward surface shows the conversion (#42)', () => {
   // Dungeon first-clear headline: same shared economy (#42).
   const pd = createPlayer(979, 'T', 'warrior');
   pd.level = 45;
+  pd.currentZone = 'whisperwood';
+  pd.dungeonRun = {
+    zoneId: 'whisperwood',
+    dungeonId: 'd_rootbound',
+    nextFloor: zone('whisperwood')!.dungeon!.floors.length + 1,
+  };
   const b = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
-    floor: 4,
+    floor: pd.dungeonRun.nextFloor,
     boss: true,
   }, { player: pd, rng: seeded(98) })!.battle;
   b.enemy.hp = 0;
@@ -1466,11 +1472,17 @@ Deno.test('44→45 dungeon first clear remains nominal (#42)', () => {
   // (400 XP) is what crosses 44→45 — so its headline must stay nominal.
   const killXp = rollRewards(enemy('e_aranya')!, seeded(96)).xp;
   p.xp = xpForNextLevel(44) - killXp - 100;
+  p.currentZone = 'whisperwood';
+  p.dungeonRun = {
+    zoneId: 'whisperwood',
+    dungeonId: 'd_rootbound',
+    nextFloor: zone('whisperwood')!.dungeon!.floors.length + 1,
+  };
   const b = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
-    floor: 4,
+    floor: p.dungeonRun.nextFloor,
     boss: true,
   }, { player: p, rng: seeded(99) })!.battle;
   b.enemy.hp = 0;
@@ -1520,9 +1532,9 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
   // per #28, only dungeon-boss origins set isBoss — explore spawns flee.)
   const boss = startBattle('e_vosk', {
     kind: 'dungeon',
-    zoneId: 'umbra',
-    dungeonId: 'd_throne',
-    floor: 4,
+    zoneId: 'hollowmere',
+    dungeonId: 'd_sunken',
+    floor: zone('hollowmere')!.dungeon!.floors.length + 1,
     boss: true,
   }, { player: p, rng: seeded(100) })!.battle;
   p.battle = boss;

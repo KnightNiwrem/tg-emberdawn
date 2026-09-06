@@ -5,7 +5,8 @@
 import type { BattlePhase, PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
 import { type BattleOutcome, performAction, type PlayerAction } from '../engine/combat.ts';
-import { clampPools, statsOf } from '../engine/character.ts';
+import { useRecoveryItem } from '../engine/supplies.ts';
+import { clampPools } from '../engine/character.ts';
 import { addItem, removeItem } from '../engine/inventory.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { resolveVictory } from '../engine/world.ts';
@@ -149,6 +150,7 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
     // crossing (#159/#160): battle and journey clear, the player stays at
     // the edge origin, earned rewards remain.
     if (b.origin.kind === 'travel') p.journey = undefined;
+    if (b.origin.kind === 'dungeon') p.dungeonRun = undefined;
     p.scene = { view: 'zone' };
     p.notices = lines;
     return {};
@@ -209,26 +211,9 @@ export function itemAction(
   itemId: string,
 ): MutationResult {
   if (op === 'u') {
-    const def = item(itemId);
-    if (!def || def.kind !== 'consumable') return { toast: "Can't use that here." };
-    // Out-of-battle use: apply effect directly.
-    const entry = p.inventory.find((e) => e.id === itemId);
-    if (!entry) return { toast: "You don't have that." };
-    const s = statsOf(p);
-    const lines: string[] = [];
-    if (def.effect?.healHp) {
-      const before = p.hp;
-      p.hp = Math.min(s.maxHp, p.hp + def.effect.healHp);
-      lines.push(`🧪 Restored ${p.hp - before} HP.`);
-    }
-    if (def.effect?.healMp) {
-      const before = p.mp;
-      p.mp = Math.min(s.maxMp, p.mp + def.effect.healMp);
-      lines.push(`💧 Restored ${p.mp - before} MP.`);
-    }
-    if (lines.length === 0) return { toast: 'Nothing happened.' };
-    removeItem(p, itemId, 1);
-    p.notices = lines;
+    const res = useRecoveryItem(p, itemId);
+    if (!res.ok) return { toast: res.lines[0] };
+    p.notices = res.lines;
     // #112: re-rendering the detail keeps its origin context so Back still
     // returns where the player came from.
     p.scene = {

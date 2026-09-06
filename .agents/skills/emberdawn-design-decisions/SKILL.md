@@ -9,15 +9,20 @@ Accepted trade-offs and intentional non-goals. These are settled decisions; re-o
 an explicit design change, not a drive-by refactor. Each entry states the current decision, not its
 history.
 
-## Dungeon floors are independent dives; overland travel is not free (#162)
+## Dungeons are consecutive runs
 
-Dungeon floors are independent dives: dungeon progress persists, and safe havens fully heal, so
-clearing a floor and then leaving to heal is intended play, not an exploit. Attrition mechanics
-inside dungeons (run-reset on leaving, travel locks, between-floor heal limits) are a deliberate
-non-goal. Do not balance dungeon difficulty around resource attrition — encounters should still be
-tuned assuming the player can realistically arrive at the dungeon at full HP.
+Each dungeon entry starts at floor 1. Combat and authored discovery floors lead consecutively to the
+boss; leaving or fleeing abandons the current run. Players cannot visit hub facilities or rest
+between floors. Discovery rooms supply atmosphere and occasional finite caches, never free recovery.
+An interrupted session resumes the active run; disconnecting is not abandoning it.
 
-The product owner explicitly REOPENED the "travel is free" half of the old decision (#157/#162):
+Durable first clears and collected floor caches are separate from temporary run progress. Retries
+retain earned quest progress and loot but cannot regenerate first-clear rewards or cache contents.
+Boss story gates remain in force, so preparation quests can use the earlier encounters and a player
+can abandon a run to report back. The next entry still begins at floor 1. See `docs/dungeon-runs.md`
+for the full policy and content authoring boundaries.
+
+## Overland travel is not free (#157/#162)
 
 - Some overland edges intentionally impose a sequence of random travel events (`RouteDef.eventCount`
   rolled from `RouteDef.events`). Crossing a road is real play, not a free teleport.

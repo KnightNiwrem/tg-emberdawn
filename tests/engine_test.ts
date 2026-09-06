@@ -35,7 +35,14 @@ import {
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import { buy, resolveStock, sell } from '../src/engine/shops.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
-import { diveDungeon, dungeonOf, explore, resolveVictory } from '../src/engine/world.ts';
+import {
+  abandonDungeon,
+  diveDungeon,
+  dungeonOf,
+  explore,
+  nextDungeonFloor,
+  resolveVictory,
+} from '../src/engine/world.ts';
 import { startJourney } from '../src/engine/journey.ts';
 import { STARTING_ZONES, zone, ZONES } from '../src/content/zones.ts';
 import { ENEMIES, enemy } from '../src/content/enemies.ts';
@@ -360,7 +367,7 @@ Deno.test('boss battles cannot be fled', () => {
     kind: 'dungeon',
     zoneId: 'umbra',
     dungeonId: 'd_throne',
-    floor: 4,
+    floor: zone('umbra')!.dungeon!.floors.length + 1,
     boss: true,
   }, { player: p, rng })!.battle;
   const r = performAction(p, battle, { kind: 'flee' }, rng);
@@ -697,7 +704,7 @@ Deno.test('overworld Warden is an elite; the dungeon Warden is the boss (#28)', 
     kind: 'dungeon',
     zoneId: 'abyss',
     dungeonId: 'd_seam',
-    floor: 5,
+    floor: zone('abyss')!.dungeon!.floors.length + 1,
     boss: true,
   }, { player: p, rng: seeded(83) })!.battle;
   p.battle = boss;
@@ -940,22 +947,32 @@ Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () 
   travelDirect(p, 'hollowmere');
   const d = dungeonOf(zone('hollowmere')!)!;
 
-  // Normal floors are open; each victory (and ONLY victory) advances.
-  for (let f = 0; f < d.floors.length; f++) {
-    const res = diveDungeon(p, d, rng);
-    assert(res.ok && res.battle, `floor ${f + 1} should be open`);
-    const isBoss = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
-    assert(!isBoss, 'boss floor must stay sealed while the story quest is unavailable');
-    res.battle!.enemy.hp = 0; // simulate victory
-    resolveVictory(p, res.battle!);
+  function clearNormalFloors() {
+    for (let f = 0; f < d.floors.length; f++) {
+      const res = diveDungeon(p, d, rng);
+      assert(res.ok, `floor ${f + 1} should be open`);
+      if (d.floors[f].discovery) {
+        assert(!res.battle, 'discovery advances without a battle');
+      } else {
+        assert(res.battle);
+        assertEquals(nextDungeonFloor(p, d), f + 1, 'entry alone never clears an encounter');
+        assert(res.battle.origin.kind === 'dungeon' && !res.battle.origin.boss);
+        res.battle.enemy.hp = 0; // simulate victory
+        resolveVictory(p, res.battle);
+      }
+      assertEquals(nextDungeonFloor(p, d), f + 2);
+    }
   }
+  clearNormalFloors();
   const blocked = diveDungeon(p, d, rng);
   assert(!blocked.ok, `boss floor sealed: ${blocked.lines[0]}`);
+  assert(abandonDungeon(p).ok, 'leave the preparation run to speak with the Ferryman');
 
   // The story hunt begins — the deepest chamber opens (d_sunken gates on m7).
   p.quests['m6_toxin'] = { status: 'done', counts: [] };
   syncAvailability(p);
   assert(acceptQuest(p, 'm7_tyrant', 'npc_ferryman').ok); // the Ferryman is right here
+  clearNormalFloors();
   const bossRun = diveDungeon(p, d, rng);
   assert(bossRun.ok && bossRun.battle);
   assertEquals(bossRun.battle!.enemy.id, d.boss);
@@ -963,7 +980,8 @@ Deno.test('world: victory-gated floors, story-gated boss, first-clear once', () 
   const lines = resolveVictory(p, bossRun.battle!);
   assert(lines.some((l) => l.includes('First clear')), 'first clear grants rewards');
 
-  // Rematch stays open; first-clear rewards never repeat.
+  // A rematch requires another complete run; first-clear rewards never repeat.
+  clearNormalFloors();
   const rematch = diveDungeon(p, d, rng);
   assert(rematch.ok && rematch.battle);
   assertEquals(rematch.battle!.enemy.id, d.boss);
