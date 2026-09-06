@@ -2,8 +2,8 @@
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
-import { renderItemSources } from './item_sources.ts';
-import { itemReferenceRow, renderItemUses } from './item_uses.ts';
+import { renderItemReference } from './item_reference.ts';
+import { itemReferenceRow } from './item_uses.ts';
 import type { ItemDef } from '../content/types.ts';
 import { isEquippable, item, sellPrice } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
@@ -191,12 +191,8 @@ export function renderItemDetail(
     blocks.push(detailBackRow(origin));
     return { blocks };
   }
-  if (p.scene.arg3?.startsWith('sources:')) {
-    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
-  }
-  if (p.scene.arg3?.startsWith('uses:')) {
-    return renderItemUses(def.id, Number(p.scene.arg3.slice(5)));
-  }
+  const reference = renderItemReference(def.id, p.scene.arg3);
+  if (reference) return reference;
   blocks.push(heading(`${def.name} ×${qty}`, 4));
   blocks.push(...noticesBlocks(p));
   blocks.push(...itemFactBlocks(def));
@@ -329,12 +325,8 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
     blocks.push(buttonsRow([cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))]));
     return { blocks };
   }
-  if (p.scene.arg3?.startsWith('sources:')) {
-    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
-  }
-  if (p.scene.arg3?.startsWith('uses:')) {
-    return renderItemUses(def.id, Number(p.scene.arg3.slice(5)));
-  }
+  const reference = renderItemReference(def.id, p.scene.arg3);
+  if (reference) return reference;
   const temper = slot !== 'trinket' ? temperLevel(p, slot) : 0;
   const temperMark = temper > 0 ? ` +${temper}` : '';
   blocks.push(heading(`${def.name}${temperMark}`, 4));

@@ -20,6 +20,8 @@ async function call(method: string, body?: Record<string, unknown>): Promise<voi
   });
   const json = await res.json();
   console.log(JSON.stringify(json, null, 2));
+  // #213: retain API diagnostics, but let callers detect a rejected request.
+  if (!res.ok || json?.ok !== true) Deno.exit(1);
 }
 
 switch (cmd) {

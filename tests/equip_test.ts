@@ -62,6 +62,38 @@ function round(p: PlayerState, b: BattleState, seed: number) {
   return performAction(p, b, { kind: 'attack' }, seeded(seed));
 }
 
+/** #216: poison the wearer and stun the enemy so only the tick can cost HP. */
+function isolatePeriodicHpLoss(b: BattleState): void {
+  applyInstance(b, {
+    defId: 'test_poison',
+    name: 'Test Rot',
+    kind: 'periodic',
+    side: 'player',
+    source: { kind: 'skill', id: 'test', name: 'Test' },
+    perRound: -5,
+    tickPhase: 'roundEnd',
+    tags: ['poison', 'harmful'],
+    stacking: 'replace',
+    duration: 3,
+    timing: 'immediate',
+    removable: true,
+  });
+  applyInstance(b, {
+    defId: 'test_stun',
+    name: 'Stun',
+    kind: 'control',
+    side: 'enemy',
+    source: { kind: 'skill', id: 'test', name: 'Test' },
+    control: 'stun',
+    actions: 1,
+    tags: ['control', 'harmful'],
+    stacking: 'replace',
+    duration: 1,
+    timing: 'immediate',
+    removable: false,
+  });
+}
+
 /** A seed under which the trinket's reactive trigger procs on round 1 —
  * which also proves the wolf's move actually dealt HP damage that round. */
 function reactiveSeed(
@@ -242,34 +274,7 @@ Deno.test('#89: cooldown 2 blocks the two rounds after a proc', () => {
 Deno.test('#82: periodic ticks damage the wearer but never proc', () => {
   const p = hero(11, 'warrior', 5, 't_9');
   const b = tankyWolf(p, 1);
-  applyInstance(b, {
-    defId: 'test_poison',
-    name: 'Test Rot',
-    kind: 'periodic',
-    side: 'player',
-    source: { kind: 'skill', id: 'test', name: 'Test' },
-    perRound: -5,
-    tickPhase: 'roundEnd',
-    tags: ['poison', 'harmful'],
-    stacking: 'replace',
-    duration: 3,
-    timing: 'immediate',
-    removable: true,
-  });
-  applyInstance(b, {
-    defId: 'test_stun',
-    name: 'Stun',
-    kind: 'control',
-    side: 'enemy',
-    source: { kind: 'skill', id: 'test', name: 'Test' },
-    control: 'stun',
-    actions: 1,
-    tags: ['control', 'harmful'],
-    stacking: 'replace',
-    duration: 1,
-    timing: 'immediate',
-    removable: false,
-  });
+  isolatePeriodicHpLoss(b);
   const hpBefore = p.hp;
   const res = round(p, b, 1);
   assert(p.hp < hpBefore, 'the end-of-round tick bit HP');
@@ -390,34 +395,7 @@ Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => 
 Deno.test('#89: broad onHpDamage answers periodic ticks', () => {
   const p = hero(21, 'warrior', 5, 't_19');
   const b = tankyWolf(p, 1);
-  applyInstance(b, {
-    defId: 'test_poison',
-    name: 'Test Rot',
-    kind: 'periodic',
-    side: 'player',
-    source: { kind: 'skill', id: 'test', name: 'Test' },
-    perRound: -5,
-    tickPhase: 'roundEnd',
-    tags: ['poison', 'harmful'],
-    stacking: 'replace',
-    duration: 3,
-    timing: 'immediate',
-    removable: true,
-  });
-  applyInstance(b, {
-    defId: 'test_stun',
-    name: 'Stun',
-    kind: 'control',
-    side: 'enemy',
-    source: { kind: 'skill', id: 'test', name: 'Test' },
-    control: 'stun',
-    actions: 1,
-    tags: ['control', 'harmful'],
-    stacking: 'replace',
-    duration: 1,
-    timing: 'immediate',
-    removable: false,
-  });
+  isolatePeriodicHpLoss(b);
   const hpBefore = p.hp;
   const res = round(p, b, 1);
   assert(p.hp < hpBefore, 'the end-of-round tick bit HP');

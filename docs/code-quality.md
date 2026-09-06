@@ -58,14 +58,32 @@ entrypoints do not establish their behavior.
 The issues hold the original evidence, implementation boundaries, and validation details. Unused API
 cleanup was excluded from this work.
 
-| Issue                                                           | Result                                                                                                                                                         |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [#178](https://github.com/KnightNiwrem/tg-emberdawn/issues/178) | Campaign flee attempts use the ordinary terminal accounting path, including consumed rounds, deaths, contextual loot, and journey completion.                  |
-| [#179](https://github.com/KnightNiwrem/tg-emberdawn/issues/179) | Shared application of resolved journey steps and quiet-event rewards preserves advancement ownership and RNG order.                                            |
-| [#180](https://github.com/KnightNiwrem/tg-emberdawn/issues/180) | Quest goods share one requirement collector; named quest-effect operations stay inside the story draft transaction.                                            |
-| [#181](https://github.com/KnightNiwrem/tg-emberdawn/issues/181) | Substantial combat effect cases have named helpers; the coordinator retains ordering, RNG gates, and terminal checks.                                          |
-| [#182](https://github.com/KnightNiwrem/tg-emberdawn/issues/182) | Balance metrics and deterministic route search are separate from combat and travel policy. Twelve seeded campaign reports matched before and after extraction. |
-| [#183](https://github.com/KnightNiwrem/tg-emberdawn/issues/183) | Shared hero status rendering and a focused travel-confirmation renderer clarify existing view responsibilities.                                                |
-| [#184](https://github.com/KnightNiwrem/tg-emberdawn/issues/184) | Item-source and dialogue-integrity checks have focused helpers; the Ferryman suites share their identical hero fixture.                                        |
-| [#185](https://github.com/KnightNiwrem/tg-emberdawn/issues/185) | CLI consumers are included in Fallow discovery, with the retained-API decision and review limits recorded here.                                                |
-| [#186](https://github.com/KnightNiwrem/tg-emberdawn/issues/186) | Verification exposed random travel UI fixtures; fixed draws exercise both battle/quiet departure outcomes and reliable defeat recovery.                        |
+| Issue                                                           | Result                                                                                                                                                                      |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#178](https://github.com/KnightNiwrem/tg-emberdawn/issues/178) | Campaign flee attempts use the ordinary terminal accounting path, including consumed rounds, deaths, contextual loot, and journey completion.                               |
+| [#179](https://github.com/KnightNiwrem/tg-emberdawn/issues/179) | Shared application of resolved journey steps and quiet-event rewards preserves advancement ownership and RNG order.                                                         |
+| [#180](https://github.com/KnightNiwrem/tg-emberdawn/issues/180) | Quest goods share one requirement collector; named quest-effect operations stay inside the story draft transaction.                                                         |
+| [#181](https://github.com/KnightNiwrem/tg-emberdawn/issues/181) | Substantial combat effect cases have named helpers; the coordinator retains ordering, RNG gates, and terminal checks.                                                       |
+| [#182](https://github.com/KnightNiwrem/tg-emberdawn/issues/182) | Balance metrics and deterministic route search are separate from combat and travel policy. Twelve seeded campaign reports matched before and after extraction.              |
+| [#183](https://github.com/KnightNiwrem/tg-emberdawn/issues/183) | Shared hero status rendering and a focused travel-confirmation renderer clarify existing view responsibilities.                                                             |
+| [#184](https://github.com/KnightNiwrem/tg-emberdawn/issues/184) | Item-source and dialogue-integrity checks have focused helpers; the Ferryman suites share their identical hero fixture.                                                     |
+| [#185](https://github.com/KnightNiwrem/tg-emberdawn/issues/185) | CLI consumers are included in Fallow discovery, with the retained-API decision and review limits recorded here.                                                             |
+| [#186](https://github.com/KnightNiwrem/tg-emberdawn/issues/186) | Verification exposed random travel UI fixtures; fixed draws exercise both battle/quiet departure outcomes and reliable defeat recovery.                                     |
+| [#213](https://github.com/KnightNiwrem/tg-emberdawn/issues/213) | Webhook management exits nonzero on HTTP or API failure while retaining the response. Process-level tests use a fake transport and verify request payloads and exit status. |
+| [#214](https://github.com/KnightNiwrem/tg-emberdawn/issues/214) | The CLI matrix has direct coverage of representative policy cells, eligibility boundaries, boss gear comparisons, finite metrics, and seeded repeatability.                 |
+| [#215](https://github.com/KnightNiwrem/tg-emberdawn/issues/215) | Bag, equipped-item, and shop details share Sources/Uses subview selection after their existing item-context checks.                                                         |
+| [#216](https://github.com/KnightNiwrem/tg-emberdawn/issues/216) | Equipment tests share identical poison-plus-stun setup; narrow and broad HP-damage triggers retain separate assertions.                                                     |
+
+The follow-up review used Fallow 3.22.0 at `3095cde`. It reported 28 dependency/export findings: 24
+unused exports and one unused type retained under #185, plus the three Deno dependency false
+positives above. Of 75 clone groups, 58 were test-only, 11 source-only, and six mixed. Its 143
+above-threshold functions were investigation candidates, not 143 defects. High fan-in alone did not
+justify splitting the 39-line inventory module; explicit dispatch and semantically different
+combat/story loops remained intact.
+
+Executed coverage distinguished two useful gaps from the estimates: the real webhook CLI falsely
+reported success for mocked API failures, and `runMatrix` had zero calls despite coverage of
+`runCell`, `buildSnapshot`, and `MATRIX_LEVELS`. Baseline combat coverage was 94.1% of lines and
+91.2% of branches. The baseline suite passed 743 tests with four PostgreSQL tests skipped locally;
+the separate PostgreSQL CI suite exercises `ensureSchema` through `PgStore.open`. New webhook tests
+run the script in a subprocess with a fake transport, which a static import graph may still miss.

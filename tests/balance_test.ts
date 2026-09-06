@@ -22,6 +22,7 @@ import {
   runCell,
   runDungeon,
   runFight,
+  runMatrix,
   seededRng,
   simulateCampaign,
   simulateChapterOne,
@@ -506,6 +507,64 @@ Deno.test('balance: the level matrix covers every authored unlock (#88)', () => 
   assert(MATRIX_LEVELS.includes(MAX_LEVEL), 'the endgame cap is exercised');
   for (let i = 1; i < MATRIX_LEVELS.length; i++) {
     assert(MATRIX_LEVELS[i]! > MATRIX_LEVELS[i - 1]!, 'matrix levels must be sorted + unique');
+  }
+});
+
+Deno.test('balance: CLI matrix preserves eligible policy and boss comparisons (#214)', () => {
+  const matrix = runMatrix(1, 9100);
+  assertEquals(matrix, runMatrix(1, 9100), 'the same seed reproduces the full report');
+  assertEquals(new Set(matrix.map((c) => c.classId)), new Set(CLASS_IDS));
+
+  // Explicit representative contracts, independent of the builder's loops:
+  // starter combat, both sides of the free-action cutoff, and Aranya's
+  // band-top / next-gear comparison. Never derive expectations with runCell.
+  const expected: [number, string, string][] = [
+    [2, 'outskirts', 'rotation'],
+    [2, 'outskirts:tactical', 'tactical'],
+    [2, 'outskirts:normal', 'free'],
+    [4, 'whisperwood', 'rotation'],
+    [4, 'whisperwood:tactical', 'tactical'],
+    [4, 'whisperwood:normal', 'free'],
+    [9, 'whisperwood:normal', 'free'],
+    [11, 'whisperwood', 'rotation'],
+    [11, 'whisperwood:tactical', 'tactical'],
+    [9, 'boss:e_aranya', 'rotation'],
+    [9, 'boss:e_aranya:tactical', 'tactical'],
+    [15, 'boss:e_aranya', 'rotation'],
+    [15, 'boss:e_aranya:tactical', 'tactical'],
+  ];
+  for (const classId of CLASS_IDS) {
+    for (const [level, pool, policy] of expected) {
+      assertEquals(
+        matrix.filter((c) =>
+          c.classId === classId && c.level === level && c.pool === pool && c.policy === policy
+        ).length,
+        1,
+        `${classId} Lv${level} ${pool} ${policy} must occur exactly once`,
+      );
+    }
+  }
+  assert(!matrix.some((c) => c.pool.startsWith('emberdawn')), 'safe havens have no fight cells');
+  assert(
+    !matrix.some((c) => c.pool.startsWith('whisperwood') && c.level < 3),
+    'protected low levels have no Whisperwood hostiles',
+  );
+  assert(
+    !matrix.some((c) => c.policy === 'free' && c.level > 9),
+    'the free-action comparison stops at level 9',
+  );
+  assert(
+    !matrix.some((c) => c.pool.startsWith('outskirts') && c.level > 5),
+    'matrix sampling stops two levels beyond the zone band',
+  );
+  for (const cell of matrix) {
+    const label = `${cell.classId} Lv${cell.level} ${cell.pool}`;
+    assertEquals(cell.fights, 1, label);
+    assertEquals(cell.gear, 'best', label);
+    assertEquals(cell.winRate + cell.lossRate + cell.timeoutRate, 1, label);
+    for (const [metric, value] of Object.entries(cell)) {
+      if (typeof value === 'number') assert(Number.isFinite(value), `${label}: ${metric}`);
+    }
   }
 });
 

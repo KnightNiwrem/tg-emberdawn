@@ -4,8 +4,8 @@
  * typed entities (bold/italic), never HTML strings.
  */
 
-import { renderItemSources } from './item_sources.ts';
-import { itemReferenceRow, renderItemUses } from './item_uses.ts';
+import { renderItemReference } from './item_reference.ts';
+import { itemReferenceRow } from './item_uses.ts';
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
@@ -625,12 +625,8 @@ export function renderShopItemDetail(
       ],
     };
   }
-  if (p.scene.arg3?.startsWith('sources:')) {
-    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
-  }
-  if (p.scene.arg3?.startsWith('uses:')) {
-    return renderItemUses(def.id, Number(p.scene.arg3.slice(5)));
-  }
+  const reference = renderItemReference(def.id, p.scene.arg3);
+  if (reference) return reference;
   const blocks: Block[] = [
     heading(`${defEmoji(def.kind)} ${def.name}`, 4),
     para(
