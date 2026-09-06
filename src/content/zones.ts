@@ -1,5 +1,5 @@
 /**
- * World map: 8 zones across 6 chapters plus the postgame Abyss.
+ * World map across 6 chapters plus the postgame Abyss.
  * Explore tables weight battles vs treasure/rest/flavor/elite events.
  */
 

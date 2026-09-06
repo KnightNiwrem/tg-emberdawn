@@ -38,6 +38,22 @@ export function seeded(seed: number): () => number {
   };
 }
 
+/** Temporarily overrides a content object's field, restoring after the synchronous callback. */
+export function withOverridden<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K],
+  run: () => void,
+): void {
+  const original = target[key];
+  target[key] = value;
+  try {
+    run();
+  } finally {
+    target[key] = original;
+  }
+}
+
 // ── Effect-instance fixtures (#78) ──────────────────────────────────────
 
 /** Injects a live statmod instance — the test-fixture replacement for the

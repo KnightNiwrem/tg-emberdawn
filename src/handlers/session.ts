@@ -210,14 +210,6 @@ export interface MutationResult {
   toast?: string;
 }
 
-/**
- * Loads (or initializes) the player, runs the mutation, renders, saves.
- * The mutation sets p.scene/p.notices; this wrapper handles I/O only.
- */
-/** Runs a mutation against an ALREADY-LOADED player and persists. Loading
- * happens exactly once per tap: a second store.get() (Postgres) returns a
- * fresh deserialized object and would silently drop in-memory state such
- * as newer-message adoption. */
 /** Player-facing refusal for an incompatible pre-launch save (#44, #116).
  * Shared by /start and the callback gate so the two paths cannot drift. */
 export const INCOMPATIBLE_SAVE_REPLY =
@@ -230,6 +222,10 @@ export const INCOMPATIBLE_SAVE_REPLY =
 export const UNRESOLVABLE_SAVE_REPLY =
   '⚠️ This pre-launch save references content that no longer exists and cannot be loaded. Send /reset to start fresh.';
 
+/** Runs a mutation against an ALREADY-LOADED player and persists. Loading
+ * happens exactly once per tap: a second store.get() (Postgres) returns a
+ * fresh deserialized object and would silently drop in-memory state such
+ * as newer-message adoption. */
 export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,

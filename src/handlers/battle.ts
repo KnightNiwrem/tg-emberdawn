@@ -136,7 +136,7 @@ export function battleAction(player: PlayerState, cb: Cb & { v: 'battle' }): Mut
       break;
     case 'use': {
       // Skill ids and consumable item ids share this entry point.
-      if (isConsumable(cb.arg)) action = { kind: 'item', itemId: cb.arg };
+      if (item(cb.arg)?.kind === 'consumable') action = { kind: 'item', itemId: cb.arg };
       else action = { kind: 'skill', skillId: cb.arg };
       break;
     }
@@ -198,10 +198,6 @@ export function battleAction(player: PlayerState, cb: Cb & { v: 'battle' }): Mut
   if (player.tutorial === 'fight' && result.consumedTurn) coachTutorial(player);
   player.scene = { view: 'battle' };
   return {};
-}
-
-function isConsumable(itemId: string): boolean {
-  return item(itemId)?.kind === 'consumable';
 }
 
 /** Non-battle item actions (inventory view). Selling left the generic

@@ -22,7 +22,7 @@ import {
   renderItemDetail,
   triggerDisclosure,
 } from '../src/render/menus.ts';
-import { injectMod, seeded } from './helpers.ts';
+import { injectMod, seeded, withOverridden } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 
@@ -531,22 +531,6 @@ Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduce
 });
 
 // ── #97: reactive equipment dispatches per actual HP-loss event ──────────
-
-/** Temporarily overrides a content object's field, restoring afterwards. */
-function withOverridden<T, K extends keyof T>(
-  target: T,
-  key: K,
-  value: T[K],
-  run: () => void,
-): void {
-  const original = target[key];
-  target[key] = value;
-  try {
-    run();
-  } finally {
-    target[key] = original;
-  }
-}
 
 /** The Grudge Charm (broad onHpDamage) with gates removed: deterministic
  * always-proc, unlimited per battle, no cooldown. */

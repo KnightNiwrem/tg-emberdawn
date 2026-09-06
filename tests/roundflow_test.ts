@@ -19,7 +19,7 @@ import type { BattleState, ClassId, EffectInstance, PlayerState } from '../src/e
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
-import { injectMod, seeded } from './helpers.ts';
+import { injectMod, seeded, withOverridden } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
 
@@ -463,22 +463,6 @@ Deno.test('#94: refreshing a mid-round SPD buff re-banks its full snapshot count
 });
 
 // ── #107: timing provenance survives nested reactions ─────────────────────
-
-/** Temporarily overrides a content object's field, restoring afterwards. */
-function withOverridden<T, K extends keyof T>(
-  target: T,
-  key: K,
-  value: T[K],
-  run: () => void,
-): void {
-  const original = target[key];
-  target[key] = value;
-  try {
-    run();
-  } finally {
-    target[key] = original;
-  }
-}
 
 /** The Grudge Charm as a self-SPD trigger: every HP loss to the wearer
  * applies a two-turn haste. The point of the fixture is WHERE the haste

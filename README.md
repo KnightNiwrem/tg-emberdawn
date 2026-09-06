@@ -31,13 +31,13 @@ full terms. Third-party material and dependencies retain their respective terms.
 - **4 classes** — Warrior, Mage, Rogue, Cleric — each with 8 unique skills learned by level.
 - **Turn-based combat** — attack, skills (MP + cooldowns), items, guard, flee; crits, stuns,
   buffs/debuffs, scripted boss specials.
-- **8 zones, 7 dungeons, 48 enemies** across 6 story chapters — each one recovers a piece of the
-  stolen dawn — plus a postgame hunt beneath the world.
-- **25 main quests + 16 side quests** (the player is a _Dawncaller_; the Sundered King is despair
-  that stopped believing in morning), quest log with objective tracking and turn-ins.
-- **~100 items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
+- **Zones, dungeons, and enemies** across 6 story chapters — each one recovers a piece of the stolen
+  dawn — plus a postgame hunt beneath the world.
+- **Main and side quests** (the player is a _Dawncaller_; the Sundered King is despair that stopped
+  believing in morning), quest log with objective tracking and turn-ins.
+- **Items** — class-tiered weapons/armor, trinkets, consumables, forge materials.
 - **Forge tempering** (+1…+5, mastered per item pattern so future copies inherit it), shops that
-  scale with your level.
+  carry regional, progression-gated stock.
 - **45 levels** with a grindy curve tuned for weeks of play, bosses, elite encounters, death
   penalties, a Phoenix Cinder auto-revive.
 - **One live message per player**: staleness-guarded, crash-safe, state persisted in Postgres

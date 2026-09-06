@@ -214,18 +214,6 @@ Deno.test('#80: tutorial provenance suppresses openings at construction', () => 
   assertEquals(b.tutorialStep, 'basic');
 });
 
-Deno.test('#91: previewBattle resolves no opening — not even the boss ward', () => {
-  // The preview container is for menus/telemetry only: raw enemy state with
-  // no hero attached. It must never leak partial opening resolution.
-  const boss = previewBattle('e_aldric', BOSS_ORIGIN)!;
-  assertEquals(boss.opening, undefined);
-  assertEquals(boss.effectInstances.length, 0);
-  assertEquals(boss.shield.enemy, 0, 'boss provenance grants nothing without the hero');
-  const plain = previewBattle('e_rat', ORIGIN)!;
-  assertEquals(plain.opening, undefined);
-  assertEquals(plain.effectInstances.length, 0);
-});
-
 Deno.test('#80: the opening renders expanded on round 1, collapsed thereafter', () => {
   const p = roguePlayer(14);
   const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(61) })!.battle;
@@ -363,14 +351,18 @@ Deno.test('#96: performAction refuses to run a round on a pre-existing terminal 
 // ── #99: previews are structurally unplayable — playable fights construct
 // through startBattle ─────────────────────────────────────────────────────
 
-Deno.test('#99: a preview resolves no opening and cannot be played', () => {
+Deno.test('#91/#99: previews resolve no openings and stay separate from playable battles', () => {
   // Aldric behind boss provenance: the Sovereign Ward is an OPENING source,
   // so a real construction resolves it — a preview must not.
-  const pv = previewBattle('e_aldric', BOSS_ORIGIN)!;
-  assertEquals(pv.phase, 'preview', "the container's phase is not a BattlePhase");
-  assertEquals(pv.shield.enemy, 0, 'no opening ward — previews resolve no openings');
-  assertEquals(pv.effectInstances.length, 0, 'no opening effects');
-  assertEquals(pv.history.length, 0, 'no rounds could ever run');
+  const preview = previewBattle('e_aldric', BOSS_ORIGIN)!;
+  assertEquals(preview.phase, 'preview', "the container's phase is not a BattlePhase");
+  assertEquals(preview.opening, undefined);
+  assertEquals(preview.shield.enemy, 0, 'no opening ward — previews resolve no openings');
+  assertEquals(preview.effectInstances.length, 0, 'no opening effects');
+  assertEquals(preview.history.length, 0, 'no rounds could ever run');
+  const plain = previewBattle('e_rat', ORIGIN)!;
+  assertEquals(plain.opening, undefined);
+  assertEquals(plain.effectInstances.length, 0);
   // The playable path — the same enemy, the same provenance — DOES.
   const live = startBattle('e_aldric', BOSS_ORIGIN, {
     player: createPlayer(6500, 'T', 'warrior'),

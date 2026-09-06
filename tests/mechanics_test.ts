@@ -8,7 +8,6 @@
  */
 
 import { assertEquals } from '@std/assert';
-import type { EffectSpec } from '../src/content/types.ts';
 import {
   consumableEffectLines,
   FOE_VOICE,
@@ -16,19 +15,17 @@ import {
   mechanicsText,
 } from '../src/engine/mechanics.ts';
 
-const txt = (specs: EffectSpec[]): string => mechanicsText(specs);
-
 Deno.test('mechanics: damage shape discloses power, target stat, execute and Shield bypass', () => {
   assertEquals(
-    txt([{ kind: 'damage', attack: 'phys', power: 1.35 }]),
+    mechanicsText([{ kind: 'damage', attack: 'phys', power: 1.35 }]),
     'Deals 135% ATK damage.',
   );
   assertEquals(
-    txt([{ kind: 'damage', attack: 'mag', power: 2.6, bypassShield: true }]),
+    mechanicsText([{ kind: 'damage', attack: 'mag', power: 2.6, bypassShield: true }]),
     'Deals 260% MAG damage. Ignores Shield.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'damage',
       attack: 'phys',
       power: 2.4,
@@ -40,28 +37,28 @@ Deno.test('mechanics: damage shape discloses power, target stat, execute and Shi
 
 Deno.test('mechanics: restoration shapes disclose every leg', () => {
   assertEquals(
-    txt([{ kind: 'restore', hpPower: 1.1, hpFlat: 20 }]),
+    mechanicsText([{ kind: 'restore', hpPower: 1.1, hpFlat: 20 }]),
     'Restores 220% of MAG + 20 HP.',
   );
-  assertEquals(txt([{ kind: 'restore', hpPctOfMax: 0.3 }]), 'Restores 30% of max HP.');
-  assertEquals(txt([{ kind: 'restore', hpFull: true }]), 'Fully restores HP.');
-  assertEquals(txt([{ kind: 'restore', mpPctOfMax: 0.08 }]), 'Restores 8% of max MP.');
+  assertEquals(mechanicsText([{ kind: 'restore', hpPctOfMax: 0.3 }]), 'Restores 30% of max HP.');
+  assertEquals(mechanicsText([{ kind: 'restore', hpFull: true }]), 'Fully restores HP.');
+  assertEquals(mechanicsText([{ kind: 'restore', mpPctOfMax: 0.08 }]), 'Restores 8% of max MP.');
 });
 
 Deno.test('mechanics: lifesteal is derived from the dealt damage', () => {
   assertEquals(
-    txt([{ kind: 'lifesteal', pct: 0.5 }]),
+    mechanicsText([{ kind: 'lifesteal', pct: 0.5 }]),
     'Restores 50% of the damage dealt as HP.',
   );
 });
 
 Deno.test('mechanics: stat modifiers cover every stat key and target side', () => {
   assertEquals(
-    txt([{ kind: 'statmod', stat: 'atk', pct: 0.35, duration: 3, timing: 'defer' }]),
+    mechanicsText([{ kind: 'statmod', stat: 'atk', pct: 0.35, duration: 3, timing: 'defer' }]),
     'Raises your ATK by 35% for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'statmod',
       target: 'opponent',
       stat: 'res',
@@ -72,7 +69,7 @@ Deno.test('mechanics: stat modifiers cover every stat key and target side', () =
     "Lowers the target's RES by 25% for 2 rounds.",
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'statmod',
       target: 'opponent',
       stat: 'incoming',
@@ -83,7 +80,7 @@ Deno.test('mechanics: stat modifiers cover every stat key and target side', () =
     'Increases the damage the target takes by 25% for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'statmod',
       target: 'opponent',
       stat: 'outgoing',
@@ -94,16 +91,22 @@ Deno.test('mechanics: stat modifiers cover every stat key and target side', () =
     'Reduces the damage the target deals by 30% for 2 rounds.',
   );
   assertEquals(
-    txt([{ kind: 'statmod', stat: 'mitigation', pct: 0.4, duration: 2, timing: 'immediate' }]),
+    mechanicsText([{
+      kind: 'statmod',
+      stat: 'mitigation',
+      pct: 0.4,
+      duration: 2,
+      timing: 'immediate',
+    }]),
     'Raises your damage mitigation by 40% for 2 rounds.',
   );
   assertEquals(
-    txt([{ kind: 'statmod', stat: 'spd', pct: 0.45, duration: 3, timing: 'defer' }]),
+    mechanicsText([{ kind: 'statmod', stat: 'spd', pct: 0.45, duration: 3, timing: 'defer' }]),
     'Raises your SPD by 45% for 3 rounds.',
   );
   // Battle-lifetime statmods never claim an ordinary numeric duration.
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'statmod',
       stat: 'atk',
       pct: 0.1,
@@ -117,11 +120,11 @@ Deno.test('mechanics: stat modifiers cover every stat key and target side', () =
 
 Deno.test('mechanics: control discloses chance and consumed actions', () => {
   assertEquals(
-    txt([{ kind: 'control', control: 'stun', actions: 1 }]),
+    mechanicsText([{ kind: 'control', control: 'stun', actions: 1 }]),
     'Stuns the target: it loses its next action.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'control',
       control: 'stun',
       actions: 2,
@@ -134,7 +137,7 @@ Deno.test('mechanics: control discloses chance and consumed actions', () => {
 
 Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and Shield policy', () => {
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'periodic',
       perRound: -12,
       duration: 3,
@@ -145,7 +148,7 @@ Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and 
     'Inflicts Burn: 12 damage at the end of each round for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'periodic',
       perRound: -16,
       duration: 3,
@@ -157,7 +160,7 @@ Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and 
     'Inflicts Venom: 16 damage at the end of each round for 3 rounds. Venom ignores Shield.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'periodic',
       perRound: 14,
       duration: 3,
@@ -167,7 +170,7 @@ Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and 
     'Restores 14 HP at the end of each round for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'periodic',
       pctOfMaxPerRound: -0.02,
       duration: 5,
@@ -178,7 +181,7 @@ Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and 
     'Inflicts Decay: 2% of max HP damage at the end of each round for 5 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'periodic',
       perRound: -8,
       duration: 2,
@@ -192,20 +195,20 @@ Deno.test('mechanics: periodics disclose name, amount, tick phase, duration and 
 
 Deno.test('mechanics: cleanse and dispel use the canonical effect categories', () => {
   assertEquals(
-    txt([{ kind: 'cleanse', tags: ['harmful'] }]),
+    mechanicsText([{ kind: 'cleanse', tags: ['harmful'] }]),
     'Removes all removable harmful effects.',
   );
   // Singular agreement (#134): a cap of 1 takes the singular noun.
   assertEquals(
-    txt([{ kind: 'cleanse', tags: ['harmful'], max: 1 }]),
+    mechanicsText([{ kind: 'cleanse', tags: ['harmful'], max: 1 }]),
     'Removes up to 1 harmful effect.',
   );
   assertEquals(
-    txt([{ kind: 'cleanse', tags: ['harmful'], max: 3 }]),
+    mechanicsText([{ kind: 'cleanse', tags: ['harmful'], max: 3 }]),
     'Removes up to 3 harmful effects.',
   );
   assertEquals(
-    txt([{ kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 }]),
+    mechanicsText([{ kind: 'dispel', target: 'opponent', tags: ['beneficial'], max: 1 }]),
     'Removes up to 1 beneficial effect from the target.',
   );
   assertEquals(
@@ -218,15 +221,15 @@ Deno.test('mechanics: cleanse and dispel use the canonical effect categories', (
 
 Deno.test('mechanics: resource and shield shapes', () => {
   assertEquals(
-    txt([{ kind: 'resource', mpPctOfMax: 0.1 }]),
+    mechanicsText([{ kind: 'resource', mpPctOfMax: 0.1 }]),
     'Restores 10% of max MP.',
   );
   assertEquals(
-    txt([{ kind: 'shield', amount: 25, duration: 3, timing: 'immediate' }]),
+    mechanicsText([{ kind: 'shield', amount: 25, duration: 3, timing: 'immediate' }]),
     'Grants Shield equal to 25 for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'shield',
       magPower: 1.2,
       amount: 20,
@@ -236,7 +239,7 @@ Deno.test('mechanics: resource and shield shapes', () => {
     'Grants Shield equal to 240% MAG + 20 for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'shield',
       defPower: 0.9,
       amount: 10,
@@ -246,7 +249,7 @@ Deno.test('mechanics: resource and shield shapes', () => {
     'Grants Shield equal to 180% DEF + 10 for 3 rounds.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'shield',
       defPower: 1.1,
       amount: 30,
@@ -261,7 +264,7 @@ Deno.test('mechanics: resource and shield shapes', () => {
 
 Deno.test('mechanics: chance, stacking and rider conditions are disclosed', () => {
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'statmod',
       target: 'opponent',
       stat: 'incoming',
@@ -273,14 +276,14 @@ Deno.test('mechanics: chance, stacking and rider conditions are disclosed', () =
     '60% chance: Increases the damage the target takes by 25% for 3 rounds.',
   );
   assertEquals(
-    txt([
+    mechanicsText([
       { kind: 'restore', hpPctOfMax: 0.3 },
       { kind: 'statmod', stat: 'atk', pct: 0.2, duration: 2, timing: 'defer', stacking: 'stack' },
     ]),
     'Restores 30% of max HP. Raises your ATK by 20% for 2 rounds. Applications stack.',
   );
   assertEquals(
-    txt([{
+    mechanicsText([{
       kind: 'damage',
       attack: 'phys',
       power: 3.1,

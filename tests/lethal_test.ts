@@ -16,7 +16,7 @@ import type { BattleState, ClassId } from '../src/engine/types.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
 import { item } from '../src/content/items.ts';
 import { addItem } from '../src/engine/inventory.ts';
-import { seeded } from './helpers.ts';
+import { seeded, withOverridden } from './helpers.ts';
 
 const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
 
@@ -52,21 +52,6 @@ function warded(p: PlayerState): void {
     timing: 'immediate',
     removable: true,
   });
-}
-
-function withOverridden<T, K extends keyof T>(
-  target: T,
-  key: K,
-  value: T[K],
-  run: () => void,
-): void {
-  const original = target[key];
-  target[key] = value;
-  try {
-    run();
-  } finally {
-    target[key] = original;
-  }
 }
 
 /** One lethal enemy strike through the DIRECT damage family. */

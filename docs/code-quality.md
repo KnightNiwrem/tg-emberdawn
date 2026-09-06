@@ -44,6 +44,7 @@ manifest.
   [design-decisions skill](../.agents/skills/emberdawn-design-decisions/SKILL.md).
 - **Test expectations remain independent.** Share identical setup and name coherent content crawls,
   but retain explicit assertions and useful failure context. Do not calculate expected values with
+  the implementation under test.
 - **Descriptive domain naming.** Variable names must be descriptive and reveal intent; avoid
   single-letter domain variables (`p`, `b`, `q`, etc.) across engine, handlers, renderers, and tests
   in favor of descriptive identifiers (`player`, `battle`, `questDef`). Telegram `callback_data`
@@ -78,6 +79,8 @@ cleanup was excluded from this work.
 | [#215](https://github.com/KnightNiwrem/tg-emberdawn/issues/215) | Bag, equipped-item, and shop details share Sources/Uses subview selection after their existing item-context checks.                                                         |
 | [#216](https://github.com/KnightNiwrem/tg-emberdawn/issues/216) | Equipment tests share identical poison-plus-stun setup; narrow and broad HP-damage triggers retain separate assertions.                                                     |
 | [#217](https://github.com/KnightNiwrem/tg-emberdawn/issues/217) | Domain and test variable names use descriptive terms rather than single-letter abbreviations, keeping wire callbacks exempt.                                                |
+| [#218](https://github.com/KnightNiwrem/tg-emberdawn/issues/218) | Three identical content-override fixtures share one helper; pass-through wrappers and repeated preview checks are removed while preserving distinct assertions.             |
+| [#219](https://github.com/KnightNiwrem/tg-emberdawn/issues/219) | Lifecycle comments describe the current ownership of loading and notices; overview prose drops drifting catalog counts and describes regional shop stock.                   |
 
 The follow-up review used Fallow 3.22.0 at `3095cde`. It reported 28 dependency/export findings: 24
 unused exports and one unused type retained under #185, plus the three Deno dependency false
