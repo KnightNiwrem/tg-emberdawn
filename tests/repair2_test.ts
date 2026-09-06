@@ -612,7 +612,10 @@ Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (
   const detail = JSON.stringify(renderEquippedItemDetail(player, 'trinket'));
   assert(detail.includes('⚡ Battle start'), 'the detail discloses the trigger');
   assert(detail.includes('Equipped'), 'the detail names the equipped state');
-  assert(!detail.includes('Sell'), 'no bag-only Sell on the equipped copy');
+  const controls = JSON.stringify(
+    renderEquippedItemDetail(player, 'trinket').blocks?.filter((b) => b.type === 'buttons'),
+  );
+  assert(!controls.includes('Sell'), 'no Sell button on the equipped copy');
 
   // 4. Back from the equipped detail returns to Equipment.
   await handleCallback(fakeCtx(930, 600, withRev(cur.uiRev ?? 0, 'e:op')), store);

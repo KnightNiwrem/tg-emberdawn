@@ -1070,7 +1070,10 @@ Deno.test('#112: equipped details show full facts with NO bag-only controls', ()
     const json = JSON.stringify(renderEquippedItemDetail(p, slot));
     assert(json.includes('Equipped'), `${slot} detail names the equipped state`);
     assert(!json.includes('×'), `${slot} detail shows no bag quantity`);
-    assert(!json.includes('Sell'), `${slot} detail offers no Sell`);
+    const controls = JSON.stringify(
+      renderEquippedItemDetail(p, slot).blocks?.filter((b) => b.type === 'buttons'),
+    );
+    assert(!controls.includes('Sell'), `${slot} detail offers no Sell button`);
     assert(!json.includes('Drop'), `${slot} detail offers no Drop`);
     assert(!json.includes('⚔️ Equip'), `${slot} detail offers no Equip`);
     assert(!json.includes('🧪 Use'), `${slot} detail offers no Use`);

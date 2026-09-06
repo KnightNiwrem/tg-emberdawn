@@ -91,7 +91,7 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     // #187: an inspected shop item and its return page survive JSONB;
     // the optional selection must re-pass the persisted-identity gate.
     const shopper = createPlayer(1873, 'Shopper', 'warrior');
-    shopper.scene = { view: 'shop', arg: '1', arg2: 'c_minor_potion' };
+    shopper.scene = { view: 'shop', arg: '1', arg2: 'c_minor_potion', arg3: 'sources:1' };
     await store.withLock(shopper.userId, () => store.set(shopper.userId, shopper));
     const restored = (await store.get(shopper.userId))!;
     assertEquals(restored, shopper);

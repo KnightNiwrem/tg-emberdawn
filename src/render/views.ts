@@ -4,6 +4,7 @@
  * typed entities (bold/italic), never HTML strings.
  */
 
+import { renderItemSources, sourcesButton } from './item_sources.ts';
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { PlayerState } from '../engine/types.ts';
 import type { QuestDef } from '../content/types.ts';
@@ -623,6 +624,9 @@ export function renderShopItemDetail(
       ],
     };
   }
+  if (p.scene.arg3?.startsWith('sources:')) {
+    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
+  }
   const blocks: Block[] = [
     heading(`${defEmoji(def.kind)} ${def.name}`, 4),
     para(
@@ -642,6 +646,7 @@ export function renderShopItemDetail(
   }
   blocks.push(...itemFactBlocks(def));
   blocks.push(buttonsRow([
+    sourcesButton(),
     p.gold >= offering.price
       ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
       : disabledBtn(`${def.name} — too costly`),

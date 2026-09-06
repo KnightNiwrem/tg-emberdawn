@@ -3,6 +3,7 @@
  * live-message rules as everything else, and an existing character can never
  * be replaced by a stale or forged button. */
 
+import { sourcesAction } from './item_sources.ts';
 import { DUNGEON_BLOCK } from '../engine/dungeon_run.ts';
 import type { Context } from 'grammy';
 import { decodeCb } from '../codec.ts';
@@ -87,6 +88,8 @@ function dispatch(
     return { toast: DUNGEON_BLOCK };
   }
   switch (cb.v) {
+    case 'sources':
+      return sourcesAction(player, cb);
     case 'zone':
       return zoneAction(player, cb);
     case 'travel':

@@ -2,9 +2,10 @@
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
+import { renderItemSources, sourcesButton } from './item_sources.ts';
 import { resourceFacts } from '../engine/materials.ts';
 import type { ItemDef } from '../content/types.ts';
-import { isEquippable, item } from '../content/items.ts';
+import { isEquippable, item, sellPrice } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
 import { CLASSES, MAX_LEVEL } from '../engine/classes.ts';
 import {
@@ -173,6 +174,7 @@ export function itemFactBlocks(def: ItemDef): InputRichBlock[] {
   if (def.level > 1 && (def.kind === 'weapon' || def.kind === 'armor' || def.kind === 'trinket')) {
     blocks.push(para(`Requires level ${def.level}.`));
   }
+  blocks.push(para(`Sell value: ${def.unique ? '-' : `${sellPrice(def.id)}g`}`));
   return blocks;
 }
 
@@ -189,6 +191,9 @@ export function renderItemDetail(
     blocks.push(para('That item has vanished from your bag.'));
     blocks.push(detailBackRow(origin));
     return { blocks };
+  }
+  if (p.scene.arg3?.startsWith('sources:')) {
+    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
   }
   blocks.push(heading(`${def.name} ×${qty}`, 4));
   blocks.push(...noticesBlocks(p));
@@ -211,10 +216,8 @@ export function renderItemDetail(
   if (!def.unique && def.kind !== 'quest') {
     row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
   }
-  // Optional action row (#39): an actionless item (quest items, earned
-  // trophies) renders an informational view with the Back row only — an
-  // empty buttons block fails Telegram's 1–8 button validation.
-  if (row.length > 0) blocks.push(buttonsRow(row, 'left'));
+  row.push(sourcesButton());
+  blocks.push(buttonsRow(row, 'left'));
   blocks.push(detailBackRow(origin));
   return { blocks };
 }
@@ -311,8 +314,8 @@ export function renderEquipment(p: PlayerState): InputRichMessage {
  * information as the bag detail (stats, description, requirements, exact
  * trigger mechanics, temper level and its effective contribution) with the
  * equipped state instead of a bag quantity, and NO bag-only controls: the
- * only actions are Unequip (the validated operation, returning exactly one
- * copy to the bag) and Back to Equipment. */
+ * controls are Sources, Unequip (the validated operation, returning exactly
+ * one copy to the bag), and Back to Equipment. */
 export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): InputRichMessage {
   const blocks: InputRichBlock[] = [];
   const id = p.equipment[slot];
@@ -323,6 +326,9 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
     blocks.push(para(`That ${SLOT_NAMES[slot]} slot is empty.`));
     blocks.push(buttonsRow([cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))]));
     return { blocks };
+  }
+  if (p.scene.arg3?.startsWith('sources:')) {
+    return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
   }
   const temper = slot !== 'trinket' ? temperLevel(p, slot) : 0;
   const temperMark = temper > 0 ? ` +${temper}` : '';
@@ -336,6 +342,7 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
   blocks.push(...itemFactBlocks(def));
   blocks.push(
     buttonsRow([
+      sourcesButton(),
       cbBtn('🔓 Unequip', encodeCb({ v: 'equipment', a: 'rm', arg: slot }), 'danger'),
       cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
     ], 'left'),

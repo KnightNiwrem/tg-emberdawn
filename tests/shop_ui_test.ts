@@ -73,7 +73,10 @@ Deno.test('shop: Details disclose equipment stats, requirements, triggers, consu
     assert(text.includes('In bag: 0'));
     assert(controls(view).includes(encodeCb({ v: 'shop', a: 'buy', arg: id })));
     assert(controls(view).includes(encodeCb({ v: 'shop', a: 'p', arg: 1 })));
-    assert(controls(view).every((wire) => decodeCb(wire)?.v === 'shop'), 'only shop actions');
+    assert(
+      controls(view).every((wire) => ['shop', 'sources'].includes(decodeCb(wire)!.v)),
+      'shop actions and source navigation only',
+    );
   }
 });
 

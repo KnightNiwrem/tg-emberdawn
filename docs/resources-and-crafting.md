@@ -45,7 +45,9 @@ Raw berries restore 12 HP and bitterleaf restores 8 MP. Brewing concentrates the
 materials; cooking produces stronger consumable meals. Other recipes cover later potions and ethers,
 cleansing tonics, smoke bombs, charcoal, iron ingots, and tool manufacture. Every recipe displays
 its local station, level, fee, inputs, bag quantities, output, and generated output mechanics.
-Missing inputs have source directions; resource inspection lists current uses and catalog sources.
+Missing inputs have source directions; item details list current uses and sell value. A Sources
+button opens a paginated catalog reference, with Back returning to the same item and its original
+bag, equipment, or shop context.
 
 The early supply chain is deliberately accessible:
 
