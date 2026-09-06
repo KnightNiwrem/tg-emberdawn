@@ -90,18 +90,6 @@ export function renderZone(p: PlayerState): InputRichMessage {
     // every action out here is a fight.
     blocks.push(para('🌫️ Dangerous wilds — you can flee battles encountered while exploring.'));
   }
-  if (d) {
-    // Authored readiness surfaced (#73): the recommended level rides the
-    // dungeon line so the boss's tune point is never a hidden dependency.
-    const rec = d.recommendedLevel !== undefined ? ` · Recommended Lv ${d.recommendedLevel}` : '';
-    blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}${rec}`));
-    if (dungeonCleared(p, d)) {
-      blocks.push(
-        para('The chambers retain an echo of your first trial. You can face that echo again.'),
-      );
-    }
-  }
-
   // Under-level boss confirmation (#73): the boss floor is inescapable, so
   // diving into it below the authored readiness level demands an informed,
   // explicit choice — a full-screen warning instead of the action rows.
@@ -128,53 +116,80 @@ export function renderZone(p: PlayerState): InputRichMessage {
     return { blocks };
   }
 
+  // Keep local activities together; nonexistent activities have no placeholder (#205).
+  blocks.push(heading('Activities', 4));
+  const activities = [cbBtn(
+    z.safeHaven ? '🧭 Search surroundings' : '🧭 Explore',
+    encodeCb({ v: 'zone', a: 'ex' }),
+    'success',
+  )];
+  if (gatheringOptions(p).length) {
+    activities.push(cbBtn('🧺 Gather resources', encodeCb({ v: 'zone', a: 'gp' })));
+  }
+  blocks.push(buttonsRow(activities, 'left'));
+  if (d) {
+    // Keep progress and readiness beside the action they inform.
+    const rec = d.recommendedLevel !== undefined ? ` · Recommended Lv ${d.recommendedLevel}` : '';
+    blocks.push(para(`${d.emoji} ${d.name} — ${dungeonProgressLine(p, d)}${rec}`));
+    if (dungeonCleared(p, d)) {
+      blocks.push(
+        para('The chambers retain an echo of your first trial. You can face that echo again.'),
+      );
+    }
+    blocks.push(buttonsRow([
+      cbBtn(`${d.emoji} Dive`, encodeCb({ v: 'zone', a: 'dg' }), 'primary'),
+    ], 'left'));
+  }
+
+  if (z.npcs.length > 0) {
+    blocks.push(heading('People', 4));
+    for (let i = 0; i < z.npcs.length; i++) {
+      blocks.push(buttonsRow([
+        cbBtn(z.npcs[i]!.name, encodeCb({ v: 'zone', a: 'tk', arg: i })),
+      ], 'left'));
+    }
+  }
+
+  // Services are authored locally. Long counter names get their own rows.
+  const localShop = shopAt(p);
+  const localForge = forgeAt(p);
+  const workshops = recipesAt(p).length > 0;
+  if (localShop || localForge || workshops) {
+    blocks.push(heading('Services', 4));
+    if (localShop) {
+      blocks.push(buttonsRow([
+        cbBtn(`🏪 ${localShop.name}`, encodeCb({ v: 'zone', a: 'sh' })),
+      ], 'left'));
+    }
+    if (localForge) {
+      blocks.push(buttonsRow([
+        cbBtn(`⚒️ ${localForge.name}`, encodeCb({ v: 'zone', a: 'fg' })),
+      ], 'left'));
+    }
+    if (workshops) {
+      blocks.push(buttonsRow([
+        cbBtn('🛠️ Local workshops', encodeCb({ v: 'zone', a: 'cp', arg: 0 })),
+      ], 'left'));
+    }
+  }
+
+  // Personal menus and global navigation hold the same positions in every zone.
   blocks.push(
-    buttonsRow([
-      cbBtn(
-        z.safeHaven ? '🧭 Search surroundings' : '🧭 Explore',
-        encodeCb({ v: 'zone', a: 'ex' }),
-        'success',
-      ),
-      d
-        ? cbBtn(`${d.emoji} Dive`, encodeCb({ v: 'zone', a: 'dg' }), 'primary')
-        : disabledBtn('🗺️ —'),
-      cbBtn('🚶 Travel', encodeCb({ v: 'zone', a: 'tv' })),
-    ]),
+    heading('Your hero', 4),
     buttonsRow([
       cbBtn('🧍 Character', encodeCb({ v: 'zone', a: 'ch' })),
       cbBtn('🎒 Inventory', encodeCb({ v: 'zone', a: 'inv' })),
+    ], 'left'),
+    buttonsRow([
       cbBtn('📜 Quests', encodeCb({ v: 'zone', a: 'q' })),
       cbBtn('✨ Skills', encodeCb({ v: 'zone', a: 'sk' })),
-    ]),
+    ], 'left'),
+    divider(),
+    buttonsRow([
+      cbBtn('🚶 Travel', encodeCb({ v: 'zone', a: 'tv' })),
+      cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
+    ], 'left'),
   );
-
-  if (gatheringOptions(p).length) {
-    blocks.push(buttonsRow([cbBtn('🧺 Gather resources', encodeCb({ v: 'zone', a: 'gp' }))]));
-  }
-  if (recipesAt(p).length) {
-    blocks.push(
-      buttonsRow([cbBtn('🛠️ Local workshops', encodeCb({ v: 'zone', a: 'cp', arg: 0 }))]),
-    );
-  }
-
-  // Local services render ONLY where they exist (#161): facility presence
-  // is authored, never assumed. The handlers revalidate authority.
-  const localShop = shopAt(p);
-  const localForge = forgeAt(p);
-  const serviceRow = [
-    localShop ? cbBtn(`🏪 ${localShop.name}`, encodeCb({ v: 'zone', a: 'sh' })) : undefined,
-    localForge ? cbBtn(`⚒️ ${localForge.name}`, encodeCb({ v: 'zone', a: 'fg' })) : undefined,
-    cbBtn('❓ Help', encodeCb({ v: 'meta', a: 'help' })),
-  ].filter((b) => b !== undefined);
-  blocks.push(buttonsRow(serviceRow));
-
-  if (z.npcs.length > 0) {
-    blocks.push(para('🗣️ Talk to:'));
-    for (let i = 0; i < z.npcs.length; i++) {
-      const npc = z.npcs[i]!;
-      blocks.push(buttonsRow([cbBtn(npc.name, encodeCb({ v: 'zone', a: 'tk', arg: i }))], 'left'));
-    }
-  }
   return { blocks };
 }
 
