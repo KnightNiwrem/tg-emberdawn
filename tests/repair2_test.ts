@@ -22,7 +22,7 @@ import {
   xpToGoldAtCap,
 } from '../src/engine/character.ts';
 import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../src/engine/classes.ts';
-import { performAction, startBattle } from '../src/engine/combat.ts';
+import { performAction, rollRewards, startBattle } from '../src/engine/combat.ts';
 import { temper, temperLevel } from '../src/engine/forge.ts';
 import { addItem, countOf, removeItem } from '../src/engine/inventory.ts';
 import {
@@ -47,6 +47,7 @@ import {
   questStarter,
   zoneOfNpc,
 } from '../src/content/quests.ts';
+import { enemy } from '../src/content/enemies.ts';
 import { STARTING_ZONES } from '../src/content/zones.ts';
 import { isEquippable, item, ITEMS } from '../src/content/items.ts';
 import {
@@ -738,6 +739,8 @@ Deno.test('double-tapping forge cannot spend beyond the shown cost (#16)', async
   const p = createPlayer(923, 'T', 'warrior'); // w_warrior_1 equipped
   p.gold = 5000;
   addItem(p, 'm_ember_shard', 10);
+  addItem(p, 'm_hardwood', 10);
+  addItem(p, 'm_plant_fiber', 10);
   p.messageId = 510;
   p.uiRev = 2;
   p.scene = { view: 'forge' };
@@ -747,14 +750,15 @@ Deno.test('double-tapping forge cannot spend beyond the shown cost (#16)', async
   await handleCallback(fakeCtx(923, 510, tap1), store);
   let cur = (await store.get(923))!;
   assertEquals(cur.flags['forge_i_w_warrior_1'], 1);
-  assertEquals(cur.gold, 4800, 'first temper costs the shown 200');
+  assertEquals(cur.gold, 4985, 'first temper costs the shown 15');
   assertEquals(cur.uiRev, 3);
 
   await handleCallback(fakeCtx(923, 510, tap1), store); // replay
   cur = (await store.get(923))!;
   assertEquals(cur.flags['forge_i_w_warrior_1'], 1, 'no second temper');
-  assertEquals(cur.gold, 4800, 'the never-shown 800g next tier was not charged');
+  assertEquals(cur.gold, 4985, 'the never-shown next temper was not charged');
   assertEquals(countOf(cur, 'm_ember_shard'), 9, 'no extra materials burned');
+  assertEquals(countOf(cur, 'm_hardwood'), 8, 'no extra secondary materials burned');
 });
 
 Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () => {
@@ -990,6 +994,8 @@ Deno.test('temper is item-pattern mastery: reacquired copies carry the forge-wor
   const p = createPlayer(960, 'T', 'warrior');
   p.level = 10;
   addItem(p, 'm_ember_shard', 30);
+  addItem(p, 'm_hardwood', 30);
+  addItem(p, 'm_plant_fiber', 30);
   p.gold = 100000;
   assert(temper(p, 'weapon').ok); // w_warrior_1, equipped at creation
   assert(temper(p, 'weapon').ok);
@@ -1458,7 +1464,8 @@ Deno.test('44→45 dungeon first clear remains nominal (#42)', () => {
   p.level = 44;
   // The kill rewards alone must NOT reach the summit; the first-clear grant
   // (400 XP) is what crosses 44→45 — so its headline must stay nominal.
-  p.xp = xpForNextLevel(44) - 2151 - 100;
+  const killXp = rollRewards(enemy('e_aranya')!, seeded(96)).xp;
+  p.xp = xpForNextLevel(44) - killXp - 100;
   const b = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',

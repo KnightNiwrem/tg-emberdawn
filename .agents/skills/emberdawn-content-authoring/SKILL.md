@@ -53,7 +53,13 @@ and must stay green.
 - Forge tempers up to +5 are item-pattern mastery (`forge_i_<itemId>` flags — a documented design
   choice: every copy of that catalog id carries the temper, replacement loot inherits your
   forge-work, and the forge is a bounded per-pattern sink) and boost only that item's own base
-  stats. The temper material is chosen by the item's tier, not the player's location.
+  stats. The two temper materials are chosen by the item's tier and slot, not the player's location.
+- Gathering and processing (#203/#204) use explicit local catalogs in `content/gathering.ts` and
+  `content/crafting.ts`. Gathering requires authored tools/bait and shares three charges per zone,
+  replenished six hours after the last use. Refusals never spend ingredients, bait, gold or charges.
+  Tools remain ordinary inventory materials. Recipe inputs and material uses are derived for the UI;
+  do not promise future facilities in flavor text. See `docs/resources-and-crafting.md` for sources,
+  the early supply chain, tempering costs, and current extension boundaries.
 
 ## Endgame economy
 

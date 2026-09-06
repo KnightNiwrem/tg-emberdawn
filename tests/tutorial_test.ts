@@ -55,7 +55,12 @@ Deno.test('prologue: a fresh hero is directed to Maren and the hub is gated (#69
   assert(!json.includes('🚶 Travel'), 'travel is withheld during the prologue');
   assert(!json.includes('🧭 Explore'), 'explore is withheld during the prologue');
   assert(!json.includes('🏪 Shop'), 'shop is withheld during the prologue');
-  assert(!json.includes('Forage'), 'forage is withheld during the prologue');
+  assert(
+    !json.includes('🧭 Search surroundings'),
+    'haven searches are withheld during the prologue',
+  );
+  assert(!json.includes('🧺 Gather resources'), 'gathering is withheld during the prologue');
+  assert(!json.includes('🛠️ Local workshops'), 'workshops are withheld during the prologue');
   assert(!json.includes('Ranger Pell'), 'no NPC list during the prologue');
 });
 
@@ -161,7 +166,9 @@ Deno.test('prologue: every class reaches every lesson through real play (#69)', 
     assert(release.json.includes('choose Sparks of Trouble'), `${cid}: exact next topic surfaced`);
     assert(release.json.includes('Whisperwood'), `${cid}: next destination surfaced`);
     assert(release.json.includes('Flee'), `${cid}: fleeing taught before exploration`);
-    assert(release.json.includes('🌾 Forage'), `${cid}: the real hub is open again`);
+    assert(release.json.includes('🧭 Search surroundings'), `${cid}: the real hub is open again`);
+    assert(release.json.includes('🧺 Gather resources'), `${cid}: gathering unlocked`);
+    assert(release.json.includes('🛠️ Local workshops'), `${cid}: workshops unlocked`);
     assert(release.json.includes('🚶 Travel'), `${cid}: travel unlocked`);
   }
 });

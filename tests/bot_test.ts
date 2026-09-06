@@ -172,14 +172,15 @@ Deno.test('inventory equip flow swaps gear', async () => {
 Deno.test('forge tempering through the UI consumes resources', async () => {
   const { user, store } = await startWarrior((p) => {
     p.gold = 5000;
-    p.inventory.push({ id: 'm_ember_shard', qty: 10 });
+    p.inventory.push({ id: 'm_ember_shard', qty: 10 }, { id: 'm_hardwood', qty: 10 });
   });
   await tap(store, user, 'z:fg');
   await tap(store, user, 'f:w');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.flags['forge_i_w_warrior_1'], 1);
-  assertEquals(p1.gold, 5000 - 200);
+  assertEquals(p1.gold, 5000 - 15);
   assertEquals(p1.inventory.find((e) => e.id === 'm_ember_shard')?.qty, 9);
+  assertEquals(p1.inventory.find((e) => e.id === 'm_hardwood')?.qty, 8);
 });
 
 Deno.test('full player persists across bot instance using the same store', async () => {

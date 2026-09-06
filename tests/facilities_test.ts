@@ -284,6 +284,8 @@ Deno.test('forge capability bounds temper work; upgrades raise it', () => {
   const p = createPlayer(710, 'T', 'warrior');
   p.level = 12;
   addItem(p, 'm_ember_shard', 30); // tier-1 steel tempers with hearth shards
+  addItem(p, 'm_hardwood', 30);
+  addItem(p, 'm_plant_fiber', 30);
   p.gold = 100000;
   // The ropewalk forge caps at +3 and matches Bram's work on the pattern.
   p.currentZone = 'mirefoot';
@@ -306,6 +308,8 @@ Deno.test('forge capability bounds temper work; upgrades raise it', () => {
   atCinder.level = 35;
   addItem(atCinder, 'm_cinder_heart', 30);
   addItem(atCinder, 'm_ember_shard', 10); // tier-1 armor tempers with hearth shards
+  addItem(atCinder, 'm_hardwood', 10);
+  addItem(atCinder, 'm_plant_fiber', 10);
   atCinder.gold = 100000;
   atCinder.currentZone = 'cinder';
   const armorBefore = temper(atCinder, 'armor');
@@ -323,6 +327,8 @@ Deno.test('forge capability bounds temper work; upgrades raise it', () => {
 Deno.test('full forge reaches +5; mastery carries across forges', () => {
   const p = createPlayer(712, 'T', 'warrior');
   addItem(p, 'm_ember_shard', 40);
+  addItem(p, 'm_hardwood', 40);
+  addItem(p, 'm_plant_fiber', 40);
   p.gold = 100000;
   for (let i = 0; i < 5; i++) assert(temper(p, 'weapon').ok);
   assertEquals(temperLevel(p, 'weapon'), MAX_TEMPER);

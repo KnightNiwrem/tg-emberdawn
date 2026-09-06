@@ -16,7 +16,10 @@ import { statsOf, xpProgress } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
 import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
-import { itemFactBlocks } from './menus.ts';
+import { materialSources } from '../engine/materials.ts';
+import { gatheringOptions } from '../engine/gathering.ts';
+import { recipeBlock, recipesAt } from '../engine/crafting.ts';
+import { itemFactBlocks, itemMechanicsLines } from './menus.ts';
 import { zone } from '../content/zones.ts';
 import { routesFrom } from '../content/routes.ts';
 import { forgeInZone, shopInZone } from '../content/facilities.ts';
@@ -74,6 +77,8 @@ export function renderZone(p: PlayerState): InputRichMessage {
   // action for the current step — travel, explore, shops and the NPC list
   // are withheld until the prologue releases the player into the real hub.
   if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
+  if (p.scene.arg === 'gather') return renderGathering(p);
+  if (p.scene.arg === 'craft') return renderCrafting(p);
   const z = zone(p.currentZone)!;
   const d = dungeonOf(z);
   const blocks = zoneHeader(p);
@@ -125,7 +130,11 @@ export function renderZone(p: PlayerState): InputRichMessage {
 
   blocks.push(
     buttonsRow([
-      cbBtn(z.safeHaven ? '🌾 Forage' : '🧭 Explore', encodeCb({ v: 'zone', a: 'ex' }), 'success'),
+      cbBtn(
+        z.safeHaven ? '🧭 Search surroundings' : '🧭 Explore',
+        encodeCb({ v: 'zone', a: 'ex' }),
+        'success',
+      ),
       d
         ? cbBtn(`${d.emoji} Dive`, encodeCb({ v: 'zone', a: 'dg' }), 'primary')
         : disabledBtn('🗺️ —'),
@@ -138,6 +147,15 @@ export function renderZone(p: PlayerState): InputRichMessage {
       cbBtn('✨ Skills', encodeCb({ v: 'zone', a: 'sk' })),
     ]),
   );
+
+  if (gatheringOptions(p).length) {
+    blocks.push(buttonsRow([cbBtn('🧺 Gather resources', encodeCb({ v: 'zone', a: 'gp' }))]));
+  }
+  if (recipesAt(p).length) {
+    blocks.push(
+      buttonsRow([cbBtn('🛠️ Local workshops', encodeCb({ v: 'zone', a: 'cp', arg: 0 }))]),
+    );
+  }
 
   // Local services render ONLY where they exist (#161): facility presence
   // is authored, never assumed. The handlers revalidate authority.
@@ -157,6 +175,119 @@ export function renderZone(p: PlayerState): InputRichMessage {
       blocks.push(buttonsRow([cbBtn(npc.name, encodeCb({ v: 'zone', a: 'tk', arg: i }))], 'left'));
     }
   }
+  return { blocks };
+}
+
+/** Local materials and tool requirements remain visible before spending a charge. */
+export function renderGathering(p: PlayerState): InputRichMessage {
+  const blocks = zoneHeader(p);
+  blocks.push(heading('🧺 Gathering sites', 4));
+  const options = gatheringOptions(p);
+  blocks.push(
+    para(
+      'All activities here share 3 gathering charges. They replenish 6 hours after the last charge is spent. Tools stay in your bag.',
+    ),
+  );
+  if (options.length) {
+    const first = options[0];
+    blocks.push(para(
+      `Stored charges: ${first.remaining}/3.` +
+        (first.resetAt
+          ? ` Recharges at ${
+            new Date(first.resetAt).toISOString().replace('T', ' ').slice(0, 16)
+          } UTC; your next gathering action checks the recharge.`
+          : ''),
+    ));
+  } else blocks.push(para('There are no gathering sites here.'));
+  for (const option of options) {
+    blocks.push(heading(option.label, 4), para(option.requirements));
+    if (option.tool) {
+      blocks.push(para(`In bag: ${countOf(p, option.tool)}× ${itemName(option.tool)}.`));
+    }
+    const tables = option.baitTables
+      ? Object.entries(option.baitTables)
+      : [[undefined, option.yields] as const];
+    for (const [bait, yields] of tables) {
+      const total = yields.reduce((sum, y) => sum + y.weight, 0);
+      blocks.push(
+        para(
+          (bait ? `${itemName(bait)} (have ${countOf(p, bait)}): ` : 'Finds: ') +
+            yields.map((y) =>
+              `${itemName(y.item)} ×${y.min === y.max ? y.min : `${y.min}–${y.max}`} (${
+                Math.round(y.weight / total * 100)
+              }%)`
+            ).join(' · '),
+        ),
+      );
+      const arg = bait ? (bait === 'm_worm_bait' ? 'fish_worm' : 'fish_grub') : option.activity;
+      const missing = option.tool && countOf(p, option.tool) < 1
+        ? `Needs ${itemName(option.tool)}`
+        : bait && countOf(p, bait) < 1
+        ? `Needs ${itemName(bait)}`
+        : undefined;
+      blocks.push(buttonsRow([
+        missing ? disabledBtn(missing) : cbBtn(
+          bait ? `🎣 Cast with ${itemName(bait)}` : option.label,
+          encodeCb({ v: 'zone', a: 'ga', arg }),
+          'primary',
+        ),
+      ]));
+    }
+  }
+  blocks.push(
+    para(
+      'Tools and bait are sold at the village and ferry counters. Worms and grubs can also be gathered.',
+    ),
+  );
+  blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]));
+  return { blocks };
+}
+
+/** Small local pages keep ingredients, results and actions together. */
+export function renderCrafting(p: PlayerState): InputRichMessage {
+  const blocks = zoneHeader(p);
+  const recipes = recipesAt(p);
+  const pages = Math.max(1, Math.ceil(recipes.length / 3));
+  const requested = Number(p.scene.arg2 ?? 0);
+  const page = Number.isFinite(requested)
+    ? Math.max(0, Math.min(pages - 1, Math.floor(requested)))
+    : 0;
+  blocks.push(heading(`🛠️ Local workshops · ${page + 1}/${pages}`, 4));
+  if (!recipes.length) blocks.push(para('There is no workshop here.'));
+  for (const r of recipes.slice(page * 3, page * 3 + 3)) {
+    const station =
+      { cook: '🍲 Hearth', brew: '⚗️ Brewing bench', smelt: '⚒️ Forge bench' }[r.station];
+    blocks.push(heading(r.name, 4), para(`${station} · Requires Lv ${r.level}`));
+    blocks.push(
+      para(
+        `Inputs: ${
+          r.inputs.map((m) => `${m.qty}× ${itemName(m.id)} (have ${countOf(p, m.id)})`).join(' · ')
+        }
+Fee: ${r.gold}g`,
+      ),
+    );
+    for (const input of r.inputs.filter((m) => countOf(p, m.id) < m.qty)) {
+      const source = materialSources(input.id)[0];
+      if (source) blocks.push(para(`${itemName(input.id)} — ${source}`));
+    }
+    blocks.push(para(`Makes: ${r.output.qty}× ${itemName(r.output.id)}`));
+    const output = item(r.output.id);
+    if (output) { for (const line of itemMechanicsLines(output)) blocks.push(para(line)); }
+    const block = recipeBlock(p, r.id);
+    if (block) blocks.push(para(block));
+    blocks.push(
+      buttonsRow([
+        block
+          ? disabledBtn('Ingredients or requirements missing')
+          : cbBtn('Make one batch', encodeCb({ v: 'zone', a: 'cr', arg: r.id }), 'primary'),
+      ]),
+    );
+  }
+  const nav = [];
+  if (page > 0) nav.push(cbBtn('◀️ Previous', encodeCb({ v: 'zone', a: 'cp', arg: page - 1 })));
+  if (page + 1 < pages) nav.push(cbBtn('Next ▶️', encodeCb({ v: 'zone', a: 'cp', arg: page + 1 })));
+  if (nav.length) blocks.push(buttonsRow(nav));
+  blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]));
   return { blocks };
 }
 
@@ -592,13 +723,27 @@ export function renderForge(p: PlayerState): InputRichMessage {
         `💰 ${p.gold} gold`,
     ),
   ];
+  for (const [label, cost] of [['Weapon', wc], ['Armor', ac]] as const) {
+    if (cost) {
+      blocks.push(
+        para(
+          `${label}: ${cost.gold}g + ${
+            cost.materials.map((m) => `${m.qty}× ${itemName(m.id)} (have ${countOf(p, m.id)})`)
+              .join(
+                ' · ',
+              )
+          }`,
+        ),
+      );
+    }
+  }
   const weaponBlock = temperBlock(p, 'weapon');
   const armorBlock = temperBlock(p, 'armor');
   blocks.push(
     buttonsRow([
       wc
         ? cbBtn(
-          `Temper weapon — ${wc.gold}g + ${wc.materialQty}× ${itemName(wc.material)}`,
+          `Temper weapon — ${wc.gold}g`,
           encodeCb({ v: 'forge', a: 'w' }),
           'primary',
         )
@@ -607,7 +752,7 @@ export function renderForge(p: PlayerState): InputRichMessage {
     buttonsRow([
       ac
         ? cbBtn(
-          `Temper armor — ${ac.gold}g + ${ac.materialQty}× ${itemName(ac.material)}`,
+          `Temper armor — ${ac.gold}g`,
           encodeCb({ v: 'forge', a: 'a' }),
           'primary',
         )
@@ -980,7 +1125,9 @@ export function renderHelp(): InputRichMessage {
           '🏪 ⚒️ Shops and forges live where they are built — each with its own stock and craft. Better gear means reaching the region that sells it.\n' +
           '⚔️ Battles — your free action, Skills, Items, Guard, Flee. Free actions are class-typed: Warrior/Rogue attack with ATK, Mage/Cleric with MAG. SPD pays off: outspeeding a foe slips its damaging blows aside (baseline 2%, hard cap 20%).\n' +
           '📜 Quests — the main story clears the game; side quests pad your purse.\n' +
-          '⚒️ Forges — temper gear up to +5 where available. All copies of the same gear share its temper level.\n' +
+          '⚒️ Forges — temper gear up to +5 using regional materials and a fee. All copies of the same gear share its temper level.\n' +
+          '🧺 Gathering — local plants, ores and fish; 3 shared charges per location replenish 6 hours after the last use. Picks and rods are reusable; fishing spends bait.\n' +
+          '🛠️ Workshops — brew, cook and smelt where offered. Inspect materials in your bag for sources and uses.\n' +
           '🚶 Travel — follow roads between adjacent places. Starter roads are safe and immediate; farther roads have events such as battles, quiet stretches, or useful finds. Fleeing or retreating returns you to your departure point.\n\n' +
           'Use /start to find the game message again.',
       ),

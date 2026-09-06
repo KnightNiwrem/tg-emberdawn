@@ -15,10 +15,11 @@
  * work is worth.
  */
 
+import type { MaterialCost } from '../content/crafting.ts';
 import type { PlayerState } from './types.ts';
 import type { ForgeDef } from '../content/types.ts';
 import { forgeInZone } from '../content/facilities.ts';
-import { removeItem } from './inventory.ts';
+import { countOf, removeItem } from './inventory.ts';
 import { item, itemName } from '../content/items.ts';
 import { evalCondition } from './conditions.ts';
 import { JOURNEY_BLOCK } from './routes.ts';
@@ -27,16 +28,20 @@ export const MAX_TEMPER = 5;
 
 const TEMPER_PCT = 0.08; // +8% of the item's own stats per temper level
 
-const TIER_MATERIALS = [
-  'm_ember_shard', // gear tier 1
-  'm_iron_chunk', // tier 2
-  'm_mystic_dust', // tiers 3-4
-  'm_frost_core', // tier 5
-  'm_cinder_heart', // tiers 6-7
-  'm_void_fragment', // tier 8
-] as const;
-
-const TIER_MATERIAL_INDEX = [0, 1, 2, 2, 3, 4, 4, 5] as const; // gear tier 1..8
+/** Inputs follow the equipment tier even when working at an earlier forge. */
+export function temperMaterialsForTier(tier: number, slot: 'weapon' | 'armor'): string[] {
+  const materials = [
+    ['m_ember_shard', slot === 'weapon' ? 'm_hardwood' : 'm_plant_fiber'],
+    ['m_iron_ingot', 'm_hide'],
+    ['m_mystic_dust', slot === 'weapon' ? 'm_reed' : 'm_spider_silk'],
+    ['m_mystic_dust', slot === 'weapon' ? 'm_sunstone' : 'm_quartz'],
+    ['m_frost_core', slot === 'weapon' ? 'm_silver_ore' : 'm_thick_fur'],
+    ['m_cinder_heart', 'm_obsidian'],
+    ['m_cinder_heart', 'm_night_silk'],
+    ['m_void_fragment', 'm_black_iron'],
+  ];
+  return materials[Math.min(8, Math.max(1, tier)) - 1]!;
+}
 
 function temperKey(itemId: string): string {
   return `forge_i_${itemId}`;
@@ -106,25 +111,21 @@ export function temperBlock(
   return undefined;
 }
 
-function materialForItem(itemId: string): string {
-  const tier = item(itemId)?.tier ?? 1;
-  const idx = TIER_MATERIAL_INDEX[Math.min(8, Math.max(1, tier)) - 1]!;
-  return TIER_MATERIALS[idx]!;
-}
-
 /** Cost of the NEXT temper at the current forge — undefined when the
  * forge cannot (or need not) temper the slot further. */
 export function temperCost(
   p: PlayerState,
   slot: 'weapon' | 'armor',
-): { gold: number; material: string; materialQty: number } | undefined {
+): { gold: number; materials: MaterialCost[] } | undefined {
   if (temperBlock(p, slot)) return undefined;
   const equipped = p.equipment[slot]!;
   const lvl = temperLevelOf(p, equipped);
   return {
-    gold: 200 * (lvl + 1) * (lvl + 1),
-    material: materialForItem(equipped),
-    materialQty: lvl + 1,
+    gold: 15 * (item(equipped)?.tier ?? 1) * (lvl + 1),
+    materials: temperMaterialsForTier(item(equipped)?.tier ?? 1, slot).map((id, i) => ({
+      id,
+      qty: lvl + 1 + i,
+    })),
   };
 }
 
@@ -144,9 +145,14 @@ export function temper(
   const cost = temperCost(p, slot);
   if (!cost) return { ok: false, lines: ['The forge refuses.'] };
   if (p.gold < cost.gold) return { ok: false, lines: [`💰 Needs ${cost.gold} gold.`] };
-  if (!removeItem(p, cost.material, cost.materialQty)) {
-    return { ok: false, lines: [`🧱 Needs ${cost.materialQty}× ${itemName(cost.material)}.`] };
+  const missing = cost.materials.filter((m) => countOf(p, m.id) < m.qty);
+  if (missing.length) {
+    return {
+      ok: false,
+      lines: [`🧱 Needs ${missing.map((m) => `${m.qty}× ${itemName(m.id)}`).join(' · ')}.`],
+    };
   }
+  for (const m of cost.materials) removeItem(p, m.id, m.qty);
   p.gold -= cost.gold;
   const lvl = temperLevelOf(p, equipped);
   p.flags[temperKey(equipped)] = lvl + 1;
@@ -154,7 +160,9 @@ export function temper(
     ok: true,
     lines: [
       `⚒️ ${itemName(equipped)} tempered to +${lvl + 1}!`,
-      `Cost: ${cost.gold} gold · ${cost.materialQty}× ${itemName(cost.material)}`,
+      `Cost: ${cost.gold} gold · ${
+        cost.materials.map((m) => `${m.qty}× ${itemName(m.id)}`).join(' · ')
+      }`,
     ],
   };
 }

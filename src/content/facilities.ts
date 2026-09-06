@@ -26,6 +26,7 @@ export const SHOPS: readonly ShopDef[] = [
     desc:
       "The village smith's counter: honest beginner steel and hearth-side supplies, whatever your travels have made you.",
     stock: [
+      { items: ['m_pickaxe', 'm_fishing_rod', 'm_worm_bait', 'm_grub_bait'] },
       {
         items: [
           'w_warrior_1',
@@ -74,6 +75,7 @@ export const SHOPS: readonly ShopDef[] = [
     desc:
       'Coin for crossing, supplies for the road: the post stocks what the mire eats through fastest.',
     stock: [
+      { items: ['m_pickaxe', 'm_fishing_rod', 'm_worm_bait', 'm_grub_bait', 'm_salt'] },
       {
         items: [
           'w_warrior_2',
@@ -113,6 +115,7 @@ export const SHOPS: readonly ShopDef[] = [
     name: 'The Confiscated Counter',
     desc: 'Ombra sells recovered travel supplies beneath a patched awning beside the sundials.',
     stock: [
+      { items: ['m_pickaxe', 'm_salt'] },
       {
         items: [
           'w_warrior_3',
@@ -152,6 +155,7 @@ export const SHOPS: readonly ShopDef[] = [
     name: "Rho's Trading Post",
     desc: 'The Ice-Outcast trades with whoever still walks. Prices honest, conversation optional.',
     stock: [
+      { items: ['m_pickaxe', 'm_salt'] },
       {
         items: [
           'w_warrior_5',
@@ -191,6 +195,7 @@ export const SHOPS: readonly ShopDef[] = [
     desc:
       'Merchant wains that cross the Wastes by routes their drivers refuse to name. Crownsteel costs extra.',
     stock: [
+      { items: ['m_pickaxe', 'm_salt'] },
       {
         items: [
           'w_warrior_6',

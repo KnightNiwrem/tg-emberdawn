@@ -948,18 +948,13 @@ export function runCell(spec: CellSpec): CellStat {
     dodgesArr: [] as number[],
     procsArr: [] as number[],
   };
-  const rng = (() => {
-    let a = spec.seed >>> 0;
-    return () => {
-      a |= 0;
-      a = (a + 0x6d2b79f5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  })();
+  // Benchmark samples are paired across classes: opponent selection must not
+  // depend on fight length or how many loot rolls a victory consumes. Each
+  // fight gets its own stream so reward catalog edits cannot perturb the next
+  // sampled opponent or its combat rolls. Production randomness is unchanged.
+  const sampleRng = seededRng(spec.seed);
   for (let i = 0; i < spec.fights; i++) {
-    const roll = rng() * total;
+    const roll = sampleRng() * total;
     let acc2 = 0;
     let src = spec.sources[0]!;
     for (const s of spec.sources) {
@@ -969,7 +964,8 @@ export function runCell(spec: CellSpec): CellStat {
         break;
       }
     }
-    const res = runFight(hero, src.enemyId, spec.policy, rng, src.origin);
+    const fightRng = seededRng(spec.seed + Math.imul(i + 1, 0x9e3779b9));
+    const res = runFight(hero, src.enemyId, spec.policy, fightRng, src.origin);
     if (res.outcome === 'win') acc.wins++;
     else if (res.outcome === 'lose') acc.losses++;
     else acc.timeouts++;

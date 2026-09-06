@@ -26,6 +26,9 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
   try {
     // PlayerState is plain JSON → JSONB must round-trip losslessly.
     const p = createPlayer(424242, 'PgTest', 'warrior');
+    p.flags.gather_whisperwood = 3;
+    p.flags.gatherReset_whisperwood = 1_800_000_000_000;
+    p.inventory.push({ id: 'm_pickaxe', qty: 1 }, { id: 'm_worm_bait', qty: 5 });
     p.hp = 3;
     p.gold = 12345;
     p.notices = ['the dawn you seek is still ahead'];

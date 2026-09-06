@@ -36,15 +36,15 @@ export const ZONES: readonly ZoneDef[] = [
     explore: [
       {
         kind: 'treasure',
-        gold: 30,
+        item: 'm_plant_fiber',
         weight: 1,
-        text: 'You find a pouch of coins dropped by a fleeing trader.',
+        text: 'You collect tough stems from the garden hedges.',
       },
       {
         kind: 'treasure',
-        item: 'c_minor_potion',
+        item: 'c_wild_berry',
         weight: 1,
-        text: 'A forgotten supply cache — a potion still sealed.',
+        text: 'A sheltered bramble still carries a few ripe berries.',
       },
       {
         kind: 'rest',
@@ -127,9 +127,15 @@ export const ZONES: readonly ZoneDef[] = [
       { kind: 'battle', enemy: 'e_boar', weight: 1, minPlayerLevel: 2 },
       {
         kind: 'treasure',
-        gold: 25,
+        item: 'm_copper_ore',
         weight: 1,
-        text: 'A dropped coin-purse swings under a fence post.',
+        text: 'Rain has exposed a copper-bearing stone beside the quarry path.',
+      },
+      {
+        kind: 'treasure',
+        item: 'm_coal',
+        weight: 1,
+        text: 'A lump of coal has broken free from an exposed quarry seam.',
       },
       { kind: 'rest', healPct: 0.25, weight: 1, text: 'You rest in the shade of a hay-rick.' },
       { kind: 'flavor', weight: 2, text: 'Woodsmoke drifts from the village behind you.' },
@@ -170,15 +176,15 @@ export const ZONES: readonly ZoneDef[] = [
       },
       {
         kind: 'treasure',
-        gold: 55,
+        item: 'm_hardwood',
         weight: 1,
-        text: 'You spot a sprite-hoard glinting under bark.',
+        text: 'A fallen branch has sound wood beneath its bark.',
       },
       {
         kind: 'treasure',
-        item: 'c_minor_ether',
+        item: 'm_resin',
         weight: 1,
-        text: "A hollow tree hides an old caster's satchel.",
+        text: 'Amber resin beads along a split in the bark.',
       },
       {
         kind: 'rest',
@@ -255,15 +261,15 @@ export const ZONES: readonly ZoneDef[] = [
     explore: [
       {
         kind: 'treasure',
-        gold: 45,
+        item: 'm_reed',
         weight: 1,
-        text: 'A boatman\u2019s tithe-jar under the boards holds a few honest coins.',
+        text: 'Reeds have washed against the landing posts.',
       },
       {
         kind: 'treasure',
-        item: 'c_antidote',
+        item: 'm_clay',
         weight: 1,
-        text: 'The landing\u2019s shared kit-box still holds a sealed tonic.',
+        text: 'The low bank exposes a pocket of workable clay.',
       },
       {
         kind: 'rest',
@@ -322,15 +328,15 @@ export const ZONES: readonly ZoneDef[] = [
       },
       {
         kind: 'treasure',
-        gold: 110,
+        item: 'm_bog_iron',
         weight: 1,
-        text: "A sunken trader's strongbox, half-buried in peat.",
+        text: 'An iron-rich nodule catches your eye beside the path.',
       },
       {
         kind: 'treasure',
-        item: 'c_antidote',
+        item: 'm_glowcap',
         weight: 1,
-        text: "A hedgewitch's abandoned kit still holds a tonic.",
+        text: 'Pale caps grow along the dry side of a fallen trunk.',
       },
       {
         kind: 'rest',
@@ -421,15 +427,15 @@ export const ZONES: readonly ZoneDef[] = [
       { kind: 'battle', enemy: 'e_automaton', weight: 2 },
       {
         kind: 'treasure',
-        gold: 220,
+        item: 'm_quartz',
         weight: 1,
-        text: 'A tribute chest the cultists never came back for.',
+        text: 'Loose quartz glints among the weathered foundation stones.',
       },
       {
         kind: 'treasure',
-        item: 'c_potion',
+        item: 'm_salt',
         weight: 1,
-        text: "A pilgrim's pack, neatly packed and long abandoned.",
+        text: 'A sheltered hollow holds a crust of dry mineral salt.',
       },
       {
         kind: 'rest',
@@ -497,12 +503,17 @@ export const ZONES: readonly ZoneDef[] = [
         weight: 1,
         text: 'A Glacier Yeti rises from the snow beside the supply path.',
       },
-      { kind: 'treasure', gold: 380, weight: 1, text: 'A frozen caravan, its strongbox intact.' },
       {
         kind: 'treasure',
-        item: 'c_greater_potion',
+        item: 'm_silver_ore',
         weight: 1,
-        text: 'Supplies left by a doomed expedition, still good.',
+        text: 'A silver-bearing stone lies below a fresh rockfall.',
+      },
+      {
+        kind: 'treasure',
+        item: 'm_frost_lichen',
+        weight: 1,
+        text: 'Lichen clings to a sheltered crack beneath the snow.',
       },
       {
         kind: 'rest',
@@ -575,15 +586,15 @@ export const ZONES: readonly ZoneDef[] = [
       },
       {
         kind: 'treasure',
-        gold: 650,
+        item: 'm_obsidian',
         weight: 1,
-        text: 'Ash settles to reveal a vein of gold leaf.',
+        text: 'A shard of volcanic glass lies along the cooled lava edge.',
       },
       {
         kind: 'treasure',
-        item: 'c_super_potion',
+        item: 'm_charred_wood',
         weight: 1,
-        text: "A sealed alchemist's case, warded against the heat.",
+        text: 'A fallen kiln beam still holds a core of useful charcoal.',
       },
       {
         kind: 'rest',
@@ -660,15 +671,15 @@ export const ZONES: readonly ZoneDef[] = [
       },
       {
         kind: 'treasure',
-        gold: 1100,
+        item: 'm_black_iron',
         weight: 1,
-        text: "Tribute stacked by the King's unseen servants.",
+        text: 'A dark ore nodule has loosened from the fractured foundations.',
       },
       {
         kind: 'treasure',
-        item: 'c_elixir',
+        item: 'm_rusty_scrap',
         weight: 1,
-        text: 'A vial of dawnlight, hoarded against the dark.',
+        text: 'A broken wall fitting has fallen beside the stairs.',
       },
       {
         kind: 'rest',
@@ -735,15 +746,15 @@ export const ZONES: readonly ZoneDef[] = [
       },
       {
         kind: 'treasure',
-        gold: 1600,
+        item: 'm_black_iron',
         weight: 1,
-        text: "A fallen traveler's coin pouch lies caught between the stair stones.",
+        text: 'Dark mineral fragments gather at the foot of the stairs.',
       },
       {
         kind: 'treasure',
         item: 'm_void_fragment',
         weight: 1,
-        text: 'A fragment of the space between, cold in your palm.',
+        text: 'A fragment of the space between rests in a crack beside the path.',
       },
       {
         kind: 'rest',

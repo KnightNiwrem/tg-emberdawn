@@ -6,6 +6,8 @@ import { createPlayer, statsOf } from '../src/engine/character.ts';
 import { startBattle } from '../src/engine/combat.ts';
 import { applyInstance } from '../src/engine/effects.ts';
 import { advanceJourney } from '../src/engine/journey.ts';
+import { dropTable } from '../src/content/loot.ts';
+import { zone } from '../src/content/zones.ts';
 import { route } from '../src/content/routes.ts';
 import { injectMod } from './helpers.ts';
 
@@ -89,9 +91,11 @@ Deno.test('campaign flee: periodic victory grants loot and completes the pending
   assertEquals(result.outcome, 'win');
   assertEquals(result.rounds, 3);
   assert(b.history[2].lines.some((l) => l.includes('try to flee')));
-  assertEquals(result.contextualDrops, 2, 'both Whisperwood contextual rolls grant');
-  assertEquals(p.inventory.find((e) => e.id === 'm_iron_chunk')?.qty, 1);
-  assertEquals(p.inventory.find((e) => e.id === 'c_minor_ether')?.qty, 1);
+  const entries = dropTable(zone('whisperwood')!.lootTable!)!.entries;
+  assertEquals(result.contextualDrops, entries.length, 'every contextual roll grants once');
+  for (const entry of entries) {
+    assertEquals(p.inventory.find((e) => e.id === entry.item)?.qty, entry.qty ?? 1);
+  }
   assertEquals(p.journey?.completedEvents, 1);
   assertEquals(p.battle, undefined);
   const arrival = advanceJourney(p, () => {

@@ -2,6 +2,7 @@
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
+import { resourceFacts } from '../engine/materials.ts';
 import type { ItemDef } from '../content/types.ts';
 import { isEquippable, item } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
@@ -161,6 +162,7 @@ export function itemFactBlocks(def: ItemDef): InputRichBlock[] {
       .join('\n');
     blocks.push(para(lines));
   }
+  for (const fact of resourceFacts(def.id)) blocks.push(para(fact));
   const mech = itemMechanicsLines(def);
   if (mech.length > 0) blocks.push(para(mech.join('\n')));
   if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));

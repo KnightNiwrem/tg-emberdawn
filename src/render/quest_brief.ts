@@ -4,6 +4,7 @@ import type { DialogueChoice, Objective, QuestDef } from '../content/types.ts';
 import type { PlayerState } from '../engine/types.ts';
 import { DIALOGUES } from '../content/dialogues.ts';
 import { ENEMIES, enemy } from '../content/enemies.ts';
+import { GATHERING_SITES } from '../content/gathering.ts';
 import { itemName } from '../content/items.ts';
 import { npc, quest, questFinisher, QUESTS, zoneOfNpc } from '../content/quests.ts';
 import { zone, ZONES } from '../content/zones.ts';
@@ -109,7 +110,18 @@ function objectiveSources(q: QuestDef, o: Objective): ObjectiveSource[] {
       }
     }
   }
-  return sources.slice(0, 2);
+  const gathering = GATHERING_SITES.filter((s) =>
+    s.yields.some((y) => y.item === o.target) ||
+    Object.values(s.baitTables ?? {}).some((ys) => ys.some((y) => y.item === o.target))
+  ).map((s) => ({
+    emoji: { forage: '🧺', mine: '⛏️', fish: '🎣' }[s.activity],
+    text:
+      `${s.activity === 'mine' ? 'Mine' : s.activity === 'fish' ? 'Fish' : 'Forage'} in ${
+        zone(s.zoneId)!.name
+      }` +
+      (s.tool ? `; bring ${itemName(s.tool)}` : '') + (s.baitTables ? ' and bait' : ''),
+  }));
+  return [...sources.slice(0, 2), ...gathering];
 }
 
 /** Only real catalog sources are named; these are directions, never extra objectives. */

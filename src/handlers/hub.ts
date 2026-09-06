@@ -10,6 +10,8 @@ import { advanceJourney, retreatFromJourney, startJourney } from '../engine/jour
 import { zone as zoneDef } from '../content/zones.ts';
 import { enemy as enemyDef } from '../content/enemies.ts';
 import { buy, offeredPrice, sell, shopAt } from '../engine/shops.ts';
+import { gather } from '../engine/gathering.ts';
+import { craft, recipesAt } from '../engine/crafting.ts';
 import { forgeAt, temper } from '../engine/forge.ts';
 import { departureCheck, JOURNEY_BLOCK } from '../engine/routes.ts';
 import { syncAvailability } from '../engine/quests.ts';
@@ -199,6 +201,39 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
       return go(p, p.journey ? 'journey' : 'zone');
     case 'ex':
       return exploreAction(p);
+    case 'gp':
+    case 'cp': {
+      if (p.battle) return { toast: 'Finish the fight first.' };
+      if (p.journey) return { toast: JOURNEY_BLOCK };
+      if (cb.a === 'cp') {
+        if (!recipesAt(p).length) return { toast: 'There is no workshop here.' };
+        p.scene = { view: 'zone', arg: 'craft', arg2: String(cb.arg) };
+      } else p.scene = { view: 'zone', arg: 'gather' };
+      return {};
+    }
+    case 'ga': {
+      const action = cb.arg === 'fish_worm' || cb.arg === 'fish_grub' ? 'fish' : cb.arg;
+      if (action !== 'forage' && action !== 'mine' && action !== 'fish') {
+        return { toast: 'That gathering activity is unavailable.' };
+      }
+      const bait = cb.arg === 'fish_worm'
+        ? 'm_worm_bait'
+        : cb.arg === 'fish_grub'
+        ? 'm_grub_bait'
+        : undefined;
+      const res = gather(p, action, undefined, undefined, bait);
+      if (!res.ok) return { toast: res.lines[0] };
+      p.notices = res.lines;
+      p.scene = { view: 'zone', arg: 'gather' };
+      return {};
+    }
+    case 'cr': {
+      const res = craft(p, cb.arg);
+      if (!res.ok) return { toast: res.lines[0] };
+      p.notices = res.lines;
+      p.scene = { view: 'zone', arg: 'craft', arg2: p.scene.arg === 'craft' ? p.scene.arg2 : '0' };
+      return {};
+    }
     case 'dg':
       return diveAction(p);
     case 'dgb':

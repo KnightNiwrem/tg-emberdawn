@@ -4,6 +4,7 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
+import { seeded } from './helpers.ts';
 import { conditionRefs, evalCondition } from '../src/engine/conditions.ts';
 import { createPlayer } from '../src/engine/character.ts';
 import { rollDropTable } from '../src/engine/loot.ts';
@@ -488,15 +489,18 @@ Deno.test('fixture: a quest-secured route lowers the event count', () => {
 // ── contextual drops ─────────────────────────────────────────────────────
 
 Deno.test('rollDropTable: deterministic under a seeded rng, empty for unknown tables', () => {
-  const rng = (() => {
-    let i = 0;
-    return () => [0.1, 0.9, 0.1, 0.9][i++ % 4]!;
-  })();
-  const first = rollDropTable('dt_ember_fields', rng);
-  const second = rollDropTable('dt_ember_fields', rng);
-  assertEquals(first, second, 'same rng stream must produce the same rolls');
-  assert(first.some((d) => d.item === 'm_ember_shard'), 'a 0.25 roll under 0.1 must hit');
-  assertEquals(rollDropTable('dt_unknown', rng), [], 'unknown tables roll nothing');
+  const first = rollDropTable('dt_ember_fields', seeded(158));
+  const second = rollDropTable('dt_ember_fields', seeded(158));
+  assertEquals(first, second, 'independent rngs with the same seed produce identical rolls');
+  assertEquals(
+    rollDropTable('dt_ember_fields', () => 0),
+    dropTable('dt_ember_fields')!.entries.map((entry) => ({
+      item: entry.item,
+      qty: entry.qty ?? 1,
+    })),
+    'every positive-probability entry grants when its roll is zero',
+  );
+  assertEquals(rollDropTable('dt_unknown', seeded(158)), [], 'unknown tables roll nothing');
 });
 
 Deno.test('rollDropTable: never grants beyond the authored qty', () => {

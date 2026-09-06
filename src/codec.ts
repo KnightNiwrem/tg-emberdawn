@@ -6,6 +6,9 @@
 export type Cb =
   | { v: 'zone'; a: 'hm' }
   | { v: 'zone'; a: 'ex' }
+  | { v: 'zone'; a: 'ga' | 'cr'; arg: string }
+  | { v: 'zone'; a: 'gp' }
+  | { v: 'zone'; a: 'cp'; arg: number }
   | { v: 'zone'; a: 'dg' }
   | { v: 'zone'; a: 'dgb' }
   | { v: 'zone'; a: 'tv' }
@@ -73,7 +76,7 @@ export function withRev(rev: number, wire: string): string {
 export function encodeCb(c: Cb): string {
   switch (c.v) {
     case 'zone':
-      return `z:${c.a === 'hm' ? 'hm' : c.a}${c.a === 'tk' ? `:${c.arg}` : ''}`;
+      return `z:${c.a === 'hm' ? 'hm' : c.a}${'arg' in c ? `:${c.arg}` : ''}`;
     case 'npc':
       // #123 topic menu: open (by NPC id), quest-business/lore selection,
       // and leave. Revalidation of NPC/zone/state lives in the handler.
@@ -146,10 +149,12 @@ function act<A extends string>(a: string, known: readonly A[]): A | undefined {
 function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
   switch (v) {
     case 'z': {
+      if (a === 'ga' || a === 'cr') return arg ? { v: 'zone', a, arg } : undefined;
+      if (a === 'cp') return /^\d+$/.test(arg) ? { v: 'zone', a, arg: Number(arg) } : undefined;
       if (a === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
       const z = act(
         a,
-        ['hm', 'ex', 'dg', 'dgb', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg'] as const,
+        ['hm', 'ex', 'dg', 'dgb', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg', 'gp'] as const,
       );
       return z ? { v: 'zone', a: z } : undefined;
     }

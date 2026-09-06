@@ -10,6 +10,7 @@ import { createPlayer } from '../src/engine/character.ts';
 import { battleAction } from '../src/handlers/battle.ts';
 import { advanceJourney, type JourneyEventRecord, startJourney } from '../src/engine/journey.ts';
 import { simulateCampaign } from '../src/engine/balance.ts';
+import { dropTable } from '../src/content/loot.ts';
 import { route } from '../src/content/routes.ts';
 import type { TravelEvent } from '../src/content/types.ts';
 
@@ -81,20 +82,31 @@ Deno.test('telemetry: contextual grants ride the record, measured from the struc
     const res = startJourney(
       p,
       'w_whisperwood_mirefoot',
-      stub(0.95, 0.1),
+      stub(0.95, 0.26),
       (e) => void records.push(e),
     );
     assert(res.ok && res.step.kind === 'arrived', 'the treasure roll lands and arrives');
     const treasure = records.find((e) => e.kind === 'treasure');
     assert(treasure, 'the treasure event emitted a record');
-    // The stub rolls 0.1 twice: the shard (chance .25) hits, the potion
-    // (.08) misses — the granted list is exactly what entered the bag.
+    // The stable roll straddles authored chances: some finds grant and others miss.
+    const entries = dropTable('dt_ember_fields')!.entries;
+    const expected = entries.filter((entry) => entry.chance > 0.26);
+    assert(
+      expected.length > 0 && expected.length < entries.length,
+      'fixture includes hits and misses',
+    );
     assertEquals(
       treasure!.granted,
-      ['m_ember_shard'],
+      expected.map((entry) => entry.item),
       'the granted list is the structured post-filter grant, not prose',
     );
-    assertEquals(countInBag(p, 'm_ember_shard'), 1, 'the grant actually landed');
+    for (const entry of entries) {
+      assertEquals(
+        countInBag(p, entry.item),
+        entry.chance > 0.26 ? entry.qty ?? 1 : 0,
+        `${entry.item}: only successful grants enter the bag`,
+      );
+    }
   } finally {
     if (original === undefined) delete ev.dropTable;
     else ev.dropTable = original;

@@ -535,3 +535,15 @@ Deno.test('identity gate: fresh saves of every class always resolve (#141)', () 
     assertEquals(findUnresolvedPersistedIds(createPlayer(985, 'T', cls)), []);
   }
 });
+
+Deno.test('identity gate: gathering zone counters reject unresolved identities without repair', () => {
+  const p = createPlayer(2030, 'Gatherer', 'warrior');
+  p.flags.gather_emberdawn = 3;
+  p.flags.gatherReset_emberdawn = 123456;
+  assertResolvablePersistedIds(p);
+  p.flags.gather_gone_404 = 1;
+  p.flags.gatherReset_gone_404 = 123456;
+  const before = JSON.stringify(p);
+  expectProblems(p, 'flags');
+  assertEquals(JSON.stringify(p), before);
+});

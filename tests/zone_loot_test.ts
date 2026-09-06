@@ -60,8 +60,7 @@ Deno.test('zone loot: an explore victory in a table zone rolls the authored tabl
       `the resolution announces the contextual grant: ${e.item}`,
     );
   }
-  // Exactly the zone table's qty lands ON TOP of the ordinary enemy drop
-  // (e_rat drops the same shard itself — the table is additive by design).
+  // Exactly the zone table's qty lands on top of the ordinary enemy salvage.
   const baseline = createPlayer(1659, 'T', 'warrior');
   baseline.tutorial = 'done';
   wonBattle(
@@ -102,12 +101,11 @@ Deno.test('zone loot: dungeon victories do not roll the zone table (documented p
   // The bag holds only what the enemy itself dropped — no table grant.
   const fresh = createPlayer(1661, 'T', 'warrior');
   assertEquals(
-    countOf(p, 'm_ember_shard'),
-    countOf(fresh, 'm_ember_shard') + 1,
+    countOf(p, 'm_rat_tail'),
+    countOf(fresh, 'm_rat_tail') + 1,
     'only the enemy drop',
   );
   for (const e of fields.entries) {
-    if (e.item === 'm_ember_shard') continue;
     assertEquals(
       countOf(p, e.item),
       countOf(fresh, e.item),

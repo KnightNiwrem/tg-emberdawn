@@ -72,6 +72,7 @@ Deno.test('quest brief: iron directions lead to early caches and drones, not the
   assert(view.includes('Iron Chunk ×2'));
   assert(view.includes('First-visit caches in Rootbound Hollow — Whisperwood'));
   assert(view.includes('Mycelid Drone'));
+  assert(view.includes('Mine in Emberdawn Outskirts; bring Pickaxe'));
   assert(!view.includes('Reward from Root of the Rot'));
   assert(view.includes('At completion, hand over: Iron Chunk ×2'));
   const journal = JSON.stringify(renderQuestDetail(p, 'm5_arms'));

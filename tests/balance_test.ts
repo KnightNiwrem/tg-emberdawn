@@ -6,6 +6,7 @@
 import { assert, assertEquals, assertExists, assertThrows } from '@std/assert';
 import {
   buildSnapshot,
+  type CellSpec,
   type CellStat,
   chooseAction,
   driveQuests,
@@ -1256,4 +1257,33 @@ Deno.test('trace: ignoring the returned trace changes nothing — full state and
     Error,
     'Values are not equal',
   );
+});
+
+Deno.test('balance cells keep combat samples stable when reward tables consume extra random draws', () => {
+  const spec: CellSpec = {
+    classId: 'warrior',
+    level: 3,
+    gear: 'best',
+    policy: POLICIES.rotation,
+    pool: 'outskirts',
+    sources: zoneHostilePool('outskirts', 3),
+    fights: 80,
+    seed: 91234,
+  };
+  const before = runCell(spec);
+  const enemies = [...new Set(spec.sources.map((s) => s.enemyId))].map((id) => enemyDef(id)!);
+  const originals = enemies.map((e) => e.drops);
+  try {
+    // Real, irrelevant materials add reward RNG draws only after victory.
+    // A shared cross-fight stream would now select different opponents and
+    // damage/dodge rolls even though no combat rule or starting hero changed.
+    for (const e of enemies) {
+      e.drops = { ...e.drops, m_copper_ore: 0.5, m_salt: 0.5, m_quartz: 0.5 };
+    }
+    assertEquals(runCell(spec), before);
+  } finally {
+    enemies.forEach((e, i) => {
+      e.drops = originals[i];
+    });
+  }
 });

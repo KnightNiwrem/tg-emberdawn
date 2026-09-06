@@ -24,7 +24,7 @@
  *  - quest map keys and questOutcomes entries (a resolved record's named
  *    outcome must resolve against that quest's outcomes declaration, #146,
  *    and only a resolved record may carry one at all, #150);
- *  - ID-bearing flags (`forge_i_<itemId>`);
+ *  - ID-bearing flags (`forge_i_<itemId>`, gathering zone counters and recharge times);
  *  - storyReceipts (`choice:<dlg>:<node>:<choice>` / `line:<dlg>:<node>`);
  *  - decisions (authored decision id plus the EXACT dialogue/node/choice
  *    tuple an authored recordDecision effect can produce, #150);
@@ -476,6 +476,11 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
     }
   }
   for (const key of Object.keys(p.flags)) {
+    for (const prefix of ['gather_', 'gatherReset_']) {
+      if (key.startsWith(prefix) && !zone(key.slice(prefix.length))) {
+        bad('flags', key, 'unknown gathering zone id');
+      }
+    }
     if (key.startsWith(FORGE_FLAG_PREFIX) && !item(key.slice(FORGE_FLAG_PREFIX.length))) {
       bad('flags', key, 'unknown forged item id');
     }

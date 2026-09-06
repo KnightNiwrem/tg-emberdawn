@@ -139,6 +139,8 @@ Deno.test('quest decision UI: collection directions keep each source activity an
   assertEquals(objectiveSource(iron, iron.objectives[0]).split('\n'), [
     '🕸️ First-visit caches in Rootbound Hollow — Whisperwood',
     '🕸️ Drops from Mycelid Drone — Rootbound Hollow — Whisperwood (Dungeon) (may take several fights)',
+    '⛏️ Mine in Emberdawn Outskirts; bring Pickaxe',
+    '⛏️ Mine in Hollowmere Swamp; bring Pickaxe',
   ]);
   const boss = quest('m12_chronolich')!;
   const source = objectiveSource(boss, boss.objectives[0]);

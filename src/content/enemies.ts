@@ -203,7 +203,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🐀',
     level: 1,
     moves: [BITE('Gnaw')],
-    drops: { m_ember_shard: 0.25 },
+    drops: { m_ember_shard: 0.25, m_rat_tail: 0.3 },
     desc: 'Small, ember-flecked, and always hungry.',
   }),
   mk({
@@ -213,7 +213,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 2,
     mul: { hp: 1.2, atk: 0.8 },
     moves: [BITE('Root Chew'), move('Fibrous Hide', 1, GUARD(0.3, 2))],
-    drops: { m_ember_shard: 0.2 },
+    drops: { m_plant_fiber: 0.4, m_tangled_roots: 0.2 },
     desc: 'Sturdier than it looks — it would rather outlast you than bite you.',
   }),
   mk({
@@ -222,7 +222,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🐀',
     level: 2,
     moves: [BITE()],
-    drops: { m_ember_shard: 0.25 },
+    drops: { m_rat_tail: 0.45, m_bone: 0.2 },
     desc: 'Big, bold, and everywhere.',
   }),
   mk({
@@ -231,7 +231,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🐗',
     level: 3,
     moves: [BITE('Gore'), CLAW('Trample')],
-    drops: { m_ember_shard: 0.3 },
+    drops: { m_hide: 0.4, m_bone: 0.25 },
   }),
   mk({
     id: 'e_bandit',
@@ -239,7 +239,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🗡️',
     level: 4,
     moves: [hit('Shiv', 1.1, 'phys', 3), hit('Low Blow', 1.3, 'phys', 1)],
-    drops: { c_minor_potion: 0.2 },
+    drops: { c_minor_potion: 0.2, m_rusty_scrap: 0.25, m_silver_brooch: 0.1 },
   }),
   mk({
     id: 'e_wolf',
@@ -247,7 +247,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🐺',
     level: 4,
     moves: [BITE(), move('Howl', 1, SAP(0.15))],
-    drops: { m_ember_shard: 0.35 },
+    drops: { m_hide: 0.4, m_bone: 0.25 },
   }),
   mk({
     id: 'e_spider',
@@ -264,7 +264,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         SLOW(0.25, 2, 'Webbed', '🕸️ The webbing binds your legs — Webbed!'),
       ),
     ],
-    drops: { m_ember_shard: 0.4, q_pells_locket: 0.25 },
+    drops: { m_spider_silk: 0.5, q_pells_locket: 0.25 },
   }),
   mk({
     id: 'e_sprite',
@@ -273,7 +273,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 5,
     mul: { hp: 0.7 },
     moves: [hit('Prick', 0.8, 'mag', 2), hit('Hex', 1.1, 'mag', 2)],
-    drops: { m_ember_shard: 0.45, c_minor_ether: 0.15 },
+    drops: { m_ember_shard: 0.45, c_bitterleaf: 0.2 },
   }),
   mk({
     id: 'e_mycelid',
@@ -281,10 +281,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🍄',
     level: 6,
     moves: [hit('Spore Cloud', 0.9, 'mag', 2), BITE('Gnaw')],
-    drops: { m_iron_chunk: 0.3 },
+    drops: { m_iron_chunk: 0.3, m_glowcap: 0.35 },
   }),
   mk({
     id: 'e_thornling',
+    drops: { m_hardwood: 0.4, m_resin: 0.25 },
     name: 'Thornling',
     emoji: '🌿',
     level: 7,
@@ -301,6 +302,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_stag',
+    drops: { m_hide: 0.6, m_bone: 0.4 },
     name: 'Corrupted Stag',
     emoji: '🦌',
     level: 7,
@@ -335,7 +337,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     // silently ignored); #78 expresses it as an ordered heal spec with no
     // power at all.
     special: { every: 4, move: move('Brood Surge', 1, HEAL(0.08)) },
-    drops: { m_iron_chunk: 1.0, t_1: 0.5 },
+    drops: { m_iron_chunk: 1.0, m_spider_silk: 1.0, t_1: 0.5 },
     desc: 'She wove the Hollow. Now the Hollow weaves for her.',
   }),
 
@@ -346,7 +348,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🫧',
     level: 10,
     moves: [BITE('Nibble'), hit('Mudball', 0.9, 'mag', 2)],
-    drops: { m_iron_chunk: 0.35 },
+    drops: { m_bog_iron: 0.35, m_reed: 0.25 },
   }),
   mk({
     id: 'e_leech',
@@ -363,7 +365,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         pct: 0.6,
       }),
     ],
-    drops: { m_mystic_dust: 0.5, q_toxin_sample: 0.55 },
+    drops: { q_toxin_sample: 0.55 },
   }),
   mk({
     id: 'e_fenhag',
@@ -374,10 +376,11 @@ export const ENEMIES: readonly EnemyDef[] = [
       hit('Cackle Bolt', 1.2, 'mag', 3),
       hit('Swamp Curse', 0.9, 'mag', 2, WARD_BREAK(0.25)),
     ],
-    drops: { c_ether: 0.15 },
+    drops: { c_ether: 0.15, m_glowcap: 0.3 },
   }),
   mk({
     id: 'e_sludge',
+    drops: { m_clay: 0.4, m_bog_iron: 0.25 },
     name: 'Oozing Sludge',
     emoji: '🫠',
     level: 12,
@@ -386,6 +389,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_wisp',
+    drops: { m_mystic_dust: 0.35 },
     name: 'Marsh Wisp',
     emoji: '🌀',
     level: 13,
@@ -401,7 +405,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🐊',
     level: 13,
     moves: [hit('Death Roll', 1.35, 'phys', 3), BITE('Crush')],
-    drops: { m_iron_chunk: 0.4 },
+    drops: { m_hide: 0.5, m_bone: 0.3 },
   }),
   mk({
     id: 'e_drowned',
@@ -409,10 +413,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🌊',
     level: 14,
     moves: [hit('Tidal Slam', 1.15, 'phys', 3), hit('Drowned Prayer', 1.1, 'mag', 2)],
-    drops: { q_toxin_sample: 0.4 },
+    drops: { q_toxin_sample: 0.4, m_broken_pottery: 0.3 },
   }),
   mk({
     id: 'e_serpent',
+    drops: { m_hide: 0.4, m_bone: 0.2 },
     name: 'Shrine Serpent',
     emoji: '🐍',
     level: 15,
@@ -442,10 +447,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '🪲',
     level: 16,
     moves: [hit('Mandible', 1.0, 'phys', 3), hit('Sun Flash', 0.9, 'mag', 1, SAP(0.15))],
-    drops: { m_mystic_dust: 0.4 },
+    drops: { m_cracked_shell: 0.4 },
   }),
   mk({
     id: 'e_sentinel',
+    drops: { m_quartz: 0.4, m_mystic_dust: 0.25 },
     name: 'Ruin Sentinel',
     emoji: '🗿',
     level: 17,
@@ -465,7 +471,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 17,
     mul: { hp: 0.85, spd: 1.3 },
     moves: [hit('Talon Dive', 1.2, 'phys', 3), BITE('Peck')],
-    drops: { m_mystic_dust: 0.3 },
+    drops: { m_bone: 0.4, m_hide: 0.2 },
   }),
   mk({
     id: 'e_cultist',
@@ -473,10 +479,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '☀️',
     level: 18,
     moves: [hit('Solar Dart', 1.2, 'mag', 3), hit('Fanatic Strike', 1.1, 'phys', 2)],
-    drops: { c_ether: 0.2 },
+    drops: { c_ether: 0.2, m_sun_medallion: 0.1 },
   }),
   mk({
     id: 'e_spirelynx',
+    drops: { m_hide: 0.45, m_bone: 0.25 },
     name: 'Spire Lynx',
     emoji: '🐆',
     level: 18,
@@ -485,6 +492,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_chronowisp',
+    drops: { m_mystic_dust: 0.4 },
     name: 'Chrono Wisp',
     emoji: '⏳',
     level: 19,
@@ -514,7 +522,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 20,
     mul: { def: 1.35, spd: 0.7 },
     moves: [hit('Piston Punch', 1.3, 'phys', 3), hit('Steam Vent', 1.1, 'mag', 2)],
-    drops: { m_mystic_dust: 0.55 },
+    drops: { m_mystic_dust: 0.35, m_copper_ore: 0.4, m_rusty_scrap: 0.2 },
   }),
   mk({
     id: 'e_chronolich',
@@ -535,7 +543,7 @@ export const ENEMIES: readonly EnemyDef[] = [
       ),
     ],
     special: { every: 4, move: hit('Temporal Collapse', 2.1, 'mag', 1) },
-    drops: { m_frost_core: 0.6, t_3: 0.5 },
+    drops: { m_mystic_dust: 1.0, m_sunstone: 0.6, t_3: 0.5 },
     desc: 'It has counted every hour since the flame was lit. It wants the last one.',
   }),
 
@@ -556,10 +564,11 @@ export const ENEMIES: readonly EnemyDef[] = [
       ),
       hit('Screech', 0.8, 'mag', 1, SAP(0.15)),
     ],
-    drops: { m_frost_core: 0.3 },
+    drops: { m_thick_fur: 0.3, m_bone: 0.2 },
   }),
   mk({
     id: 'e_bristlehorn',
+    drops: { m_thick_fur: 0.4, m_bone: 0.3 },
     name: 'Bristlehorn',
     emoji: '🐐',
     level: 23,
@@ -571,7 +580,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '⚔️',
     level: 24,
     moves: [hit('Ice Axe', 1.25, 'phys', 3), hit('Shield Charge', 1.0, 'phys', 2)],
-    drops: { c_greater_potion: 0.15 },
+    drops: { c_greater_potion: 0.15, m_silver_brooch: 0.15 },
   }),
   mk({
     id: 'e_frostwraith',
@@ -597,6 +606,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_iceling',
+    drops: { m_frost_core: 0.35, m_quartz: 0.25 },
     name: 'Iceling',
     emoji: '🧊',
     level: 26,
@@ -622,7 +632,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 27,
     mul: { hp: 1.4, atk: 1.15 },
     moves: [hit('Avalanche Blow', 1.4, 'phys', 3), hit('Bellow', 0.8, 'phys', 1, SAP(0.2))],
-    drops: { m_frost_core: 0.6 },
+    drops: { m_thick_fur: 0.6, m_bone: 0.35 },
   }),
   mk({
     id: 'e_jormunis',
@@ -672,7 +682,7 @@ export const ENEMIES: readonly EnemyDef[] = [
         name: 'Cooled Crust',
       }),
     ],
-    drops: { m_cinder_heart: 0.3 },
+    drops: { m_cinder_heart: 0.3, m_sulfur: 0.3 },
   }),
   mk({
     id: 'e_emberimp',
@@ -681,10 +691,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     level: 31,
     mul: { hp: 0.8, spd: 1.3 },
     moves: [hit('Cinder Fling', 1.2, 'mag', 3), hit('Mischief', 0.9, 'mag', 2, SAP(0.2))],
-    drops: { m_cinder_heart: 0.35 },
+    drops: { m_cinder_heart: 0.35, m_obsidian: 0.2 },
   }),
   mk({
     id: 'e_cinderhound',
+    drops: { m_bone: 0.35, m_cinder_heart: 0.2 },
     name: 'Cinder Hound',
     emoji: '🔥',
     level: 32,
@@ -703,6 +714,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_salamander',
+    drops: { m_hide: 0.4, m_sulfur: 0.25 },
     name: 'Fire Salamander',
     emoji: '🦎',
     level: 34,
@@ -718,7 +730,7 @@ export const ENEMIES: readonly EnemyDef[] = [
       hit('Hammer Fall', 1.4, 'phys', 3),
       move('Molten Guard', 1, GUARD(0.5, 2)),
     ],
-    drops: { m_cinder_heart: 0.5 },
+    drops: { m_cinder_heart: 0.5, m_iron_ingot: 0.35 },
   }),
   mk({
     id: 'e_ignivar',
@@ -751,6 +763,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_watcher',
+    drops: { m_void_fragment: 0.25 },
     name: 'Watcher Eye',
     emoji: '👁️',
     level: 39,
@@ -770,6 +783,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_shattered',
+    drops: { m_black_iron: 0.4, m_rusty_scrap: 0.2 },
     name: 'Shattered Knight',
     emoji: '🛡️',
     level: 40,
@@ -789,6 +803,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_nightgaunt',
+    drops: { m_night_silk: 0.4 },
     name: 'Nightgaunt',
     emoji: '👤',
     level: 41,
@@ -801,10 +816,11 @@ export const ENEMIES: readonly EnemyDef[] = [
     emoji: '⚔️',
     level: 42,
     moves: [hit('Loyal Edge', 1.4, 'phys', 3), hit("King's Command", 1.2, 'mag', 2)],
-    drops: { m_void_fragment: 0.45 },
+    drops: { m_void_fragment: 0.45, m_black_iron: 0.3, m_royal_signet: 0.1 },
   }),
   mk({
     id: 'e_regalia',
+    drops: { m_black_iron: 0.5, m_royal_signet: 0.15 },
     name: 'Regalia Guardian',
     emoji: '👑',
     level: 43,
@@ -855,6 +871,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
   mk({
     id: 'e_nullhound',
+    drops: { m_bone: 0.35, m_void_fragment: 0.25 },
     name: 'Null Hound',
     emoji: '🐕',
     level: 45,

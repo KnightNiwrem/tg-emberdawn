@@ -793,6 +793,8 @@ Deno.test('shop stock: local facilities, starter stays beginner, gear only usabl
 Deno.test('forge: tempering requires materials and caps at +5', () => {
   const p = createPlayer(14, 'T', 'warrior');
   addItem(p, 'm_ember_shard', 20);
+  addItem(p, 'm_hardwood', 20);
+  addItem(p, 'm_plant_fiber', 20);
   p.gold = 100000;
   for (let i = 0; i < 5; i++) {
     const res = temper(p, 'weapon');
