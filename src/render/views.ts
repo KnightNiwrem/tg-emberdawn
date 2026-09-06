@@ -649,13 +649,13 @@ export function renderShopItemDetail(
     ));
   }
   blocks.push(...itemFactBlocks(def));
-  blocks.push(itemReferenceRow(def.id));
   blocks.push(buttonsRow([
     p.gold >= offering.price
-      ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
-      : disabledBtn(`${def.name} — too costly`),
-    back,
-  ], 'left'));
+      ? cbBtn(`Buy · ${offering.price}g`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
+      : disabledBtn('Buy — too costly'),
+  ]));
+  blocks.push(itemReferenceRow(def.id));
+  blocks.push(buttonsRow([back]));
   return { blocks };
 }
 

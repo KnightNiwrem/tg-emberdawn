@@ -218,8 +218,8 @@ export function renderItemDetail(
   if (!def.unique && def.kind !== 'quest') {
     row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
   }
+  if (row.length) blocks.push(buttonsRow(row));
   blocks.push(itemReferenceRow(def.id));
-  if (row.length) blocks.push(buttonsRow(row, 'left'));
   blocks.push(detailBackRow(origin));
   return { blocks };
 }
@@ -345,13 +345,13 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
     blocks.push(para(`🔧 Forge-tempered +${temper} — +${pct}% to this item's own stats.`));
   }
   blocks.push(...itemFactBlocks(def));
+  blocks.push(buttonsRow([
+    cbBtn('🔓 Unequip', encodeCb({ v: 'equipment', a: 'rm', arg: slot }), 'danger'),
+  ]));
   blocks.push(itemReferenceRow(def.id));
-  blocks.push(
-    buttonsRow([
-      cbBtn('🔓 Unequip', encodeCb({ v: 'equipment', a: 'rm', arg: slot }), 'danger'),
-      cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
-    ], 'left'),
-  );
+  blocks.push(buttonsRow([
+    cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
+  ]));
   return { blocks };
 }
 
