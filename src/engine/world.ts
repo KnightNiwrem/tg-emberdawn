@@ -227,10 +227,13 @@ export function explore(
   // in the wilds — the central mutation refuses, not only the handler.
   if (p.journey) return { kind: 'result', lines: [JOURNEY_BLOCK] };
 
-  // Safe havens never spawn battles — content tables should already be
-  // battle-free; this guard keeps them that way regardless of content.
+  // Safe havens never spawn battles — and never rest (#211): arrival at a
+  // haven already restores both pools fully (arriveAt), so an in-haven rest
+  // can only roll against full pools and claim a heal that lands nothing.
+  // Content tables should already be battle- and rest-free; this guard keeps
+  // them that way regardless of content.
   let pool = z.safeHaven
-    ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite')
+    ? z.explore.filter((e) => e.kind !== 'battle' && e.kind !== 'elite' && e.kind !== 'rest')
     : z.explore;
   // Authored encounter eligibility (#73, shared with the balance harness
   // #74): battle/elite events only roll for players inside their authored

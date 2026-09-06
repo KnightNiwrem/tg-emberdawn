@@ -22,7 +22,9 @@ and must stay green.
 4. Quest rewards should cover roughly 2–3 shop tiers of gear at that level.
 5. Run the content-integrity tests; they catch dangling ids.
 6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
-   engine also filters them). Battles belong in the wilds players travel to.
+   engine also filters them). Battles belong in the wilds players travel to. They also author no
+   `rest` events (#211): arrival at a haven already restores both pools fully, so an in-haven rest
+   could only roll against full pools — the engine filters those too.
 7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest or dungeon
    `unlockZones` reward array — the zone-reachability test enforces this. Quests and dungeon
    first-clears list zones in authored order; existing unlocks are not granted or announced again.

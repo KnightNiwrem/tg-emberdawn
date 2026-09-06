@@ -922,10 +922,16 @@ Deno.test('world: every zone is reachable from the starting zones', () => {
 Deno.test('world: safe havens never spawn battles; the wilds do', () => {
   const rng = seeded(21);
   const p = createPlayer(17, 'T', 'warrior');
-  // Village explore: treasure/rest/flavor only — never a battle.
+  // Village explore: treasure/flavor only — never a battle, never a rest
+  // (#211: the haven's arrival already restores both pools, so an in-haven
+  // rest could only claim a heal that lands nothing).
   for (let i = 0; i < 200; i++) {
     const outcome = explore(p, rng);
     assert(outcome.kind !== 'battle', 'safe haven must not spawn battles');
+    assert(
+      outcome.kind !== 'result' || outcome.lines.every((l) => !l.startsWith('🌙')),
+      'safe haven must not roll rest events',
+    );
     assertEquals(p.battle, undefined); // explore never attaches; caller does
   }
   // The wilds: battles are common (weighted tables) — find one. The
@@ -999,6 +1005,15 @@ Deno.test("content integrity: zones' exploration events and dungeon encounters r
       if (ev.kind === 'treasure' && ev.item) {
         assert(item(ev.item), `zone ${z.id} missing treasure item ${ev.item}`);
       }
+    }
+    // Safe havens author no battle, elite or rest events (#211): arrival at
+    // a haven already restores both pools fully, so an in-haven rest would
+    // only ever roll against full pools and claim a heal that lands nothing.
+    if (z.safeHaven) {
+      assert(
+        z.explore.every((ev) => ev.kind === 'treasure' || ev.kind === 'flavor'),
+        `safe haven ${z.id} authors a battle/elite/rest explore event`,
+      );
     }
     if (z.dungeon) {
       for (const f of z.dungeon.floors) {

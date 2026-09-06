@@ -47,12 +47,6 @@ export const ZONES: readonly ZoneDef[] = [
         text: 'A sheltered bramble still carries a few ripe berries.',
       },
       {
-        kind: 'rest',
-        healPct: 0.3,
-        weight: 1,
-        text: 'You rest beside the shared hearth while someone hangs wet gloves above the vent.',
-      },
-      {
         kind: 'flavor',
         weight: 2,
         text: 'Ember-light flickers over the fields. The village hums, uneasily.',
@@ -279,12 +273,6 @@ export const ZONES: readonly ZoneDef[] = [
         item: 'm_clay',
         weight: 1,
         text: 'The low bank exposes a pocket of workable clay.',
-      },
-      {
-        kind: 'rest',
-        healPct: 0.3,
-        weight: 1,
-        text: 'You rest on dry planks over clean water. The fen keeps its distance.',
       },
       {
         kind: 'flavor',
