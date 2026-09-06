@@ -96,6 +96,11 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     const restored = (await store.get(shopper.userId))!;
     assertEquals(restored, shopper);
     assertResolvablePersistedIds(restored);
+    shopper.scene = { view: 'shop', arg: '1', arg2: 'm_worm_bait', arg3: 'uses:1' };
+    await store.withLock(shopper.userId, () => store.set(shopper.userId, shopper));
+    const usesRestored = (await store.get(shopper.userId))!;
+    assertEquals(usesRestored, shopper);
+    assertResolvablePersistedIds(usesRestored);
     await store.delete(shopper.userId);
 
     // #191: the current campaign's quest objects survive JSONB; storing an

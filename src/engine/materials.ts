@@ -93,3 +93,77 @@ export function resourceFacts(id: string): string[] {
   ) return [];
   return materialUses(id);
 }
+
+export interface ItemUseGroup {
+  title: string;
+  description?: string;
+  entries: { title: string; detail?: string }[];
+}
+
+/** Production and gathering roles, kept structured for sectioned reference pages. */
+export function itemUseGroups(id: string): ItemUseGroup[] {
+  const groups: ItemUseGroup[] = [];
+  const recipes = RECIPES.filter((r) => r.inputs.some((m) => m.id === id));
+  if (recipes.length) {
+    groups.push({
+      title: 'Recipes',
+      entries: recipes.map((r) => ({
+        title: r.name,
+        detail: `Consumes ${
+          r.inputs.filter((m) => m.id === id).reduce((n, m) => n + m.qty, 0)
+        } per batch\nProduces: ${
+          itemName(r.output.id)
+        } ×${r.output.qty}\nRequired level: ${r.level}`,
+      })),
+    });
+  }
+  const tiers = Array.from({ length: 8 }, (_, i) => i + 1).flatMap((tier) => {
+    const slots = (['weapon', 'armor'] as const).filter((slot) =>
+      temperMaterialsForTier(tier, slot).includes(id)
+    );
+    return slots.length
+      ? [{
+        title: `Tier ${tier}`,
+        detail: slots.length === 2
+          ? 'Weapons and armor'
+          : slots[0] === 'weapon'
+          ? 'Weapons'
+          : 'Armor',
+      }]
+      : [];
+  });
+  if (tiers.length) {
+    groups.push({
+      title: 'Tempering',
+      description: 'Consumed at a forge. Quantity depends on the temper level.',
+      entries: tiers,
+    });
+  }
+  for (
+    const [activity, title] of [['fish', 'Fishing'], ['mine', 'Mining'], [
+      'forage',
+      'Foraging',
+    ]] as const
+  ) {
+    const sites = GATHERING_SITES.filter((s) =>
+      s.activity === activity && (s.tool === id || Object.hasOwn(s.baitTables ?? {}, id))
+    );
+    if (!sites.length) continue;
+    const reusable = sites.every((s) => s.tool === id);
+    groups.push({
+      title,
+      description: reusable ? 'Reusable tool. Keep it in your bag.' : 'Bait: 1 consumed per cast.',
+      entries: sites.map((s) => ({
+        title: zone(s.zoneId)!.name,
+        detail: s.tool === id ? undefined : s.tool ? `Tool: ${itemName(s.tool)}` : undefined,
+      })),
+    });
+  }
+  if (!groups.length && item(id)?.kind === 'material') {
+    groups.push({
+      title: 'Trading',
+      entries: [{ title: 'Trade good', detail: 'Sell at a shop.' }],
+    });
+  }
+  return groups;
+}

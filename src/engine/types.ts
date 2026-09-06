@@ -287,7 +287,9 @@ export interface SceneState {
   arg2?: string;
   /** Third parameter (#126): the dialogue's staged sub-state —
    * `confirm:<choiceId>` while an irreversible confirmation panel is up.
-   * Absent on every other view. */
+   * Item detail references (#208, #209): `sources:<page>` or `uses:<page>`;
+   * the item identity and original menu context stay in arg/arg2.
+   * Absent on other views. */
   arg3?: string;
 }
 

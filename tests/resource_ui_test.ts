@@ -83,7 +83,7 @@ Deno.test('resources UI: material facts explain uses and real acquisition source
   }
   const text = JSON.stringify(itemFactBlocks(item('c_wild_berry')!));
   assert(text.includes('Restores 12 HP.'));
-  assert(text.includes('Brew Minor Potion'));
+  assert(!text.includes('Brew Minor Potion'), 'recipe uses belong on the Uses page');
 });
 
 Deno.test('resources UI: forged remote and battle controls do not consume anything or navigate', () => {

@@ -45,9 +45,13 @@ Raw berries restore 12 HP and bitterleaf restores 8 MP. Brewing concentrates the
 materials; cooking produces stronger consumable meals. Other recipes cover later potions and ethers,
 cleansing tonics, smoke bombs, charcoal, iron ingots, and tool manufacture. Every recipe displays
 its local station, level, fee, inputs, bag quantities, output, and generated output mechanics.
-Missing inputs have source directions; item details list current uses and sell value. A Sources
-button opens a paginated catalog reference, with Back returning to the same item and its original
-bag, equipment, or shop context.
+Missing inputs have source directions. Item details retain immediate mechanics, flavor,
+requirements, and sell value. Sources and Uses share a reference row: Sources lists acquisition
+directions; Uses separates recipes, tempering tiers, fishing, mining, and foraging under headings,
+with one entry per recipe, tier, or location. Both references paginate and return to the same item
+and original menu. Uses distinguishes consumed ingredients and bait from reusable tools. Items
+without production or activity roles omit the Uses button; trade goods explain their sale-only role
+under Trading.
 
 The early supply chain is deliberately accessible:
 

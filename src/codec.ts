@@ -6,6 +6,8 @@
 export type Cb =
   | { v: 'sources'; a: 'p'; arg: number }
   | { v: 'sources'; a: 'bk' }
+  | { v: 'uses'; a: 'p'; arg: number }
+  | { v: 'uses'; a: 'bk' }
   | { v: 'zone'; a: 'hm' }
   | { v: 'zone'; a: 'ex' }
   | { v: 'zone'; a: 'ga' | 'cr'; arg: string }
@@ -78,6 +80,8 @@ export function withRev(rev: number, wire: string): string {
 /** Serializes a Cb to its wire form. */
 export function encodeCb(c: Cb): string {
   switch (c.v) {
+    case 'uses':
+      return c.a === 'bk' ? 'uses:bk' : `uses:pg:${c.arg}`;
     case 'sources':
       return c.a === 'bk' ? 'src:bk' : `src:pg:${c.arg}`;
     case 'zone':
@@ -153,6 +157,11 @@ function act<A extends string>(a: string, known: readonly A[]): A | undefined {
 
 function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
   switch (v) {
+    case 'uses':
+      if (a === 'bk' && !arg) return { v: 'uses', a: 'bk' };
+      return a === 'pg' && /^\d{1,6}$/.test(arg)
+        ? { v: 'uses', a: 'p', arg: Number(arg) }
+        : undefined;
     case 'src':
       if (a === 'bk' && !arg) return { v: 'sources', a: 'bk' };
       return a === 'pg' && /^\d{1,6}$/.test(arg)

@@ -74,7 +74,7 @@ Deno.test('shop: Details disclose equipment stats, requirements, triggers, consu
     assert(controls(view).includes(encodeCb({ v: 'shop', a: 'buy', arg: id })));
     assert(controls(view).includes(encodeCb({ v: 'shop', a: 'p', arg: 1 })));
     assert(
-      controls(view).every((wire) => ['shop', 'sources'].includes(decodeCb(wire)!.v)),
+      controls(view).every((wire) => ['shop', 'sources', 'uses'].includes(decodeCb(wire)!.v)),
       'shop actions and source navigation only',
     );
   }

@@ -2,8 +2,8 @@
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
 import type { EquipSlot, PlayerState } from '../engine/types.ts';
-import { renderItemSources, sourcesButton } from './item_sources.ts';
-import { resourceFacts } from '../engine/materials.ts';
+import { renderItemSources } from './item_sources.ts';
+import { itemReferenceRow, renderItemUses } from './item_uses.ts';
 import type { ItemDef } from '../content/types.ts';
 import { isEquippable, item, sellPrice } from '../content/items.ts';
 import { skillsForClass } from '../content/skills.ts';
@@ -163,7 +163,6 @@ export function itemFactBlocks(def: ItemDef): InputRichBlock[] {
       .join('\n');
     blocks.push(para(lines));
   }
-  for (const fact of resourceFacts(def.id)) blocks.push(para(fact));
   const mech = itemMechanicsLines(def);
   if (mech.length > 0) blocks.push(para(mech.join('\n')));
   if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
@@ -195,6 +194,9 @@ export function renderItemDetail(
   if (p.scene.arg3?.startsWith('sources:')) {
     return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
   }
+  if (p.scene.arg3?.startsWith('uses:')) {
+    return renderItemUses(def.id, Number(p.scene.arg3.slice(5)));
+  }
   blocks.push(heading(`${def.name} ×${qty}`, 4));
   blocks.push(...noticesBlocks(p));
   blocks.push(...itemFactBlocks(def));
@@ -216,8 +218,8 @@ export function renderItemDetail(
   if (!def.unique && def.kind !== 'quest') {
     row.push(cbBtn('🗑️ Drop', encodeCb({ v: 'inventory', a: 'drop', arg: itemId }), 'danger'));
   }
-  row.push(sourcesButton());
-  blocks.push(buttonsRow(row, 'left'));
+  blocks.push(itemReferenceRow(def.id));
+  if (row.length) blocks.push(buttonsRow(row, 'left'));
   blocks.push(detailBackRow(origin));
   return { blocks };
 }
@@ -330,6 +332,9 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
   if (p.scene.arg3?.startsWith('sources:')) {
     return renderItemSources(def.id, Number(p.scene.arg3.slice(8)));
   }
+  if (p.scene.arg3?.startsWith('uses:')) {
+    return renderItemUses(def.id, Number(p.scene.arg3.slice(5)));
+  }
   const temper = slot !== 'trinket' ? temperLevel(p, slot) : 0;
   const temperMark = temper > 0 ? ` +${temper}` : '';
   blocks.push(heading(`${def.name}${temperMark}`, 4));
@@ -340,9 +345,9 @@ export function renderEquippedItemDetail(p: PlayerState, slot: EquipSlot): Input
     blocks.push(para(`🔧 Forge-tempered +${temper} — +${pct}% to this item's own stats.`));
   }
   blocks.push(...itemFactBlocks(def));
+  blocks.push(itemReferenceRow(def.id));
   blocks.push(
     buttonsRow([
-      sourcesButton(),
       cbBtn('🔓 Unequip', encodeCb({ v: 'equipment', a: 'rm', arg: slot }), 'danger'),
       cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' })),
     ], 'left'),

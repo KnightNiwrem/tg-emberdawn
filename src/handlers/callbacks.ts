@@ -88,6 +88,7 @@ function dispatch(
     return { toast: DUNGEON_BLOCK };
   }
   switch (cb.v) {
+    case 'uses':
     case 'sources':
       return sourcesAction(player, cb);
     case 'zone':
