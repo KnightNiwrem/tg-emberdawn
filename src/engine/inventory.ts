@@ -3,36 +3,36 @@
 import type { PlayerState } from './types.ts';
 import { item } from '../content/items.ts';
 
-export function countOf(p: PlayerState, itemId: string): number {
-  return p.inventory.find((e) => e.id === itemId)?.qty ?? 0;
+export function countOf(player: PlayerState, itemId: string): number {
+  return player.inventory.find((entry) => entry.id === itemId)?.qty ?? 0;
 }
 
-export function addItem(p: PlayerState, itemId: string, qty = 1): void {
+export function addItem(player: PlayerState, itemId: string, qty = 1): void {
   if (qty <= 0) return;
-  const entry = p.inventory.find((e) => e.id === itemId);
+  const entry = player.inventory.find((entry) => entry.id === itemId);
   if (entry) entry.qty += qty;
-  else p.inventory.push({ id: itemId, qty });
+  else player.inventory.push({ id: itemId, qty });
 }
 
-export function removeItem(p: PlayerState, itemId: string, qty = 1): boolean {
-  const entry = p.inventory.find((e) => e.id === itemId);
+export function removeItem(player: PlayerState, itemId: string, qty = 1): boolean {
+  const entry = player.inventory.find((entry) => entry.id === itemId);
   if (!entry || entry.qty < qty) return false;
   entry.qty -= qty;
-  if (entry.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== itemId);
+  if (entry.qty <= 0) player.inventory = player.inventory.filter((entry) => entry.id !== itemId);
   return true;
 }
 
-export function grantDropRewards(p: PlayerState, drops: string[]): string[] {
+export function grantDropRewards(player: PlayerState, drops: string[]): string[] {
   const lines: string[] = [];
   for (const id of drops) {
-    addItem(p, id, 1);
+    addItem(player, id, 1);
     lines.push(`🎁 Loot: ${item(id)?.name ?? id}`);
   }
   return lines;
 }
 
-export function consumables(p: PlayerState): { id: string; name: string; qty: number }[] {
-  return p.inventory
-    .filter((e) => item(e.id)?.kind === 'consumable')
-    .map((e) => ({ id: e.id, name: item(e.id)?.name ?? e.id, qty: e.qty }));
+export function consumables(player: PlayerState): { id: string; name: string; qty: number }[] {
+  return player.inventory
+    .filter((entry) => item(entry.id)?.kind === 'consumable')
+    .map((entry) => ({ id: entry.id, name: item(entry.id)?.name ?? entry.id, qty: entry.qty }));
 }

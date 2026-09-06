@@ -19,21 +19,24 @@ interface ObjectiveSource {
 }
 
 function enemyPlaces(id: string): ObjectiveSource[] {
-  const field = ZONES.filter((z) =>
-    z.explore.some((e) => (e.kind === 'battle' || e.kind === 'elite') && e.enemy === id)
-  ).map((z) => ({
-    emoji: z.safeHaven ? '🌾' : '🧭',
-    text: `${z.name} (${z.safeHaven ? 'Forage' : 'Explore'})`,
+  const field = ZONES.filter((zoneDef) =>
+    zoneDef.explore.some((encounter) =>
+      (encounter.kind === 'battle' || encounter.kind === 'elite') && encounter.enemy === id
+    )
+  ).map((zoneDef) => ({
+    emoji: zoneDef.safeHaven ? '🌾' : '🧭',
+    text: `${zoneDef.name} (${zoneDef.safeHaven ? 'Forage' : 'Explore'})`,
   }));
-  const dungeons = ZONES.filter((z) =>
-    z.dungeon?.boss === id || z.dungeon?.floors.some((f) => f.enemies.includes(id))
-  ).map((z) => {
-    const d = z.dungeon!;
-    const key = d.boss === id ? d.bossGate?.item : undefined;
+  const dungeons = ZONES.filter((zoneDef) =>
+    zoneDef.dungeon?.boss === id ||
+    zoneDef.dungeon?.floors.some((floor) => floor.enemies.includes(id))
+  ).map((zoneDef) => {
+    const dungeon = zoneDef.dungeon!;
+    const key = dungeon.boss === id ? dungeon.bossGate?.item : undefined;
     return {
-      emoji: d.emoji,
-      text: `${d.name} — ${z.name}${
-        d.boss === id ? ` (boss; recommended Lv ${d.recommendedLevel})` : ' (Dungeon)'
+      emoji: dungeon.emoji,
+      text: `${dungeon.name} — ${zoneDef.name}${
+        dungeon.boss === id ? ` (boss; recommended Lv ${dungeon.recommendedLevel})` : ' (Dungeon)'
       }${key ? `; bring ${itemName(key)}, consumed on the first boss victory` : ''}`,
     };
   });
@@ -41,54 +44,58 @@ function enemyPlaces(id: string): ObjectiveSource[] {
 }
 
 /** Keep each activity's identity with its directions until the final line formatting. */
-function objectiveSources(q: QuestDef, o: Objective): ObjectiveSource[] {
-  if (o.kind === 'kill') return enemyPlaces(o.target);
-  if (o.kind === 'dungeon') {
-    const z = ZONES.find((z) => z.dungeon?.id === o.target);
-    return z
+function objectiveSources(questDef: QuestDef, objective: Objective): ObjectiveSource[] {
+  if (objective.kind === 'kill') return enemyPlaces(objective.target);
+  if (objective.kind === 'dungeon') {
+    const zoneDef = ZONES.find((z) => z.dungeon?.id === objective.target);
+    return zoneDef
       ? [{
-        emoji: z.dungeon!.emoji,
-        text: `${z.name} (Dungeon; recommended Lv ${z.dungeon!.recommendedLevel})`,
+        emoji: zoneDef.dungeon!.emoji,
+        text: `${zoneDef.name} (Dungeon; recommended Lv ${zoneDef.dungeon!.recommendedLevel})`,
       }]
       : [];
   }
-  if (o.kind === 'reach') {
+  if (objective.kind === 'reach') {
     return [{
       emoji: '🚶',
       text: 'Travel along the roads to this region, then meet the contact below.',
     }];
   }
-  if (o.kind === 'storyEvent') {
-    const d = DIALOGUES.find((d) =>
-      [q.startNpc, q.finishNpc].includes(d.npcId) &&
-      d.nodes.some((n) =>
-        (n.kind === 'line'
-          ? n.effects ?? []
-          : n.kind === 'choice'
-          ? n.choices.flatMap((c) => c.effects ?? [])
-          : []).some((e) => e.kind === 'storyEvent' && e.event === o.target)
+  if (objective.kind === 'storyEvent') {
+    const matchedDialogue = DIALOGUES.find((dlg) =>
+      [questDef.startNpc, questDef.finishNpc].includes(dlg.npcId) &&
+      dlg.nodes.some((node) =>
+        (node.kind === 'line'
+          ? node.effects ?? []
+          : node.kind === 'choice'
+          ? node.choices.flatMap((choice) => choice.effects ?? [])
+          : []).some((effect) => effect.kind === 'storyEvent' && effect.event === objective.target)
       )
     );
-    if (!d) return [];
-    if (d.id === q.offerDialogue) {
+    if (!matchedDialogue) return [];
+    if (matchedDialogue.id === questDef.offerDialogue) {
       return [{ emoji: '🗣️', text: 'Recorded when you accept this conversation.' }];
     }
-    const topic = npc(d.npcId)?.topics?.find((t) => t.dialogue === d.id);
+    const topic = npc(matchedDialogue.npcId)?.topics?.find((topicDef) =>
+      topicDef.dialogue === matchedDialogue.id
+    );
     return [{
       emoji: '🗣️',
-      text: `${npc(d.npcId)!.name} — ${zoneOfNpc(d.npcId)!.name}: ${topic?.label ?? q.name}.`,
+      text: `${npc(matchedDialogue.npcId)!.name} — ${zoneOfNpc(matchedDialogue.npcId)!.name}: ${
+        topic?.label ?? questDef.name
+      }.`,
     }];
   }
   const sources: ObjectiveSource[] = [];
-  for (const z of ZONES) {
-    if (z.dungeon?.floors.some((f) => f.treasure?.item === o.target)) {
+  for (const zoneDef of ZONES) {
+    if (zoneDef.dungeon?.floors.some((floor) => floor.treasure?.item === objective.target)) {
       sources.push({
-        emoji: z.dungeon.emoji,
-        text: `First-visit caches in ${z.dungeon.name} — ${z.name}`,
+        emoji: zoneDef.dungeon.emoji,
+        text: `First-visit caches in ${zoneDef.dungeon.name} — ${zoneDef.name}`,
       });
     }
   }
-  const drops = ENEMIES.filter((e) => (e.drops?.[o.target] ?? 0) > 0);
+  const drops = ENEMIES.filter((enemyDef) => (enemyDef.drops?.[objective.target] ?? 0) > 0);
   // A later field enemy must not displace an earlier dungeon source:
   // Mycelids supply Bram's iron before Hollowmere's Boglins are reachable.
   const source = drops.toSorted((a, b) => a.level - b.level)[0];
@@ -105,61 +112,74 @@ function objectiveSources(q: QuestDef, o: Objective): ObjectiveSource[] {
   // may themselves require completing this quest (e.g. Bram's iron order).
   if (sources.length === 0) {
     for (const reward of QUESTS) {
-      if (reward.rewards.items?.[o.target]) {
+      if (reward.rewards.items?.[objective.target]) {
         sources.push({ emoji: '📜', text: `Reward from ${reward.name}` });
       }
     }
   }
-  const gathering = GATHERING_SITES.filter((s) =>
-    s.yields.some((y) => y.item === o.target) ||
-    Object.values(s.baitTables ?? {}).some((ys) => ys.some((y) => y.item === o.target))
-  ).map((s) => ({
-    emoji: { forage: '🧺', mine: '⛏️', fish: '🎣' }[s.activity],
+  const gathering = GATHERING_SITES.filter((site) =>
+    site.yields.some((drop) => drop.item === objective.target) ||
+    Object.values(site.baitTables ?? {}).some((dropList) =>
+      dropList.some((drop) => drop.item === objective.target)
+    )
+  ).map((site) => ({
+    emoji: { forage: '🧺', mine: '⛏️', fish: '🎣' }[site.activity],
     text:
-      `${s.activity === 'mine' ? 'Mine' : s.activity === 'fish' ? 'Fish' : 'Forage'} in ${
-        zone(s.zoneId)!.name
+      `${site.activity === 'mine' ? 'Mine' : site.activity === 'fish' ? 'Fish' : 'Forage'} in ${
+        zone(site.zoneId)!.name
       }` +
-      (s.tool ? `; bring ${itemName(s.tool)}` : '') + (s.baitTables ? ' and bait' : ''),
+      (site.tool ? `; bring ${itemName(site.tool)}` : '') + (site.baitTables ? ' and bait' : ''),
   }));
   return [...sources.slice(0, 2), ...gathering];
 }
 
 /** Only real catalog sources are named; these are directions, never extra objectives. */
-export function objectiveSource(q: QuestDef, o: Objective): string {
-  return objectiveSources(q, o).map((source) => `${source.emoji} ${source.text}`).join('\n');
+export function objectiveSource(questDef: QuestDef, objective: Objective): string {
+  return objectiveSources(questDef, objective).map((source) => `${source.emoji} ${source.text}`)
+    .join('\n');
 }
 
-function objectiveLabel(o: Objective): string {
-  switch (o.kind) {
+function objectiveLabel(objective: Objective): string {
+  switch (objective.kind) {
     case 'kill':
-      return `Defeat ${enemy(o.target)!.name} ×${o.count ?? 1}`;
+      return `Defeat ${enemy(objective.target)!.name} ×${objective.count ?? 1}`;
     case 'collect':
-      return `Collect ${itemName(o.target)} ×${o.count ?? 1}`;
+      return `Collect ${itemName(objective.target)} ×${objective.count ?? 1}`;
     case 'reach':
-      return `Reach ${zone(o.target)!.name}`;
+      return `Reach ${zone(objective.target)!.name}`;
     case 'dungeon':
-      return `Clear ${ZONES.find((z) => z.dungeon?.id === o.target)!.dungeon!.name}`;
+      return `Clear ${
+        ZONES.find((zoneDef) => zoneDef.dungeon?.id === objective.target)!.dungeon!.name
+      }`;
     case 'storyEvent':
-      return o.label!;
+      return objective.label!;
   }
 }
 
-export function questRewardText(p: PlayerState, q: QuestDef): string {
-  const items = Object.entries(q.rewards.items ?? {}).map(([id, n]) => `${itemName(id)} ×${n}`);
-  return [xpRewardLabel(p.level, q.rewards.xp), `${q.rewards.gold} gold`, ...items].join(' · ');
+export function questRewardText(player: PlayerState, questDef: QuestDef): string {
+  const items = Object.entries(questDef.rewards.items ?? {}).map(([id, count]) =>
+    `${itemName(id)} ×${count}`
+  );
+  return [
+    xpRewardLabel(player.level, questDef.rewards.xp),
+    `${questDef.rewards.gold} gold`,
+    ...items,
+  ].join(' · ');
 }
 
-function rewardBlocks(p: PlayerState, q: QuestDef): InputRichBlock[][] {
+function rewardBlocks(player: PlayerState, questDef: QuestDef): InputRichBlock[][] {
   const rewards = [
     [para({
       type: 'bold',
-      text: `${xpRewardLabel(p.level, q.rewards.xp)} · ${q.rewards.gold} gold`,
+      text: `${xpRewardLabel(player.level, questDef.rewards.xp)} · ${questDef.rewards.gold} gold`,
     })],
-    ...Object.entries(q.rewards.items ?? {}).map(([id, n]) => [
-      para({ type: 'bold', text: `${itemName(id)} ×${n}` }),
+    ...Object.entries(questDef.rewards.items ?? {}).map(([id, count]) => [
+      para({ type: 'bold', text: `${itemName(id)} ×${count}` }),
     ]),
   ];
-  const unlocks = (q.rewards.unlockZones ?? []).filter((id) => !p.unlockedZones.includes(id));
+  const unlocks = (questDef.rewards.unlockZones ?? []).filter((id) =>
+    !player.unlockedZones.includes(id)
+  );
   if (unlocks.length) {
     rewards.push([para(`Opens travel to: ${unlocks.map((id) => zone(id)!.name).join(', ')}.`)]);
   }
@@ -167,28 +187,34 @@ function rewardBlocks(p: PlayerState, q: QuestDef): InputRichBlock[][] {
 }
 
 export function questBriefBlocks(
-  p: PlayerState,
-  q: QuestDef,
+  player: PlayerState,
+  questDef: QuestDef,
   mode: 'offer' | 'progress' | 'turnIn' = 'offer',
 ): InputRichBlock[] {
   const blocks: InputRichBlock[] = [
-    heading(`📜 ${q.name}`, 3),
-    details('Quest context', [para(q.summary)]),
+    heading(`📜 ${questDef.name}`, 3),
+    details('Quest context', [para(questDef.summary)]),
     heading('🎯 Objectives', 4),
   ];
-  const qp = p.quests[q.id];
+  const questProgress = player.quests[questDef.id];
   const objectives: InputRichBlock[][] = [];
-  for (const [i, o] of q.objectives.entries()) {
-    const have = o.kind === 'collect' ? countOf(p, o.target) : qp?.counts[i] ?? 0;
-    const progress = mode === 'offer' ? '' : ` — ${Math.min(have, o.count ?? 1)}/${o.count ?? 1}`;
-    const text = [{ type: 'bold' as const, text: `${objectiveLabel(o)}${progress}` }];
-    const source = mode === 'turnIn' ? '' : objectiveSource(q, o);
+  for (const [index, objective] of questDef.objectives.entries()) {
+    const have = objective.kind === 'collect'
+      ? countOf(player, objective.target)
+      : questProgress?.counts[index] ?? 0;
+    const progress = mode === 'offer'
+      ? ''
+      : ` — ${Math.min(have, objective.count ?? 1)}/${objective.count ?? 1}`;
+    const text = [{ type: 'bold' as const, text: `${objectiveLabel(objective)}${progress}` }];
+    const source = mode === 'turnIn' ? '' : objectiveSource(questDef, objective);
     objectives.push([para(source ? [...text, `\n${source}`] : text)]);
   }
   blocks.push(list(objectives), heading('📍 Completion', 4));
-  const fin = questFinisher(q.id)!;
-  blocks.push(para(`Finish with ${fin.npc.name} — ${fin.zone.name}.`));
-  const goods = [...collectRequirements(q)].map(([id, n]) => `${itemName(id)} ×${n}`);
+  const finisher = questFinisher(questDef.id)!;
+  blocks.push(para(`Finish with ${finisher.npc.name} — ${finisher.zone.name}.`));
+  const goods = [...collectRequirements(questDef)].map(([id, count]) =>
+    `${itemName(id)} ×${count}`
+  );
   if (goods.length) {
     blocks.push(para({
       type: 'bold',
@@ -199,76 +225,78 @@ export function questBriefBlocks(
   }
   blocks.push(
     heading(mode === 'turnIn' ? '🎁 Rewards now' : '🎁 Rewards on completion', 4),
-    list(rewardBlocks(p, q)),
+    list(rewardBlocks(player, questDef)),
   );
   return blocks;
 }
 
 /** Called only for visible responses (or the one staged response). No mutation. */
-export function choiceQuestBlocks(p: PlayerState, c: DialogueChoice): InputRichBlock[] {
+export function choiceQuestBlocks(player: PlayerState, choice: DialogueChoice): InputRichBlock[] {
   const blocks: InputRichBlock[] = [];
   const gains: InputRichBlock[][] = [];
   const consequences: InputRichBlock[][] = [];
-  if (c.irreversible) {
+  if (choice.irreversible) {
     consequences.push([para({
       type: 'bold',
       text: 'Once confirmed, this decision cannot be changed.',
     })]);
   }
-  for (const e of c.effects ?? []) {
-    switch (e.kind) {
+  for (const effect of choice.effects ?? []) {
+    switch (effect.kind) {
       case 'acceptQuest':
       case 'startQuest':
-        blocks.push(...questBriefBlocks(p, quest(e.questId)!, 'offer'));
+        blocks.push(...questBriefBlocks(player, quest(effect.questId)!, 'offer'));
         break;
       case 'turnInQuest':
-        blocks.push(...questBriefBlocks(p, quest(e.questId)!, 'turnIn'));
+        blocks.push(...questBriefBlocks(player, quest(effect.questId)!, 'turnIn'));
         break;
       case 'lockQuest':
       case 'failQuest': {
-        const status = p.quests[e.questId]?.status;
+        const status = player.quests[effect.questId]?.status;
         const started = status === 'active' || status === 'turnIn';
-        const name = quest(e.questId)!.name;
+        const name = quest(effect.questId)!.name;
         consequences.push([para({
           type: 'bold',
           text: started
             ? `Cancels ${name}. Progress is lost; this quest cannot be resumed or rewarded.`
-            : `${e.kind === 'lockQuest' ? 'Permanently closes' : 'Permanently fails'}: ${name}.`,
+            : `${
+              effect.kind === 'lockQuest' ? 'Permanently closes' : 'Permanently fails'
+            }: ${name}.`,
         })]);
         break;
       }
       case 'resolveQuest': {
-        const q = quest(e.questId)!;
+        const questDef = quest(effect.questId)!;
         consequences.push([
-          para({ type: 'bold', text: `Ends ${q.name} without its normal rewards.` }),
+          para({ type: 'bold', text: `Ends ${questDef.name} without its normal rewards.` }),
           para('Forgo:'),
-          list(rewardBlocks(p, q)),
+          list(rewardBlocks(player, questDef)),
         ]);
         break;
       }
       case 'grantItem':
         gains.push([
-          para({ type: 'bold', text: `Receive: ${itemName(e.itemId)} ×${e.qty ?? 1}.` }),
+          para({ type: 'bold', text: `Receive: ${itemName(effect.itemId)} ×${effect.qty ?? 1}.` }),
         ]);
         break;
       case 'unlockZone':
-        if (!p.unlockedZones.includes(e.zoneId)) {
-          gains.push([para(`Opens travel to: ${zone(e.zoneId)!.name}.`)]);
+        if (!player.unlockedZones.includes(effect.zoneId)) {
+          gains.push([para(`Opens travel to: ${zone(effect.zoneId)!.name}.`)]);
         }
         break;
       case 'removeItem':
         consequences.push([para({
           type: 'bold',
-          text: `Hand over now: ${itemName(e.itemId)} ×${e.qty ?? 1}.`,
+          text: `Hand over now: ${itemName(effect.itemId)} ×${effect.qty ?? 1}.`,
         })]);
         break;
     }
   }
   if (gains.length) blocks.push(heading('🎁 Receive now', 4), list(gains));
-  if (consequences.length || c.consequenceHint) {
+  if (consequences.length || choice.consequenceHint) {
     const warning = [heading('⚠️ Consequences', 4)];
     if (consequences.length) warning.push(list(consequences));
-    if (c.consequenceHint) warning.push(para(c.consequenceHint));
+    if (choice.consequenceHint) warning.push(para(choice.consequenceHint));
     blocks.push({ type: 'blockquote', blocks: warning });
   }
   return blocks;

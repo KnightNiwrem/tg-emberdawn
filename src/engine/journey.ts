@@ -63,13 +63,13 @@ export interface JourneyEventRecord {
 }
 
 /** Caller-owned telemetry sink: a plain callback, never a global. */
-export type JourneyTelemetry = (e: JourneyEventRecord) => void;
+export type JourneyTelemetry = (event: JourneyEventRecord) => void;
 
 /** The event pool eligible for the NEXT roll at the player's level:
  * battle events honor authored level bands (#73 rule), everything else
  * always rolls. */
 function eligiblePool(events: readonly TravelEvent[], level: number): TravelEvent[] {
-  return events.filter((e) => encounterEligible(e, level));
+  return events.filter((event) => encounterEligible(event, level));
 }
 
 function rollEvent(events: readonly TravelEvent[], level: number, rng: Rng): TravelEvent {
@@ -79,7 +79,7 @@ function rollEvent(events: readonly TravelEvent[], level: number, rng: Rng): Tra
     // belt-and-braces fallback so a roll is never lost.
     return { kind: 'flavor', weight: 1, text: 'The road is quiet.' };
   }
-  return pool[weightedIndex(rng, pool.map((e) => e.weight))]!;
+  return pool[weightedIndex(rng, pool.map((event) => event.weight))]!;
 }
 
 /** Revalidation for departing on an edge (#159): no battle, no journey,
@@ -87,22 +87,22 @@ function rollEvent(events: readonly TravelEvent[], level: number, rng: Rng): Tra
  * origin, destination unlock, top-level route condition, usable plan.
  * Callback data is never authority. */
 export function startJourney(
-  p: PlayerState,
+  player: PlayerState,
   edgeId: string,
   rng: Rng = defaultRng,
   telemetry?: JourneyTelemetry,
 ): JourneyStart {
-  if (p.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK };
-  if (p.battle) return { ok: false, refusal: '⚔️ Finish the fight first.' };
-  if (p.journey) return { ok: false, refusal: '🧭 You are already on the road.' };
-  const checked = departureCheck(p, edgeId);
+  if (player.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK };
+  if (player.battle) return { ok: false, refusal: '⚔️ Finish the fight first.' };
+  if (player.journey) return { ok: false, refusal: '🧭 You are already on the road.' };
+  const checked = departureCheck(player, edgeId);
   if (!checked.ok) return { ok: false, refusal: checked.refusal };
   const resolved = checked.plan;
   const totalEvents = resolved.eventCount;
   if (totalEvents === 0) {
     // A zero-event edge is an immediate, welcoming crossing — the same
     // arrival authority, just without a persisted journey.
-    return { ok: true, step: { kind: 'arrived', lines: arriveAt(p, resolved.to) } };
+    return { ok: true, step: { kind: 'arrived', lines: arriveAt(player, resolved.to) } };
   }
   const journey: JourneyState = {
     edgeId: resolved.edgeId,
@@ -114,8 +114,8 @@ export function startJourney(
     plan: [...resolved.events],
     report: [],
   };
-  p.journey = journey;
-  return { ok: true, step: advanceJourney(p, rng, telemetry) };
+  player.journey = journey;
+  return { ok: true, step: advanceJourney(player, rng, telemetry) };
 }
 
 /** Continues the active journey: resolves the next rolls in order,
@@ -124,33 +124,33 @@ export function startJourney(
  * rejected upstream by the revision guard and the battle/journey guards
  * here. */
 export function advanceJourney(
-  p: PlayerState,
+  player: PlayerState,
   rng: Rng = defaultRng,
   telemetry?: JourneyTelemetry,
 ): JourneyStep {
-  const j = p.journey;
-  if (!j) return { kind: 'progress', lines: ['You are not on the road.'] };
-  if (p.battle) return { kind: 'progress', lines: ['⚔️ Finish the fight first.'] };
-  const report: string[] = [...j.report];
-  while (j.completedEvents < j.totalEvents) {
-    const index = j.completedEvents;
-    const ev = rollEvent(j.plan, p.level, rng);
+  const journey = player.journey;
+  if (!journey) return { kind: 'progress', lines: ['You are not on the road.'] };
+  if (player.battle) return { kind: 'progress', lines: ['⚔️ Finish the fight first.'] };
+  const report: string[] = [...journey.report];
+  while (journey.completedEvents < journey.totalEvents) {
+    const index = journey.completedEvents;
+    const ev = rollEvent(journey.plan, player.level, rng);
     if (ev.kind === 'battle') {
       const started = startBattle(ev.enemy, {
         kind: 'travel',
-        zoneId: j.fromZone,
-        edgeId: j.edgeId,
+        zoneId: journey.fromZone,
+        edgeId: journey.edgeId,
         eventIndex: index,
-      }, { player: p, rng });
+      }, { player, rng });
       if (started) {
         // The fight is attached immediately: a paused crossing is ALWAYS a
         // journey + travel-battle pair, never a half-state (#159).
-        p.battle = started.battle;
+        player.battle = started.battle;
         // The road PRESENTED a fight — the roll is spent on it (#169):
         // the battle record emits here, at its resolution point, never
         // from rendered prose.
         telemetry?.({
-          edgeId: j.edgeId,
+          edgeId: journey.edgeId,
           index,
           kind: 'battle',
           enemy: ev.enemy,
@@ -158,7 +158,7 @@ export function advanceJourney(
         // A battle event consumes its roll only at its completion point —
         // victory (or an opening-terminal adjudication) marks it below;
         // the journey stays paused with the roll pending at `index`.
-        j.report = report;
+        journey.report = report;
         return {
           kind: 'battle',
           battle: started.battle,
@@ -172,55 +172,59 @@ export function advanceJourney(
       // it; treat the crossing as quiet and move on (integrity tests make
       // this unreachable for authored content).
       report.push('The road is quiet.');
-      j.completedEvents = index + 1;
+      journey.completedEvents = index + 1;
       continue;
     }
-    const resolved = applyQuietEvent(p, ev, rng);
+    const resolved = applyQuietEvent(player, ev, rng);
     report.push(...resolved.lines);
     telemetry?.({
-      edgeId: j.edgeId,
+      edgeId: journey.edgeId,
       index,
       kind: ev.kind,
       ...(resolved.granted.length > 0 ? { granted: resolved.granted } : {}),
     });
-    j.completedEvents = index + 1;
+    journey.completedEvents = index + 1;
   }
   // All rolls consumed — final arrival, exactly once.
-  p.journey = undefined;
-  const arrivalLines = arriveAt(p, j.toZone);
+  player.journey = undefined;
+  const arrivalLines = arriveAt(player, journey.toZone);
   return { kind: 'arrived', lines: [...report, ...arrivalLines] };
 }
 
 /** Marks the pending travel event complete after its battle is WON. The
  * single completion point for battle events (#160 owns the caller). */
-export function completeTravelBattleEvent(p: PlayerState): void {
-  const j = p.journey;
-  const b = p.battle;
-  if (!j || !b || b.origin.kind !== 'travel') return;
-  if (b.origin.edgeId !== j.edgeId || b.origin.eventIndex !== j.completedEvents) return;
-  j.completedEvents = j.completedEvents + 1;
+export function completeTravelBattleEvent(player: PlayerState): void {
+  const journey = player.journey;
+  const battle = player.battle;
+  if (!journey || !battle || battle.origin.kind !== 'travel') return;
+  if (
+    battle.origin.edgeId !== journey.edgeId || battle.origin.eventIndex !== journey.completedEvents
+  ) return;
+  journey.completedEvents = journey.completedEvents + 1;
 }
 
 /** Retreat from the journey intermission (#160 semantics): aborts the
  * edge, returns to the ORIGIN (where the player already is), keeps
  * already-earned rewards, rolls no return events. */
-export function retreatFromJourney(p: PlayerState): string[] {
-  const j = p.journey;
-  if (!j || p.battle) return ['There is no crossing to abandon.'];
-  p.journey = undefined;
-  const z = zone(j.fromZone);
+export function retreatFromJourney(player: PlayerState): string[] {
+  const journey = player.journey;
+  if (!journey || player.battle) return ['There is no crossing to abandon.'];
+  player.journey = undefined;
+  const originZone = zone(journey.fromZone);
   return [
-    `🧭 You turn back. The road to ${zone(j.toZone)?.name ?? j.toZone} keeps for another day.`,
-    z?.desc ?? '',
+    `🧭 You turn back. The road to ${
+      zone(journey.toZone)?.name ?? journey.toZone
+    } keeps for another day.`,
+    originZone?.desc ?? '',
   ]
-    .filter((l) => l.length > 0);
+    .filter((line) => line.length > 0);
 }
 
 /** A journey's headline: origin → destination with progress. */
-export function journeyLine(j: JourneyState): string {
-  const from = zone(j.fromZone);
-  const to = zone(j.toZone);
-  return `${from?.emoji ?? ''} ${from?.name ?? j.fromZone} → ${to?.emoji ?? ''} ${
-    to?.name ?? j.toZone
-  } — ${j.completedEvents}/${j.totalEvents} events`;
+export function journeyLine(journey: JourneyState): string {
+  const from = zone(journey.fromZone);
+  const to = zone(journey.toZone);
+  return `${from?.emoji ?? ''} ${from?.name ?? journey.fromZone} → ${to?.emoji ?? ''} ${
+    to?.name ?? journey.toZone
+  } — ${journey.completedEvents}/${journey.totalEvents} events`;
 }

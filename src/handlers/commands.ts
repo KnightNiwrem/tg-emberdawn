@@ -26,20 +26,20 @@ export async function handleStart(ctx: Context, store: PlayerStore): Promise<voi
   try {
     assertSupportedSaveVersion(existing); // the compatibility gate runs here too
     assertResolvablePersistedIds(existing); // and the identity gate (#141)
-  } catch (e) {
-    if (e instanceof SaveTooOldError) {
+  } catch (error) {
+    if (error instanceof SaveTooOldError) {
       // Incompatible pre-launch save (#44, #116): refuse and point at
       // /reset — never silently rewrite it.
       await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
       return;
     }
-    if (e instanceof SaveUnresolvableError) {
+    if (error instanceof SaveUnresolvableError) {
       // Same-version save with dangling content ids (#141): refuse before
       // the re-center render, leave the stored JSON untouched.
       await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
       return;
     }
-    if (!(e instanceof SaveTooNewError)) throw e;
+    if (!(error instanceof SaveTooNewError)) throw error;
     // Newer-binary save: refuse to touch it rather than downgrade (#4).
     await ctx
       .reply(
@@ -73,16 +73,16 @@ export async function handleHelp(ctx: Context): Promise<void> {
 export async function handleReset(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
   if (!from || !ctx.chat) return;
-  const p = await store.get(from.id);
-  if (!p) {
+  const player = await store.get(from.id);
+  if (!player) {
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
   try {
-    assertSupportedSaveVersion(p);
-    assertResolvablePersistedIds(p);
-  } catch (e) {
-    if (e instanceof SaveTooOldError || e instanceof SaveUnresolvableError) {
+    assertSupportedSaveVersion(player);
+    assertResolvablePersistedIds(player);
+  } catch (error) {
+    if (error instanceof SaveTooOldError || error instanceof SaveUnresolvableError) {
       // The save cannot be loaded, so a confirmation cannot be staged. An
       // explicit /reset is the documented escape hatch (#44, #116, #141):
       // drop the unloadable save and offer the class picker.
@@ -90,7 +90,7 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
       await ctx.replyWithRichMessage(renderClassPicker());
       return;
     }
-    if (!(e instanceof SaveTooNewError)) throw e;
+    if (!(error instanceof SaveTooNewError)) throw error;
     await ctx
       .reply(
         '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
@@ -101,8 +101,8 @@ export async function handleReset(ctx: Context, store: PlayerStore): Promise<voi
   // DESTRUCTIVE — never act on the slash command alone (#19): stage the
   // explicit Yes/No confirmation on the live message instead. State is
   // only destroyed when the player taps resetYes (m:ry).
-  p.notices = ['⚠️ Confirm below: this erases your character for good.'];
-  p.scene = { view: 'reset' };
-  await commit(ctx, p);
-  await store.set(from.id, p);
+  player.notices = ['⚠️ Confirm below: this erases your character for good.'];
+  player.scene = { view: 'reset' };
+  await commit(ctx, player);
+  await store.set(from.id, player);
 }

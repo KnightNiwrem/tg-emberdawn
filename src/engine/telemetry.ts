@@ -174,7 +174,7 @@ export type CombatTraceEntry =
  * mechanics never read the trace back. */
 export function recordCombatEvent(
   trace: CombatTraceEntry[] | undefined,
-  e: CombatTraceEntry,
+  entry: CombatTraceEntry,
 ): void {
-  trace?.push(e);
+  trace?.push(entry);
 }

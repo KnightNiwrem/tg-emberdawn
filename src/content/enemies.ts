@@ -116,8 +116,8 @@ const WARD_BREAK = (pct = 0.25, turns = 2): EffectSpec => ({
   line: '💔 The ward cracks — Ward Break!',
 });
 
-const BITE = (n = 'Bite'): EnemyMove => hit(n, 1.0, 'phys', 3);
-const CLAW = (n = 'Claw'): EnemyMove => hit(n, 1.15, 'phys', 2);
+const BITE = (moveName = 'Bite'): EnemyMove => hit(moveName, 1.0, 'phys', 3);
+const CLAW = (moveName = 'Claw'): EnemyMove => hit(moveName, 1.15, 'phys', 2);
 
 interface EnemySpec {
   id: string;
@@ -149,33 +149,33 @@ interface EnemySpec {
   desc?: string;
 }
 
-function mk(s: EnemySpec): EnemyDef {
-  const L = s.level;
-  const m = s.mul ?? {};
-  const mul = (k: keyof NonNullable<EnemySpec['mul']>, base: number): number =>
-    Math.round(base * (m[k] ?? 1));
+function mk(spec: EnemySpec): EnemyDef {
+  const level = spec.level;
+  const multipliers = spec.mul ?? {};
+  const mul = (statKey: keyof NonNullable<EnemySpec['mul']>, base: number): number =>
+    Math.round(base * (multipliers[statKey] ?? 1));
   return {
-    id: s.id,
-    name: s.name,
-    emoji: s.emoji,
-    level: L,
-    tutorial: s.tutorial,
-    hp: mul('hp', Math.round(30 + 2.4 * Math.pow(L, 1.9))),
-    atk: mul('atk', Math.round(6 + 2.0 * Math.pow(L, 1.22))),
-    def: mul('def', Math.round(2 + 0.9 * Math.pow(L, 1.15))),
-    mag: mul('mag', Math.round(5 + 1.8 * Math.pow(L, 1.2))),
-    res: mul('res', Math.round(2 + 0.8 * Math.pow(L, 1.12))),
-    spd: mul('spd', 5 + Math.round(L * 0.8)),
-    xp: mul('xp', Math.round(16 * Math.pow(L, 1.75))),
-    gold: mul('gold', Math.round(4 * Math.pow(L, 1.55))),
-    boss: s.boss,
-    statusResist: s.statusResist,
-    openingShield: s.openingShield,
-    opening: s.opening,
-    special: s.special,
-    moves: s.moves,
-    drops: s.drops,
-    desc: s.desc,
+    id: spec.id,
+    name: spec.name,
+    emoji: spec.emoji,
+    level,
+    tutorial: spec.tutorial,
+    hp: mul('hp', Math.round(30 + 2.4 * Math.pow(level, 1.9))),
+    atk: mul('atk', Math.round(6 + 2.0 * Math.pow(level, 1.22))),
+    def: mul('def', Math.round(2 + 0.9 * Math.pow(level, 1.15))),
+    mag: mul('mag', Math.round(5 + 1.8 * Math.pow(level, 1.2))),
+    res: mul('res', Math.round(2 + 0.8 * Math.pow(level, 1.12))),
+    spd: mul('spd', 5 + Math.round(level * 0.8)),
+    xp: mul('xp', Math.round(16 * Math.pow(level, 1.75))),
+    gold: mul('gold', Math.round(4 * Math.pow(level, 1.55))),
+    boss: spec.boss,
+    statusResist: spec.statusResist,
+    openingShield: spec.openingShield,
+    opening: spec.opening,
+    special: spec.special,
+    moves: spec.moves,
+    drops: spec.drops,
+    desc: spec.desc,
   };
 }
 

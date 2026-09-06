@@ -79,9 +79,11 @@ export interface InstanceSeed {
 /** Instances of the same identity (defId + side + kind, and stat for
  * statmods) interact via the authored stacking policy; different sources
  * always coexist as independent contributions. */
-function sameIdentity(a: EffectInstance, seed: InstanceSeed): boolean {
-  if (a.defId !== seed.defId || a.side !== seed.side || a.kind !== seed.kind) return false;
-  if (a.kind === 'statmod') return a.stat === seed.stat;
+function sameIdentity(existing: EffectInstance, seed: InstanceSeed): boolean {
+  if (existing.defId !== seed.defId || existing.side !== seed.side || existing.kind !== seed.kind) {
+    return false;
+  }
+  if (existing.kind === 'statmod') return existing.stat === seed.stat;
   return true;
 }
 
@@ -108,13 +110,13 @@ export function effectDefId(
 /** #90 harness-facing liveness: does any live instance on `side` carry a
  * stacking identity derived from `sourceId` (any of its effects/triggers)? */
 export function hasLiveFromSource(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   sourceId: string,
 ): boolean {
   const prefix = `${sourceId}:`;
-  return b.effectInstances.some((i) =>
-    i.side === side && (i.defId === sourceId || i.defId.startsWith(prefix))
+  return arena.effectInstances.some((instance) =>
+    instance.side === side && (instance.defId === sourceId || instance.defId.startsWith(prefix))
   );
 }
 
@@ -147,14 +149,14 @@ export function hasLiveFromSource(
  * units) — `strongest` is not a valid policy for them and is rejected at
  * application time and by content integrity. */
 export function applyInstance(
-  b: EffectArena,
+  arena: EffectArena,
   seed: InstanceSeed,
   trace?: CombatTraceEntry[],
 ): ApplyResult {
-  const raw = applyInstanceRaw(b, seed);
+  const raw = applyInstanceRaw(arena, seed);
   recordCombatEvent(trace, {
     kind: 'effectApplied',
-    round: b.round,
+    round: arena.round,
     side: raw.instance.side,
     defId: raw.instance.defId,
     name: raw.instance.name,
@@ -178,12 +180,12 @@ export function applyInstance(
  * `battleLifetime` are derived together from (anchor round, duration,
  * timing, lifetime) and can never disagree. Passing `iid` reuses an
  * existing identity (refresh keeps its slot and UI row). */
-function buildInstance(b: EffectArena, seed: InstanceSeed, iid?: string): EffectInstance {
+function buildInstance(arena: EffectArena, seed: InstanceSeed, iid?: string): EffectInstance {
   const battleLife = seed.battleLifetime === true;
   let id: string;
   if (iid === undefined) {
-    b.effectSeq++;
-    id = `ef${b.effectSeq}`;
+    arena.effectSeq++;
+    id = `ef${arena.effectSeq}`;
   } else {
     id = iid;
   }
@@ -205,13 +207,13 @@ function buildInstance(b: EffectArena, seed: InstanceSeed, iid?: string): Effect
     shieldAmount: seed.shieldAmount,
     tags: [...seed.tags],
     stacking: seed.stacking,
-    appliedRound: b.round,
+    appliedRound: arena.round,
     remaining: battleLife ? 1 : seed.duration,
     deferFirstTick: seed.timing === 'defer',
     removable: seed.removable,
     expiresRound: battleLife
       ? Number.MAX_SAFE_INTEGER
-      : expiresRoundFor(b.round, seed.duration, seed.timing),
+      : expiresRoundFor(arena.round, seed.duration, seed.timing),
     ...(battleLife ? { battleLifetime: true as const } : {}),
   };
 }
@@ -219,15 +221,15 @@ function buildInstance(b: EffectArena, seed: InstanceSeed, iid?: string): Effect
 /** #93: the kind-aware `strongest` magnitude. Works structurally over both
  * seeds and live instances (same payload fields). */
 function effectMagnitude(
-  e: { kind: EffectInstance['kind']; pct?: number; shieldAmount?: number; actions?: number },
+  effect: { kind: EffectInstance['kind']; pct?: number; shieldAmount?: number; actions?: number },
 ): number {
-  switch (e.kind) {
+  switch (effect.kind) {
     case 'statmod':
-      return Math.abs(e.pct ?? 0);
+      return Math.abs(effect.pct ?? 0);
     case 'shield':
-      return e.shieldAmount ?? 0;
+      return effect.shieldAmount ?? 0;
     case 'control':
-      return e.actions ?? 0;
+      return effect.actions ?? 0;
     case 'periodic':
       throw new Error(
         `strongest stacking is not defined for periodic effects (flat and %-of-max ticks are different units)`,
@@ -235,7 +237,7 @@ function effectMagnitude(
   }
 }
 
-function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
+function applyInstanceRaw(arena: EffectArena, seed: InstanceSeed): ApplyResult {
   // #93: `strongest` has no defined magnitude for periodics — reject the
   // combination up front, whether or not an identity already exists.
   if (seed.stacking === 'strongest' && seed.kind === 'periodic') {
@@ -243,25 +245,25 @@ function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
       `strongest stacking is not defined for periodic effects (flat and %-of-max ticks are different units)`,
     );
   }
-  const idx = b.effectInstances.findIndex((i) => sameIdentity(i, seed));
+  const idx = arena.effectInstances.findIndex((inst) => sameIdentity(inst, seed));
   if (idx === -1) {
-    const inst = buildInstance(b, seed);
-    b.effectInstances.push(inst);
+    const inst = buildInstance(arena, seed);
+    arena.effectInstances.push(inst);
     return { instance: inst, outcome: 'created' };
   }
-  const existing = b.effectInstances[idx]!;
+  const existing = arena.effectInstances[idx]!;
   switch (seed.stacking) {
     case 'stack': {
-      const inst = buildInstance(b, seed);
-      b.effectInstances.push(inst);
+      const inst = buildInstance(arena, seed);
+      arena.effectInstances.push(inst);
       return { instance: inst, outcome: 'created' };
     }
     case 'refresh': {
       // #90 atomic rebuild: the recast is the latest intent — the whole
       // payload and the clock renew together from the fresh application;
       // nothing stale survives. Same iid, same list slot.
-      b.effectInstances[idx] = buildInstance(b, seed, existing.iid);
-      return { instance: b.effectInstances[idx]!, outcome: 'refreshed' };
+      arena.effectInstances[idx] = buildInstance(arena, seed, existing.iid);
+      return { instance: arena.effectInstances[idx]!, outcome: 'refreshed' };
     }
     case 'strongest': {
       // #93: kind-aware magnitudes, not raw signed pcts. Saps are stored
@@ -270,8 +272,8 @@ function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
       // controls compare consumed actions.
       if (effectMagnitude(seed) > effectMagnitude(existing)) {
         // Retire the weaker instance and apply the fresh one whole.
-        b.effectInstances[idx] = buildInstance(b, seed);
-        return { instance: b.effectInstances[idx]!, outcome: 'replaced' };
+        arena.effectInstances[idx] = buildInstance(arena, seed);
+        return { instance: arena.effectInstances[idx]!, outcome: 'replaced' };
       }
       // Keep the winning payload AND its timing — a weaker recast may not
       // leak its own timing metadata (#90); it may only extend the
@@ -280,7 +282,7 @@ function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
       // winner), so the two clocks can never disagree.
       const freshLife = seed.battleLifetime === true
         ? Number.MAX_SAFE_INTEGER
-        : expiresRoundFor(b.round, seed.duration, seed.timing);
+        : expiresRoundFor(arena.round, seed.duration, seed.timing);
       if (freshLife > existing.expiresRound) {
         if (seed.battleLifetime === true) {
           existing.battleLifetime = true;
@@ -296,8 +298,8 @@ function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
     }
     case 'replace':
     default: {
-      b.effectInstances[idx] = buildInstance(b, seed);
-      return { instance: b.effectInstances[idx]!, outcome: 'replaced' };
+      arena.effectInstances[idx] = buildInstance(arena, seed);
+      return { instance: arena.effectInstances[idx]!, outcome: 'replaced' };
     }
   }
 }
@@ -306,10 +308,10 @@ function applyInstanceRaw(b: EffectArena, seed: InstanceSeed): ApplyResult {
 
 /** Sum of live statmod magnitudes for one stat on one side. Different
  * sources coexist and add; each keeps its own magnitude and expiry (#78). */
-export function statPct(b: EffectArena, side: 'player' | 'enemy', stat: StatKey): number {
+export function statPct(arena: EffectArena, side: 'player' | 'enemy', stat: StatKey): number {
   let total = 0;
-  for (const i of b.effectInstances) {
-    if (i.side === side && i.kind === 'statmod' && i.stat === stat) total += i.pct ?? 0;
+  for (const inst of arena.effectInstances) {
+    if (inst.side === side && inst.kind === 'statmod' && inst.stat === stat) total += inst.pct ?? 0;
   }
   return total;
 }
@@ -317,44 +319,47 @@ export function statPct(b: EffectArena, side: 'player' | 'enemy', stat: StatKey)
 /** Total outgoing-damage sap (the old weaken slots): saps store negative
  * outgoing magnitudes, so this fold negates the sum to the positive sap
  * amount, clamped so stacked saps can never invert an offense stat. */
-export function sapPct(b: EffectArena, side: 'player' | 'enemy'): number {
-  return Math.min(0.95, Math.max(0, -statPct(b, side, 'outgoing')));
+export function sapPct(arena: EffectArena, side: 'player' | 'enemy'): number {
+  return Math.min(0.95, Math.max(0, -statPct(arena, side, 'outgoing')));
 }
 
 /** Incoming-damage amplification (Vulnerable et al.): negative values
  * mitigate; never below a 5% floor so damage math stays sane. */
-export function incomingAmpPct(b: EffectArena, side: 'player' | 'enemy'): number {
-  return Math.max(-0.95, statPct(b, side, 'incoming'));
+export function incomingAmpPct(arena: EffectArena, side: 'player' | 'enemy'): number {
+  return Math.max(-0.95, statPct(arena, side, 'incoming'));
 }
 
 /** Mitigation multiplier bonus (the old enemy guard stances; negative
  * values will be armor/ward break in #83). */
-export function mitigationPct(b: EffectArena, side: 'player' | 'enemy'): number {
-  return statPct(b, side, 'mitigation');
+export function mitigationPct(arena: EffectArena, side: 'player' | 'enemy'): number {
+  return statPct(arena, side, 'mitigation');
 }
 
 /** Live stun control on a side, if any. */
-export function stunInstance(b: EffectArena, side: 'player' | 'enemy'): EffectInstance | undefined {
-  return b.effectInstances.find((i) =>
-    i.side === side && i.kind === 'control' && i.control === 'stun'
+export function stunInstance(
+  arena: EffectArena,
+  side: 'player' | 'enemy',
+): EffectInstance | undefined {
+  return arena.effectInstances.find((inst) =>
+    inst.side === side && inst.kind === 'control' && inst.control === 'stun'
   );
 }
 
 /** Consumes one stunned action at the side's phase: returns true when the
  * action is lost, removing the instance when its actions run out. */
 export function consumeStun(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   trace?: CombatTraceEntry[],
 ): boolean {
-  const inst = stunInstance(b, side);
+  const inst = stunInstance(arena, side);
   if (!inst) return false;
   inst.actions = (inst.actions ?? 1) - 1;
   if (inst.actions <= 0) {
-    b.effectInstances = b.effectInstances.filter((i) => i !== inst);
+    arena.effectInstances = arena.effectInstances.filter((instance) => instance !== inst);
     recordCombatEvent(trace, {
       kind: 'effectRemoved',
-      round: b.round,
+      round: arena.round,
       side,
       defId: inst.defId,
       name: inst.name,
@@ -367,12 +372,12 @@ export function consumeStun(
 /** Any removable instance on a side carrying one of `tags` — used by
  * cleanse/dispel targeting and by UI applicability checks. */
 export function hasRemovableTagged(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   tags: EffectTag[],
 ): boolean {
-  return b.effectInstances.some((i) =>
-    i.side === side && i.removable && i.tags.some((t) => tags.includes(t))
+  return arena.effectInstances.some((inst) =>
+    inst.side === side && inst.removable && inst.tags.some((tag) => tags.includes(tag))
   );
 }
 
@@ -385,7 +390,7 @@ export function hasRemovableTagged(
  * Non-authored removals (expiry via pruneExpired, control consumption via
  * consumeStun) pass no source — they have no initiator beyond the clock. */
 export function removeTagged(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   tags: EffectTag[],
   max?: number,
@@ -395,19 +400,20 @@ export function removeTagged(
 ): EffectInstance[] {
   const removed: EffectInstance[] = [];
   const keep: EffectInstance[] = [];
-  for (const i of b.effectInstances) {
-    const eligible = i.side === side && i.removable && i.tags.some((t) => tags.includes(t));
-    if (eligible && (max === undefined || removed.length < max)) removed.push(i);
-    else keep.push(i);
+  for (const inst of arena.effectInstances) {
+    const eligible = inst.side === side && inst.removable &&
+      inst.tags.some((tag) => tags.includes(tag));
+    if (eligible && (max === undefined || removed.length < max)) removed.push(inst);
+    else keep.push(inst);
   }
-  b.effectInstances = keep;
-  for (const i of removed) {
+  arena.effectInstances = keep;
+  for (const inst of removed) {
     recordCombatEvent(trace, {
       kind: 'effectRemoved',
-      round: b.round,
-      side: i.side,
-      defId: i.defId,
-      name: i.name,
+      round: arena.round,
+      side: inst.side,
+      defId: inst.defId,
+      name: inst.name,
       cause,
       ...(removedBy ? { removedBy: { ...removedBy } } : {}),
     });
@@ -419,10 +425,10 @@ export function removeTagged(
 
 /** Live maximum shield capacity on a side: the sum of all live
  * contribution instances. Derived, never stored. */
-export function maxShield(b: EffectArena, side: 'player' | 'enemy'): number {
+export function maxShield(arena: EffectArena, side: 'player' | 'enemy'): number {
   let total = 0;
-  for (const i of b.effectInstances) {
-    if (i.side === side && i.kind === 'shield') total += i.shieldAmount ?? 0;
+  for (const inst of arena.effectInstances) {
+    if (inst.side === side && inst.kind === 'shield') total += inst.shieldAmount ?? 0;
   }
   return total;
 }
@@ -448,17 +454,17 @@ export interface ShieldGrant {
  * existing current is preserved up to the cap, overflow grant capacity
  * is `wasted`, and pool above a SHRUNK maximum is `lost`. */
 export function grantShield(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   seed: InstanceSeed,
   trace?: CombatTraceEntry[],
 ): ShieldGrant {
-  const before = b.shield[side];
-  const { outcome } = applyInstance(b, seed, trace);
+  const before = arena.shield[side];
+  const { outcome } = applyInstance(arena, seed, trace);
   const granted = outcome === 'created' || outcome === 'replaced' ? seed.shieldAmount ?? 0 : 0;
-  const max = maxShield(b, side);
+  const max = maxShield(arena, side);
   const after = Math.min(before + granted, max);
-  b.shield[side] = after;
+  arena.shield[side] = after;
   // Decomposition: `applied` is the pool gain from the grant, `wasted`
   // the grant capacity the cap trimmed, `lost` existing pool discarded
   // because the new maximum sits below it (small-ward replacement).
@@ -471,7 +477,7 @@ export function grantShield(
   };
   recordCombatEvent(trace, {
     kind: 'shieldGrant',
-    round: b.round,
+    round: arena.round,
     side,
     applied,
     wasted: grant.wasted,
@@ -491,17 +497,17 @@ export interface ShieldAbsorb {
  * pools here before HP. Every HP-damage path routes through it unless its
  * spec opts out with `bypassShield`. */
 export function absorbShield(
-  b: EffectArena,
+  arena: EffectArena,
   side: 'player' | 'enemy',
   dmg: number,
   trace?: CombatTraceEntry[],
 ): ShieldAbsorb {
-  const pool = b.shield[side];
+  const pool = arena.shield[side];
   const absorbed = Math.min(pool, dmg);
-  b.shield[side] = pool - absorbed;
-  const broke = absorbed > 0 && b.shield[side] === 0;
+  arena.shield[side] = pool - absorbed;
+  const broke = absorbed > 0 && arena.shield[side] === 0;
   if (broke) {
-    recordCombatEvent(trace, { kind: 'shieldBreak', round: b.round, side });
+    recordCombatEvent(trace, { kind: 'shieldBreak', round: arena.round, side });
   }
   return { absorbed, hpDamage: dmg - absorbed, broke };
 }
@@ -517,16 +523,16 @@ export interface ShieldLoss {
  * canonical expiration rule, order-independent, computed once per batch.
  * Returns material losses for logs/metrics. */
 export function applyShieldExpiry(
-  b: EffectArena,
+  arena: EffectArena,
   expired: readonly EffectInstance[],
 ): ShieldLoss[] {
-  const sides = new Set(expired.filter((i) => i.kind === 'shield').map((i) => i.side));
+  const sides = new Set(expired.filter((inst) => inst.kind === 'shield').map((inst) => inst.side));
   const losses: ShieldLoss[] = [];
   for (const side of sides) {
-    const max = maxShield(b, side);
-    const lost = b.shield[side] - max;
+    const max = maxShield(arena, side);
+    const lost = arena.shield[side] - max;
     if (lost > 0) {
-      b.shield[side] = max;
+      arena.shield[side] = max;
       losses.push({ side, lost });
     }
   }
@@ -543,24 +549,24 @@ export interface PeriodicTick {
   instance: EffectInstance;
 }
 
-function tickPhaseOf(i: EffectInstance, maxHp: number): PeriodicTick | undefined {
-  if (i.kind !== 'periodic') return undefined;
-  const amount = i.perRound ?? Math.round((i.pctOfMaxPerRound ?? 0) * maxHp);
-  return { side: i.side, amount, name: i.name, instance: i };
+function tickPhaseOf(instance: EffectInstance, maxHp: number): PeriodicTick | undefined {
+  if (instance.kind !== 'periodic') return undefined;
+  const amount = instance.perRound ?? Math.round((instance.pctOfMaxPerRound ?? 0) * maxHp);
+  return { side: instance.side, amount, name: instance.name, instance };
 }
 
 /** Gathers the player-turn-start periodic ticks WITHOUT touching clocks
  * (#86): combat applies them one at a time with a terminal check between,
  * so a lethal tick can stop the round before later work runs. */
 export function gatherTurnStartTicks(
-  b: EffectArena,
+  arena: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
 ): PeriodicTick[] {
   const ticks: PeriodicTick[] = [];
-  for (const i of b.effectInstances) {
-    if (i.kind !== 'periodic' || i.tickPhase !== 'playerTurnStart') continue;
-    const t = tickPhaseOf(i, maxHpOf(i.side));
-    if (t) ticks.push(t);
+  for (const inst of arena.effectInstances) {
+    if (inst.kind !== 'periodic' || inst.tickPhase !== 'playerTurnStart') continue;
+    const tick = tickPhaseOf(inst, maxHpOf(inst.side));
+    if (tick) ticks.push(tick);
   }
   return ticks;
 }
@@ -569,13 +575,13 @@ export function gatherTurnStartTicks(
  * instances on their own beat, prunes, and caps shields after the batch
  * removal. End-of-round bookkeeping never touches this phase. */
 export function settleTurnStart(
-  b: EffectArena,
+  arena: EffectArena,
   ticks: readonly PeriodicTick[],
   trace?: CombatTraceEntry[],
 ): ShieldLoss[] {
-  for (const t of ticks) t.instance.remaining--;
-  const expired = pruneExpired(b, trace);
-  return applyShieldExpiry(b, expired);
+  for (const tick of ticks) tick.instance.remaining--;
+  const expired = pruneExpired(arena, trace);
+  return applyShieldExpiry(arena, expired);
 }
 
 /** Ticks `playerTurnStart` periodic effects (called at the start of the
@@ -583,12 +589,12 @@ export function settleTurnStart(
  * care whether you can act). Each ticking instance decrements on its own
  * beat; end-of-round bookkeeping never touches this phase. */
 export function tickPlayerTurnStart(
-  b: EffectArena,
+  arena: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
   trace?: CombatTraceEntry[],
 ): { ticks: PeriodicTick[]; shieldLosses: ShieldLoss[] } {
-  const ticks = gatherTurnStartTicks(b, maxHpOf);
-  const shieldLosses = settleTurnStart(b, ticks, trace);
+  const ticks = gatherTurnStartTicks(arena, maxHpOf);
+  const shieldLosses = settleTurnStart(arena, ticks, trace);
   return { ticks, shieldLosses };
 }
 
@@ -596,14 +602,14 @@ export function tickPlayerTurnStart(
  * combat applies them one at a time and stops at the first terminal
  * result, so a lethal DoT can never be followed by more work. */
 export function gatherRoundEndTicks(
-  b: EffectArena,
+  arena: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
 ): PeriodicTick[] {
   const ticks: PeriodicTick[] = [];
-  for (const i of [...b.effectInstances]) {
-    if (i.kind !== 'periodic' || i.tickPhase !== 'roundEnd') continue;
-    const t = tickPhaseOf(i, maxHpOf(i.side!));
-    if (t) ticks.push(t);
+  for (const inst of [...arena.effectInstances]) {
+    if (inst.kind !== 'periodic' || inst.tickPhase !== 'roundEnd') continue;
+    const tick = tickPhaseOf(inst, maxHpOf(inst.side!));
+    if (tick) ticks.push(tick);
   }
   return ticks;
 }
@@ -612,15 +618,15 @@ export function gatherRoundEndTicks(
  * instances skip exactly their first tick (#27/#38/#77), control instances
  * tick by consumption and are untouched here, battle-lifetime instances
  * never age — then the prune. Returns the expired instances. */
-export function settleEndOfRound(b: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
-  for (const i of b.effectInstances) {
-    if (i.battleLifetime) continue; // lasts the whole battle (#80)
-    if (i.kind === 'control') continue;
-    if (i.kind === 'periodic' && i.tickPhase === 'playerTurnStart') continue;
-    if (i.deferFirstTick) i.deferFirstTick = false;
-    else i.remaining--;
+export function settleEndOfRound(arena: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
+  for (const inst of arena.effectInstances) {
+    if (inst.battleLifetime) continue; // lasts the whole battle (#80)
+    if (inst.kind === 'control') continue;
+    if (inst.kind === 'periodic' && inst.tickPhase === 'playerTurnStart') continue;
+    if (inst.deferFirstTick) inst.deferFirstTick = false;
+    else inst.remaining--;
   }
-  return pruneExpired(b, trace);
+  return pruneExpired(arena, trace);
 }
 
 /** End-of-round bookkeeping: periodic `roundEnd` ticks FIRST (an effect at
@@ -632,35 +638,35 @@ export function settleEndOfRound(b: EffectArena, trace?: CombatTraceEntry[]): Ef
  * terminal HP between ticks — #86; this combined form stays for direct
  * phase-level use and tests.) */
 export function tickEndOfRound(
-  b: EffectArena,
+  arena: EffectArena,
   maxHpOf: (side: 'player' | 'enemy') => number,
   trace?: CombatTraceEntry[],
 ): { ticks: PeriodicTick[]; expired: EffectInstance[]; shieldLosses: ShieldLoss[] } {
-  const ticks = gatherRoundEndTicks(b, maxHpOf);
-  const expired = settleEndOfRound(b, trace);
-  return { ticks, expired, shieldLosses: applyShieldExpiry(b, expired) };
+  const ticks = gatherRoundEndTicks(arena, maxHpOf);
+  const expired = settleEndOfRound(arena, trace);
+  return { ticks, expired, shieldLosses: applyShieldExpiry(arena, expired) };
 }
 
 /** Removes instances whose mechanical life is over. Control instances
- * expire ONLY by consumption (their target's next phase always arrives
+ * expire ONLY by consumption (their target's next phase arrives
  * before any prune could race it) — a round-based prune here would delete
  * an enemy-applied stun before the player's turn to lose. */
-export function pruneExpired(b: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
+export function pruneExpired(arena: EffectArena, trace?: CombatTraceEntry[]): EffectInstance[] {
   const expired: EffectInstance[] = [];
-  b.effectInstances = b.effectInstances.filter((i) => {
-    const done = i.kind === 'control'
-      ? (i.actions !== undefined && i.actions <= 0)
-      : i.remaining <= 0;
-    if (done) expired.push(i);
+  arena.effectInstances = arena.effectInstances.filter((inst) => {
+    const done = inst.kind === 'control'
+      ? (inst.actions !== undefined && inst.actions <= 0)
+      : inst.remaining <= 0;
+    if (done) expired.push(inst);
     return !done;
   });
-  for (const i of expired) {
+  for (const inst of expired) {
     recordCombatEvent(trace, {
       kind: 'effectRemoved',
-      round: b.round,
-      side: i.side,
-      defId: i.defId,
-      name: i.name,
+      round: arena.round,
+      side: inst.side,
+      defId: inst.defId,
+      name: inst.name,
       cause: 'expired',
     });
   }
@@ -768,7 +774,7 @@ function defaultTags(spec: EffectSpec): EffectTag[] {
       break;
   }
   if (spec.tags) {
-    for (const t of spec.tags) if (!tags.includes(t)) tags.push(t);
+    for (const tag of spec.tags) if (!tags.includes(tag)) tags.push(tag);
   }
   return tags;
 }

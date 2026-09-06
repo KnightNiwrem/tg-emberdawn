@@ -55,8 +55,8 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   // Load exactly ONCE. Postgres re-deserializes on every get(), so a second
   // load would silently drop in-memory changes such as newer-message
   // adoption made by the staleness guard below.
-  const p = await store.get(from.id);
-  if (!p) {
+  const player = await store.get(from.id);
+  if (!player) {
     await answerCallbackBestEffort(ctx, { text: 'Tap /start to begin your tale.' });
     return;
   }
@@ -65,12 +65,12 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   // already-acted-on button (same message, older revision) is rejected
   // before any mutation; a newer message copy is adopted together with the
   // revision it was rendered with.
-  if (!tapIsCurrent(p, ctx, cb.rev)) {
+  if (!tapIsCurrent(player, ctx, cb.rev)) {
     await answerCallbackBestEffort(ctx, { text: STALE });
     return;
   }
 
-  await withLoadedPlayer(ctx, store, p, (player) => dispatch(player, cb));
+  await withLoadedPlayer(ctx, store, player, (loadedPlayer) => dispatch(loadedPlayer, cb));
 }
 
 function dispatch(

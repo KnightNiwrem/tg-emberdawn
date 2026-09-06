@@ -23,15 +23,15 @@ export interface GatheringOption extends GatheringSite {
 
 /** Pure projection. A renderer omits now and sees stored depletion; only
  * an action supplies time to recheck an elapsed recharge. No clock reads. */
-export function gatheringOptions(p: PlayerState, now?: number): GatheringOption[] {
-  const used = p.flags[`gather_${p.currentZone}`];
-  const reset = p.flags[`gatherReset_${p.currentZone}`];
+export function gatheringOptions(player: PlayerState, now?: number): GatheringOption[] {
+  const used = player.flags[`gather_${player.currentZone}`];
+  const reset = player.flags[`gatherReset_${player.currentZone}`];
   const resetAt = typeof reset === 'number' ? reset : undefined;
   const refreshed = now !== undefined && resetAt !== undefined && now >= resetAt;
   const remaining = refreshed
     ? GATHERING_CHARGES
     : Math.max(0, GATHERING_CHARGES - (typeof used === 'number' ? used : 0));
-  return gatheringSites(p.currentZone).map((site) => ({
+  return gatheringSites(player.currentZone).map((site) => ({
     ...site,
     remaining,
     ...(resetAt !== undefined && !refreshed ? { resetAt } : {}),
@@ -46,35 +46,35 @@ export function gatheringOptions(p: PlayerState, now?: number): GatheringOption[
 
 /** Bait is an untrusted selection, never authority over the catch table. */
 export function gather(
-  p: PlayerState,
+  player: PlayerState,
   activity: GatheringActivity,
   rng: Rng = defaultRng,
   now: number = Date.now(),
   baitId?: string,
 ): { ok: boolean; lines: string[] } {
   const refuse = (line: string) => ({ ok: false, lines: [line] });
-  if (p.battle) return refuse('⚔️ Finish the fight before gathering.');
-  if (p.dungeonRun) return refuse(DUNGEON_BLOCK);
-  if (p.journey) return refuse(JOURNEY_BLOCK);
-  const site = gatheringOptions(p, now).find((s) => s.activity === activity);
+  if (player.battle) return refuse('⚔️ Finish the fight before gathering.');
+  if (player.dungeonRun) return refuse(DUNGEON_BLOCK);
+  if (player.journey) return refuse(JOURNEY_BLOCK);
+  const site = gatheringOptions(player, now).find((option) => option.activity === activity);
   if (!site) return refuse('That gathering activity is unavailable here.');
   if (site.remaining <= 0) {
     const minutes = Math.max(1, Math.ceil(((site.resetAt ?? now) - now) / 60_000));
     return refuse(`The gathering sites here need time to recover. Return in ${minutes} min.`);
   }
-  if (site.tool && countOf(p, site.tool) < 1) {
+  if (site.tool && countOf(player, site.tool) < 1) {
     return refuse(`Bring a ${itemName(site.tool)} in your bag to ${activity} here.`);
   }
   let pool = site.yields;
   let bait: string | undefined;
   if (site.baitTables) {
-    bait = baitId ?? Object.keys(site.baitTables).find((id) => countOf(p, id) > 0);
+    bait = baitId ?? Object.keys(site.baitTables).find((id) => countOf(player, id) > 0);
     if (!bait || !Object.hasOwn(site.baitTables, bait)) {
       return refuse(
         `Bring fishing bait: ${Object.keys(site.baitTables).map(itemName).join(' or ')}.`,
       );
     }
-    if (countOf(p, bait) < 1) return refuse(`You need 1 ${itemName(bait)} for this cast.`);
+    if (countOf(player, bait) < 1) return refuse(`You need 1 ${itemName(bait)} for this cast.`);
     pool = site.baitTables[bait]!;
   } else if (baitId !== undefined) {
     return refuse('Bait is only used for fishing.');
@@ -84,14 +84,14 @@ export function gather(
   const qty = randInt(rng, drop.min, drop.max);
   // All refusals precede spending: changing tools, bait, zones or activities
   // cannot refresh the shared local allowance.
-  if (bait) removeItem(p, bait, 1);
+  if (bait) removeItem(player, bait, 1);
   const used = GATHERING_CHARGES - site.remaining + 1;
-  p.flags[`gather_${p.currentZone}`] = used;
-  delete p.flags[`gatherReset_${p.currentZone}`];
+  player.flags[`gather_${player.currentZone}`] = used;
+  delete player.flags[`gatherReset_${player.currentZone}`];
   if (used === GATHERING_CHARGES) {
-    p.flags[`gatherReset_${p.currentZone}`] = now + GATHERING_COOLDOWN_MS;
+    player.flags[`gatherReset_${player.currentZone}`] = now + GATHERING_COOLDOWN_MS;
   }
-  const ready = grantItem(p, drop.item, qty);
+  const ready = grantItem(player, drop.item, qty);
   return {
     ok: true,
     lines: [

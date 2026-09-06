@@ -11,42 +11,42 @@ import { grantContextualDrops, rollDropTable } from './loot.ts';
 /** Resolves ONE non-interactive event exactly once; returns its lines and
  * the structured list of items it granted. Battle events never reach here. */
 export function applyQuietEvent(
-  p: PlayerState,
-  ev: Exclude<TravelEvent, { kind: 'battle' }>,
+  player: PlayerState,
+  event: Exclude<TravelEvent, { kind: 'battle' }>,
   rng: Rng,
 ): { lines: string[]; granted: string[] } {
-  switch (ev.kind) {
+  switch (event.kind) {
     case 'flavor':
-      return { lines: [`${ev.text}`], granted: [] };
+      return { lines: [`${event.text}`], granted: [] };
     case 'rest': {
-      const s = statsOf(p);
-      const healHp = Math.floor(s.maxHp * ev.healPct);
-      const healMp = Math.floor(s.maxMp * ev.healPct);
-      p.hp = Math.min(s.maxHp, p.hp + healHp);
-      p.mp = Math.min(s.maxMp, p.mp + healMp);
+      const stats = statsOf(player);
+      const healHp = Math.floor(stats.maxHp * event.healPct);
+      const healMp = Math.floor(stats.maxMp * event.healPct);
+      player.hp = Math.min(stats.maxHp, player.hp + healHp);
+      player.mp = Math.min(stats.maxMp, player.mp + healMp);
       return {
-        lines: [`🌙 ${ev.text}`, `💚 +${healHp} HP · 💧 +${healMp} MP`],
+        lines: [`🌙 ${event.text}`, `💚 +${healHp} HP · 💧 +${healMp} MP`],
         granted: [],
       };
     }
     case 'treasure': {
-      const lines = [`✨ ${ev.text}`];
+      const lines = [`✨ ${event.text}`];
       const granted: string[] = [];
-      if (ev.gold) {
-        const g = randInt(rng, Math.floor(ev.gold * 0.8), Math.ceil(ev.gold * 1.3));
-        p.gold += g;
-        lines.push(`💰 +${g} gold`);
+      if (event.gold) {
+        const goldAmount = randInt(rng, Math.floor(event.gold * 0.8), Math.ceil(event.gold * 1.3));
+        player.gold += goldAmount;
+        lines.push(`💰 +${goldAmount} gold`);
       }
-      if (ev.item) {
-        lines.push(`🎁 Found: ${itemName(ev.item)}`);
-        granted.push(ev.item);
-        for (const qid of grantItem(p, ev.item, 1)) lines.push(questReadyLine(qid));
+      if (event.item) {
+        lines.push(`🎁 Found: ${itemName(event.item)}`);
+        granted.push(event.item);
+        for (const questId of grantItem(player, event.item, 1)) lines.push(questReadyLine(questId));
       }
-      if (ev.dropTable) {
+      if (event.dropTable) {
         // Contextual route resources (#158) through the ONE shared grant
         // site — quest-kind drops stay relevance-filtered (#165). The
         // granted ids are the STRUCTURED grant (#169).
-        const rolled = grantContextualDrops(p, rollDropTable(ev.dropTable, rng));
+        const rolled = grantContextualDrops(player, rollDropTable(event.dropTable, rng));
         lines.push(...rolled.lines);
         granted.push(...rolled.granted);
       }

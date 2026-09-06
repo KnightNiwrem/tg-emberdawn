@@ -11,11 +11,11 @@ const SECRET_HEADER = 'x-telegram-bot-api-secret-token';
 /** Constant-time comparison (leaks only length — irrelevant for secrets). */
 export function secretMatches(received: string | null, expected: string): boolean {
   if (!received) return false;
-  const a = new TextEncoder().encode(received);
-  const b = new TextEncoder().encode(expected);
-  if (a.length !== b.length) return false;
+  const receivedBytes = new TextEncoder().encode(received);
+  const expectedBytes = new TextEncoder().encode(expected);
+  if (receivedBytes.length !== expectedBytes.length) return false;
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
+  for (let i = 0; i < receivedBytes.length; i++) diff |= receivedBytes[i]! ^ expectedBytes[i]!;
   return diff === 0;
 }
 

@@ -106,15 +106,15 @@ Deno.test('content integrity: the shipped graph is one weakly connected whole', 
   }
 
   function walkExists(fromId: string, toId: string): boolean {
-    const q = [fromId];
-    const vis = new Set([fromId]);
-    while (q.length > 0) {
-      const cur = q.shift()!;
-      if (cur === toId) return true;
-      for (const r of routesFrom(cur)) {
-        if (!vis.has(r.to)) {
-          vis.add(r.to);
-          q.push(r.to);
+    const queue = [fromId];
+    const visited = new Set([fromId]);
+    while (queue.length > 0) {
+      const currentZoneId = queue.shift()!;
+      if (currentZoneId === toId) return true;
+      for (const route of routesFrom(currentZoneId)) {
+        if (!visited.has(route.to)) {
+          visited.add(route.to);
+          queue.push(route.to);
         }
       }
     }

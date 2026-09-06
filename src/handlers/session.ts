@@ -44,73 +44,73 @@ import {
   renderZone,
 } from '../render/views.ts';
 
-function renderFor(p: PlayerState): InputRichMessage {
-  switch (p.scene.view) {
+function renderFor(player: PlayerState): InputRichMessage {
+  switch (player.scene.view) {
     case 'battle':
-      return renderBattle(p);
+      return renderBattle(player);
     case 'battleSkills':
-      return renderSkillMenu(p);
+      return renderSkillMenu(player);
     case 'battleItems':
-      return renderItemMenu(p);
+      return renderItemMenu(player);
     case 'inventory':
-      return renderInventory(p, Number(p.scene.arg ?? 0));
+      return renderInventory(player, Number(player.scene.arg ?? 0));
     case 'item':
       // #112: arg2 carries the origin context (the inventory page it came
       // from, or 'eq' for the Equipment screen) so Back returns to it.
-      return renderItemDetail(p, p.scene.arg ?? '', p.scene.arg2);
+      return renderItemDetail(player, player.scene.arg ?? '', player.scene.arg2);
     case 'equipment':
-      return renderEquipment(p);
+      return renderEquipment(player);
     case 'equippedItem':
       // #112: the equipped detail is addressed BY SLOT and re-resolves the
       // item from player state at render time.
-      return renderEquippedItemDetail(p, (p.scene.arg ?? 'weapon') as EquipSlot);
+      return renderEquippedItemDetail(player, (player.scene.arg ?? 'weapon') as EquipSlot);
     case 'skills':
-      return renderSkills(p);
+      return renderSkills(player);
     case 'quests':
       // arg selects a quest detail; arg2 carries the log's side-quest page
       // (#21) so Back from a detail returns to the same page.
-      return p.scene.arg
-        ? renderQuestDetail(p, p.scene.arg)
-        : renderQuests(p, Number(p.scene.arg2 ?? 0));
+      return player.scene.arg
+        ? renderQuestDetail(player, player.scene.arg)
+        : renderQuests(player, Number(player.scene.arg2 ?? 0));
     case 'npc':
       // The NPC topic menu (#123): arg is the NPC id, arg2 an optional
       // sub-state ('lore:<topicId>' or 'q:<questId>').
-      return renderNpcTopics(p);
+      return renderNpcTopics(player);
     case 'dialogue':
       // The dialogue scene (#124): arg is the dialogue id, arg2 the
       // current node id — both persist so rerenders and /start reproduce
       // the exact same beat.
-      return renderDialogue(p);
+      return renderDialogue(player);
     case 'shop':
-      return p.scene.arg === 'sell'
-        ? renderSell(p, Number(p.scene.arg2 ?? 0))
-        : p.scene.arg2 !== undefined
-        ? renderShopItemDetail(p, p.scene.arg2, Number(p.scene.arg ?? 0))
-        : renderShop(p, Number(p.scene.arg ?? 0));
+      return player.scene.arg === 'sell'
+        ? renderSell(player, Number(player.scene.arg2 ?? 0))
+        : player.scene.arg2 !== undefined
+        ? renderShopItemDetail(player, player.scene.arg2, Number(player.scene.arg ?? 0))
+        : renderShop(player, Number(player.scene.arg ?? 0));
     case 'forge':
-      return renderForge(p);
+      return renderForge(player);
     case 'travel':
-      return renderTravel(p);
+      return renderTravel(player);
     case 'journey':
       // The persisted crossing (#159): /start and rerenders rebuild the
       // intermission from PlayerState without consuming anything.
-      return renderJourney(p);
+      return renderJourney(player);
     case 'death':
-      return renderDeath(p);
+      return renderDeath(player);
     case 'reset':
-      return renderResetConfirm(p);
+      return renderResetConfirm(player);
     case 'character':
-      return renderCharacter(p);
+      return renderCharacter(player);
     case 'help':
       return renderHelp();
     case 'zone':
-      return renderZone(p);
+      return renderZone(player);
     case 'tutorial':
       // Guided prologue brief (#69); arg 'brief' is the Maren dialogue.
-      return renderTutorial(p);
+      return renderTutorial(player);
     default: {
       // Exhaustive: adding a ViewId obliges a renderer choice at compile time.
-      const never: never = p.scene.view;
+      const never: never = player.scene.view;
       return never;
     }
   }
@@ -143,37 +143,37 @@ function stampRev(msg: InputRichMessage, rev: number): void {
 /** Commit: edit the live message in place; fall back to sending a new one.
  * On success, drains p.notices (the renderer itself stays pure) and bumps
  * the render revision stamped into the buttons just delivered (#16). */
-export async function commit(ctx: Context, p: PlayerState): Promise<void> {
-  const msg = renderFor(p);
+export async function commit(ctx: Context, player: PlayerState): Promise<void> {
+  const msg = renderFor(player);
   // Cycles 1..9999 to respect the 4-digit wire budget; a replay from exactly
   // one full cycle ago is not a realistic threat window.
-  const nextRev = (p.uiRev % 9999) + 1;
+  const nextRev = (player.uiRev % 9999) + 1;
   stampRev(msg, nextRev);
-  const editId = p.messageId;
+  const editId = player.messageId;
   if (editId && ctx.chat) {
     try {
       await ctx.api.editMessageText(ctx.chat.id, editId, msg);
-      p.uiRev = nextRev;
-      p.notices = [];
+      player.uiRev = nextRev;
+      player.notices = [];
       return;
-    } catch (e) {
-      if (!(e instanceof GrammyError)) throw e;
-      const d = e.description;
-      if (d.includes('message is not modified')) {
+    } catch (error) {
+      if (!(error instanceof GrammyError)) throw error;
+      const description = error.description;
+      if (description.includes('message is not modified')) {
         // Screen unchanged — the buttons already out there keep their current
         // revision, so it must NOT advance here.
-        p.notices = [];
+        player.notices = [];
         return;
       }
-      if (!RESENDABLE.some((frag) => d.includes(frag))) throw e;
+      if (!RESENDABLE.some((frag) => description.includes(frag))) throw error;
       // fall through to resend
     }
   }
   if (!ctx.chat) return;
   const sent = await ctx.api.sendRichMessage(ctx.chat.id, msg);
-  p.messageId = sent.message_id;
-  p.uiRev = nextRev;
-  p.notices = [];
+  player.messageId = sent.message_id;
+  player.uiRev = nextRev;
+  player.notices = [];
 }
 
 /** Deliver the class picker as a STATELESS onboarding screen (#62): edit the
@@ -187,9 +187,9 @@ export async function deliverClassPicker(ctx: Context, editId?: number): Promise
     try {
       await ctx.api.editMessageText(ctx.chat.id, editId, msg);
       return;
-    } catch (e) {
-      if (!(e instanceof GrammyError)) throw e;
-      if (!RESENDABLE.some((frag) => e.description.includes(frag))) throw e;
+    } catch (error) {
+      if (!(error instanceof GrammyError)) throw error;
+      if (!RESENDABLE.some((frag) => error.description.includes(frag))) throw error;
       // fall through to resend
     }
   }
@@ -201,9 +201,9 @@ export async function deliverClassPicker(ctx: Context, editId?: number): Promise
  * best effort (#75): a failed answer never aborts the update — commit and
  * save still run, and the webhook answers 2xx so Telegram does not
  * redeliver an already-old callback query. */
-async function respond(ctx: Context, p: PlayerState, toast?: string): Promise<void> {
+async function respond(ctx: Context, player: PlayerState, toast?: string): Promise<void> {
   await answerCallbackBestEffort(ctx, toast ? { text: toast.slice(0, 190) } : undefined);
-  await commit(ctx, p);
+  await commit(ctx, player);
 }
 
 export interface MutationResult {
@@ -233,22 +233,22 @@ export const UNRESOLVABLE_SAVE_REPLY =
 export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,
-  p: PlayerState,
-  mutate: (p: PlayerState) => MutationResult | void | Promise<MutationResult | void>,
+  player: PlayerState,
+  mutate: (player: PlayerState) => MutationResult | void | Promise<MutationResult | void>,
 ): Promise<void> {
   if (!ctx.chat) return;
   try {
-    assertSupportedSaveVersion(p); // compatibility gate — refuses, never rewrites
-    assertResolvablePersistedIds(p); // identity gate (#141) — after schema, before mutation/render
-  } catch (e) {
-    if (e instanceof SaveTooOldError) {
+    assertSupportedSaveVersion(player); // compatibility gate — refuses, never rewrites
+    assertResolvablePersistedIds(player); // identity gate (#141) — after schema, before mutation/render
+  } catch (error) {
+    if (error instanceof SaveTooOldError) {
       // Incompatible pre-launch save (#44, #116): refuse to guess — the
       // player must explicitly reset. The stored JSON stays untouched.
       await answerCallbackBestEffort(ctx);
       await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
       return;
     }
-    if (e instanceof SaveUnresolvableError) {
+    if (error instanceof SaveUnresolvableError) {
       // Same-version save with dangling content ids (#141): refuse before
       // any mutation or render, leave the stored JSON untouched, and point
       // at the explicit /reset path. Never repair or substitute.
@@ -256,7 +256,7 @@ export async function withLoadedPlayer(
       await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
       return;
     }
-    if (!(e instanceof SaveTooNewError)) throw e;
+    if (!(error instanceof SaveTooNewError)) throw error;
     // A NEWER binary wrote this save. Never read-mutate-write it: a rollback
     // must not silently downgrade player data (#4).
     await answerCallbackBestEffort(ctx);
@@ -267,26 +267,26 @@ export async function withLoadedPlayer(
       .catch(() => {});
     return;
   }
-  const result = (await mutate(p)) ?? {};
-  p.stats.lastPlayed = Date.now();
-  // Respond FIRST: commit may update p.messageId (resend fallback), and the
+  const result = (await mutate(player)) ?? {};
+  player.stats.lastPlayed = Date.now();
+  // Respond FIRST: commit may update player.messageId (resend fallback), and the
   // save must capture that pointer. Saving before commit used to strand the
   // live-message id, breaking every later tap after a resend.
-  await respond(ctx, p, result.toast);
+  await respond(ctx, player, result.toast);
   const from = ctx.from;
-  if (from) await store.set(from.id, p);
+  if (from) await store.set(from.id, player);
 }
 
 /** Guard used inside mutations: is this tap on the live game message? */
-function isLiveMessage(p: PlayerState, ctx: Context): boolean {
+function isLiveMessage(player: PlayerState, ctx: Context): boolean {
   const tapped = ctx.callbackQuery?.message?.message_id;
-  if (!p.messageId || !tapped) return true; // nothing to compare against
-  if (tapped === p.messageId) return true;
+  if (!player.messageId || !tapped) return true; // nothing to compare against
+  if (tapped === player.messageId) return true;
   // A NEWER message id means the tap is on a copy newer than our pointer
   // (e.g. after a resend we missed) — adopt it as live. Older copies are
   // genuinely stale and rejected.
-  if (tapped > p.messageId) {
-    p.messageId = tapped;
+  if (tapped > player.messageId) {
+    player.messageId = tapped;
     return true;
   }
   return false;
@@ -301,16 +301,16 @@ function isLiveMessage(p: PlayerState, ctx: Context): boolean {
  * is stale or revisionless; the caller answers with the stale toast.
  * Rev-less callbacks are legitimate ONLY on the class picker, which renders
  * before a player exists and never reaches this guard. */
-export function tapIsCurrent(p: PlayerState, ctx: Context, rev: number | undefined): boolean {
+export function tapIsCurrent(player: PlayerState, ctx: Context, rev: number | undefined): boolean {
   // A rev-less callback proves nothing about which render produced it —
   // reject BEFORE any guard side effects (pointer adoption) can run (#43).
   if (rev === undefined) return false;
   const tapped = ctx.callbackQuery?.message?.message_id;
-  const newer = tapped !== undefined && p.messageId !== undefined && tapped > p.messageId;
-  if (!isLiveMessage(p, ctx)) return false;
+  const newer = tapped !== undefined && player.messageId !== undefined && tapped > player.messageId;
+  if (!isLiveMessage(player, ctx)) return false;
   if (newer) {
-    p.uiRev = rev;
+    player.uiRev = rev;
     return true;
   }
-  return rev === p.uiRev;
+  return rev === player.uiRev;
 }

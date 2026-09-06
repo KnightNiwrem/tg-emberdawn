@@ -128,18 +128,18 @@ export function derivedStats(
     luck?: number;
   },
 ): DerivedStats {
-  const c = CLASSES[classId];
-  const lv = level - 1;
+  const classDef = CLASSES[classId];
+  const levelGains = level - 1;
   const add = (base: number, growth: number, gear: number | undefined): number =>
-    Math.floor(base + growth * lv + (gear ?? 0));
+    Math.floor(base + growth * levelGains + (gear ?? 0));
   return {
-    maxHp: 60 + c.hpPerLevel * lv + (gearStats.hp ?? 0),
-    maxMp: 30 + c.mpPerLevel * lv + (gearStats.mp ?? 0),
-    atk: add(c.base.atk, c.growth.atk, gearStats.atk),
-    def: add(c.base.def, c.growth.def, gearStats.def),
-    mag: add(c.base.mag, c.growth.mag, gearStats.mag),
-    res: add(c.base.res, c.growth.res, gearStats.res),
-    spd: add(c.base.spd, c.growth.spd, gearStats.spd),
-    luck: add(c.base.luck, c.growth.luck, gearStats.luck),
+    maxHp: 60 + classDef.hpPerLevel * levelGains + (gearStats.hp ?? 0),
+    maxMp: 30 + classDef.mpPerLevel * levelGains + (gearStats.mp ?? 0),
+    atk: add(classDef.base.atk, classDef.growth.atk, gearStats.atk),
+    def: add(classDef.base.def, classDef.growth.def, gearStats.def),
+    mag: add(classDef.base.mag, classDef.growth.mag, gearStats.mag),
+    res: add(classDef.base.res, classDef.growth.res, gearStats.res),
+    spd: add(classDef.base.spd, classDef.growth.spd, gearStats.spd),
+    luck: add(classDef.base.luck, classDef.growth.luck, gearStats.luck),
   };
 }

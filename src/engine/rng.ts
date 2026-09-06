@@ -14,13 +14,13 @@ export function randInt(rng: Rng, min: number, max: number): number {
   return min + Math.floor(rng() * (max - min + 1));
 }
 
-export function chance(rng: Rng, p: number): boolean {
-  return rng() < p;
+export function chance(rng: Rng, probability: number): boolean {
+  return rng() < probability;
 }
 
 /** Weighted pick over {weight} entries; returns the index, or -1 if total weight is 0. */
 export function weightedIndex(rng: Rng, weights: readonly number[]): number {
-  const total = weights.reduce((a, b) => a + b, 0);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
   if (total <= 0) return -1;
   let roll = rng() * total;
   for (let i = 0; i < weights.length; i++) {

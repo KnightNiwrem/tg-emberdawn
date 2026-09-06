@@ -29,31 +29,31 @@ import type { MutationResult } from './session.ts';
 
 /** Zone hub actions (explore/dive/talk) + navigation. */
 /** Small navigation helper: switch view and clear context. */
-function go(p: PlayerState, view: PlayerState['scene']['view'], arg?: string): MutationResult {
-  p.scene = arg === undefined ? { view } : { view, arg };
+function go(player: PlayerState, view: PlayerState['scene']['view'], arg?: string): MutationResult {
+  player.scene = arg === undefined ? { view } : { view, arg };
   return {};
 }
 
 /** Explore the zone: may start a battle, find treasure, rest, or nothing. */
-function exploreAction(p: PlayerState): MutationResult {
-  if (p.battle) {
-    p.scene = { view: 'battle' };
+function exploreAction(player: PlayerState): MutationResult {
+  if (player.battle) {
+    player.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
   }
   // No exploring mid-crossing (#159): the player is on the road, not in
   // the wilds — and the destination's wilds are not theirs yet.
-  if (p.journey) {
-    p.scene = { view: 'journey' };
+  if (player.journey) {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
-  const outcome = explore(p);
+  const outcome = explore(player);
   if (outcome.kind === 'battle') {
     // #96: enterBattle resolves the opening's explicit adjudication — a
     // terminal opening routes straight to victory/defeat resolution.
-    return enterBattle(p, outcome.battle, outcome.outcome, [outcome.line]);
+    return enterBattle(player, outcome.battle, outcome.outcome, [outcome.line]);
   }
-  p.notices = outcome.lines;
-  p.scene = { view: 'zone' };
+  player.notices = outcome.lines;
+  player.scene = { view: 'zone' };
   return {};
 }
 
@@ -61,50 +61,53 @@ function exploreAction(p: PlayerState): MutationResult {
  * inescapable — when the dive would reach it below the dungeon's authored
  * readiness level, the first tap stages an explicit confirmation (#73);
  * the z:dgb control proceeds deliberately. */
-function diveAction(p: PlayerState, confirmed = false): MutationResult {
-  if (p.battle) {
-    p.scene = { view: 'battle' };
+function diveAction(player: PlayerState, confirmed = false): MutationResult {
+  if (player.battle) {
+    player.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
   }
-  if (p.journey) {
-    p.scene = { view: 'journey' };
+  if (player.journey) {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
-  const z = zoneDef(p.currentZone);
-  const d = z ? dungeonOf(z) : undefined;
-  if (!z || !d) return { toast: 'No dungeon here.' };
-  if (!p.dungeonRun && !confirmed) {
-    p.scene = { view: 'zone', arg: 'bossok' };
+  const currentZone = zoneDef(player.currentZone);
+  const dungeon = currentZone ? dungeonOf(currentZone) : undefined;
+  if (!currentZone || !dungeon) return { toast: 'No dungeon here.' };
+  if (!player.dungeonRun && !confirmed) {
+    player.scene = { view: 'zone', arg: 'bossok' };
     return {};
   }
-  if (confirmed && (p.dungeonRun || p.scene.view !== 'zone' || p.scene.arg !== 'bossok')) {
+  if (
+    confirmed &&
+    (player.dungeonRun || player.scene.view !== 'zone' || player.scene.arg !== 'bossok')
+  ) {
     return { toast: 'Open the dungeon entrance first.' };
   }
-  const res = diveDungeon(p, d);
-  if (!res.ok || !res.battle) {
-    if (!res.ok) return { toast: res.lines[0] ?? bossGateBlock(p, d) };
-    p.notices = res.lines;
-    p.scene = { view: 'zone' };
+  const result = diveDungeon(player, dungeon);
+  if (!result.ok || !result.battle) {
+    if (!result.ok) return { toast: result.lines[0] ?? bossGateBlock(player, dungeon) };
+    player.notices = result.lines;
+    player.scene = { view: 'zone' };
     return {};
   }
   // #96: enterBattle resolves the opening's explicit adjudication.
-  return enterBattle(p, res.battle, res.outcome ?? 'ongoing', res.lines);
+  return enterBattle(player, result.battle, result.outcome ?? 'ongoing', result.lines);
 }
 
 /** Talk to a zone NPC: opens the explicit topic-selection scene (#123).
  * Opening the menu is NAVIGATION — it never advances talk objectives,
  * never accepts or turns in a quest, and never mutates story state. Which
  * topic the player selects decides what happens (see npcAction). */
-function talkAction(p: PlayerState, npcIndex: number): MutationResult {
+function talkAction(player: PlayerState, npcIndex: number): MutationResult {
   // Conversations wait for arrival (#159): no NPC contact mid-crossing.
-  if (p.journey) {
-    p.scene = { view: 'journey' };
+  if (player.journey) {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
-  const z = zoneDef(p.currentZone);
-  const npc = z?.npcs[npcIndex];
-  if (!npc) return { toast: 'Nobody there.' };
-  p.scene = { view: 'npc', arg: npc.id };
+  const currentZone = zoneDef(player.currentZone);
+  const zoneNpc = currentZone?.npcs[npcIndex];
+  if (!zoneNpc) return { toast: 'Nobody there.' };
+  player.scene = { view: 'npc', arg: zoneNpc.id };
   return {};
 }
 
@@ -115,29 +118,29 @@ function talkAction(p: PlayerState, npcIndex: number): MutationResult {
  * crossing blocks every zone-bound interaction at this entry point too —
  * currentZone still reads the origin mid-crossing, so presence alone
  * cannot be the guard. Back stays open (navigation). */
-export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult {
-  if (p.journey && cb.a !== 'bk') {
-    p.scene = { view: 'journey' };
+export function npcAction(player: PlayerState, cb: Cb & { v: 'npc' }): MutationResult {
+  if (player.journey && cb.a !== 'bk') {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
   switch (cb.a) {
     case 'bk':
       // Leaving the scene invalidates its buttons (rev bump on commit).
-      p.scene = { view: 'zone' };
+      player.scene = { view: 'zone' };
       return {};
     case 'op': {
-      if (!npcInZone(p.currentZone, cb.arg)) return { toast: 'Nobody there.' };
-      p.scene = { view: 'npc', arg: cb.arg };
+      if (!npcInZone(player.currentZone, cb.arg)) return { toast: 'Nobody there.' };
+      player.scene = { view: 'npc', arg: cb.arg };
       return {};
     }
     case 'q': {
       // Quest business must be selected from a live topic menu for an NPC
       // who is actually here.
-      if (p.scene.view !== 'npc' || !p.scene.arg) {
+      if (player.scene.view !== 'npc' || !player.scene.arg) {
         return { toast: 'That conversation has moved on — talk to the NPC again.' };
       }
-      const npcId = p.scene.arg;
-      if (!npcInZone(p.currentZone, npcId)) return { toast: 'Nobody there.' };
+      const npcId = player.scene.arg;
+      if (!npcInZone(player.currentZone, npcId)) return { toast: 'Nobody there.' };
       // #131: re-resolve the exact row (kind + id) from a FRESH resolution
       // by the ONE authoritative resolver — the same enumeration that
       // rendered the menu. A stale, forged or no-longer-available
@@ -146,67 +149,75 @@ export function npcAction(p: PlayerState, cb: Cb & { v: 'npc' }): MutationResult
       // open another NPC's conversation. #127: the dialogues' accept/
       // hand-over CHOICES invoke the central acceptQuest/turnInQuest
       // authorities as story effects, revalidated on-site by the engine.
-      const row = npcTopics(p, npcId).find((t) => t.kind !== 'lore' && t.id === cb.arg);
+      const row = npcTopics(player, npcId).find((topic) =>
+        topic.kind !== 'lore' && topic.id === cb.arg
+      );
       if (!row) return { toast: 'That business has moved on.' };
       if (row.dialogueId) {
-        const d = dialogue(row.dialogueId);
-        if (!d || d.npcId !== npcId) return { toast: 'That business has moved on.' };
-        enterDialogueNode(p, d, d.start);
+        const dialogueDef = dialogue(row.dialogueId);
+        if (!dialogueDef || dialogueDef.npcId !== npcId) {
+          return { toast: 'That business has moved on.' };
+        }
+        enterDialogueNode(player, dialogueDef, dialogueDef.start);
         return {};
       }
       // No owned dialogue to open (active business at the non-owning
       // contact, or its event already fired): a pure progress reminder —
       // navigation only, never a story mutation.
-      p.notices = [];
-      p.scene = { view: 'npc', arg: npcId, arg2: `q:${row.questId}` };
+      player.notices = [];
+      player.scene = { view: 'npc', arg: npcId, arg2: `q:${row.questId}` };
       return {};
     }
     case 'lore': {
-      if (p.scene.view !== 'npc' || !p.scene.arg) {
+      if (player.scene.view !== 'npc' || !player.scene.arg) {
         return { toast: 'That topic has moved on.' };
       }
-      const npcId = p.scene.arg;
-      if (!npcInZone(p.currentZone, npcId)) return { toast: 'Nobody there.' };
+      const npcId = player.scene.arg;
+      if (!npcInZone(player.currentZone, npcId)) return { toast: 'Nobody there.' };
       // #131: the fresh resolved row is the authority — its `when` was
       // just re-evaluated, so a condition that turned false after the menu
       // rendered (or a forged/condition-hidden id) refuses here.
-      const row = npcTopics(p, npcId).find((t) => t.kind === 'lore' && t.id === cb.arg);
+      const row = npcTopics(player, npcId).find((topic) =>
+        topic.kind === 'lore' && topic.id === cb.arg
+      );
       if (!row) return { toast: 'That topic has moved on.' };
       // A dialogue-backed topic (#124) opens the conversation scene at its
       // start node; the static text renders the single-beat view.
       if (row.dialogueId) {
-        const d = dialogue(row.dialogueId);
-        if (!d || d.npcId !== npcId) return { toast: 'That topic has moved on.' };
-        p.scene = { view: 'dialogue', arg: d.id, arg2: d.start };
+        const dialogueDef = dialogue(row.dialogueId);
+        if (!dialogueDef || dialogueDef.npcId !== npcId) {
+          return { toast: 'That topic has moved on.' };
+        }
+        player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: dialogueDef.start };
         return {};
       }
-      const topic = npc(npcId)?.topics?.find((t) => t.id === cb.arg);
+      const topic = npc(npcId)?.topics?.find((topicItem) => topicItem.id === cb.arg);
       if (!topic?.text) return { toast: 'That topic has moved on.' };
-      p.scene = { view: 'npc', arg: npcId, arg2: `lore:${cb.arg}` };
+      player.scene = { view: 'npc', arg: npcId, arg2: `lore:${cb.arg}` };
       return {};
     }
   }
 }
 
-export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResult {
-  if (p.dungeonRun && !['hm', 'dg', 'dx', 'ch', 'inv', 'sk', 'q'].includes(cb.a)) {
+export function zoneAction(player: PlayerState, cb: Cb & { v: 'zone' }): MutationResult {
+  if (player.dungeonRun && !['hm', 'dg', 'dx', 'ch', 'inv', 'sk', 'q'].includes(cb.a)) {
     return { toast: DUNGEON_BLOCK };
   }
   switch (cb.a) {
     case 'hm':
       // Returning "home" from any panel preserves a live crossing (#159):
       // the journey intermission IS the player's current place.
-      return go(p, p.journey ? 'journey' : 'zone');
+      return go(player, player.journey ? 'journey' : 'zone');
     case 'ex':
-      return exploreAction(p);
+      return exploreAction(player);
     case 'gp':
     case 'cp': {
-      if (p.battle) return { toast: 'Finish the fight first.' };
-      if (p.journey) return { toast: JOURNEY_BLOCK };
+      if (player.battle) return { toast: 'Finish the fight first.' };
+      if (player.journey) return { toast: JOURNEY_BLOCK };
       if (cb.a === 'cp') {
-        if (!recipesAt(p).length) return { toast: 'There is no workshop here.' };
-        p.scene = { view: 'zone', arg: 'craft', arg2: String(cb.arg) };
-      } else p.scene = { view: 'zone', arg: 'gather' };
+        if (!recipesAt(player).length) return { toast: 'There is no workshop here.' };
+        player.scene = { view: 'zone', arg: 'craft', arg2: String(cb.arg) };
+      } else player.scene = { view: 'zone', arg: 'gather' };
       return {};
     }
     case 'ga': {
@@ -219,74 +230,78 @@ export function zoneAction(p: PlayerState, cb: Cb & { v: 'zone' }): MutationResu
         : cb.arg === 'fish_grub'
         ? 'm_grub_bait'
         : undefined;
-      const res = gather(p, action, undefined, undefined, bait);
-      if (!res.ok) return { toast: res.lines[0] };
-      p.notices = res.lines;
-      p.scene = { view: 'zone', arg: 'gather' };
+      const result = gather(player, action, undefined, undefined, bait);
+      if (!result.ok) return { toast: result.lines[0] };
+      player.notices = result.lines;
+      player.scene = { view: 'zone', arg: 'gather' };
       return {};
     }
     case 'cr': {
-      const res = craft(p, cb.arg);
-      if (!res.ok) return { toast: res.lines[0] };
-      p.notices = res.lines;
-      p.scene = { view: 'zone', arg: 'craft', arg2: p.scene.arg === 'craft' ? p.scene.arg2 : '0' };
+      const result = craft(player, cb.arg);
+      if (!result.ok) return { toast: result.lines[0] };
+      player.notices = result.lines;
+      player.scene = {
+        view: 'zone',
+        arg: 'craft',
+        arg2: player.scene.arg === 'craft' ? player.scene.arg2 : '0',
+      };
       return {};
     }
     case 'dg':
-      return diveAction(p);
+      return diveAction(player);
     case 'dx': {
-      const res = abandonDungeon(p);
-      if (!res.ok) return { toast: res.lines[0] };
-      p.notices = res.lines;
-      p.scene = { view: 'zone' };
+      const result = abandonDungeon(player);
+      if (!result.ok) return { toast: result.lines[0] };
+      player.notices = result.lines;
+      player.scene = { view: 'zone' };
       return {};
     }
     case 'dgb':
       // Explicit confirmation for an under-level boss dive (#73).
-      return diveAction(p, true);
+      return diveAction(player, true);
     case 'tv':
       // No second edge while a crossing is live (#159).
-      if (p.journey) {
-        p.scene = { view: 'journey' };
+      if (player.journey) {
+        player.scene = { view: 'journey' };
         return { toast: JOURNEY_BLOCK };
       }
-      return go(p, 'travel');
+      return go(player, 'travel');
     case 'ch':
-      return go(p, 'character');
+      return go(player, 'character');
     case 'inv':
-      return go(p, 'inventory', '0');
+      return go(player, 'inventory', '0');
     case 'sk':
-      return go(p, 'skills');
+      return go(player, 'skills');
     case 'q':
-      return go(p, 'quests');
+      return go(player, 'quests');
     case 'sh': {
       // No second errand while a crossing is live (#159).
-      if (p.journey) {
-        p.scene = { view: 'journey' };
+      if (player.journey) {
+        player.scene = { view: 'journey' };
         return { toast: JOURNEY_BLOCK };
       }
       // Facility authority (#161): the button only opens the service the
       // current zone actually authors — a forged tap for an absent shop
       // (or a safe haven without one) is a non-mutating refusal.
-      if (!shopAt(p)) return { toast: 'There is no shop here.' };
-      return go(p, 'shop', '0');
+      if (!shopAt(player)) return { toast: 'There is no shop here.' };
+      return go(player, 'shop', '0');
     }
     case 'fg': {
-      if (p.journey) {
-        p.scene = { view: 'journey' };
+      if (player.journey) {
+        player.scene = { view: 'journey' };
         return { toast: JOURNEY_BLOCK };
       }
-      if (!forgeAt(p)) return { toast: 'There is no forge here.' };
-      return go(p, 'forge');
+      if (!forgeAt(player)) return { toast: 'There is no forge here.' };
+      return go(player, 'forge');
     }
     case 'tk':
-      return talkAction(p, cb.arg);
+      return talkAction(player, cb.arg);
   }
 }
 
-export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): MutationResult {
+export function travelAction(player: PlayerState, cb: Cb & { v: 'travel' }): MutationResult {
   if (cb.a === 'bk') {
-    p.scene = { view: 'zone' };
+    player.scene = { view: 'zone' };
     return {};
   }
   // Hazardous departures demand an informed, explicit choice (#164): an
@@ -294,11 +309,11 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
   // ordinary roads remain immediate and welcoming. #168: the staging ride
   // goes through the ONE departure authority — a closed road never even
   // stages a panel, and the same check startJourney applies decides here.
-  const check = departureCheck(p, cb.arg);
+  const check = departureCheck(player, cb.arg);
   if (
-    check.ok && check.plan.eventCount >= 3 && p.scene.arg !== `go:${cb.arg}`
+    check.ok && check.plan.eventCount >= 3 && player.scene.arg !== `go:${cb.arg}`
   ) {
-    p.scene = { view: 'travel', arg: `go:${cb.arg}` };
+    player.scene = { view: 'travel', arg: `go:${cb.arg}` };
     return {
       toast: `⚠️ ${
         check.plan.name ?? 'That road'
@@ -308,132 +323,133 @@ export function travelAction(p: PlayerState, cb: Cb & { v: 'travel' }): Mutation
   // The journey coordinator revalidates everything server-side (#159):
   // adjacency, unlocks, conditions, current state. The callback carries
   // only the stable edge id.
-  const res = startJourney(p, cb.arg);
-  if (!res.ok) return { toast: res.refusal };
-  return applyJourneyStep(p, res.step);
+  const result = startJourney(player, cb.arg);
+  if (!result.ok) return { toast: result.refusal };
+  return applyJourneyStep(player, result.step);
 }
 
 /** Journey intermission controls (#159): Continue resolves the next
  * roll(s) — or the final arrival — through the ONE coordinator; Retreat
  * aborts back to the edge origin without rolling return events. */
-export function journeyAction(p: PlayerState, cb: Cb & { v: 'journey' }): MutationResult {
+export function journeyAction(player: PlayerState, cb: Cb & { v: 'journey' }): MutationResult {
   if (cb.a === 'go') {
-    if (p.battle) {
-      p.scene = { view: 'battle' };
+    if (player.battle) {
+      player.scene = { view: 'battle' };
       return { toast: 'Finish this fight first!' };
     }
-    if (!p.journey) {
-      p.scene = { view: 'zone' };
+    if (!player.journey) {
+      player.scene = { view: 'zone' };
       return {};
     }
-    return applyJourneyStep(p, advanceJourney(p));
+    return applyJourneyStep(player, advanceJourney(player));
   }
   // Retreat.
-  if (p.battle) {
-    p.scene = { view: 'battle' };
+  if (player.battle) {
+    player.scene = { view: 'battle' };
     return { toast: 'Finish this fight first!' };
   }
-  if (!p.journey) return { toast: 'There is no crossing to abandon.' };
-  p.notices = retreatFromJourney(p);
-  p.scene = { view: 'zone' };
+  if (!player.journey) return { toast: 'There is no crossing to abandon.' };
+  player.notices = retreatFromJourney(player);
+  player.scene = { view: 'zone' };
   return {};
 }
 
-export function shopAction(p: PlayerState, cb: Cb & { v: 'shop' }): MutationResult {
+export function shopAction(player: PlayerState, cb: Cb & { v: 'shop' }): MutationResult {
   if (cb.a === 'bk') {
     // Leaving is always allowed — a stale shop scene (content changed
     // under a save) must never trap the player.
-    p.scene = { view: 'zone' };
+    player.scene = { view: 'zone' };
     return {};
   }
-  if (p.battle) return { toast: '⚔️ Finish the fight first.' };
+  if (player.battle) return { toast: '⚔️ Finish the fight first.' };
   // No trade mid-crossing (#159): destination facilities stay closed
   // until arrival, origin counters wait for the road's end.
-  if (p.journey) {
-    p.scene = { view: 'journey' };
+  if (player.journey) {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
   // Server-side authority (#161): every trade action verifies the current
   // zone actually authors a shop — the renderer never grants access.
-  if (!shopAt(p)) return { toast: 'There is no shop here.' };
+  if (!shopAt(player)) return { toast: 'There is no shop here.' };
   if (cb.a === 'view') {
-    if (p.scene.view !== 'shop' || p.scene.arg === 'sell') {
+    if (player.scene.view !== 'shop' || player.scene.arg === 'sell') {
       return { toast: 'Open the shop’s buying page to inspect its stock.' };
     }
-    if (offeredPrice(p, cb.arg) === undefined) {
+    if (offeredPrice(player, cb.arg) === undefined) {
       return { toast: 'This item is no longer stocked here. Return to the shop.' };
     }
     // #187: buying keeps its page in arg; arg2 selects an optional detail.
     // No new save fields or view IDs; selling still uses arg2 as its page.
-    p.scene = { view: 'shop', arg: p.scene.arg ?? '0', arg2: cb.arg };
+    player.scene = { view: 'shop', arg: player.scene.arg ?? '0', arg2: cb.arg };
     return {};
   }
   if (cb.a === 'p') {
     // Explicit mode switches: 0 is also the first SELL page, so it cannot
     // double as Switch to buying (#187). Nonnegative args paginate.
     if (cb.arg === -2) {
-      p.scene = { view: 'shop', arg: '0' };
+      player.scene = { view: 'shop', arg: '0' };
       return {};
     }
     if (cb.arg === -1) {
-      p.scene = { view: 'shop', arg: 'sell', arg2: '0' };
+      player.scene = { view: 'shop', arg: 'sell', arg2: '0' };
       return {};
     }
-    if (p.scene.arg === 'sell') p.scene = { view: 'shop', arg: 'sell', arg2: String(cb.arg) };
-    else p.scene = { view: 'shop', arg: String(cb.arg) };
+    if (player.scene.arg === 'sell') {
+      player.scene = { view: 'shop', arg: 'sell', arg2: String(cb.arg) };
+    } else player.scene = { view: 'shop', arg: String(cb.arg) };
     return {};
   }
   if (cb.a === 'buy') {
-    const res = buy(p, cb.arg, 1);
-    if (!res.ok) return { toast: res.lines[0] };
+    const result = buy(player, cb.arg, 1);
+    if (!result.ok) return { toast: result.lines[0] };
     // Success lines — the purchase confirmation plus any quest-ready
     // callout from grantItem — surface on the redrawn shop screen (#30)
     // instead of a silent redraw.
-    p.notices = res.lines;
+    player.notices = result.lines;
     return {};
   }
   // sell
-  const res = sell(p, cb.arg, 1);
-  if (!res.ok) return { toast: res.lines[0] };
-  p.notices = res.lines;
+  const result = sell(player, cb.arg, 1);
+  if (!result.ok) return { toast: result.lines[0] };
+  player.notices = result.lines;
   return {};
 }
 
-export function forgeAction(p: PlayerState, cb: Cb & { v: 'forge' }): MutationResult {
+export function forgeAction(player: PlayerState, cb: Cb & { v: 'forge' }): MutationResult {
   if (cb.a === 'bk') {
-    p.scene = { view: 'zone' };
+    player.scene = { view: 'zone' };
     return {};
   }
   // No forge work mid-crossing (#159).
-  if (p.journey) {
-    p.scene = { view: 'journey' };
+  if (player.journey) {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
   // Facility authority (#161): a forged tap where no forge stands is a
   // non-mutating refusal; the engine revalidates capability itself.
-  if (!forgeAt(p)) return { toast: 'There is no forge here.' };
-  const res = temper(p, cb.a === 'w' ? 'weapon' : 'armor');
-  p.notices = res.lines;
-  return { toast: res.ok ? undefined : res.lines[0] };
+  if (!forgeAt(player)) return { toast: 'There is no forge here.' };
+  const result = temper(player, cb.a === 'w' ? 'weapon' : 'armor');
+  player.notices = result.lines;
+  return { toast: result.ok ? undefined : result.lines[0] };
 }
 
-export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): MutationResult {
+export function questsAction(player: PlayerState, cb: Cb & { v: 'quests' }): MutationResult {
   // The Quest Log is a read-only journal (#65): the codec cannot even express
   // lifecycle actions for this view, so every case here is pure navigation.
   switch (cb.a) {
     case 'p': {
       // Side-quest page switch (#21); the detail selector stays clear.
-      p.scene = { view: 'quests', arg2: String(cb.arg) };
+      player.scene = { view: 'quests', arg2: String(cb.arg) };
       return {};
     }
     case 'bk': {
       // Back to the log on the SAME page the detail was opened from (#21).
-      p.scene = { view: 'quests', arg2: p.scene.arg2 };
+      player.scene = { view: 'quests', arg2: player.scene.arg2 };
       return {};
     }
     case 'open':
     case 'q': {
-      p.scene = { view: 'quests', arg: cb.arg, arg2: p.scene.arg2 };
+      player.scene = { view: 'quests', arg: cb.arg, arg2: player.scene.arg2 };
       return {};
     }
   }
@@ -443,18 +459,18 @@ export function questsAction(p: PlayerState, cb: Cb & { v: 'quests' }): Mutation
  * the transition INTO a node, never a rerender. Conversation-driven quest
  * progress emits its story event here, through the central story layer
  * (atomic, idempotent, #119 readiness). */
-function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void {
-  const node = dialogueNode(d, nodeId);
+function enterDialogueNode(player: PlayerState, dialogueDef: DialogueDef, nodeId: string): void {
+  const node = dialogueNode(dialogueDef, nodeId);
   if (node?.kind === 'line' && node.effects?.length) {
-    const result = applyStoryEffects(p, node.effects, {
-      dialogueId: d.id,
+    const result = applyStoryEffects(player, node.effects, {
+      dialogueId: dialogueDef.id,
       nodeId: node.id,
-      npcId: d.npcId,
+      npcId: dialogueDef.npcId,
       now: Date.now(),
     });
-    p.notices = [...p.notices, ...storyNoticeLines(result)];
+    player.notices = [...player.notices, ...storyNoticeLines(result)];
   }
-  p.scene = { view: 'dialogue', arg: d.id, arg2: nodeId };
+  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: nodeId };
 }
 
 /** Dialogue scene actions (#124/#126/#127/#130): multi-node conversations
@@ -471,40 +487,42 @@ function enterDialogueNode(p: PlayerState, d: DialogueDef, nodeId: string): void
  * `cf` is validated here to target an irreversible choice from its exact
  * staged panel before the central op is consulted, so a forged or
  * mismatched `cf` is a harmless refusal. */
-export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
+export function dialogueAction(player: PlayerState, cb: Cb & { v: 'dlg' }): MutationResult {
   // #166: a live crossing owns the interaction flow — the mutating
   // dialogue controls refuse here as well; Back and confirmation
   // cancellation stay open (navigation only).
-  if (p.journey && cb.a !== 'bk' && cb.a !== 'cc') {
-    p.scene = { view: 'journey' };
+  if (player.journey && cb.a !== 'bk' && cb.a !== 'cc') {
+    player.scene = { view: 'journey' };
     return { toast: JOURNEY_BLOCK };
   }
-  const d = p.scene.view === 'dialogue' ? dialogue(p.scene.arg ?? '') : undefined;
+  const dialogueDef = player.scene.view === 'dialogue'
+    ? dialogue(player.scene.arg ?? '')
+    : undefined;
   if (cb.a === 'bk') {
     // Back/End/Not-now returns to the owning NPC's topic menu when they
     // are still on-site; otherwise the zone. No story mutation.
-    p.scene = d && npcInZone(p.currentZone, d.npcId)
-      ? { view: 'npc', arg: d.npcId }
+    player.scene = dialogueDef && npcInZone(player.currentZone, dialogueDef.npcId)
+      ? { view: 'npc', arg: dialogueDef.npcId }
       : { view: 'zone' };
     return {};
   }
   if (cb.a === 'cc') {
     // Abandon the staged confirmation — back to the choice list, no
     // mutation (the choice remains available).
-    if (p.scene.arg3?.startsWith('confirm:')) p.scene.arg3 = undefined;
+    if (player.scene.arg3?.startsWith('confirm:')) player.scene.arg3 = undefined;
     return {};
   }
-  if (!d) return { toast: 'That conversation has moved on.' };
+  if (!dialogueDef) return { toast: 'That conversation has moved on.' };
   // Presence gates Continue too: advancing a line node can apply its
   // authored line-entry effects (#127), a story mutation outside the
   // choice authority (#130).
-  if (!npcInZone(p.currentZone, d.npcId)) return { toast: 'Nobody there.' };
-  const node = dialogueNode(d, p.scene.arg2 ?? '');
+  if (!npcInZone(player.currentZone, dialogueDef.npcId)) return { toast: 'Nobody there.' };
+  const node = dialogueNode(dialogueDef, player.scene.arg2 ?? '');
   if (cb.a === 'nx') {
     if (!node || node.kind !== 'line' || node.next !== cb.arg) {
       return { toast: 'That conversation has moved on.' };
     }
-    enterDialogueNode(p, d, cb.arg);
+    enterDialogueNode(player, dialogueDef, cb.arg);
     return {};
   }
   // 'ch' (tap a response) and 'cf' (tap Confirm on a staged panel) are
@@ -525,23 +543,28 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
     // an irreversible choice whose exact staging is live. Anything else —
     // an ordinary choice, no panel staged, or a panel staged for a
     // DIFFERENT choice — is a refusal that mutates nothing.
-    if (!choice.irreversible || p.scene.arg3 !== `confirm:${choice.id}`) {
+    if (!choice.irreversible || player.scene.arg3 !== `confirm:${choice.id}`) {
       return { toast: 'That conversation has moved on.' };
     }
-    return applyChoice(p, d, choice.id);
+    return applyChoice(player, dialogueDef, choice.id);
   }
   if (choice.irreversible) {
     // Stage the confirmation — nothing is mutated merely by opening it.
     // (Availability of a not-yet-available response is re-refused here so
     // the panel cannot be staged for a response the player cannot take;
     // the engine re-evaluates it again at application.)
-    if (choice.when && !evalCondition(p, choice.when)) {
+    if (choice.when && !evalCondition(player, choice.when)) {
       return { toast: 'That response is no longer available.' };
     }
-    p.scene = { view: 'dialogue', arg: d.id, arg2: node.id, arg3: `confirm:${choice.id}` };
+    player.scene = {
+      view: 'dialogue',
+      arg: dialogueDef.id,
+      arg2: node.id,
+      arg3: `confirm:${choice.id}`,
+    };
     return {};
   }
-  return applyChoice(p, d, choice.id);
+  return applyChoice(player, dialogueDef, choice.id);
 }
 
 /** Applies a choice through the ONE central engine operation (#126/#130) —
@@ -550,31 +573,33 @@ export function dialogueAction(p: PlayerState, cb: Cb & { v: 'dlg' }): MutationR
  * the next beat (or back to the topic menu when the conversation ends).
  * Notice lines flow through the normal banner. */
 function applyChoice(
-  p: PlayerState,
-  d: DialogueDef,
+  player: PlayerState,
+  dialogueDef: DialogueDef,
   choiceId: string,
 ): MutationResult {
-  const result = applyDialogueChoice(p, { choiceId, now: Date.now() });
+  const result = applyDialogueChoice(player, { choiceId, now: Date.now() });
   if (!result.ok) return { toast: result.refusal };
-  p.notices = [...p.notices, ...result.lines];
+  player.notices = [...player.notices, ...result.lines];
   if (result.nextNodeId) {
     // The transition into the next beat may itself carry effects (#127).
-    enterDialogueNode(p, d, result.nextNodeId);
+    enterDialogueNode(player, dialogueDef, result.nextNodeId);
   } else {
     // The conversation concluded on this choice — back to the topics.
-    p.scene = npcInZone(p.currentZone, d.npcId) ? { view: 'npc', arg: d.npcId } : { view: 'zone' };
+    player.scene = npcInZone(player.currentZone, dialogueDef.npcId)
+      ? { view: 'npc', arg: dialogueDef.npcId }
+      : { view: 'zone' };
   }
   return {};
 }
 
-export function deathAction(p: PlayerState): MutationResult {
-  const line = applyDeath(p);
-  p.battle = undefined;
+export function deathAction(player: PlayerState): MutationResult {
+  const line = applyDeath(player);
+  player.battle = undefined;
   // Defeat always ends the crossing (#159): the journey clears and the
   // player wakes wherever the death flow left them.
-  p.journey = undefined;
-  p.notices = [line, "You gather yourself. Roads end; dawns don't."];
-  p.scene = { view: 'zone' };
+  player.journey = undefined;
+  player.notices = [line, "You gather yourself. Roads end; dawns don't."];
+  player.scene = { view: 'zone' };
   return {};
 }
 
@@ -588,9 +613,9 @@ export function pickClass(
   userId: number,
   name: string,
 ): PlayerState | undefined {
-  const cid = CLASS_IDS.find((c) => c === cb.arg);
-  if (!cid) return undefined;
-  const fresh = createPlayer(userId, name, cid);
+  const classId = CLASS_IDS.find((id) => id === cb.arg);
+  if (!classId) return undefined;
+  const fresh = createPlayer(userId, name, classId);
   syncAvailability(fresh);
   return fresh;
 }
@@ -603,25 +628,25 @@ export function pickClass(
  * A new meta action must choose its renderer in this switch and its
  * precondition here, at compile time. */
 export function metaAction(
-  p: PlayerState,
+  player: PlayerState,
   cb: Extract<Cb, { v: 'meta'; a: 'help' | 'reset' | 'resetNo' }>,
 ): PlayerState {
   switch (cb.a) {
     case 'help':
-      p.scene = { view: 'help' };
-      return p;
+      player.scene = { view: 'help' };
+      return player;
     case 'reset':
       // Stage the confirmation — nothing is destroyed here (#19).
-      p.scene = { view: 'reset' };
-      return p;
+      player.scene = { view: 'reset' };
+      return player;
     case 'resetNo':
       // Cancel: resume whatever was live — a pending fight stays a fight,
       // a pending crossing stays a crossing.
-      p.scene = p.battle
-        ? { view: p.battle.phase === 'lost' ? 'death' : 'battle' }
-        : p.journey
+      player.scene = player.battle
+        ? { view: player.battle.phase === 'lost' ? 'death' : 'battle' }
+        : player.journey
         ? { view: 'journey' }
         : { view: 'zone' };
-      return p;
+      return player;
   }
 }

@@ -11,12 +11,12 @@ import { STARTING_ZONES, zone, ZONES } from '../content/zones.ts';
 import { temperBonusOf } from './forge.ts';
 
 export function createPlayer(userId: number, name: string, classId: ClassId): PlayerState {
-  const c = CLASSES[classId];
+  const classDef = CLASSES[classId];
   // Equipped gear lives ONLY in equipment slots — bag copies would double
   // it in derived stats and let players sell their own shirt twice.
-  const inv = Object.entries(c.startingItems).map(([id, qty]) => ({ id, qty }));
+  const inv = Object.entries(classDef.startingItems).map(([id, qty]) => ({ id, qty }));
   const now = Date.now();
-  const p: PlayerState = {
+  const player: PlayerState = {
     userId,
     name,
     classId,
@@ -26,7 +26,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     hp: 0,
     mp: 0,
     inventory: inv,
-    equipment: { weapon: c.startingGear.weapon, armor: c.startingGear.armor },
+    equipment: { weapon: classDef.startingGear.weapon, armor: classDef.startingGear.armor },
     quests: {},
     unlockedZones: [...STARTING_ZONES],
     currentZone: 'emberdawn',
@@ -40,7 +40,7 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
     storyEvents: [],
     questOutcomes: {},
     storyReceipts: [],
-    skills: skillsForClass(classId, 1).map((sk) => sk.id),
+    skills: skillsForClass(classId, 1).map((skillDef) => skillDef.id),
     scene: { view: 'zone' },
     notices: [],
     uiRev: 0,
@@ -49,13 +49,13 @@ export function createPlayer(userId: number, name: string, classId: ClassId): Pl
   };
   // Starting pools come from the SAME canonical aggregation gameplay uses —
   // never a hand-rolled stat merge (that once under-counted Cleric HP).
-  const s = statsOf(p);
-  p.hp = s.maxHp;
-  p.mp = s.maxMp;
-  return p;
+  const derived = statsOf(player);
+  player.hp = derived.maxHp;
+  player.mp = derived.maxMp;
+  return player;
 }
 
-function equippedGearStats(p: PlayerState): {
+function equippedGearStats(player: PlayerState): {
   atk?: number;
   def?: number;
   mag?: number;
@@ -71,31 +71,31 @@ function equippedGearStats(p: PlayerState): {
   // slot's temper can no longer bleed into other gear.
   const addTempered = (itemId: string | undefined): void => {
     if (!itemId) return;
-    const s = itemStats(itemId);
-    if (!s) return;
-    const tb = temperBonusOf(p, itemId);
-    for (const [k, v] of Object.entries(s)) {
-      let val = v ?? 0;
-      if (tb > 0 && val > 0) val = Math.round(val * (1 + tb));
-      acc[k] = (acc[k] ?? 0) + val;
+    const stats = itemStats(itemId);
+    if (!stats) return;
+    const bonus = temperBonusOf(player, itemId);
+    for (const [statKey, statValue] of Object.entries(stats)) {
+      let val = statValue ?? 0;
+      if (bonus > 0 && val > 0) val = Math.round(val * (1 + bonus));
+      acc[statKey] = (acc[statKey] ?? 0) + val;
     }
   };
-  addTempered(p.equipment.weapon);
-  addTempered(p.equipment.armor);
-  addTempered(p.equipment.trinket);
+  addTempered(player.equipment.weapon);
+  addTempered(player.equipment.armor);
+  addTempered(player.equipment.trinket);
   return acc;
 }
 
-export function statsOf(p: PlayerState): DerivedStats {
-  return derivedStats(p.classId, p.level, equippedGearStats(p));
+export function statsOf(player: PlayerState): DerivedStats {
+  return derivedStats(player.classId, player.level, equippedGearStats(player));
 }
 
 /** Keeps current pools within derived maximums — call after any equipment
  * change, so swapping away +HP/+MP gear can't leave you over-capped. */
-export function clampPools(p: PlayerState): void {
-  const s = statsOf(p);
-  p.hp = Math.min(p.hp, s.maxHp);
-  p.mp = Math.min(p.mp, s.maxMp);
+export function clampPools(player: PlayerState): void {
+  const maxStats = statsOf(player);
+  player.hp = Math.min(player.hp, maxStats.maxHp);
+  player.mp = Math.min(player.mp, maxStats.maxMp);
 }
 
 /** Current save-schema version. Pre-launch this is the ONLY supported shape:
@@ -139,8 +139,8 @@ export class SaveTooOldError extends Error {
  * upgrade path — they are refused untouched and the player is directed to
  * /reset; never normalize, infer, repair, backfill or stamp a non-current save.
  * Saves from newer binaries are refused too: never downgrade. */
-export function assertSupportedSaveVersion(p: PlayerState): void {
-  const from = p.stateVersion;
+export function assertSupportedSaveVersion(player: PlayerState): void {
+  const from = player.stateVersion;
   if (typeof from !== 'number' || from < CURRENT_STATE_VERSION) {
     throw new SaveTooOldError(typeof from === 'number' ? from : undefined);
   }
@@ -166,9 +166,9 @@ export function xpRewardLabel(level: number, xp: number): string {
   return level >= MAX_LEVEL ? `✨ ${xp} XP → +${xpToGoldAtCap(xp)} gold` : `✨ +${xp} XP`;
 }
 
-export function grantXp(p: PlayerState, xp: number): string[] {
+export function grantXp(player: PlayerState, xp: number): string[] {
   const msgs: string[] = [];
-  if (p.level >= MAX_LEVEL) {
+  if (player.level >= MAX_LEVEL) {
     // Postgame: XP has nowhere to go, so the Flame converts valor to gold —
     // endgame kills and quests keep paying instead of silently vanishing.
     // Rate pinned at ceil(xp / 8): the conversion ≈ the kill's own direct
@@ -176,31 +176,31 @@ export function grantXp(p: PlayerState, xp: number): string[] {
     // tripling (inflation review, #14).
     if (xp <= 0) return msgs;
     const gold = xpToGoldAtCap(xp);
-    p.gold += gold;
+    player.gold += gold;
     return [`✨ The Flame converts your valor: +${gold} gold (XP means nothing at the summit).`];
   }
-  p.xp += xp;
-  while (p.level < MAX_LEVEL && p.xp >= xpForNextLevel(p.level)) {
-    p.xp -= xpForNextLevel(p.level);
-    p.level++;
-    const s = statsOf(p);
-    if (!p.dungeonRun) {
-      p.hp = s.maxHp;
-      p.mp = s.maxMp;
+  player.xp += xp;
+  while (player.level < MAX_LEVEL && player.xp >= xpForNextLevel(player.level)) {
+    player.xp -= xpForNextLevel(player.level);
+    player.level++;
+    const derived = statsOf(player);
+    if (!player.dungeonRun) {
+      player.hp = derived.maxHp;
+      player.mp = derived.maxMp;
     }
-    msgs.push(`⬆️ Level up! You are now level ${p.level}.`);
-    const learned = skillsLearnedAt(p.classId, p.level);
-    for (const sk of learned) {
-      p.skills.push(sk.id);
-      msgs.push(`📖 New skill learned: ${sk.name}.`);
+    msgs.push(`⬆️ Level up! You are now level ${player.level}.`);
+    const learned = skillsLearnedAt(player.classId, player.level);
+    for (const skill of learned) {
+      player.skills.push(skill.id);
+      msgs.push(`📖 New skill learned: ${skill.name}.`);
     }
   }
-  if (p.level >= MAX_LEVEL) p.xp = 0;
+  if (player.level >= MAX_LEVEL) player.xp = 0;
   return msgs;
 }
 
-export function xpProgress(p: PlayerState): { current: number; needed: number } {
-  return { current: p.xp, needed: xpForNextLevel(p.level) };
+export function xpProgress(player: PlayerState): { current: number; needed: number } {
+  return { current: player.xp, needed: xpForNextLevel(player.level) };
 }
 
 /** Applies death penalties; the player wakes at their LAST reached safe
@@ -209,17 +209,17 @@ export function xpProgress(p: PlayerState): { current: number; needed: number } 
  * partial revive is one free walk out and back — friction, not a penalty.
  * The real costs are the gold loss and losing your place (the active
  * dungeon run is abandoned; the road back costs its event rolls). */
-export function applyDeath(p: PlayerState): string {
-  delete p.dungeonRun;
-  p.stats.deaths++;
-  const lost = Math.floor(p.gold * 0.1);
-  p.gold -= lost;
-  const s = statsOf(p);
-  p.hp = s.maxHp;
-  p.mp = s.maxMp;
-  const haven = zone(p.respawnHaven)?.safeHaven ? p.respawnHaven : 'emberdawn';
-  p.currentZone = haven;
-  const name = ZONES.find((z) => z.id === haven)?.name ?? 'a safe haven';
+export function applyDeath(player: PlayerState): string {
+  delete player.dungeonRun;
+  player.stats.deaths++;
+  const lost = Math.floor(player.gold * 0.1);
+  player.gold -= lost;
+  const derived = statsOf(player);
+  player.hp = derived.maxHp;
+  player.mp = derived.maxMp;
+  const haven = zone(player.respawnHaven)?.safeHaven ? player.respawnHaven : 'emberdawn';
+  player.currentZone = haven;
+  const name = ZONES.find((zoneDef) => zoneDef.id === haven)?.name ?? 'a safe haven';
   return lost > 0
     ? `💀 You black out and wake at ${name}. ${lost} gold slipped from your pockets.`
     : `💀 You black out and wake at ${name}, somehow poorer in spirit only.`;

@@ -44,7 +44,11 @@ manifest.
   [design-decisions skill](../.agents/skills/emberdawn-design-decisions/SKILL.md).
 - **Test expectations remain independent.** Share identical setup and name coherent content crawls,
   but retain explicit assertions and useful failure context. Do not calculate expected values with
-  the same production operation under test just to eliminate a clone.
+- **Descriptive domain naming.** Variable names must be descriptive and reveal intent; avoid
+  single-letter domain variables (`p`, `b`, `q`, etc.) across engine, handlers, renderers, and tests
+  in favor of descriptive identifiers (`player`, `battle`, `questDef`). Telegram `callback_data`
+  wire keys and compact 1–3 line loop counters remain exempt. See
+  [#217](https://github.com/KnightNiwrem/tg-emberdawn/issues/217).
 
 Fallow's `static_estimated` coverage describes dependency paths, not executed branches or meaningful
 assertions. Use Deno coverage and inspect the tests before proposing coverage work. For example,
@@ -73,6 +77,7 @@ cleanup was excluded from this work.
 | [#214](https://github.com/KnightNiwrem/tg-emberdawn/issues/214) | The CLI matrix has direct coverage of representative policy cells, eligibility boundaries, boss gear comparisons, finite metrics, and seeded repeatability.                 |
 | [#215](https://github.com/KnightNiwrem/tg-emberdawn/issues/215) | Bag, equipped-item, and shop details share Sources/Uses subview selection after their existing item-context checks.                                                         |
 | [#216](https://github.com/KnightNiwrem/tg-emberdawn/issues/216) | Equipment tests share identical poison-plus-stun setup; narrow and broad HP-damage triggers retain separate assertions.                                                     |
+| [#217](https://github.com/KnightNiwrem/tg-emberdawn/issues/217) | Domain and test variable names use descriptive terms rather than single-letter abbreviations, keeping wire callbacks exempt.                                                |
 
 The follow-up review used Fallow 3.22.0 at `3095cde`. It reported 28 dependency/export findings: 24
 unused exports and one unused type retained under #185, plus the three Deno dependency false

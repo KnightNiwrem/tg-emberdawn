@@ -36,58 +36,58 @@ export interface ResolvedRoute {
 
 /** First-match variant selection in AUTHORED order; the base plan is
  * always the fallback. Pure and deterministic. */
-export function resolveRoute(p: PlayerState, r: RouteDef): ResolvedRoute {
-  const variant = (r.variants ?? []).find((v) => !v.when || evalCondition(p, v.when));
+export function resolveRoute(player: PlayerState, route: RouteDef): ResolvedRoute {
+  const variant = (route.variants ?? []).find((v) => !v.when || evalCondition(player, v.when));
   if (!variant) {
     return {
-      edgeId: r.id,
+      edgeId: route.id,
       variantId: 'base',
-      from: r.from,
-      to: r.to,
-      eventCount: r.eventCount,
-      events: r.events ?? [],
-      ...(r.name !== undefined ? { name: r.name } : {}),
-      ...(r.desc !== undefined ? { desc: r.desc } : {}),
-      ...(r.risk !== undefined ? { risk: r.risk } : {}),
+      from: route.from,
+      to: route.to,
+      eventCount: route.eventCount,
+      events: route.events ?? [],
+      ...(route.name !== undefined ? { name: route.name } : {}),
+      ...(route.desc !== undefined ? { desc: route.desc } : {}),
+      ...(route.risk !== undefined ? { risk: route.risk } : {}),
     };
   }
   return {
-    edgeId: r.id,
+    edgeId: route.id,
     variantId: variant.id,
-    from: r.from,
-    to: r.to,
+    from: route.from,
+    to: route.to,
     eventCount: variant.eventCount,
-    events: variant.events ?? r.events ?? [],
+    events: variant.events ?? route.events ?? [],
     ...(variant.name !== undefined
       ? { name: variant.name }
-      : r.name !== undefined
-      ? { name: r.name }
+      : route.name !== undefined
+      ? { name: route.name }
       : {}),
     ...(variant.desc !== undefined
       ? { desc: variant.desc }
-      : r.desc !== undefined
-      ? { desc: r.desc }
+      : route.desc !== undefined
+      ? { desc: route.desc }
       : {}),
     ...(variant.risk !== undefined
       ? { risk: variant.risk }
-      : r.risk !== undefined
-      ? { risk: r.risk }
+      : route.risk !== undefined
+      ? { risk: route.risk }
       : {}),
   };
 }
 
 /** Resolved plan of one edge by id — undefined when the edge is unknown. */
-export function resolveRouteById(p: PlayerState, edgeId: string): ResolvedRoute | undefined {
-  const r = edgeRoute(edgeId);
-  return r ? resolveRoute(p, r) : undefined;
+export function resolveRouteById(player: PlayerState, edgeId: string): ResolvedRoute | undefined {
+  const route = edgeRoute(edgeId);
+  return route ? resolveRoute(player, route) : undefined;
 }
 
 /** Route availability (#158): the edge's base condition passes and the
  * resolved plan is usable (a nonzero event count resolves to a non-empty
  * table). Destination unlock state is checked by the callers that
  * enumerate or depart. */
-export function routeUsable(p: PlayerState, r: RouteDef): boolean {
-  return departureCheck(p, r.id).ok;
+export function routeUsable(player: PlayerState, route: RouteDef): boolean {
+  return departureCheck(player, route.id).ok;
 }
 
 /** The ONE authoritative departure resolver (#168): pure over the live
@@ -103,23 +103,23 @@ export type DepartureCheck =
   | { ok: true; plan: ResolvedRoute }
   | { ok: false; refusal: string };
 
-export function departureCheck(p: PlayerState, edgeId: string): DepartureCheck {
-  const r = edgeRoute(edgeId);
-  if (!r) return { ok: false, refusal: "You can't find a road to there." };
-  if (r.from !== p.currentZone) {
+export function departureCheck(player: PlayerState, edgeId: string): DepartureCheck {
+  const route = edgeRoute(edgeId);
+  if (!route) return { ok: false, refusal: "You can't find a road to there." };
+  if (route.from !== player.currentZone) {
     return { ok: false, refusal: '🚫 That road does not start here.' };
   }
-  if (!p.unlockedZones.includes(r.to)) {
+  if (!player.unlockedZones.includes(route.to)) {
     return { ok: false, refusal: '🚫 That path is still closed to you.' };
   }
   // The top-level route condition (#168): the same gate the travel UI's
   // enumeration applies — a gated road is undepartable from ANY surface
   // while its condition stands, and opens the moment the condition turns
   // true.
-  if (r.when && !evalCondition(p, r.when)) {
+  if (route.when && !evalCondition(player, route.when)) {
     return { ok: false, refusal: '🚫 That path is still closed to you.' };
   }
-  const plan = resolveRoute(p, r);
+  const plan = resolveRoute(player, route);
   if (plan.eventCount > 0 && plan.events.length === 0) {
     return { ok: false, refusal: '🚫 That road cannot be crossed right now.' };
   }
@@ -131,8 +131,8 @@ export function departureCheck(p: PlayerState, edgeId: string): DepartureCheck {
  * passing conditions. The travel UI enumerates exactly this — never every
  * unlocked zone. The enumeration IS the departure authority's own filter,
  * so what is displayed is exactly what startJourney will accept. */
-export function usableRoutesFrom(p: PlayerState): RouteDef[] {
-  return routesFrom(p.currentZone).filter((r) => departureCheck(p, r.id).ok);
+export function usableRoutesFrom(player: PlayerState): RouteDef[] {
+  return routesFrom(player.currentZone).filter((route) => departureCheck(player, route.id).ok);
 }
 
 /** All edges joining two zones in one direction (thin re-export so the

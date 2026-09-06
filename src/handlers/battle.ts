@@ -21,60 +21,60 @@ import type { MutationResult } from './session.ts';
  * hooks, dungeon bookkeeping), defeat to the death view; 'ongoing' simply
  * enters the fight. */
 export function enterBattle(
-  p: PlayerState,
-  b: NonNullable<PlayerState['battle']>,
+  player: PlayerState,
+  battle: NonNullable<PlayerState['battle']>,
   outcome: BattleOutcome,
   intro: string[],
 ): MutationResult {
-  p.battle = b;
+  player.battle = battle;
   if (outcome === 'victory') {
     // The opening log IS the terminal round's record (#67): notices carry
     // only the victory RESOLUTION, never a faked round.
-    p.notices = [...intro, ...resolveVictory(p, b)];
+    player.notices = [...intro, ...resolveVictory(player, battle)];
     // A travel-provenance victory completes its pending event at ONE
     // clearly owned point (#159); the journey resumes on Continue.
-    if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
-    b.phase = 'won';
-    p.scene = { view: 'battle' };
+    if (battle.origin.kind === 'travel') completeTravelBattleEvent(player);
+    battle.phase = 'won';
+    player.scene = { view: 'battle' };
     return {};
   }
   if (outcome === 'defeat') {
-    b.phase = 'lost';
-    p.scene = { view: 'death' };
-    p.notices = intro;
+    battle.phase = 'lost';
+    player.scene = { view: 'death' };
+    player.notices = intro;
     return {};
   }
-  p.scene = { view: 'battle' };
-  p.notices = intro;
+  player.scene = { view: 'battle' };
+  player.notices = intro;
   return {};
 }
 
 /** Resumes the crossing after a travel battle's Continue (#159): the next
  * event rolls resolve, or the final arrival lands. */
-function resumeJourney(p: PlayerState): MutationResult {
-  return applyJourneyStep(p, advanceJourney(p));
+function resumeJourney(player: PlayerState): MutationResult {
+  return applyJourneyStep(player, advanceJourney(player));
 }
 
 /** Applies an already-resolved coordinator result (#179); never rolls or
  * advances a journey, and never owns departure authorization. */
-export function applyJourneyStep(p: PlayerState, step: JourneyStep): MutationResult {
+export function applyJourneyStep(player: PlayerState, step: JourneyStep): MutationResult {
   if (step.kind === 'battle') {
-    return enterBattle(p, step.battle, step.outcome, [step.line]);
+    return enterBattle(player, step.battle, step.outcome, [step.line]);
   }
   if (step.kind === 'arrived') {
-    p.notices = step.lines;
-    p.scene = { view: 'zone' };
+    player.notices = step.lines;
+    player.scene = { view: 'zone' };
     return {};
   }
-  p.scene = { view: 'journey' };
+  player.scene = { view: 'journey' };
   return {};
 }
 
 /** Runs one player action and resolves the round. */
-export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): MutationResult {
-  const b = p.battle;
-  if (!b) {
-    p.scene = { view: 'zone' };
+export function battleAction(player: PlayerState, cb: Cb & { v: 'battle' }): MutationResult {
+  const battle = player.battle;
+  if (!battle) {
+    player.scene = { view: 'zone' };
     return {};
   }
 
@@ -82,42 +82,44 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // The guided prologue (#69) routes its victory Continue through the
   // release instead: tutorial done, hub unlocked, next steps surfaced.
   if (cb.a === 'go') {
-    if (b.phase === 'active') {
+    if (battle.phase === 'active') {
       // "go" doubles as back-from-submenu while the fight is live.
-      p.scene = { view: 'battle' };
+      player.scene = { view: 'battle' };
       return {};
     }
-    const won = b.phase === 'won';
-    const wasTravel = b.origin.kind === 'travel';
-    p.battle = undefined;
-    if (won && p.tutorial === 'fight') {
-      p.tutorial = 'done';
-      p.scene = { view: 'zone' };
-      p.notices = tutorialRelease();
+    const won = battle.phase === 'won';
+    const wasTravel = battle.origin.kind === 'travel';
+    player.battle = undefined;
+    if (won && player.tutorial === 'fight') {
+      player.tutorial = 'done';
+      player.scene = { view: 'zone' };
+      player.notices = tutorialRelease();
       return {};
     }
     // A travel battle's Continue resumes the exact pending crossing (#159):
     // mid-crossing it offers the stable journey intermission (report +
     // continue/retreat/supplies); after the LAST event it lands the final
     // arrival through the one coordinator.
-    if (won && wasTravel && p.journey) {
-      if (p.journey.completedEvents >= p.journey.totalEvents) return resumeJourney(p);
-      p.scene = { view: 'journey' };
+    if (won && wasTravel && player.journey) {
+      if (player.journey.completedEvents >= player.journey.totalEvents) {
+        return resumeJourney(player);
+      }
+      player.scene = { view: 'journey' };
       return {};
     }
-    p.scene = { view: 'zone' };
+    player.scene = { view: 'zone' };
     return {};
   }
   if (cb.a === 'sk') {
-    p.scene = { view: 'battleSkills' };
+    player.scene = { view: 'battleSkills' };
     return {};
   }
   if (cb.a === 'it') {
-    p.scene = { view: 'battleItems' };
+    player.scene = { view: 'battleItems' };
     return {};
   }
 
-  if (b.phase !== 'active') return { toast: 'The battle is already over.' };
+  if (battle.phase !== 'active') return { toast: 'The battle is already over.' };
 
   // The navigation actions (go/sk/it) returned above — only combat actions
   // remain, so the switch is exhaustive with no silent default (#58).
@@ -140,50 +142,50 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
     }
   }
 
-  const res = performAction(p, b, action);
-  const lines = [...res.lines];
-  const phase = b.phase as BattlePhase;
+  const result = performAction(player, battle, action);
+  const lines = [...result.lines];
+  const phase = battle.phase as BattlePhase;
 
-  if (res.outcome === 'fled' || phase === 'fled') {
-    p.battle = undefined;
+  if (result.outcome === 'fled' || phase === 'fled') {
+    player.battle = undefined;
     // A successful flee (or Smoke Bomb) from a travel fight ABORTS the
     // crossing (#159/#160): battle and journey clear, the player stays at
     // the edge origin, earned rewards remain.
-    if (b.origin.kind === 'travel') p.journey = undefined;
-    if (b.origin.kind === 'dungeon') p.dungeonRun = undefined;
-    p.scene = { view: 'zone' };
-    p.notices = lines;
+    if (battle.origin.kind === 'travel') player.journey = undefined;
+    if (battle.origin.kind === 'dungeon') player.dungeonRun = undefined;
+    player.scene = { view: 'zone' };
+    player.notices = lines;
     return {};
   }
 
-  // Victory resolution — the ENGINE adjudicated (#86): res.outcome decides
+  // Victory resolution — the ENGINE adjudicated (#86): result.outcome decides
   // the terminal state, never a handler HP re-check (mutual KO is
   // structurally impossible, so there is no check-order ambiguity).
   // Victory is routed through resolveVictory so the battle's origin
   // (explore/elite/dungeon/travel) decides rewards, quest hooks and
   // bookkeeping.
-  if (res.outcome === 'victory') {
+  if (result.outcome === 'victory') {
     // The kill round lives in battle.history as the terminal round (#67) —
     // notices carry only the victory RESOLUTION (defeat line, level-ups,
     // drops, dungeon bookkeeping), never the round itself and never an
     // XP/gold headline: rewards render once as Spoils from b.rewards (#40).
-    p.notices = [...resolveVictory(p, b)];
+    player.notices = [...resolveVictory(player, battle)];
     // A travel-provenance victory completes its pending event at ONE
     // clearly owned point (#159); Continue resumes the crossing.
-    if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
+    if (battle.origin.kind === 'travel') completeTravelBattleEvent(player);
     // Guided prologue (#69): the deterministic ember reward lands exactly
     // once (flag-guarded) and lifts every hero to level 2 before release.
-    if (p.tutorial === 'fight') p.notices.push(...grantTutorialReward(p));
-    b.phase = 'won';
-    p.scene = { view: 'battle' };
+    if (player.tutorial === 'fight') player.notices.push(...grantTutorialReward(player));
+    battle.phase = 'won';
+    player.scene = { view: 'battle' };
     return {};
   }
 
   // Defeat resolution
-  if (res.outcome === 'defeat') {
-    b.phase = 'lost';
-    p.scene = { view: 'death' };
-    p.notices = lines;
+  if (result.outcome === 'defeat') {
+    battle.phase = 'lost';
+    player.scene = { view: 'death' };
+    player.notices = lines;
     return {};
   }
 
@@ -192,61 +194,63 @@ export function battleAction(p: PlayerState, cb: Cb & { v: 'battle' }): Mutation
   // actions (no turn consumed, no enemy phase) never reach the log, so
   // they keep their feedback. The prologue coaches on every consumed turn
   // (#69): one concept at a time replaces the empty banner.
-  p.notices = res.consumedTurn ? [] : lines;
-  if (p.tutorial === 'fight' && res.consumedTurn) coachTutorial(p);
-  p.scene = { view: 'battle' };
+  player.notices = result.consumedTurn ? [] : lines;
+  if (player.tutorial === 'fight' && result.consumedTurn) coachTutorial(player);
+  player.scene = { view: 'battle' };
   return {};
 }
 
-function isConsumable(id: string): boolean {
-  return item(id)?.kind === 'consumable';
+function isConsumable(itemId: string): boolean {
+  return item(itemId)?.kind === 'consumable';
 }
 
 /** Non-battle item actions (inventory view). Selling left the generic
  * inventory (#161): it happens only at a shop's counter — the codec can
  * no longer even express a bag-side sale. */
 export function itemAction(
-  p: PlayerState,
-  op: 'u' | 'eq' | 'drop',
+  player: PlayerState,
+  operation: 'u' | 'eq' | 'drop',
   itemId: string,
 ): MutationResult {
-  if (op === 'u') {
-    const res = useRecoveryItem(p, itemId);
-    if (!res.ok) return { toast: res.lines[0] };
-    p.notices = res.lines;
+  if (operation === 'u') {
+    const result = useRecoveryItem(player, itemId);
+    if (!result.ok) return { toast: result.lines[0] };
+    player.notices = result.lines;
     // #112: re-rendering the detail keeps its origin context so Back still
     // returns where the player came from.
-    p.scene = {
+    player.scene = {
       view: 'item',
       arg: itemId,
-      ...(p.scene.view === 'item' && p.scene.arg2 !== undefined ? { arg2: p.scene.arg2 } : {}),
+      ...(player.scene.view === 'item' && player.scene.arg2 !== undefined
+        ? { arg2: player.scene.arg2 }
+        : {}),
     };
     return {};
   }
-  if (op === 'eq') {
-    const check = isEquippable(itemId, p.classId, p.level);
+  if (operation === 'eq') {
+    const check = isEquippable(itemId, player.classId, player.level);
     if (!check.ok) return { toast: check.reason };
-    const def = item(itemId)!;
-    const slot = def.kind as 'weapon' | 'armor' | 'trinket';
-    const prev = p.equipment[slot];
+    const itemDef = item(itemId)!;
+    const slot = itemDef.kind as 'weapon' | 'armor' | 'trinket';
+    const previousEquipped = player.equipment[slot];
     // Ownership is verified by the engine, not the UI: removeItem must
     // actually take a copy from the bag before anything is equipped.
-    if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
-    if (prev) addItem(p, prev, 1);
-    p.equipment[slot] = itemId;
+    if (!removeItem(player, itemId, 1)) return { toast: "You don't have that." };
+    if (previousEquipped) addItem(player, previousEquipped, 1);
+    player.equipment[slot] = itemId;
     // Swapping gear can lower max HP/MP — never leave pools over cap.
-    clampPools(p);
-    p.notices = [`⚔️ Equipped ${def.name}.`];
-    p.scene = { view: 'equipment' };
+    clampPools(player);
+    player.notices = [`⚔️ Equipped ${itemDef.name}.`];
+    player.scene = { view: 'equipment' };
     return {};
   }
-  if (op === 'drop') {
-    const def = item(itemId);
-    if (def?.kind === 'quest') return { toast: "That isn't yours to throw away." };
-    if (def?.unique) return { toast: "You've earned that — it stays with you." };
-    if (!removeItem(p, itemId, 1)) return { toast: "You don't have that." };
-    p.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
-    p.scene = { view: 'inventory', arg: '0' };
+  if (operation === 'drop') {
+    const itemDef = item(itemId);
+    if (itemDef?.kind === 'quest') return { toast: "That isn't yours to throw away." };
+    if (itemDef?.unique) return { toast: "You've earned that — it stays with you." };
+    if (!removeItem(player, itemId, 1)) return { toast: "You don't have that." };
+    player.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
+    player.scene = { view: 'inventory', arg: '0' };
     return {};
   }
   // The switch is exhaustive ('u' | 'eq' | 'drop' all returned above).

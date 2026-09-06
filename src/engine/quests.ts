@@ -17,44 +17,46 @@ import { npc, npcInZone } from '../content/quests.ts';
 import { evalCondition } from './conditions.ts';
 import { JOURNEY_BLOCK } from './routes.ts';
 
-function progress(p: PlayerState, id: string): QuestProgress {
-  let q = p.quests[id];
-  if (!q) {
-    q = { status: 'unavailable', counts: [] };
-    p.quests[id] = q;
+function progress(player: PlayerState, id: string): QuestProgress {
+  let questProgress = player.quests[id];
+  if (!questProgress) {
+    questProgress = { status: 'unavailable', counts: [] };
+    player.quests[id] = questProgress;
   }
-  return q;
+  return questProgress;
 }
 
 /** Story eligibility shared by availability and level-locked guidance.
  * Level stays separate so the journal can explain an unmet level gate. */
-function storyEligible(p: PlayerState, q: QuestDef): boolean {
-  return !questExcluded(p, q.id) && (!q.prereq || evalCondition(p, q.prereq));
+function storyEligible(player: PlayerState, questDef: QuestDef): boolean {
+  return !questExcluded(player, questDef.id) &&
+    (!questDef.prereq || evalCondition(player, questDef.prereq));
 }
 
 /** Permanent quest resolutions (#125): a locked or failed quest can never
  * become available again — availability synchronization may not resurrect
  * it, whatever its ordinary prerequisites say. */
-export function questExcluded(p: PlayerState, questId: string): boolean {
-  const kind = p.questOutcomes[questId]?.kind;
+export function questExcluded(player: PlayerState, questId: string): boolean {
+  const kind = player.questOutcomes[questId]?.kind;
   return kind === 'locked' || kind === 'failed';
 }
 
 /** Recomputes availability for every quest; returns ids newly available. */
-export function syncAvailability(p: PlayerState): string[] {
+export function syncAvailability(player: PlayerState): string[] {
   const newly: string[] = [];
-  for (const q of QUESTS) {
-    const cur = p.quests[q.id]?.status;
+  for (const questDef of QUESTS) {
+    const cur = player.quests[questDef.id]?.status;
     if (
-      (cur === undefined || cur === 'unavailable') && storyEligible(p, q) && p.level >= q.level
+      (cur === undefined || cur === 'unavailable') && storyEligible(player, questDef) &&
+      player.level >= questDef.level
     ) {
-      progress(p, q.id).status = 'available';
-      newly.push(q.id);
+      progress(player, questDef.id).status = 'available';
+      newly.push(questDef.id);
     }
   }
   // Pre-owned collectibles can complete a quest the moment it becomes
   // available; without this it sits unready until the next event hook.
-  refreshProgress(p);
+  refreshProgress(player);
   return newly;
 }
 
@@ -63,12 +65,12 @@ export function syncAvailability(p: PlayerState): string[] {
  * log names it during grind gaps — without an accept path. undefined while
  * the story itself still gates the next quest (never reveal it early) and
  * when the campaign is complete. */
-export function levelLockedMain(p: PlayerState): QuestDef | undefined {
-  for (const q of QUESTS) {
-    if (!q.main) continue;
-    if ((p.quests[q.id]?.status ?? 'unavailable') === 'done') continue;
-    if (!storyEligible(p, q)) return undefined;
-    return p.level >= q.level ? undefined : q;
+export function levelLockedMain(player: PlayerState): QuestDef | undefined {
+  for (const questDef of QUESTS) {
+    if (!questDef.main) continue;
+    if ((player.quests[questDef.id]?.status ?? 'unavailable') === 'done') continue;
+    if (!storyEligible(player, questDef)) return undefined;
+    return player.level >= questDef.level ? undefined : questDef;
   }
   return undefined;
 }
@@ -97,44 +99,47 @@ function contactRefusal(
  * direct acceptance (acceptQuest) and the story-effect start path so every
  * quest start reconciles identically. Returns the quests the start itself
  * just made turn-in-ready (#119). */
-export function beginQuest(p: PlayerState, id: string): string[] {
-  const q = quest(id);
-  const qp = progress(p, id);
-  qp.status = 'active';
-  qp.counts = q?.objectives.map(() => 0) ?? [];
-  for (const [i, o] of (q?.objectives ?? []).entries()) {
-    if (o.kind === 'reach' && (p.currentZone === o.target || p.flags[`zone_${o.target}`])) {
-      qp.counts[i] = 1;
+export function beginQuest(player: PlayerState, id: string): string[] {
+  const questDef = quest(id);
+  const questProgress = progress(player, id);
+  questProgress.status = 'active';
+  questProgress.counts = questDef?.objectives.map(() => 0) ?? [];
+  for (const [index, objective] of (questDef?.objectives ?? []).entries()) {
+    if (
+      objective.kind === 'reach' &&
+      (player.currentZone === objective.target || player.flags[`zone_${objective.target}`])
+    ) {
+      questProgress.counts[index] = 1;
     }
-    if (o.kind === 'storyEvent' && p.storyEvents.includes(o.target)) {
-      qp.counts[i] = 1;
+    if (objective.kind === 'storyEvent' && player.storyEvents.includes(objective.target)) {
+      questProgress.counts[index] = 1;
     }
   }
   // The start itself can complete the quest (#119): pre-owned goods, an
   // already-visited reach target or an already-fired story event flip it
   // ready on the spot.
-  return refreshProgress(p);
+  return refreshProgress(player);
 }
 
 export function acceptQuest(
-  p: PlayerState,
+  player: PlayerState,
   id: string,
   npcId: string,
 ): { ok: boolean; msg: string; lines: string[]; ready: string[] } {
-  const q = quest(id);
-  if (!q) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'], ready: [] };
+  const questDef = quest(id);
+  if (!questDef) return { ok: false, msg: 'Unknown quest.', lines: ['Unknown quest.'], ready: [] };
   // A live crossing owns the interaction flow (#166): quest business is a
   // zone-bound interaction — no contact can be made on the road.
-  if (p.journey || p.dungeonRun) {
-    const msg = p.dungeonRun ? DUNGEON_BLOCK : JOURNEY_BLOCK;
+  if (player.journey || player.dungeonRun) {
+    const msg = player.dungeonRun ? DUNGEON_BLOCK : JOURNEY_BLOCK;
     return { ok: false, msg, lines: [msg], ready: [] };
   }
   // Authority before status (#64): a wrong-NPC or wrong-zone attempt is
   // refused with guidance and never touches quest state.
-  const refusal = contactRefusal(p.currentZone, npcId, q.startNpc);
+  const refusal = contactRefusal(player.currentZone, npcId, questDef.startNpc);
   if (refusal) return { ok: false, msg: refusal, lines: [refusal], ready: [] };
-  const qp = progress(p, id);
-  if (qp.status !== 'available') {
+  const questProgress = progress(player, id);
+  if (questProgress.status !== 'available') {
     const msg = "That quest isn't available right now.";
     return { ok: false, msg, lines: [msg], ready: [] };
   }
@@ -142,33 +147,35 @@ export function acceptQuest(
   // already-visited reach target. Readiness stays STRUCTURED (#145) — ids,
   // never formatted sentences: inside a story transaction a later effect
   // may still revoke it, and only the reconciled final state is announced.
-  const ready = beginQuest(p, id);
-  const msg = `📜 Quest accepted: ${q.name}`;
+  const ready = beginQuest(player, id);
+  const msg = `📜 Quest accepted: ${questDef.name}`;
   return { ok: true, msg, lines: [msg], ready };
 }
 
 /** Live progress of one objective (collect objectives read the bag). */
 function objectiveProgress(
-  p: PlayerState,
-  qp: QuestProgress,
+  player: PlayerState,
+  questProgress: QuestProgress,
   obj: Objective,
   index: number,
 ): number {
-  if (obj.kind === 'collect') return Math.min(obj.count ?? 1, countOf(p, obj.target));
+  if (obj.kind === 'collect') return Math.min(obj.count ?? 1, countOf(player, obj.target));
   if (
     obj.kind === 'kill' || obj.kind === 'dungeon' || obj.kind === 'storyEvent' ||
     obj.kind === 'reach'
   ) {
-    return Math.min(obj.count ?? 1, qp.counts[index] ?? 0);
+    return Math.min(obj.count ?? 1, questProgress.counts[index] ?? 0);
   }
   return 0;
 }
 
-function questComplete(p: PlayerState, id: string): boolean {
-  const q = quest(id);
-  const qp = p.quests[id];
-  if (!q || !qp || qp.status !== 'active') return false;
-  return q.objectives.every((o, i) => objectiveProgress(p, qp, o, i) >= (o.count ?? 1));
+function questComplete(player: PlayerState, id: string): boolean {
+  const questDef = quest(id);
+  const questProgress = player.quests[id];
+  if (!questDef || !questProgress || questProgress.status !== 'active') return false;
+  return questDef.objectives.every((obj, idx) =>
+    objectiveProgress(player, questProgress, obj, idx) >= (obj.count ?? 1)
+  );
 }
 
 /** Call after any kill/reach/event; flips completed active quests to turnIn. */
@@ -177,15 +184,15 @@ function questComplete(p: PlayerState, id: string): boolean {
  * the result exactly once — the flip that readied it — and never again.
  * Exported for the story-effect layer (#125), which must reuse the SAME
  * transition authority instead of reimplementing readiness. */
-export function refreshQuestProgress(p: PlayerState): string[] {
-  return refreshProgress(p);
+export function refreshQuestProgress(player: PlayerState): string[] {
+  return refreshProgress(player);
 }
 
-function refreshProgress(p: PlayerState): string[] {
+function refreshProgress(player: PlayerState): string[] {
   const ready: string[] = [];
-  for (const [id, qp] of Object.entries(p.quests)) {
-    if (qp.status === 'active' && questComplete(p, id)) {
-      qp.status = 'turnIn';
+  for (const [id, questProgress] of Object.entries(player.quests)) {
+    if (questProgress.status === 'active' && questComplete(player, id)) {
+      questProgress.status = 'turnIn';
       ready.push(id);
     }
   }
@@ -214,16 +221,16 @@ export function questCancelledLine(id: string, kind: 'locked' | 'failed'): strin
 /** Item-acquisition hook for paths outside battle (shops, treasure):
  * collect objectives read the bag, so a purchase or cache can complete a
  * quest on the spot. Returns newly turn-in-ready quest ids. */
-export function onItemGain(p: PlayerState): string[] {
-  return refreshProgress(p);
+export function onItemGain(player: PlayerState): string[] {
+  return refreshProgress(player);
 }
 
 /** The ONE way to hand out items outside battle: grants, then refreshes
  * collect-objective readiness. Every gain site routes through here so no
  * source has to remember the quest hook. */
-export function grantItem(p: PlayerState, itemId: string, qty = 1): string[] {
-  addItem(p, itemId, qty);
-  return onItemGain(p);
+export function grantItem(player: PlayerState, itemId: string, qty = 1): string[] {
+  addItem(player, itemId, qty);
+  return onItemGain(player);
 }
 
 /** Whether a rolled enemy drop may enter the bag. Quest-kind items only
@@ -231,49 +238,56 @@ export function grantItem(p: PlayerState, itemId: string, qty = 1): string[] {
  * the bag holds fewer than the requirement — surplus keys/samples/emblems
  * can never pile up as permanent unsellable clutter (#2). Materials and
  * consumables are never capped. */
-export function questDropAllowed(p: PlayerState, itemId: string): boolean {
+export function questDropAllowed(player: PlayerState, itemId: string): boolean {
   if (item(itemId)?.kind !== 'quest') return true;
   let cap = 0;
-  for (const q of QUESTS) {
-    const st = p.quests[q.id]?.status;
-    if (st !== 'available' && st !== 'active' && st !== 'turnIn') continue;
-    for (const o of q.objectives) {
-      if (o.kind === 'collect' && o.target === itemId) {
-        cap = Math.max(cap, o.count ?? 1);
+  for (const questDef of QUESTS) {
+    const status = player.quests[questDef.id]?.status;
+    if (status !== 'available' && status !== 'active' && status !== 'turnIn') continue;
+    for (const obj of questDef.objectives) {
+      if (obj.kind === 'collect' && obj.target === itemId) {
+        cap = Math.max(cap, obj.count ?? 1);
       }
     }
   }
-  return countOf(p, itemId) < cap;
+  return countOf(player, itemId) < cap;
 }
 
 /** Dungeon-objective hook: called when a dungeon's boss falls for the first
  * time. Location-specific story objectives key on THIS, never on enemy ids —
  * an overworld echo of a boss must not substitute for the real fight.
  * Returns the quests this clear just made turn-in-ready (#119). */
-export function onDungeonClear(p: PlayerState, dungeonId: string): string[] {
-  return progressObjective(p, 'dungeon', dungeonId);
+export function onDungeonClear(player: PlayerState, dungeonId: string): string[] {
+  return progressObjective(player, 'dungeon', dungeonId);
 }
 
-function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number): string {
-  const o = q.objectives[i]!;
-  const need = o.count ?? 1;
-  const have = objectiveProgress(p, qp, o, i);
+function objectiveLine(
+  player: PlayerState,
+  questDef: QuestDef,
+  questProgress: QuestProgress,
+  index: number,
+): string {
+  const obj = questDef.objectives[index]!;
+  const need = obj.count ?? 1;
+  const have = objectiveProgress(player, questProgress, obj, index);
   let label: string;
-  switch (o.kind) {
+  switch (obj.kind) {
     case 'kill':
-      label = `Defeat ${enemyName(o.target)}`;
+      label = `Defeat ${enemyName(obj.target)}`;
       break;
     case 'collect':
-      label = `Collect ${itemName(o.target)}`;
+      label = `Collect ${itemName(obj.target)}`;
       break;
     case 'reach':
-      label = `Travel to ${zoneDef(o.target)?.name ?? o.target}`;
+      label = `Travel to ${zoneDef(obj.target)?.name ?? obj.target}`;
       break;
     case 'storyEvent':
-      label = o.label ?? `Follow the story: ${o.target}`;
+      label = obj.label ?? `Follow the story: ${obj.target}`;
       break;
     case 'dungeon':
-      label = `Clear ${ZONES.find((z) => z.dungeon?.id === o.target)?.dungeon?.name ?? o.target}`;
+      label = `Clear ${
+        ZONES.find((z) => z.dungeon?.id === obj.target)?.dungeon?.name ?? obj.target
+      }`;
       break;
   }
   return need > 1 ? `${label} — ${have}/${need}` : `${label}${have >= 1 ? ' ✓' : ''}`;
@@ -282,16 +296,20 @@ function objectiveLine(p: PlayerState, q: QuestDef, qp: QuestProgress, i: number
 /** The quest-status line for one objective (#127): storyEvent objectives
  * carry their authored display label. */
 
-export function questStatusLine(p: PlayerState, id: string): string {
-  const q = quest(id);
-  const qp = p.quests[id];
-  if (!q) return '';
-  if (!qp || qp.status === 'unavailable' || qp.status === 'available') {
-    return qp?.status === 'available' ? '🟢 Available' : '🔒 Locked';
+export function questStatusLine(player: PlayerState, id: string): string {
+  const questDef = quest(id);
+  const questProgress = player.quests[id];
+  if (!questDef) return '';
+  if (
+    !questProgress || questProgress.status === 'unavailable' || questProgress.status === 'available'
+  ) {
+    return questProgress?.status === 'available' ? '🟢 Available' : '🔒 Locked';
   }
-  if (qp.status === 'done') return '✅ Completed';
-  if (qp.status === 'turnIn') return '🏁 Ready to turn in';
-  return q.objectives.map((_, i) => objectiveLine(p, q, qp, i)).join('\n');
+  if (questProgress.status === 'done') return '✅ Completed';
+  if (questProgress.status === 'turnIn') return '🏁 Ready to turn in';
+  return questDef.objectives.map((_, index) =>
+    objectiveLine(player, questDef, questProgress, index)
+  ).join('\n');
 }
 
 export interface TurnInResult {
@@ -305,9 +323,9 @@ export interface TurnInResult {
 }
 
 /** One rule for both the counter's validation and consumption (#180). */
-export function collectRequirements(q: QuestDef): Map<string, number> {
+export function collectRequirements(questDef: QuestDef): Map<string, number> {
   const required = new Map<string, number>();
-  for (const obj of q.objectives) {
+  for (const obj of questDef.objectives) {
     if (obj.kind !== 'collect') continue;
     required.set(obj.target, (required.get(obj.target) ?? 0) + (obj.count ?? 1));
   }
@@ -318,12 +336,12 @@ export function collectRequirements(q: QuestDef): Map<string, number> {
  * the shortfall line, or undefined when the turn-in could proceed. The
  * story layer reaches it through the central turnInQuest authority, which
  * runs it again on the transaction draft (#129). */
-export function turnInGoodsShortfall(p: PlayerState, id: string): string | undefined {
-  const q = quest(id);
-  if (!q) return "That quest isn't ready to turn in.";
-  const required = collectRequirements(q);
+export function turnInGoodsShortfall(player: PlayerState, id: string): string | undefined {
+  const questDef = quest(id);
+  if (!questDef) return "That quest isn't ready to turn in.";
+  const required = collectRequirements(questDef);
   for (const [itemId, need] of required) {
-    if (countOf(p, itemId) < need) {
+    if (countOf(player, itemId) < need) {
       return `You no longer have enough ${itemName(itemId)} — the quest stays open.`;
     }
   }
@@ -336,54 +354,54 @@ export function turnInGoodsShortfall(p: PlayerState, id: string): string | undef
  * event is not completion metadata, and the Quest Log can never grant
  * rewards. (#127: the outro is no longer echoed here — authored turn-in
  * dialogues present the completion beats themselves.) */
-export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInResult {
-  const q = quest(id);
-  if (!q) return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
+export function turnInQuest(player: PlayerState, id: string, npcId: string): TurnInResult {
+  const questDef = quest(id);
+  if (!questDef) return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
   // A live crossing owns the interaction flow (#166): the handover waits
   // for arrival — no turn-in happens on the road.
-  if (p.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK], ready: [] };
-  if (p.journey) return { ok: false, lines: [JOURNEY_BLOCK], ready: [] };
-  const refusal = contactRefusal(p.currentZone, npcId, q.finishNpc);
+  if (player.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK], ready: [] };
+  if (player.journey) return { ok: false, lines: [JOURNEY_BLOCK], ready: [] };
+  const refusal = contactRefusal(player.currentZone, npcId, questDef.finishNpc);
   if (refusal) return { ok: false, lines: [refusal], ready: [] };
-  const qp = p.quests[id];
-  if (!qp || qp.status !== 'turnIn') {
+  const questProgress = player.quests[id];
+  if (!questProgress || questProgress.status !== 'turnIn') {
     return { ok: false, lines: ["That quest isn't ready to turn in."], ready: [] };
   }
   // Revalidate at the counter: goods may have been spent, forged away or
   // dropped since the quest readied — the SHARED aggregated check (#8).
-  const shortfall = turnInGoodsShortfall(p, id);
+  const shortfall = turnInGoodsShortfall(player, id);
   if (shortfall) {
-    qp.status = 'active';
+    questProgress.status = 'active';
     return { ok: false, lines: [shortfall], ready: [] };
   }
-  const required = collectRequirements(q);
-  qp.status = 'done';
+  const required = collectRequirements(questDef);
+  questProgress.status = 'done';
   const lines: string[] = [];
   // Collect objectives hand their goods over — samples, sigils and keys
   // leave the bag at turn-in instead of lingering as dead weight.
   for (const [itemId, qty] of required) {
-    removeItem(p, itemId, qty);
+    removeItem(player, itemId, qty);
     lines.push(`📦 Handed over: ${itemName(itemId)} ×${qty}`);
   }
-  const r = q.rewards;
-  p.gold += r.gold;
+  const rewards = questDef.rewards;
+  player.gold += rewards.gold;
   // Post-cap (#36): the reward line shows the conversion instead of
   // advertising XP the player cannot receive. Shared label (#42).
-  lines.push(`💰 +${r.gold} gold · ${xpRewardLabel(p.level, r.xp)}`);
-  lines.push(...grantXp(p, r.xp));
-  for (const [itemId, qty] of Object.entries(r.items ?? {})) {
-    addItem(p, itemId, qty);
+  lines.push(`💰 +${rewards.gold} gold · ${xpRewardLabel(player.level, rewards.xp)}`);
+  lines.push(...grantXp(player, rewards.xp));
+  for (const [itemId, qty] of Object.entries(rewards.items ?? {})) {
+    addItem(player, itemId, qty);
     lines.push(`🎁 Received: ${itemName(itemId)}${qty > 1 ? ` ×${qty}` : ''}`);
   }
   // Reward items can complete OTHER active collect quests on the spot.
   // Readiness stays structured (#145): the caller announces it from the
   // reconciled final state, not from this intermediate flip.
-  const ready = onItemGain(p);
-  for (const f of r.flags ?? []) p.flags[f] = true;
-  for (const zid of r.unlockZones ?? []) {
-    if (!p.unlockedZones.includes(zid)) {
-      p.unlockedZones.push(zid);
-      lines.push(`🗺️ New area unlocked: ${zoneDef(zid)?.name ?? zid}`);
+  const ready = onItemGain(player);
+  for (const flag of rewards.flags ?? []) player.flags[flag] = true;
+  for (const zoneId of rewards.unlockZones ?? []) {
+    if (!player.unlockedZones.includes(zoneId)) {
+      player.unlockedZones.push(zoneId);
+      lines.push(`🗺️ New area unlocked: ${zoneDef(zoneId)?.name ?? zoneId}`);
     }
   }
   return { ok: true, lines, ready };
@@ -395,28 +413,31 @@ export function turnInQuest(p: PlayerState, id: string, npcId: string): TurnInRe
  * this event just made turn-in-ready (#119) so the active surface can
  * announce them — callers must not drop the result.
  */
-function progressObjective(p: PlayerState, kind: Objective['kind'], target: string): string[] {
-  for (const q of QUESTS) {
-    const qp = p.quests[q.id];
-    if (!qp || qp.status !== 'active') continue;
-    q.objectives.forEach((o, i) => {
-      if (o.kind === kind && o.target === target) {
-        qp.counts[i] = Math.min(o.count ?? 1, (qp.counts[i] ?? 0) + 1);
+function progressObjective(player: PlayerState, kind: Objective['kind'], target: string): string[] {
+  for (const questDef of QUESTS) {
+    const questProgress = player.quests[questDef.id];
+    if (!questProgress || questProgress.status !== 'active') continue;
+    questDef.objectives.forEach((obj, index) => {
+      if (obj.kind === kind && obj.target === target) {
+        questProgress.counts[index] = Math.min(
+          obj.count ?? 1,
+          (questProgress.counts[index] ?? 0) + 1,
+        );
       }
     });
   }
-  return refreshProgress(p);
+  return refreshProgress(player);
 }
 
 /** Kill-objective hook: called for every enemy the player defeats. */
-export function onKill(p: PlayerState, enemyId: string): string[] {
-  return progressObjective(p, 'kill', enemyId);
+export function onKill(player: PlayerState, enemyId: string): string[] {
+  return progressObjective(player, 'kill', enemyId);
 }
 
 /** Reach-objective hook: called on zone entry. */
-export function onZoneEnter(p: PlayerState, zoneId: string): string[] {
-  p.flags[`zone_${zoneId}`] = true;
-  return progressObjective(p, 'reach', zoneId);
+export function onZoneEnter(player: PlayerState, zoneId: string): string[] {
+  player.flags[`zone_${zoneId}`] = true;
+  return progressObjective(player, 'reach', zoneId);
 }
 
 /** Story-event hook (#127): called when an authored dialogue reaches the
@@ -424,6 +445,6 @@ export function onZoneEnter(p: PlayerState, zoneId: string): string[] {
  * progression path — opening menus, selecting topics and generic NPC
  * contact never advance anything. Readiness flows back through the same
  * exactly-once transition authority (#119). */
-export function onStoryEvent(p: PlayerState, event: string): string[] {
-  return progressObjective(p, 'storyEvent', event);
+export function onStoryEvent(player: PlayerState, event: string): string[] {
+  return progressObjective(player, 'storyEvent', event);
 }

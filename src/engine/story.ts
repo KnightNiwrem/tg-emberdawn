@@ -136,70 +136,72 @@ interface QuestBundle {
 
 function startStoryQuest(
   bundle: QuestBundle,
-  e: Extract<StoryEffect, { kind: 'startQuest' }>,
+  effect: Extract<StoryEffect, { kind: 'startQuest' }>,
 ): string | undefined {
   const { draft, ctx, result, startedInBundle } = bundle;
-  const q = questDef(e.questId);
-  if (!q) return `Unknown quest ${e.questId}.`;
-  const st = draft.quests[e.questId]?.status;
-  if (st === 'active' || st === 'turnIn' || st === 'done') return undefined; // idempotent
+  const quest = questDef(effect.questId);
+  if (!quest) return `Unknown quest ${effect.questId}.`;
+  const status = draft.quests[effect.questId]?.status;
+  if (status === 'active' || status === 'turnIn' || status === 'done') return undefined; // idempotent
   // Authority: the acting dialogue's NPC must be the configured
   // starter, on-site (#63/#64) — no dialogue may puppet quests from
   // strangers.
-  if (q.startNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
-    return `${q.name} can only be started by its own contact, on-site.`;
+  if (quest.startNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
+    return `${quest.name} can only be started by its own contact, on-site.`;
   }
-  if (questExcluded(draft, e.questId)) {
-    return `${q.name} is no longer reachable.`;
+  if (questExcluded(draft, effect.questId)) {
+    return `${quest.name} is no longer reachable.`;
   }
   // Earlier effects in THIS bundle (flags, unlocks) may have opened
   // availability — refresh the projection before judging.
   syncAvailability(draft);
-  if (draft.quests[e.questId]?.status !== 'available') {
-    return `${q.name} is not available right now.`;
+  if (draft.quests[effect.questId]?.status !== 'available') {
+    return `${quest.name} is not available right now.`;
   }
   // The shared start policy (#129): identical objective
   // reconciliation to acceptQuest (ever-visited reach targets count).
-  result.readyQuests.push(...beginQuest(draft, e.questId));
-  result.startedQuests.push(e.questId);
-  startedInBundle.add(e.questId);
+  result.readyQuests.push(...beginQuest(draft, effect.questId));
+  result.startedQuests.push(effect.questId);
+  startedInBundle.add(effect.questId);
   return undefined;
 }
 
 function resolveStoryQuest(
   bundle: QuestBundle,
-  e: Extract<StoryEffect, { kind: 'resolveQuest' }>,
+  effect: Extract<StoryEffect, { kind: 'resolveQuest' }>,
 ): string | undefined {
   const { draft, ctx } = bundle;
-  const q = questDef(e.questId);
-  if (!q) return `Unknown quest ${e.questId}.`;
+  const quest = questDef(effect.questId);
+  if (!quest) return `Unknown quest ${effect.questId}.`;
   // Declared named outcomes (#132, #146): a named resolution is legal
   // ONLY when the target quest declares that exact outcome. A quest
   // with no declaration refuses EVERY named resolution, and a value
   // outside the declaration — including one declared by a DIFFERENT
   // quest — fails loudly instead of persisting a terminal record no
   // authored condition could recognize.
-  if (!q.outcomes?.includes(e.outcome)) {
-    return `${q.name} does not declare outcome "${e.outcome}".`;
+  if (!quest.outcomes?.includes(effect.outcome)) {
+    return `${quest.name} does not declare outcome "${effect.outcome}".`;
   }
-  const prior = draft.questOutcomes[e.questId];
+  const prior = draft.questOutcomes[effect.questId];
   if (prior?.kind === 'resolved') {
-    if (prior.outcome !== e.outcome) {
-      return `${q.name} already resolved as ${prior.outcome}.`;
+    if (prior.outcome !== effect.outcome) {
+      return `${quest.name} already resolved as ${prior.outcome}.`;
     }
     return undefined; // idempotent
   }
   // Monotonic terminals (#129): a locked/failed quest never resolves.
-  if (prior) return `${q.name} already has a permanent resolution.`;
-  const qp = draft.quests[e.questId];
-  if (qp?.status === 'done') return undefined; // completed via turn-in — nothing to resolve
-  if (qp?.status !== 'active' && qp?.status !== 'turnIn') {
-    return `${e.questId} cannot be resolved from status ${qp?.status ?? 'unavailable'}.`;
+  if (prior) return `${quest.name} already has a permanent resolution.`;
+  const questProgress = draft.quests[effect.questId];
+  if (questProgress?.status === 'done') return undefined; // completed via turn-in — nothing to resolve
+  if (questProgress?.status !== 'active' && questProgress?.status !== 'turnIn') {
+    return `${effect.questId} cannot be resolved from status ${
+      questProgress?.status ?? 'unavailable'
+    }.`;
   }
-  qp.status = 'done';
-  draft.questOutcomes[e.questId] = {
+  questProgress.status = 'done';
+  draft.questOutcomes[effect.questId] = {
     kind: 'resolved',
-    outcome: e.outcome,
+    outcome: effect.outcome,
     at: ctx.now,
   };
   return undefined;
@@ -207,38 +209,38 @@ function resolveStoryQuest(
 
 function excludeStoryQuest(
   bundle: QuestBundle,
-  e: Extract<StoryEffect, { kind: 'failQuest' | 'lockQuest' }>,
+  effect: Extract<StoryEffect, { kind: 'failQuest' | 'lockQuest' }>,
 ): string | undefined {
   const { draft, ctx, startedInBundle, entryStatus, cancelled } = bundle;
-  const q = questDef(e.questId);
-  if (!q) return `Unknown quest ${e.questId}.`;
-  const kind = e.kind === 'failQuest' ? 'failed' : 'locked';
+  const quest = questDef(effect.questId);
+  if (!quest) return `Unknown quest ${effect.questId}.`;
+  const kind = effect.kind === 'failQuest' ? 'failed' : 'locked';
   // Contradictory content (#145): a bundle may not start/accept a
   // quest and lock/fail that SAME quest in one application — that is
   // not a "start then cancel" workflow, it is an authoring error.
-  if (startedInBundle.has(e.questId)) {
-    return `${q.name} cannot be started and ${kind} in the same bundle.`;
+  if (startedInBundle.has(effect.questId)) {
+    return `${quest.name} cannot be started and ${kind} in the same bundle.`;
   }
-  const prior = draft.questOutcomes[e.questId];
+  const prior = draft.questOutcomes[effect.questId];
   if (prior?.kind === kind) return undefined; // idempotent
   // Monotonic terminals (#129): a resolved quest never becomes
   // locked/failed, and one terminal kind never overwrites another.
-  if (prior) return `${q.name} already has a permanent resolution.`;
-  const qp = draft.quests[e.questId];
-  if (qp?.status === 'done') return `${q.name} is already completed.`;
+  if (prior) return `${quest.name} already has a permanent resolution.`;
+  const questProgress = draft.quests[effect.questId];
+  if (questProgress?.status === 'done') return `${quest.name} is already completed.`;
   // Cancellation vs silent close (#145): only a quest that was
   // already STARTED when the transaction began earns a notice; an
   // unaccepted quest simply closes. Stale progress is cleared either
   // way — the permanent outcome below bars resurrection.
-  const entry = entryStatus.get(e.questId);
-  if (entry === 'active' || entry === 'turnIn') cancelled.push({ id: e.questId, kind });
-  if (qp) {
-    qp.status = 'unavailable';
-    qp.counts = qp.counts.map(() => 0);
+  const entry = entryStatus.get(effect.questId);
+  if (entry === 'active' || entry === 'turnIn') cancelled.push({ id: effect.questId, kind });
+  if (questProgress) {
+    questProgress.status = 'unavailable';
+    questProgress.counts = questProgress.counts.map(() => 0);
   }
-  draft.questOutcomes[e.questId] = {
+  draft.questOutcomes[effect.questId] = {
     kind,
-    reason: e.reason,
+    reason: effect.reason,
     by: ctx.dialogueId,
     at: ctx.now,
   };
@@ -247,48 +249,48 @@ function excludeStoryQuest(
 
 function acceptStoryQuest(
   bundle: QuestBundle,
-  e: Extract<StoryEffect, { kind: 'acceptQuest' }>,
+  effect: Extract<StoryEffect, { kind: 'acceptQuest' }>,
 ): string | undefined {
   const { draft, ctx, result, startedInBundle } = bundle;
-  const q = questDef(e.questId);
-  if (!q) return `Unknown quest ${e.questId}.`;
-  const st = draft.quests[e.questId]?.status;
-  if (st === 'active' || st === 'turnIn' || st === 'done') return undefined; // idempotent
+  const quest = questDef(effect.questId);
+  if (!quest) return `Unknown quest ${effect.questId}.`;
+  const status = draft.quests[effect.questId]?.status;
+  if (status === 'active' || status === 'turnIn' || status === 'done') return undefined; // idempotent
   // Central authority (#63/#64): acceptance runs through
   // acceptQuest, which revalidates the configured STARTER on-site.
-  if (q.startNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
-    return `${q.name} can only be accepted from ${q.startNpc}, on-site.`;
+  if (quest.startNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
+    return `${quest.name} can only be accepted from ${quest.startNpc}, on-site.`;
   }
-  if (questExcluded(draft, e.questId)) return `${q.name} is no longer reachable.`;
+  if (questExcluded(draft, effect.questId)) return `${quest.name} is no longer reachable.`;
   // Earlier bundle effects may have opened availability (#129).
   syncAvailability(draft);
   // Central authority (#63/#64/#119): acceptance lines flow back as
   // result lines; immediate readiness stays STRUCTURED (#145) and is
   // announced only from the reconciled final state.
-  const res = acceptQuest(draft, e.questId, ctx.npcId);
+  const res = acceptQuest(draft, effect.questId, ctx.npcId);
   if (!res.ok) return res.msg;
   result.lines.push(...res.lines);
   result.readyQuests.push(...res.ready);
-  result.startedQuests.push(e.questId);
-  startedInBundle.add(e.questId);
+  result.startedQuests.push(effect.questId);
+  startedInBundle.add(effect.questId);
   return undefined;
 }
 
 function turnInStoryQuest(
   bundle: QuestBundle,
-  e: Extract<StoryEffect, { kind: 'turnInQuest' }>,
+  effect: Extract<StoryEffect, { kind: 'turnInQuest' }>,
 ): string | undefined {
   const { draft, ctx, result } = bundle;
-  const q = questDef(e.questId);
-  if (!q) return `Unknown quest ${e.questId}.`;
-  if (draft.quests[e.questId]?.status === 'done') return undefined; // idempotent
+  const quest = questDef(effect.questId);
+  if (!quest) return `Unknown quest ${effect.questId}.`;
+  if (draft.quests[effect.questId]?.status === 'done') return undefined; // idempotent
   // Central authority (#63/#64): the turn-in runs through
   // turnInQuest, which revalidates the configured FINISHER on-site
   // and the aggregated collect goods (all-or-nothing).
-  if (q.finishNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
-    return `${q.name} can only be handed to ${q.finishNpc}, on-site.`;
+  if (quest.finishNpc !== ctx.npcId || !npcInZone(draft.currentZone, ctx.npcId)) {
+    return `${quest.name} can only be handed to ${quest.finishNpc}, on-site.`;
   }
-  const res = turnInQuest(draft, e.questId, ctx.npcId);
+  const res = turnInQuest(draft, effect.questId, ctx.npcId);
   if (!res.ok) return res.lines[0] ?? 'That quest is not ready to turn in.';
   result.lines.push(...res.lines);
   // Rewards can ready OTHER quests (#119): structured ids (#145),
@@ -322,98 +324,98 @@ function runStoryBundle(
   // this captures which quests were already STARTED (active/turnIn) when
   // the transaction began — only those earn a cancellation notice.
   const entryStatus = new Map(
-    Object.entries(draft.quests).map(([id, qp]) => [id, qp.status]),
+    Object.entries(draft.quests).map(([id, questProgress]) => [id, questProgress.status]),
   );
   // Quests this run itself started: locking/failing one of them later in
   // the SAME bundle is contradictory content (#145), not a cancel workflow.
   const startedInBundle = new Set<string>();
   const cancelled: { id: string; kind: 'locked' | 'failed' }[] = [];
   const questBundle: QuestBundle = { draft, ctx, result, entryStatus, startedInBundle, cancelled };
-  for (const e of effects) {
-    switch (e.kind) {
+  for (const effect of effects) {
+    switch (effect.kind) {
       case 'setFlag':
-        draft.flags[e.id] = e.value ?? true;
+        draft.flags[effect.id] = effect.value ?? true;
         break;
       case 'clearFlag':
-        delete draft.flags[e.id];
+        delete draft.flags[effect.id];
         break;
       case 'recordDecision': {
-        const prior = draft.decisions[e.id];
+        const prior = draft.decisions[effect.id];
         if (prior) {
           // The ledger never rewrites: the same choice is an idempotent
           // skip, a different one is a contradiction.
-          if (prior.choiceId !== e.choiceId) {
-            return refuse(`Decision ${e.id} was already made differently.`);
+          if (prior.choiceId !== effect.choiceId) {
+            return refuse(`Decision ${effect.id} was already made differently.`);
           }
           break;
         }
-        draft.decisions[e.id] = {
-          choiceId: e.choiceId,
+        draft.decisions[effect.id] = {
+          choiceId: effect.choiceId,
           dialogueId: ctx.dialogueId,
           nodeId: ctx.nodeId,
           chosenAt: ctx.now,
         };
-        result.decisions.push(e.id);
+        result.decisions.push(effect.id);
         break;
       }
       case 'storyEvent': {
-        if (draft.storyEvents.includes(e.event)) break; // deduped
-        draft.storyEvents.push(e.event);
-        result.events.push(e.event);
+        if (draft.storyEvents.includes(effect.event)) break; // deduped
+        draft.storyEvents.push(effect.event);
+        result.events.push(effect.event);
         // The quest hook (#127): the emitted event advances every matching
         // active storyEvent objective through the SAME transition
         // authority (#119).
-        result.readyQuests.push(...onStoryEvent(draft, e.event));
+        result.readyQuests.push(...onStoryEvent(draft, effect.event));
         break;
       }
       case 'startQuest': {
-        const refusal = startStoryQuest(questBundle, e);
+        const refusal = startStoryQuest(questBundle, effect);
         if (refusal !== undefined) return refuse(refusal);
         break;
       }
       case 'resolveQuest': {
-        const refusal = resolveStoryQuest(questBundle, e);
+        const refusal = resolveStoryQuest(questBundle, effect);
         if (refusal !== undefined) return refuse(refusal);
         break;
       }
       case 'failQuest':
       case 'lockQuest': {
-        const refusal = excludeStoryQuest(questBundle, e);
+        const refusal = excludeStoryQuest(questBundle, effect);
         if (refusal !== undefined) return refuse(refusal);
         break;
       }
       case 'unlockZone': {
-        const z = zoneDef(e.zoneId);
-        if (!z) return refuse(`Unknown zone ${e.zoneId}.`);
-        if (!draft.unlockedZones.includes(e.zoneId)) {
-          draft.unlockedZones.push(e.zoneId);
-          result.lines.push(`🗺️ New area unlocked: ${z.name}`);
+        const zone = zoneDef(effect.zoneId);
+        if (!zone) return refuse(`Unknown zone ${effect.zoneId}.`);
+        if (!draft.unlockedZones.includes(effect.zoneId)) {
+          draft.unlockedZones.push(effect.zoneId);
+          result.lines.push(`🗺️ New area unlocked: ${zone.name}`);
         }
         break;
       }
       case 'grantItem': {
-        const def = itemDef(e.itemId);
-        if (!def) return refuse(`Unknown item ${e.itemId}.`);
-        result.readyQuests.push(...grantItem(draft, e.itemId, e.qty ?? 1));
+        const def = itemDef(effect.itemId);
+        if (!def) return refuse(`Unknown item ${effect.itemId}.`);
+        result.readyQuests.push(...grantItem(draft, effect.itemId, effect.qty ?? 1));
         result.lines.push(`🎁 Received: ${def.name}`);
         break;
       }
       case 'removeItem': {
-        if (!itemDef(e.itemId)) return refuse(`Unknown item ${e.itemId}.`);
+        if (!itemDef(effect.itemId)) return refuse(`Unknown item ${effect.itemId}.`);
         // A removal the projected bag cannot cover REFUSES the bundle —
         // the helper's failure is never silently ignored (#129).
-        if (!removeItem(draft, e.itemId, e.qty ?? 1)) {
-          return refuse(`Not enough ${e.itemId} to remove.`);
+        if (!removeItem(draft, effect.itemId, effect.qty ?? 1)) {
+          return refuse(`Not enough ${effect.itemId} to remove.`);
         }
         break;
       }
       case 'acceptQuest': {
-        const refusal = acceptStoryQuest(questBundle, e);
+        const refusal = acceptStoryQuest(questBundle, effect);
         if (refusal !== undefined) return refuse(refusal);
         break;
       }
       case 'turnInQuest': {
-        const refusal = turnInStoryQuest(questBundle, e);
+        const refusal = turnInStoryQuest(questBundle, effect);
         if (refusal !== undefined) return refuse(refusal);
         break;
       }
@@ -436,7 +438,9 @@ function runStoryBundle(
   // Cancellation notices are formatted only now, from the reconciled
   // result (#145): one canonical line per already-started quest an explicit
   // lock/fail closed off; unaccepted quests closed silently above.
-  result.lines.push(...cancelled.map((c) => questCancelledLine(c.id, c.kind)));
+  result.lines.push(
+    ...cancelled.map((cancellation) => questCancelledLine(cancellation.id, cancellation.kind)),
+  );
   return { ok: true, result };
 }
 
@@ -450,9 +454,9 @@ function receiptKey(ctx: StoryContext): string {
 /** The ONLY commit point of the story transaction (#129): a fully applied
  * draft replaces the live player's state and the one-shot receipt is
  * recorded, so a replay of the same application is a complete no-op. */
-function commitApplication(p: PlayerState, draft: PlayerState, receipt: string): void {
-  Object.assign(p, draft);
-  p.storyReceipts.push(receipt);
+function commitApplication(player: PlayerState, draft: PlayerState, receipt: string): void {
+  Object.assign(player, draft);
+  player.storyReceipts.push(receipt);
 }
 
 /** Pre-flights a bundle WITHOUT mutating: the same ordered application run
@@ -466,17 +470,17 @@ function commitApplication(p: PlayerState, draft: PlayerState, receipt: string):
  * receipt is already recorded is a valid no-op here too — preflight can
  * never reject a retry that application would accept as already done. */
 export function validateStoryBundle(
-  p: PlayerState,
+  player: PlayerState,
   effects: readonly StoryEffect[],
   ctx: StoryContext,
 ): string | undefined {
   // A live crossing owns the interaction flow (#166): no story bundle —
   // not even a replay no-op — applies on the road. Preflight and
   // application stay in lockstep (#137).
-  if (p.dungeonRun) return DUNGEON_BLOCK;
-  if (p.journey) return JOURNEY_BLOCK;
-  if (p.storyReceipts.includes(receiptKey(ctx))) return undefined; // replay: no-op
-  const run = runStoryBundle(structuredClone(p), effects, ctx);
+  if (player.dungeonRun) return DUNGEON_BLOCK;
+  if (player.journey) return JOURNEY_BLOCK;
+  if (player.storyReceipts.includes(receiptKey(ctx))) return undefined; // replay: no-op
+  const run = runStoryBundle(structuredClone(player), effects, ctx);
   return run.ok ? undefined : run.refusal;
 }
 
@@ -487,21 +491,21 @@ export function validateStoryBundle(
  * retry may still apply). Replaying an already-committed application —
  * same receipt — is a complete no-op with an empty result. */
 export function applyStoryEffects(
-  p: PlayerState,
+  player: PlayerState,
   effects: readonly StoryEffect[],
   ctx: StoryContext,
 ): StoryResult {
   // A live crossing owns the interaction flow (#166): no story bundle —
   // not even a replay no-op — applies on the road. The refusal throws,
   // leaving the live player byte-for-byte unchanged (the contract below).
-  if (p.dungeonRun) throw new Error(`story bundle refused: ${DUNGEON_BLOCK}`);
-  if (p.journey) throw new Error(`story bundle refused: ${JOURNEY_BLOCK}`);
+  if (player.dungeonRun) throw new Error(`story bundle refused: ${DUNGEON_BLOCK}`);
+  if (player.journey) throw new Error(`story bundle refused: ${JOURNEY_BLOCK}`);
   const receipt = receiptKey(ctx);
-  if (p.storyReceipts.includes(receipt)) return emptyResult(); // replay: no-op
-  const draft = structuredClone(p);
+  if (player.storyReceipts.includes(receipt)) return emptyResult(); // replay: no-op
+  const draft = structuredClone(player);
   const run = runStoryBundle(draft, effects, ctx);
   if (!run.ok) throw new Error(`story bundle refused: ${run.refusal}`);
-  commitApplication(p, draft, receipt);
+  commitApplication(player, draft, receipt);
   return run.result;
 }
 
@@ -565,74 +569,76 @@ export interface ChoiceApplyResult {
  * router (handlers/callbacks.ts, #16/#43) before any handler runs; this
  * operation owns the STORY-level authority. */
 export function applyDialogueChoice(
-  p: PlayerState,
+  player: PlayerState,
   args: ChoiceApplyArgs,
 ): ChoiceApplyResult {
   const movedOn = { ok: false as const, refusal: 'That conversation has moved on.', lines: [] };
   // A live crossing owns the interaction flow (#166): no conversation can
   // be advanced on the road — the central story op refuses before any
   // scene, ownership or availability check.
-  if (p.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK, lines: [] };
-  if (p.journey) return { ok: false, refusal: JOURNEY_BLOCK, lines: [] };
+  if (player.dungeonRun) return { ok: false, refusal: DUNGEON_BLOCK, lines: [] };
+  if (player.journey) return { ok: false, refusal: JOURNEY_BLOCK, lines: [] };
   // Scene authority: the player must be inside a dialogue, at a choice
   // node — the dialogue and node ids are read from the live scene itself.
-  if (p.scene.view !== 'dialogue' || !p.scene.arg || !p.scene.arg2) return movedOn;
-  const d = dialogueDef(p.scene.arg);
-  const node = d?.nodes.find((n) => n.id === p.scene.arg2);
-  if (!d || !node || node.kind !== 'choice') return movedOn;
+  if (player.scene.view !== 'dialogue' || !player.scene.arg || !player.scene.arg2) return movedOn;
+  const dialogue = dialogueDef(player.scene.arg);
+  const node = dialogue?.nodes.find((nodeDef) => nodeDef.id === player.scene.arg2);
+  if (!dialogue || !node || node.kind !== 'choice') return movedOn;
   // Ownership + presence: the acting NPC is whoever owns this dialogue,
   // and they must be standing in the player's current zone.
-  if (!npcInZone(p.currentZone, d.npcId)) {
+  if (!npcInZone(player.currentZone, dialogue.npcId)) {
     return { ok: false, refusal: 'Nobody there.', lines: [] };
   }
-  const choice = node.choices.find((c) => c.id === args.choiceId);
+  const choice = node.choices.find((choiceDef) => choiceDef.id === args.choiceId);
   if (!choice) return { ok: false, refusal: 'That response is not on the table.', lines: [] };
   const ctx: StoryContext = {
-    dialogueId: d.id,
+    dialogueId: dialogue.id,
     nodeId: node.id,
-    npcId: d.npcId,
+    npcId: dialogue.npcId,
     now: args.now,
-    applicationId: `choice:${d.id}:${node.id}:${choice.id}`,
+    applicationId: `choice:${dialogue.id}:${node.id}:${choice.id}`,
   };
   // Replay of an already-committed application (#129): a complete no-op —
   // no notices, no mutation — that still routes to the authored next beat.
-  if (p.storyReceipts.includes(ctx.applicationId!)) {
+  if (player.storyReceipts.includes(ctx.applicationId!)) {
     return { ok: true, nextNodeId: choice.next, lines: [] };
   }
   // Confirmation authority (#126): an irreversible choice mutates only from
   // its exact staged panel; a direct call from the choice list refuses.
   if (choice.irreversible) {
-    if (p.scene.arg3 !== `confirm:${choice.id}`) {
+    if (player.scene.arg3 !== `confirm:${choice.id}`) {
       return {
         ok: false,
         refusal: 'Confirm the choice on its confirmation screen.',
         lines: [],
       };
     }
-  } else if (p.scene.arg3?.startsWith('confirm:')) {
+  } else if (player.scene.arg3?.startsWith('confirm:')) {
     // An ordinary choice cannot apply while an unrelated confirmation is
     // staged — the staged panel is the live sub-state, not the list.
     return movedOn;
   }
   // Availability is re-evaluated at tap time — rendering was never authority.
-  if (choice.when && !evalCondition(p, choice.when)) {
+  if (choice.when && !evalCondition(player, choice.when)) {
     return { ok: false, refusal: 'That response is no longer available.', lines: [] };
   }
   // An already-recorded decision cannot be overwritten by a different
   // choice — the ledger wins over any replay or forged tap.
-  const decisionEffects = (choice.effects ?? []).filter((e) => e.kind === 'recordDecision');
-  for (const e of decisionEffects) {
-    if (e.kind === 'recordDecision') {
-      const prior = p.decisions[e.id];
-      if (prior && prior.choiceId !== e.choiceId) {
+  const decisionEffects = (choice.effects ?? []).filter((effect) =>
+    effect.kind === 'recordDecision'
+  );
+  for (const effect of decisionEffects) {
+    if (effect.kind === 'recordDecision') {
+      const prior = player.decisions[effect.id];
+      if (prior && prior.choiceId !== effect.choiceId) {
         return { ok: false, refusal: 'That decision was already made.', lines: [] };
       }
     }
   }
-  const draft = structuredClone(p);
+  const draft = structuredClone(player);
   const run = runStoryBundle(draft, choice.effects ?? [], ctx);
   if (!run.ok) return { ok: false, refusal: run.refusal, lines: [] };
-  commitApplication(p, draft, ctx.applicationId!);
+  commitApplication(player, draft, ctx.applicationId!);
   return {
     ok: true,
     nextNodeId: choice.next,

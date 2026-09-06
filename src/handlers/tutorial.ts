@@ -25,13 +25,13 @@ import type { MutationResult } from './session.ts';
 export const TUTORIAL_ENEMY = 'e_cinder_mite';
 
 /** Maren's brief: the ember, the threat outside, the send-off. */
-export function tutorialIntro(p: PlayerState): string[] {
-  const e = enemyDef(TUTORIAL_ENEMY);
-  const cls = CLASSES[p.classId];
+export function tutorialIntro(player: PlayerState): string[] {
+  const enemy = enemyDef(TUTORIAL_ENEMY);
+  const cls = CLASSES[player.classId];
   return [
-    `🔥 The ember in your pocket flares. Just past the hearth-light, a ${e?.name} skitters out of the ash.`,
+    `🔥 The ember in your pocket flares. Just past the hearth-light, a ${enemy?.name} skitters out of the ash.`,
     `📏 Enemy level matters: it reads Lv ${
-      e?.level ?? 1
+      enemy?.level ?? 1
     } — the higher it sits above yours, the harder it bites.`,
     `${cls.basicAction.icon} ${cls.basicAction.name} is free and always ready — press it to strike.`,
   ];
@@ -44,48 +44,50 @@ export function tutorialIntro(p: PlayerState): string[] {
  * mite, and the scripted hit after Guard lands the hero below the item
  * threshold — so every lesson is shown through real play. Replaces the
  * notices each consumed round: progressive disclosure, not a wall of text. */
-export function coachTutorial(p: PlayerState): void {
-  const b = p.battle;
-  if (!b || b.phase !== 'active' || !b.tutorial) return;
-  const s = statsOf(p);
+export function coachTutorial(player: PlayerState): void {
+  const battle = player.battle;
+  if (!battle || battle.phase !== 'active' || !battle.tutorial) return;
+  const stats = statsOf(player);
   const lines: string[] = [];
-  const basic = CLASSES[p.classId].basicAction;
-  if (b.tutorialStep === 'basic') {
+  const basic = CLASSES[player.classId].basicAction;
+  if (battle.tutorialStep === 'basic') {
     lines.push(`${basic.icon} ${basic.name} is free — lead with it, then we'll talk skills.`);
-  } else if (b.tutorialStep === 'skill') {
-    const sk = skillDef(p.skills[0] ?? '');
+  } else if (battle.tutorialStep === 'skill') {
+    const skill = skillDef(player.skills[0] ?? '');
     lines.push(
       `✨ MP (💧) fuels skills. Open ✨ Skills and try ${
-        sk?.name ?? 'your skill'
+        skill?.name ?? 'your skill'
       } — it hits far harder than the free action, for a little MP.`,
     );
-    const heal = p.skills.map((id) => skillDef(id)).find((h) => h?.type === 'heal');
+    const heal = player.skills.map((id) => skillDef(id)).find((skillItem) =>
+      skillItem?.type === 'heal'
+    );
     if (heal) {
       lines.push(
         `❤️ ${heal.name} is yours from the start — healing is your craft; use it before the hurt wins.`,
       );
     }
-  } else if (b.tutorialStep === 'guard') {
+  } else if (battle.tutorialStep === 'guard') {
     lines.push("🛡️ Guard halves the enemy's next blow and recovers MP. Brace for one round.");
-  } else if (b.tutorialStep === 'item' && p.hp < s.maxHp * 0.7) {
+  } else if (battle.tutorialStep === 'item' && player.hp < stats.maxHp * 0.7) {
     lines.push(
       '🎒 When the hurt is real, open 🎒 Items — a potion mid-fight beats a heroic death.',
     );
   }
-  p.notices = lines;
+  player.notices = lines;
 }
 
 /** Deterministic prologue reward: whatever the mite's xp roll was, every
  * hero exits the fight at least level 2. Idempotent via the flag — the
  * grant runs exactly once per save. */
-export function grantTutorialReward(p: PlayerState): string[] {
-  if (p.flags['tut_reward']) return [];
-  p.flags['tut_reward'] = 1;
+export function grantTutorialReward(player: PlayerState): string[] {
+  if (player.flags['tut_reward']) return [];
+  player.flags['tut_reward'] = 1;
   // The canonical outcome lives in the ENGINE (#74) so the balance harness
   // starts simulations from the same post-tutorial state as real heroes.
   return [
     "🔥 The ember warms you — Maren's gift carries its own spark.",
-    ...applyTutorialOutcome(p),
+    ...applyTutorialOutcome(player),
   ];
 }
 
@@ -106,38 +108,38 @@ export function tutorialRelease(): string[] {
 /** Prologue controls. Every case revalidates the CURRENT step before it
  * mutates, so a stale or replayed button can never advance (or re-advance)
  * the flow — the uiRev guard already rejected same-render replays. */
-export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationResult {
+export function tutorialAction(player: PlayerState, cb: Cb & { v: 'tut' }): MutationResult {
   switch (cb.a) {
     case 'maren': {
-      if (p.tutorial !== 'maren' || p.battle) return { toast: 'The tale has moved on.' };
-      p.scene = { view: 'tutorial', arg: 'brief' };
+      if (player.tutorial !== 'maren' || player.battle) return { toast: 'The tale has moved on.' };
+      player.scene = { view: 'tutorial', arg: 'brief' };
       return {};
     }
     case 'out': {
       // The brief must be the live sub-view — a replayed 'out' after the
       // step moved on is refused here even before staleness guards.
-      if (p.tutorial !== 'maren' || p.scene.arg !== 'brief') {
+      if (player.tutorial !== 'maren' || player.scene.arg !== 'brief') {
         return { toast: 'The tale has moved on.' };
       }
-      p.tutorial = 'outskirts';
-      p.scene = { view: 'zone' };
+      player.tutorial = 'outskirts';
+      player.scene = { view: 'zone' };
       return {};
     }
     case 'face': {
-      if (p.tutorial !== 'outskirts' && p.tutorial !== 'fight') {
+      if (player.tutorial !== 'outskirts' && player.tutorial !== 'fight') {
         return { toast: 'The tale has moved on.' };
       }
-      if (p.battle) {
-        p.scene = { view: 'battle' };
+      if (player.battle) {
+        player.scene = { view: 'battle' };
         return { toast: 'Finish this fight first!' };
       }
-      const started = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: p.currentZone }, {
-        player: p,
+      const started = startBattle(TUTORIAL_ENEMY, { kind: 'explore', zoneId: player.currentZone }, {
+        player,
         rng: defaultRng,
         tutorial: true,
       });
       if (!started) return { toast: 'Nothing stirs.' };
-      const b = started.battle;
+      const battle = started.battle;
       // Tutorial provenance suppresses every opening source (#80), so the
       // construction outcome is always 'ongoing' — the guided fight can
       // only end through its lesson beats (#96).
@@ -145,10 +147,10 @@ export function tutorialAction(p: PlayerState, cb: Cb & { v: 'tut' }): MutationR
       // the lesson beats and refuses victory until every beat is performed.
       // Tutorial provenance is supplied AT construction (#80): openings are
       // suppressed and the beat gate set before the battle ever exists.
-      p.battle = b;
-      p.tutorial = 'fight';
-      p.scene = { view: 'battle' };
-      p.notices = tutorialIntro(p);
+      player.battle = battle;
+      player.tutorial = 'fight';
+      player.scene = { view: 'battle' };
+      player.notices = tutorialIntro(player);
       return {};
     }
   }

@@ -68,6 +68,10 @@ These apply to every change:
    `src/engine/mechanics.ts`; never hand-write a second description. Canonical rules vocabulary:
    Shield, DEF/RES, round, action, beneficial/harmful effect.
 10. **Secrets.** Never commit `.env`, tokens, or local database files.
+11. **Descriptive naming.** Variable names must be descriptive and reveal intent; avoid
+    single-letter domain variables (e.g. use `player`, `battle`, `questDef`, `itemDef`, `stats`).
+    Wire keys in `callback_data` and idiomatic short loop indices (`i`, `j`) are the only exceptions
+    (#217).
 
 ## Story-authority invariant
 

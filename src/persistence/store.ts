@@ -113,11 +113,11 @@ export class PgStore implements PlayerStore {
   }
 
   async get(userId: number): Promise<PlayerState | undefined> {
-    const res = await this.query<{ data: PlayerState }>(
+    const result = await this.query<{ data: PlayerState }>(
       'SELECT data FROM players WHERE user_id = $1',
       [userId],
     );
-    return res.rows[0]?.data ?? undefined;
+    return result.rows[0]?.data ?? undefined;
   }
 
   async set(userId: number, state: PlayerState): Promise<void> {
@@ -163,12 +163,12 @@ export class PgStore implements PlayerStore {
         await client.query('SELECT pg_advisory_xact_lock($1)', [userId]);
         result = await lockClient.run(client, fn);
         await client.query('COMMIT');
-      } catch (err) {
+      } catch (error) {
         // Never return a session to the pool inside an open transaction
         // holding the advisory lock: roll back first. If the connection is
         // too broken to roll back, pg discards it on the error anyway.
         await client.query('ROLLBACK').catch(() => {});
-        throw err;
+        throw error;
       }
       return result;
     } finally {

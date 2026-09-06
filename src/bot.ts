@@ -25,20 +25,20 @@ export function createBot(opts: BotOptions): Bot<Context> {
   // distinct-user updates can never starve the connection pool.
   const chains = new Map<number, Promise<void>>();
   bot.use(async (ctx, next) => {
-    const id = ctx.from?.id;
-    const prev = chains.get(id ?? 0) ?? Promise.resolve();
+    const userId = ctx.from?.id;
+    const prevPromise = chains.get(userId ?? 0) ?? Promise.resolve();
     // Overlap hardening (#117): an already-overlapping same-user update must
     // still enter withLock even if its predecessor rejected — the predecessor's
     // failure belongs to its own request, not to whatever queued behind it.
     // The current run's own rejection still propagates to grammY's error path.
-    const run = prev
+    const runPromise = prevPromise
       .catch(() => undefined)
-      .then(() => (id === undefined ? next() : opts.store.withLock(id, next)));
-    chains.set(id ?? 0, run);
+      .then(() => (userId === undefined ? next() : opts.store.withLock(userId, next)));
+    chains.set(userId ?? 0, runPromise);
     try {
-      await run;
+      await runPromise;
     } finally {
-      if (chains.get(id ?? 0) === run) chains.delete(id ?? 0);
+      if (chains.get(userId ?? 0) === runPromise) chains.delete(userId ?? 0);
     }
   });
 
@@ -48,6 +48,6 @@ export function createBot(opts: BotOptions): Bot<Context> {
 
   bot.on('callback_query:data', (ctx) => handleCallback(ctx, opts.store));
 
-  bot.catch((err) => console.error('bot error', err.error));
+  bot.catch((errorCtx) => console.error('bot error', errorCtx.error));
   return bot;
 }

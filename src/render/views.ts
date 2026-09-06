@@ -49,80 +49,83 @@ import { choiceQuestBlocks, questBriefBlocks, questRewardText } from './quest_br
 type Block = InputRichBlock;
 
 /** Identical status information in the normal and guided hubs (#183). */
-function zoneHeader(p: PlayerState): Block[] {
-  const z = zone(p.currentZone)!;
-  const s = statsOf(p);
-  const c = CLASSES[p.classId];
+function zoneHeader(player: PlayerState): Block[] {
+  const zoneDef = zone(player.currentZone)!;
+  const stats = statsOf(player);
+  const classDef = CLASSES[player.classId];
   return [
-    heading(`${z.emoji} ${z.name}`, 3),
+    heading(`${zoneDef.emoji} ${zoneDef.name}`, 3),
     ...noticesBlocks({
-      ...p,
-      notices: p.notices.filter((line) =>
-        line !== zoneDescription(p, z) &&
-        line !== `🧭 You arrive at ${z.emoji} ${z.name}.`
+      ...player,
+      notices: player.notices.filter((line) =>
+        line !== zoneDescription(player, zoneDef) &&
+        line !== `🧭 You arrive at ${zoneDef.emoji} ${zoneDef.name}.`
       ),
     }),
     para([
-      { type: 'bold', text: `${c.emoji} ${p.name} · Lv ${p.level} ${c.name}` } as RichText,
-      `\n❤️ ${p.hp}/${s.maxHp} · 💧 ${p.mp}/${s.maxMp} · 💰 ${p.gold}`,
+      {
+        type: 'bold',
+        text: `${classDef.emoji} ${player.name} · Lv ${player.level} ${classDef.name}`,
+      } as RichText,
+      `\n❤️ ${player.hp}/${stats.maxHp} · 💧 ${player.mp}/${stats.maxMp} · 💰 ${player.gold}`,
     ]),
   ];
 }
 
 // ── Zone hub (home) ───────────────────────────────────────────────────────
 
-export function renderZone(p: PlayerState): InputRichMessage {
+export function renderZone(player: PlayerState): InputRichMessage {
   // Guided prologue (#69): while it runs, the hub renders ONLY the directed
   // action for the current step — travel, explore, shops and the NPC list
   // are withheld until the prologue releases the player into the real hub.
-  if (p.tutorial !== 'done' && !p.battle) return renderTutorialHub(p);
-  if (p.dungeonRun) return renderDungeonRun(p);
-  if (p.scene.arg === 'gather') return renderGathering(p);
-  if (p.scene.arg === 'craft') return renderCrafting(p);
-  const z = zone(p.currentZone)!;
-  const d = dungeonOf(z);
-  const blocks = zoneHeader(p);
-  blocks.push(para({ type: 'italic', text: zoneDescription(p, z) }));
-  if (z.safeHaven) {
+  if (player.tutorial !== 'done' && !player.battle) return renderTutorialHub(player);
+  if (player.dungeonRun) return renderDungeonRun(player);
+  if (player.scene.arg === 'gather') return renderGathering(player);
+  if (player.scene.arg === 'craft') return renderCrafting(player);
+  const zoneDef = zone(player.currentZone)!;
+  const dungeon = dungeonOf(zoneDef);
+  const blocks = zoneHeader(player);
+  blocks.push(para({ type: 'italic', text: zoneDescription(player, zoneDef) }));
+  if (zoneDef.safeHaven) {
     blocks.push(para('🔥 Safe haven · Full rest on arrival.'));
   } else {
     // Dangerous zones read differently (#164) — without implying that
     // every action out here is a fight.
     blocks.push(para('🌫️ Dangerous wilds · You can flee exploration battles.'));
   }
-  if (d && p.scene.arg === 'bossok') return renderDungeonEntrance(p);
+  if (dungeon && player.scene.arg === 'bossok') return renderDungeonEntrance(player);
 
   const activities = [cbBtn(
-    z.safeHaven ? '🧭 Search' : '🧭 Explore',
+    zoneDef.safeHaven ? '🧭 Search' : '🧭 Explore',
     encodeCb({ v: 'zone', a: 'ex' }),
     'success',
   )];
-  if (gatheringOptions(p).length) {
+  if (gatheringOptions(player).length) {
     activities.push(cbBtn('🧺 Gather', encodeCb({ v: 'zone', a: 'gp' })));
   }
   blocks.push(buttonsRow(activities));
-  if (d) {
+  if (dungeon) {
     blocks.push(buttonsRow([
-      cbBtn(`${d.emoji} ${d.name}`, encodeCb({ v: 'zone', a: 'dg' }), 'primary'),
+      cbBtn(`${dungeon.emoji} ${dungeon.name}`, encodeCb({ v: 'zone', a: 'dg' }), 'primary'),
     ]));
   }
 
-  if (z.npcs.length) {
+  if (zoneDef.npcs.length) {
     blocks.push(para({ type: 'bold', text: 'Talk' }));
-    for (let i = 0; i < z.npcs.length; i += 2) {
+    for (let i = 0; i < zoneDef.npcs.length; i += 2) {
       blocks.push(
         buttonsRow(
-          z.npcs.slice(i, i + 2).map((n, j) =>
-            cbBtn(n.name, encodeCb({ v: 'zone', a: 'tk', arg: i + j }))
+          zoneDef.npcs.slice(i, i + 2).map((npcEntry, offset) =>
+            cbBtn(npcEntry.name, encodeCb({ v: 'zone', a: 'tk', arg: i + offset }))
           ),
         ),
       );
     }
   }
   const services = [];
-  if (shopAt(p)) services.push(cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })));
-  if (forgeAt(p)) services.push(cbBtn('⚒️ Temper', encodeCb({ v: 'zone', a: 'fg' })));
-  if (recipesAt(p).length) {
+  if (shopAt(player)) services.push(cbBtn('🏪 Shop', encodeCb({ v: 'zone', a: 'sh' })));
+  if (forgeAt(player)) services.push(cbBtn('⚒️ Temper', encodeCb({ v: 'zone', a: 'fg' })));
+  if (recipesAt(player).length) {
     services.push(cbBtn('🛠️ Craft', encodeCb({ v: 'zone', a: 'cp', arg: 0 })));
   }
   if (services.length) blocks.push(para({ type: 'bold', text: 'Services' }), buttonsRow(services));
@@ -145,12 +148,12 @@ export function renderZone(p: PlayerState): InputRichMessage {
 }
 
 /** Run rules live at the entrance, never in the location's activity list. */
-export function renderDungeonEntrance(p: PlayerState): InputRichMessage {
-  const d = zone(p.currentZone)!.dungeon!;
+export function renderDungeonEntrance(player: PlayerState): InputRichMessage {
+  const dungeon = zone(player.currentZone)!.dungeon!;
   const blocks: Block[] = [
-    heading(`${d.emoji} ${d.name}`, 3),
-    para(`Recommended Lv ${d.recommendedLevel} · Your level: ${p.level}`),
-    para(`${enemyDef(d.boss)!.name} · Lv ${enemyDef(d.boss)!.level}`),
+    heading(`${dungeon.emoji} ${dungeon.name}`, 3),
+    para(`Recommended Lv ${dungeon.recommendedLevel} · Your level: ${player.level}`),
+    para(`${enemyDef(dungeon.boss)!.name} · Lv ${enemyDef(dungeon.boss)!.level}`),
     para(
       'Start at floor 1 and continue through the final chamber. Leaving, fleeing or defeat ends this attempt. Re-entry starts again at floor 1.',
     ),
@@ -159,7 +162,7 @@ export function renderDungeonEntrance(p: PlayerState): InputRichMessage {
     ),
     para('The boss cannot be fled, even with a Smoke Bomb. Earlier floors allow retreat.'),
   ];
-  const gate = bossGateBlock(p, d);
+  const gate = bossGateBlock(player, dungeon);
   if (gate) blocks.push(para(gate), para('You may explore the earlier floors, then leave.'));
   blocks.push(buttonsRow([
     cbBtn('Enter dungeon', encodeCb({ v: 'zone', a: 'dgb' }), 'primary'),
@@ -168,25 +171,25 @@ export function renderDungeonEntrance(p: PlayerState): InputRichMessage {
   return { blocks };
 }
 
-export function renderDungeonRun(p: PlayerState): InputRichMessage {
-  const d = zone(p.dungeonRun!.zoneId)!.dungeon!;
-  const next = nextDungeonFloor(p, d);
-  const gate = next > d.floors.length ? bossGateBlock(p, d) : undefined;
+export function renderDungeonRun(player: PlayerState): InputRichMessage {
+  const dungeon = zone(player.dungeonRun!.zoneId)!.dungeon!;
+  const next = nextDungeonFloor(player, dungeon);
+  const gate = next > dungeon.floors.length ? bossGateBlock(player, dungeon) : undefined;
   return {
     blocks: [
-      heading(`${d.emoji} ${d.name}`, 3),
-      ...noticesBlocks(p),
-      para(`❤️ ${p.hp}/${statsOf(p).maxHp} · 💧 ${p.mp}/${statsOf(p).maxMp}`),
+      heading(`${dungeon.emoji} ${dungeon.name}`, 3),
+      ...noticesBlocks(player),
+      para(`❤️ ${player.hp}/${statsOf(player).maxHp} · 💧 ${player.mp}/${statsOf(player).maxMp}`),
       para(
-        next > d.floors.length
+        next > dungeon.floors.length
           ? 'The final chamber lies ahead.'
-          : `Next: floor ${next} of ${d.floors.length + 1}`,
+          : `Next: floor ${next} of ${dungeon.floors.length + 1}`,
       ),
       ...(gate ? [para(gate)] : []),
       buttonsRow([
         ...(gate ? [] : [
           cbBtn(
-            next > d.floors.length ? 'Face the boss' : 'Continue',
+            next > dungeon.floors.length ? 'Face the boss' : 'Continue',
             encodeCb({ v: 'zone', a: 'dg' }),
             'primary',
           ),
@@ -200,10 +203,10 @@ export function renderDungeonRun(p: PlayerState): InputRichMessage {
 }
 
 /** Local materials and tool requirements remain visible before spending a charge. */
-export function renderGathering(p: PlayerState): InputRichMessage {
-  const blocks = zoneHeader(p);
+export function renderGathering(player: PlayerState): InputRichMessage {
+  const blocks = zoneHeader(player);
   blocks.push(heading('🧺 Gathering sites', 4));
-  const options = gatheringOptions(p);
+  const options = gatheringOptions(player);
   blocks.push(
     para(
       'All activities here share 3 gathering charges. They replenish 6 hours after the last charge is spent. Tools stay in your bag.',
@@ -223,27 +226,29 @@ export function renderGathering(p: PlayerState): InputRichMessage {
   for (const option of options) {
     blocks.push(heading(option.label, 4), para(option.requirements));
     if (option.tool) {
-      blocks.push(para(`In bag: ${countOf(p, option.tool)}× ${itemName(option.tool)}.`));
+      blocks.push(para(`In bag: ${countOf(player, option.tool)}× ${itemName(option.tool)}.`));
     }
     const tables = option.baitTables
       ? Object.entries(option.baitTables)
       : [[undefined, option.yields] as const];
     for (const [bait, yields] of tables) {
-      const total = yields.reduce((sum, y) => sum + y.weight, 0);
+      const total = yields.reduce((sum, yieldEntry) => sum + yieldEntry.weight, 0);
       blocks.push(
         para(
-          (bait ? `${itemName(bait)} (have ${countOf(p, bait)}): ` : 'Finds: ') +
-            yields.map((y) =>
-              `${itemName(y.item)} ×${y.min === y.max ? y.min : `${y.min}–${y.max}`} (${
-                Math.round(y.weight / total * 100)
-              }%)`
+          (bait ? `${itemName(bait)} (have ${countOf(player, bait)}): ` : 'Finds: ') +
+            yields.map((yieldEntry) =>
+              `${itemName(yieldEntry.item)} ×${
+                yieldEntry.min === yieldEntry.max
+                  ? yieldEntry.min
+                  : `${yieldEntry.min}–${yieldEntry.max}`
+              } (${Math.round(yieldEntry.weight / total * 100)}%)`
             ).join(' · '),
         ),
       );
       const arg = bait ? (bait === 'm_worm_bait' ? 'fish_worm' : 'fish_grub') : option.activity;
-      const missing = option.tool && countOf(p, option.tool) < 1
+      const missing = option.tool && countOf(player, option.tool) < 1
         ? `Needs ${itemName(option.tool)}`
-        : bait && countOf(p, bait) < 1
+        : bait && countOf(player, bait) < 1
         ? `Needs ${itemName(bait)}`
         : undefined;
       blocks.push(buttonsRow([
@@ -265,42 +270,44 @@ export function renderGathering(p: PlayerState): InputRichMessage {
 }
 
 /** Small local pages keep ingredients, results and actions together. */
-export function renderCrafting(p: PlayerState): InputRichMessage {
-  const blocks = zoneHeader(p);
-  const recipes = recipesAt(p);
+export function renderCrafting(player: PlayerState): InputRichMessage {
+  const blocks = zoneHeader(player);
+  const recipes = recipesAt(player);
   const pages = Math.max(1, Math.ceil(recipes.length / 3));
-  const requested = Number(p.scene.arg2 ?? 0);
+  const requested = Number(player.scene.arg2 ?? 0);
   const page = Number.isFinite(requested)
     ? Math.max(0, Math.min(pages - 1, Math.floor(requested)))
     : 0;
   blocks.push(heading(`🛠️ Local workshops · ${page + 1}/${pages}`, 4));
   if (!recipes.length) blocks.push(para('There is no workshop here.'));
-  for (const r of recipes.slice(page * 3, page * 3 + 3)) {
+  for (const recipe of recipes.slice(page * 3, page * 3 + 3)) {
     const station =
-      { cook: '🍲 Hearth', brew: '⚗️ Brewing bench', smelt: '⚒️ Forge bench' }[r.station];
-    blocks.push(heading(r.name, 4), para(`${station} · Requires Lv ${r.level}`));
+      { cook: '🍲 Hearth', brew: '⚗️ Brewing bench', smelt: '⚒️ Forge bench' }[recipe.station];
+    blocks.push(heading(recipe.name, 4), para(`${station} · Requires Lv ${recipe.level}`));
     blocks.push(
       para(
         `Inputs: ${
-          r.inputs.map((m) => `${m.qty}× ${itemName(m.id)} (have ${countOf(p, m.id)})`).join(' · ')
+          recipe.inputs.map((mat) =>
+            `${mat.qty}× ${itemName(mat.id)} (have ${countOf(player, mat.id)})`
+          ).join(' · ')
         }
-Fee: ${r.gold}g`,
+Fee: ${recipe.gold}g`,
       ),
     );
-    for (const input of r.inputs.filter((m) => countOf(p, m.id) < m.qty)) {
+    for (const input of recipe.inputs.filter((mat) => countOf(player, mat.id) < mat.qty)) {
       const source = materialSources(input.id)[0];
       if (source) blocks.push(para(`${itemName(input.id)} — ${source}`));
     }
-    blocks.push(para(`Makes: ${r.output.qty}× ${itemName(r.output.id)}`));
-    const output = item(r.output.id);
+    blocks.push(para(`Makes: ${recipe.output.qty}× ${itemName(recipe.output.id)}`));
+    const output = item(recipe.output.id);
     if (output) { for (const line of itemMechanicsLines(output)) blocks.push(para(line)); }
-    const block = recipeBlock(p, r.id);
+    const block = recipeBlock(player, recipe.id);
     if (block) blocks.push(para(block));
     blocks.push(
       buttonsRow([
         block
           ? disabledBtn('Ingredients or requirements missing')
-          : cbBtn('Make one batch', encodeCb({ v: 'zone', a: 'cr', arg: r.id }), 'primary'),
+          : cbBtn('Make one batch', encodeCb({ v: 'zone', a: 'cr', arg: recipe.id }), 'primary'),
       ]),
     );
   }
@@ -316,9 +323,9 @@ Fee: ${r.gold}g`,
 
 /** The directed hub: ONE action per prologue step, status panels intact so
  * the player still learns to read their own bars. */
-function renderTutorialHub(p: PlayerState): InputRichMessage {
-  const blocks = zoneHeader(p);
-  if (p.tutorial === 'maren') {
+function renderTutorialHub(player: PlayerState): InputRichMessage {
+  const blocks = zoneHeader(player);
+  if (player.tutorial === 'maren') {
     blocks.push(banner('🔥 Your tale begins'));
     blocks.push(para(
       'The village hearth has failed to light this morning. Farmers wait beside sacks of seed they may have to eat instead of plant. You have come to help. Elder Maren calls you over to the ember she has kept alive.',
@@ -331,7 +338,7 @@ function renderTutorialHub(p: PlayerState): InputRichMessage {
   } else {
     // 'outskirts' and 'fight' (re-face after a fled fight) share one panel:
     // the controlled encounter is the only business out here.
-    const again = p.tutorial === 'fight';
+    const again = player.tutorial === 'fight';
     blocks.push(banner('🌑 Just outside the village'));
     blocks.push(para(
       again
@@ -354,11 +361,11 @@ function renderTutorialHub(p: PlayerState): InputRichMessage {
 
 /** Maren's prologue brief (#69): the ember, the threat outside, the
  * send-off — spoken by Maren, in the game's register. */
-export function renderTutorial(p: PlayerState): InputRichMessage {
+export function renderTutorial(player: PlayerState): InputRichMessage {
   return {
     blocks: [
       heading('🧓 Elder Maren', 3),
-      ...noticesBlocks(p),
+      ...noticesBlocks(player),
       quote(
         '“The Great Flame once warmed our hearths and brought the spring. King Aldric divided it and kept its renewing light in his crown. Now the growing seasons shrink, and this village is running out of food. We can still change that.”',
       ),
@@ -384,18 +391,18 @@ const RISK_TEXT: Record<string, string> = {
   perilous: 'perilous — an expedition; go restored',
 };
 
-function renderTravelConfirmation(p: PlayerState): InputRichMessage | undefined {
+function renderTravelConfirmation(player: PlayerState): InputRichMessage | undefined {
   // A hazardous-departure confirmation (#164): the staged panel replaces
   // the route list until confirmed or dismissed.
-  const staged = p.scene.arg ?? '';
+  const staged = player.scene.arg ?? '';
   if (staged.startsWith('go:')) {
     const edgeId = staged.slice('go:'.length);
-    const plan = resolveRouteById(p, edgeId);
+    const plan = resolveRouteById(player, edgeId);
     const dest = plan ? zone(plan.to) : undefined;
     if (plan && dest) {
       const blocks: Block[] = [
         heading(`⚠️ ${plan.name ?? 'The road ahead'}`, 3),
-        ...noticesBlocks(p),
+        ...noticesBlocks(player),
         para(
           `${dest.emoji} ${dest.name} — Lv ${dest.levels[0]}-${dest.levels[1]}\n` +
             `${plan.eventCount} road event${plan.eventCount === 1 ? '' : 's'} · ${
@@ -425,26 +432,26 @@ function renderTravelConfirmation(p: PlayerState): InputRichMessage | undefined 
   return undefined;
 }
 
-export function renderTravel(p: PlayerState): InputRichMessage {
-  const confirmation = renderTravelConfirmation(p);
+export function renderTravel(player: PlayerState): InputRichMessage {
+  const confirmation = renderTravelConfirmation(player);
   if (confirmation) return confirmation;
   const blocks: Block[] = [
     heading('🧭 Travel', 3),
-    ...noticesBlocks(p),
+    ...noticesBlocks(player),
     para('Road events may be battles, quiet stretches, or useful finds.'),
   ];
-  const routes = usableRoutesFrom(p);
+  const routes = usableRoutesFrom(player);
   // Adjacent roads that are NOT currently usable get a clear line — the
   // map teaches adjacency, and a locked road names why. An edge hidden by
   // its author renders nothing at all (authored policy).
-  for (const r of routesFrom(p.currentZone)) {
-    if (routes.some((u) => u.id === r.id)) continue;
-    const dest = zone(r.to);
+  for (const route of routesFrom(player.currentZone)) {
+    if (routes.some((usableRoute) => usableRoute.id === route.id)) continue;
+    const dest = zone(route.to);
     if (!dest) continue;
-    const locked = !p.unlockedZones.includes(r.to);
+    const locked = !player.unlockedZones.includes(route.to);
     blocks.push(
       para(
-        `🔒 ${r.name ?? 'A road'} → ${dest.emoji} ${dest.name} — ${
+        `🔒 ${route.name ?? 'A road'} → ${dest.emoji} ${dest.name} — ${
           locked ? 'not yours to walk yet' : 'closed for now'
         }.`,
       ),
@@ -453,8 +460,8 @@ export function renderTravel(p: PlayerState): InputRichMessage {
   if (routes.length === 0) {
     blocks.push(para('No open road leads out of here yet.'));
   }
-  for (const r of routes) {
-    const plan = resolveRoute(p, r);
+  for (const route of routes) {
+    const plan = resolveRoute(player, route);
     const dest = zone(plan.to)!;
     const rolls = plan.eventCount === 0
       ? 'no road events — a safe crossing'
@@ -479,7 +486,7 @@ export function renderTravel(p: PlayerState): InputRichMessage {
     if (services.length > 0) blocks.push(para(`Known there: ${services.join(' · ')}`));
     blocks.push(
       buttonsRow(
-        [cbBtn(`Take the road to ${dest.name}`, encodeCb({ v: 'travel', a: 'go', arg: r.id }))],
+        [cbBtn(`Take the road to ${dest.name}`, encodeCb({ v: 'travel', a: 'go', arg: route.id }))],
         'left',
       ),
     );
@@ -494,35 +501,35 @@ export function renderTravel(p: PlayerState): InputRichMessage {
  * destination, progress, the latest road report, and the three controls
  * (continue, supplies, retreat). Consecutive quiet events appear as ONE
  * ordered report, never one tap apiece. */
-export function renderJourney(p: PlayerState): InputRichMessage {
-  const j = p.journey;
-  if (!j) {
+export function renderJourney(player: PlayerState): InputRichMessage {
+  const journey = player.journey;
+  if (!journey) {
     return {
       blocks: [
         heading('🧭 On the road', 3),
-        ...noticesBlocks(p),
+        ...noticesBlocks(player),
         para('You are not on the road.'),
         buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]),
       ],
     };
   }
-  const from = zone(j.fromZone);
-  const to = zone(j.toZone);
+  const from = zone(journey.fromZone);
+  const to = zone(journey.toZone);
   const blocks: Block[] = [
     heading('🧭 On the road', 3),
     para([
       {
         type: 'bold',
-        text: `${from?.emoji ?? ''} ${from?.name ?? j.fromZone} → ${to?.emoji ?? ''} ${
-          to?.name ?? j.toZone
+        text: `${from?.emoji ?? ''} ${from?.name ?? journey.fromZone} → ${to?.emoji ?? ''} ${
+          to?.name ?? journey.toZone
         }`,
       } as RichText,
-      `\nCrossing events: ${j.completedEvents}/${j.totalEvents} resolved`,
+      `\nCrossing events: ${journey.completedEvents}/${journey.totalEvents} resolved`,
     ]),
-    ...noticesBlocks(p),
+    ...noticesBlocks(player),
   ];
-  if (j.report.length > 0) {
-    blocks.push(para(j.report.join('\n')));
+  if (journey.report.length > 0) {
+    blocks.push(para(journey.report.join('\n')));
   }
   blocks.push(
     buttonsRow([cbBtn('➡️ Press on', encodeCb({ v: 'journey', a: 'go' }), 'primary')]),
@@ -545,26 +552,30 @@ function shopFooter(switchLabel: string, switchArg: number): InputRichBlock {
 }
 
 /** Prev/page/Next navigation row shared by paged views. */
-function pageNav(pg: number, pages: number, pageCb: (n: number) => string): InputRichBlock {
+function pageNav(
+  pageIndex: number,
+  pages: number,
+  pageCb: (page: number) => string,
+): InputRichBlock {
   const nav = [];
-  if (pg > 0) nav.push(cbBtn('⬅️ Prev', pageCb(pg - 1)));
-  nav.push(cbBtn(`📄 ${pg + 1}/${pages}`, pageCb(pg)));
-  if (pg < pages - 1) nav.push(cbBtn('Next ➡️', pageCb(pg + 1)));
+  if (pageIndex > 0) nav.push(cbBtn('⬅️ Prev', pageCb(pageIndex - 1)));
+  nav.push(cbBtn(`📄 ${pageIndex + 1}/${pages}`, pageCb(pageIndex)));
+  if (pageIndex < pages - 1) nav.push(cbBtn('Next ➡️', pageCb(pageIndex + 1)));
   return buttonsRow(nav);
 }
 
 const SHOP_PAGE_SIZE = 6;
 
-export function renderShop(p: PlayerState, page: number): InputRichMessage {
-  const shop = shopAt(p);
-  const stock = shop ? offeringsAt(p) : [];
+export function renderShop(player: PlayerState, page: number): InputRichMessage {
+  const shop = shopAt(player);
+  const stock = shop ? offeringsAt(player) : [];
   const pages = Math.max(1, Math.ceil(stock.length / SHOP_PAGE_SIZE));
-  const pg = Math.min(Math.max(0, page), pages - 1);
-  const slice = stock.slice(pg * SHOP_PAGE_SIZE, (pg + 1) * SHOP_PAGE_SIZE);
+  const pageIndex = Math.min(Math.max(0, page), pages - 1);
+  const slice = stock.slice(pageIndex * SHOP_PAGE_SIZE, (pageIndex + 1) * SHOP_PAGE_SIZE);
   const blocks: Block[] = [
     heading(shop ? `🏪 ${shop.name}` : '🏪 Shop', 3),
-    para(`💰 ${p.gold} gold — tap to buy:`),
-    ...noticesBlocks(p),
+    para(`💰 ${player.gold} gold — tap to buy:`),
+    ...noticesBlocks(player),
   ];
   if (!shop) {
     blocks.push(para('There is no shop here.'));
@@ -573,11 +584,11 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
   }
   if (shop.desc) blocks.push(para({ type: 'italic', text: shop.desc } as RichText));
   for (const offering of slice) {
-    const id = offering.itemId;
-    const def = item(id);
+    const itemId = offering.itemId;
+    const def = item(itemId);
     if (!def) continue;
-    const owned = countOf(p, id);
-    const afford = p.gold >= offering.price;
+    const owned = countOf(player, itemId);
+    const afford = player.gold >= offering.price;
     blocks.push(para([
       {
         type: 'bold',
@@ -590,13 +601,13 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
     // stats and generated effects live together in its shop detail.
     if (def.desc) blocks.push(para([{ type: 'italic', text: def.desc } as RichText]));
     blocks.push(buttonsRow([
-      cbBtn('🔍 Details', encodeCb({ v: 'shop', a: 'view', arg: id })),
+      cbBtn('🔍 Details', encodeCb({ v: 'shop', a: 'view', arg: itemId })),
       afford
-        ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: id }), 'success')
+        ? cbBtn(`Buy ${def.name}`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
         : disabledBtn(`${def.name} — too costly`),
     ], 'left'));
   }
-  blocks.push(...shopTail(pg, pages, '💱 Switch to selling', -1));
+  blocks.push(...shopTail(pageIndex, pages, '💱 Switch to selling', -1));
   return { blocks };
 }
 
@@ -604,12 +615,12 @@ export function renderShop(p: PlayerState, page: number): InputRichMessage {
  * keep this scene open; Back clears the selection and restores its page.
  * Stock and price are resolved again on every render, including /start. */
 export function renderShopItemDetail(
-  p: PlayerState,
+  player: PlayerState,
   itemId: string,
   page: number,
 ): InputRichMessage {
-  const shop = shopAt(p);
-  const offering = offeringsAt(p).find((o) => o.itemId === itemId);
+  const shop = shopAt(player);
+  const offering = offeringsAt(player).find((entry) => entry.itemId === itemId);
   const def = item(itemId);
   const back = cbBtn('⬅️ Shop', encodeCb({ v: 'shop', a: 'p', arg: page }));
   if (!shop || !offering || !def) {
@@ -625,18 +636,18 @@ export function renderShopItemDetail(
       ],
     };
   }
-  const reference = renderItemReference(def.id, p.scene.arg3);
+  const reference = renderItemReference(def.id, player.scene.arg3);
   if (reference) return reference;
   const blocks: Block[] = [
     heading(`${defEmoji(def.kind)} ${def.name}`, 4),
     para(
-      `🏪 ${shop.name}\n💰 ${p.gold} gold · Price: ${offering.price}g\nIn bag: ${
-        countOf(p, itemId)
+      `🏪 ${shop.name}\n💰 ${player.gold} gold · Price: ${offering.price}g\nIn bag: ${
+        countOf(player, itemId)
       }`,
     ),
-    ...noticesBlocks(p),
+    ...noticesBlocks(player),
   ];
-  const temper = temperBonusOf(p, itemId);
+  const temper = temperBonusOf(player, itemId);
   if (temper > 0 && (def.kind === 'weapon' || def.kind === 'armor')) {
     blocks.push(para(
       `🔧 Forge mastery: +${
@@ -646,7 +657,7 @@ export function renderShopItemDetail(
   }
   blocks.push(...itemFactBlocks(def));
   blocks.push(buttonsRow([
-    p.gold >= offering.price
+    player.gold >= offering.price
       ? cbBtn(`Buy · ${offering.price}g`, encodeCb({ v: 'shop', a: 'buy', arg: itemId }), 'success')
       : disabledBtn('Buy — too costly'),
   ]));
@@ -656,25 +667,27 @@ export function renderShopItemDetail(
 }
 
 /** Shared shop tail: pagination + the toggle to the other shop mode. */
-function shopTail(pg: number, pages: number, label: string, arg: number): Block[] {
+function shopTail(pageIndex: number, pages: number, label: string, arg: number): Block[] {
   return [
-    pageNav(pg, pages, (n) => encodeCb({ v: 'shop', a: 'p', arg: n })),
+    pageNav(pageIndex, pages, (page) => encodeCb({ v: 'shop', a: 'p', arg: page })),
     shopFooter(label, arg),
   ];
 }
 
-export function renderSell(p: PlayerState, page: number): InputRichMessage {
+export function renderSell(player: PlayerState, page: number): InputRichMessage {
   // Selling is a shop-counter service (#161): the sell view exists only
   // where a shop stands, and the engine revalidates on every sale.
-  const shop = shopAt(p);
-  const sellable = shop ? p.inventory.filter((e) => item(e.id) && !item(e.id)!.unique) : [];
+  const shop = shopAt(player);
+  const sellable = shop
+    ? player.inventory.filter((entry) => item(entry.id) && !item(entry.id)!.unique)
+    : [];
   const pages = Math.max(1, Math.ceil(sellable.length / SHOP_PAGE_SIZE));
-  const pg = Math.min(Math.max(0, page), pages - 1);
-  const slice = sellable.slice(pg * SHOP_PAGE_SIZE, (pg + 1) * SHOP_PAGE_SIZE);
+  const pageIndex = Math.min(Math.max(0, page), pages - 1);
+  const slice = sellable.slice(pageIndex * SHOP_PAGE_SIZE, (pageIndex + 1) * SHOP_PAGE_SIZE);
   const blocks: Block[] = [
     heading(shop ? `💱 Sell — ${shop.name}` : '💱 Sell', 3),
-    para(`💰 ${p.gold} gold — tap to sell one:`),
-    ...noticesBlocks(p),
+    para(`💰 ${player.gold} gold — tap to sell one:`),
+    ...noticesBlocks(player),
   ];
   if (!shop) {
     blocks.push(para('No merchant here would buy anything.'));
@@ -682,16 +695,16 @@ export function renderSell(p: PlayerState, page: number): InputRichMessage {
     return { blocks };
   }
   for (const entry of slice) {
-    const def = item(entry.id)!;
-    blocks.push(para(`${def.name} ×${entry.qty} — sells for ${sellPrice(def.id)}g`));
+    const itemDef = item(entry.id)!;
+    blocks.push(para(`${itemDef.name} ×${entry.qty} — sells for ${sellPrice(itemDef.id)}g`));
     blocks.push(
       buttonsRow(
-        [cbBtn(`Sell ${def.name}`, encodeCb({ v: 'shop', a: 'sell', arg: def.id }))],
+        [cbBtn(`Sell ${itemDef.name}`, encodeCb({ v: 'shop', a: 'sell', arg: itemDef.id }))],
         'left',
       ),
     );
   }
-  blocks.push(...shopTail(pg, pages, '🛒 Switch to buying', -2));
+  blocks.push(...shopTail(pageIndex, pages, '🛒 Switch to buying', -2));
   return { blocks };
 }
 
@@ -714,21 +727,21 @@ function defEmoji(kind: string): string {
 
 // ── Forge ─────────────────────────────────────────────────────────────────
 
-export function renderForge(p: PlayerState): InputRichMessage {
-  const forge = forgeAt(p);
+export function renderForge(player: PlayerState): InputRichMessage {
+  const forge = forgeAt(player);
   if (!forge) {
     return {
       blocks: [
         heading('⚒️ Forge', 3),
-        ...noticesBlocks(p),
+        ...noticesBlocks(player),
         para('There is no forge here.'),
         buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'forge', a: 'bk' }))]),
       ],
     };
   }
-  const wc = temperCost(p, 'weapon');
-  const ac = temperCost(p, 'armor');
-  const caps = forgeCapability(p)!;
+  const weaponCost = temperCost(player, 'weapon');
+  const armorCost = temperCost(player, 'armor');
+  const caps = forgeCapability(player)!;
   const blocks: Block[] = [
     heading(`⚒️ ${forge.name}`, 3),
     ...(forge.desc ? [para({ type: 'italic', text: forge.desc } as RichText)] : []),
@@ -736,23 +749,25 @@ export function renderForge(p: PlayerState): InputRichMessage {
       "Temper your equipped gear. Each temper grants +8% to that item's base stats, up to +5. All copies of this gear share your temper level.",
     ),
     para('⚡ Tempering does not change item effects.'),
-    ...noticesBlocks(p),
+    ...noticesBlocks(player),
     para(
-      `🗡️ ${p.equipment.weapon ? itemName(p.equipment.weapon) : '—'}: +${
-        temperLevel(p, 'weapon')
+      `🗡️ ${player.equipment.weapon ? itemName(player.equipment.weapon) : '—'}: +${
+        temperLevel(player, 'weapon')
       }/${caps.maxTemper}\n` +
-        `🛡️ ${p.equipment.armor ? itemName(p.equipment.armor) : '—'}: +${
-          temperLevel(p, 'armor')
+        `🛡️ ${player.equipment.armor ? itemName(player.equipment.armor) : '—'}: +${
+          temperLevel(player, 'armor')
         }/${caps.maxTemper}\n` +
-        `💰 ${p.gold} gold`,
+        `💰 ${player.gold} gold`,
     ),
   ];
-  for (const [label, cost] of [['Weapon', wc], ['Armor', ac]] as const) {
+  for (const [label, cost] of [['Weapon', weaponCost], ['Armor', armorCost]] as const) {
     if (cost) {
       blocks.push(
         para(
           `${label}: ${cost.gold}g + ${
-            cost.materials.map((m) => `${m.qty}× ${itemName(m.id)} (have ${countOf(p, m.id)})`)
+            cost.materials.map((mat) =>
+              `${mat.qty}× ${itemName(mat.id)} (have ${countOf(player, mat.id)})`
+            )
               .join(
                 ' · ',
               )
@@ -761,22 +776,22 @@ export function renderForge(p: PlayerState): InputRichMessage {
       );
     }
   }
-  const weaponBlock = temperBlock(p, 'weapon');
-  const armorBlock = temperBlock(p, 'armor');
+  const weaponBlock = temperBlock(player, 'weapon');
+  const armorBlock = temperBlock(player, 'armor');
   blocks.push(
     buttonsRow([
-      wc
+      weaponCost
         ? cbBtn(
-          `Temper weapon — ${wc.gold}g`,
+          `Temper weapon — ${weaponCost.gold}g`,
           encodeCb({ v: 'forge', a: 'w' }),
           'primary',
         )
         : disabledBtn(weaponBlock ?? 'Weapon at this forge\u2019s limit'),
     ], 'left'),
     buttonsRow([
-      ac
+      armorCost
         ? cbBtn(
-          `Temper armor — ${ac.gold}g`,
+          `Temper armor — ${armorCost.gold}g`,
           encodeCb({ v: 'forge', a: 'a' }),
           'primary',
         )
@@ -789,32 +804,32 @@ export function renderForge(p: PlayerState): InputRichMessage {
 
 // ── Character sheet ───────────────────────────────────────────────────────
 
-export function renderCharacter(p: PlayerState): InputRichMessage {
-  const s = statsOf(p);
-  const c = CLASSES[p.classId];
-  const xp = xpProgress(p);
-  const done = QUESTS.filter((q) => p.quests[q.id]?.status === 'done').length;
-  const need = xpForNextLevel(p.level);
+export function renderCharacter(player: PlayerState): InputRichMessage {
+  const stats = statsOf(player);
+  const classDef = CLASSES[player.classId];
+  const xp = xpProgress(player);
+  const done = QUESTS.filter((questDef) => player.quests[questDef.id]?.status === 'done').length;
+  const need = xpForNextLevel(player.level);
   const blocks: Block[] = [
-    heading(`${c.emoji} ${p.name} — Lv ${p.level} ${c.name}`, 3),
-    ...noticesBlocks(p),
+    heading(`${classDef.emoji} ${player.name} — Lv ${player.level} ${classDef.name}`, 3),
+    ...noticesBlocks(player),
     para(
-      `❤️ ${p.hp}/${s.maxHp}  💧 ${p.mp}/${s.maxMp}\n` +
-        `⚔️ ATK ${s.atk} · 🛡️ DEF ${s.def}\n` +
-        `🔮 MAG ${s.mag} · ✨ RES ${s.res}\n` +
-        `💨 SPD ${s.spd} · 🍀 LUK ${s.luck}`,
+      `❤️ ${player.hp}/${stats.maxHp}  💧 ${player.mp}/${stats.maxMp}\n` +
+        `⚔️ ATK ${stats.atk} · 🛡️ DEF ${stats.def}\n` +
+        `🔮 MAG ${stats.mag} · ✨ RES ${stats.res}\n` +
+        `💨 SPD ${stats.spd} · 🍀 LUK ${stats.luck}`,
     ),
     para(
-      p.level >= MAX_LEVEL
+      player.level >= MAX_LEVEL
         ? '✨ XP: MAX'
         : `✨ XP: ${xp.current}/${need} (${pct(xp.current, need)})`,
     ),
     para(
-      `💰 ${p.gold} gold\n` +
-        `⚔️ Victories: ${p.stats.battlesWon} · ☠️ Deaths: ${p.stats.deaths}\n` +
-        `👑 Bosses slain: ${p.stats.bossesSlain} · 📜 Quests done: ${done}`,
+      `💰 ${player.gold} gold\n` +
+        `⚔️ Victories: ${player.stats.battlesWon} · ☠️ Deaths: ${player.stats.deaths}\n` +
+        `👑 Bosses slain: ${player.stats.bossesSlain} · 📜 Quests done: ${done}`,
     ),
-    quote({ type: 'italic', text: c.desc }),
+    quote({ type: 'italic', text: classDef.desc }),
     buttonsRow([
       cbBtn('🎒 Inventory', encodeCb({ v: 'zone', a: 'inv' })),
       cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' })),
@@ -828,25 +843,25 @@ export function renderCharacter(p: PlayerState): InputRichMessage {
 
 const QUESTS_PAGE_SIZE = 8;
 
-export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
-  const blocks: Block[] = [heading('📜 Quest Log', 3), ...noticesBlocks(p)];
-  const mains = QUESTS.filter((q) => q.main);
-  const sides = QUESTS.filter((q) => !q.main);
+export function renderQuests(player: PlayerState, page = 0): InputRichMessage {
+  const blocks: Block[] = [heading('📜 Quest Log', 3), ...noticesBlocks(player)];
+  const mains = QUESTS.filter((questDef) => questDef.main);
+  const sides = QUESTS.filter((questDef) => !questDef.main);
   // A main quest ready to turn in stays the primary card (#15): dropping it
   // hid the only visible turn-in path — the log fell through to a
   // prerequisite-locked "next" quest and dead-ended.
-  const activeMain = mains.find((q) =>
-    ['active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
+  const activeMain = mains.find((questDef) =>
+    ['active', 'turnIn'].includes(player.quests[questDef.id]?.status ?? 'unavailable')
   );
   if (activeMain) {
-    const ready = p.quests[activeMain.id]?.status === 'turnIn';
+    const ready = player.quests[activeMain.id]?.status === 'turnIn';
     blocks.push(para([{ type: 'bold', text: `🏅 Main: ${activeMain.name}` } as RichText]));
-    blocks.push(para(questStatusLine(p, activeMain.id)));
+    blocks.push(para(questStatusLine(player, activeMain.id)));
     // The journal points at the physical contact (#65) — it never performs
     // the lifecycle action itself.
     if (ready) {
-      const fin = questFinisher(activeMain.id);
-      if (fin) blocks.push(para(`🏁 Return to ${fin.npc.name} — ${fin.zone.name}.`));
+      const finisher = questFinisher(activeMain.id);
+      if (finisher) blocks.push(para(`🏁 Return to ${finisher.npc.name} — ${finisher.zone.name}.`));
     }
     blocks.push(
       buttonsRow(
@@ -860,11 +875,11 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
       ),
     );
   } else {
-    const next = mains.find((q) => p.quests[q.id]?.status === 'available');
+    const next = mains.find((questDef) => player.quests[questDef.id]?.status === 'available');
     if (next) {
-      const st = questStarter(next.id);
+      const starter = questStarter(next.id);
       blocks.push(para('🟢 A main quest awaits!'));
-      if (st) blocks.push(para(`🤝 Start with ${st.npc.name} — ${st.zone.name}.`));
+      if (starter) blocks.push(para(`🤝 Start with ${starter.npc.name} — ${starter.zone.name}.`));
       blocks.push(
         buttonsRow(
           [cbBtn(`View: ${next.name}`, encodeCb({ v: 'quests', a: 'q', arg: next.id }))],
@@ -876,77 +891,79 @@ export function renderQuests(p: PlayerState, page = 0): InputRichMessage {
       // when the STORY has unlocked the next main quest and only the level
       // gates it, name it and show both numbers — with no accept path.
       // Quests still story-gated are never revealed.
-      const locked = levelLockedMain(p);
+      const locked = levelLockedMain(player);
       if (locked) {
         blocks.push(para([
           { type: 'bold', text: `🔒 Next: ${locked.name}` } as RichText,
-          `\nRequires level ${locked.level} — you are ${p.level}. Train in the wilds: the dawn keeps.`,
+          `\nRequires level ${locked.level} — you are ${player.level}. Train in the wilds: the dawn keeps.`,
         ]));
-      } else if (mains.every((q) => p.quests[q.id]?.status === 'done')) {
+      } else if (mains.every((questDef) => player.quests[questDef.id]?.status === 'done')) {
         blocks.push(para('🏅 The story is complete — and the dawn holds.'));
       } else {
         blocks.push(para('🏅 The story continues soon…'));
       }
     }
   }
-  const liveSides = sides.filter((q) =>
-    ['available', 'active', 'turnIn'].includes(p.quests[q.id]?.status ?? 'unavailable')
+  const liveSides = sides.filter((questDef) =>
+    ['available', 'active', 'turnIn'].includes(player.quests[questDef.id]?.status ?? 'unavailable')
   );
   // Pagination (#21): a completionist save can hold 18 live side quests at
   // once — the old slice(0, 8) stranded every later quest behind a page
   // that never rendered.
   const pages = Math.max(1, Math.ceil(liveSides.length / QUESTS_PAGE_SIZE));
-  const pg = Math.min(Math.max(0, page), pages - 1);
-  const start = pg * QUESTS_PAGE_SIZE;
+  const pageIndex = Math.min(Math.max(0, page), pages - 1);
+  const start = pageIndex * QUESTS_PAGE_SIZE;
   blocks.push(para(`Side quests (${liveSides.length})`));
-  for (const q of liveSides.slice(start, start + QUESTS_PAGE_SIZE)) {
-    const status = p.quests[q.id]?.status;
+  for (const questDef of liveSides.slice(start, start + QUESTS_PAGE_SIZE)) {
+    const status = player.quests[questDef.id]?.status;
     const label = status === 'turnIn' ? '✅ ' : status === 'active' ? '⏳ ' : '🟢 ';
     blocks.push(
       buttonsRow(
-        [cbBtn(`${label}${q.name}`, encodeCb({ v: 'quests', a: 'q', arg: q.id }))],
+        [cbBtn(`${label}${questDef.name}`, encodeCb({ v: 'quests', a: 'q', arg: questDef.id }))],
         'left',
       ),
     );
   }
   if (pages > 1) {
-    blocks.push(pageNav(pg, pages, (n) => encodeCb({ v: 'quests', a: 'p', arg: n })));
+    blocks.push(
+      pageNav(pageIndex, pages, (pageNum) => encodeCb({ v: 'quests', a: 'p', arg: pageNum })),
+    );
   }
   blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'zone', a: 'hm' }))]));
   return { blocks };
 }
 
-export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage {
-  const q: QuestDef | undefined = quest(id);
-  const qp = p.quests[id];
+export function renderQuestDetail(player: PlayerState, id: string): InputRichMessage {
+  const questDef: QuestDef | undefined = quest(id);
+  const questProgress = player.quests[id];
   const blocks: Block[] = [];
-  if (!q) {
+  if (!questDef) {
     blocks.push(para('That quest is unavailable. Return to the Quest Log.'));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'quests', a: 'bk' }))]));
     return { blocks };
   }
-  blocks.push(...noticesBlocks(p));
-  const status = qp?.status ?? 'unavailable';
+  blocks.push(...noticesBlocks(player));
+  const status = questProgress?.status ?? 'unavailable';
   if (status === 'available' || status === 'active' || status === 'turnIn') {
     // The same actionable brief as the conversation, with no lifecycle controls.
     blocks.push(
       ...questBriefBlocks(
-        p,
-        q,
+        player,
+        questDef,
         status === 'available' ? 'offer' : status === 'turnIn' ? 'turnIn' : 'progress',
       ),
     );
-    if (status === 'available') blocks.push(para(`✔️ Requires level ${q.level}.`));
-    if (status === 'turnIn') blocks.push(para(questStatusLine(p, id)));
+    if (status === 'available') blocks.push(para(`✔️ Requires level ${questDef.level}.`));
+    if (status === 'turnIn') blocks.push(para(questStatusLine(player, id)));
   } else {
-    blocks.push(heading(`${q.main ? '🏅' : '📜'} ${q.name}`, 4));
-    blocks.push(quote({ type: 'italic', text: q.summary }));
-    blocks.push(para(questStatusLine(p, id)));
+    blocks.push(heading(`${questDef.main ? '🏅' : '📜'} ${questDef.name}`, 4));
+    blocks.push(quote({ type: 'italic', text: questDef.summary }));
+    blocks.push(para(questStatusLine(player, id)));
     blocks.push(
       para(
-        p.questOutcomes[id]?.kind === 'resolved'
+        player.questOutcomes[id]?.kind === 'resolved'
           ? 'This quest ended with an alternate outcome. Its normal rewards were not granted.'
-          : `🎁 Rewards: ${questRewardText(p, q)}`,
+          : `🎁 Rewards: ${questRewardText(player, questDef)}`,
       ),
     );
   }
@@ -970,30 +987,36 @@ export function renderQuestDetail(p: PlayerState, id: string): InputRichMessage 
  * default greeting is the concise header, so an NPC with no business still
  * exposes their authored conversation instead of flashing a notice. Pure
  * navigation: nothing here mutates. */
-export function renderNpcTopics(p: PlayerState): InputRichMessage {
-  const npcId = p.scene.arg ?? '';
+export function renderNpcTopics(player: PlayerState): InputRichMessage {
+  const npcId = player.scene.arg ?? '';
   const def = npc(npcId);
   const blocks: Block[] = [];
-  if (!def || !npcInZone(p.currentZone, npcId)) {
+  if (!def || !npcInZone(player.currentZone, npcId)) {
     blocks.push(para('Nobody there.'));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'bk' }))]));
     return { blocks };
   }
-  if (p.scene.arg2?.startsWith('lore:')) {
-    const topic = def.topics?.find((t) => t.id === p.scene.arg2!.slice('lore:'.length));
+  if (player.scene.arg2?.startsWith('lore:')) {
+    const topic = def.topics?.find((topicItem) =>
+      topicItem.id === player.scene.arg2!.slice('lore:'.length)
+    );
     blocks.push(heading(`🗣️ ${def.name}`, 4));
-    blocks.push(...noticesBlocks(p));
+    blocks.push(...noticesBlocks(player));
     if (topic?.text) blocks.push(quote({ type: 'italic', text: topic.text }));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
     return { blocks };
   }
-  if (p.scene.arg2?.startsWith('q:')) {
-    const q = quest(p.scene.arg2.slice('q:'.length));
+  if (player.scene.arg2?.startsWith('q:')) {
+    const questDef = quest(player.scene.arg2.slice('q:'.length));
     blocks.push(heading(`🗣️ ${def.name}`, 4));
-    blocks.push(...noticesBlocks(p));
-    if (q) {
+    blocks.push(...noticesBlocks(player));
+    if (questDef) {
       blocks.push(
-        ...questBriefBlocks(p, q, p.quests[q.id]?.status === 'turnIn' ? 'turnIn' : 'progress'),
+        ...questBriefBlocks(
+          player,
+          questDef,
+          player.quests[questDef.id]?.status === 'turnIn' ? 'turnIn' : 'progress',
+        ),
       );
     }
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
@@ -1001,15 +1024,15 @@ export function renderNpcTopics(p: PlayerState): InputRichMessage {
   }
   blocks.push(heading(`🗣️ ${def.name}`, 4));
   blocks.push(quote({ type: 'italic', text: def.greeting }));
-  blocks.push(...noticesBlocks(p));
-  const topics = npcTopics(p, npcId);
+  blocks.push(...noticesBlocks(player));
+  const topics = npcTopics(player, npcId);
   if (topics.length > 0) blocks.push(para('Choose a topic:'));
-  for (const t of topics) {
+  for (const topic of topics) {
     blocks.push(
       buttonsRow([
         cbBtn(
-          t.label,
-          encodeCb({ v: 'npc', a: t.kind === 'lore' ? 'lore' : 'q', arg: t.id }),
+          topic.label,
+          encodeCb({ v: 'npc', a: topic.kind === 'lore' ? 'lore' : 'q', arg: topic.id }),
         ),
       ], 'left'),
     );
@@ -1026,18 +1049,19 @@ export function renderNpcTopics(p: PlayerState): InputRichMessage {
  * message — no extra Telegram messages. Reopening a dialogue always
  * restarts it from the start node (documented policy); /start and rerenders
  * reproduce the CURRENT node because the scene persists (dialogue, node). */
-export function renderDialogue(p: PlayerState): InputRichMessage {
-  const d = dialogue(p.scene.arg ?? '');
+export function renderDialogue(player: PlayerState): InputRichMessage {
+  const dialogueDef = dialogue(player.scene.arg ?? '');
   const blocks: Block[] = [];
-  const npcDef = d ? npc(d.npcId) : undefined;
-  if (!d || !npcDef || !npcInZone(p.currentZone, d.npcId)) {
+  const npcDef = dialogueDef ? npc(dialogueDef.npcId) : undefined;
+  if (!dialogueDef || !npcDef || !npcInZone(player.currentZone, dialogueDef.npcId)) {
     blocks.push(para('That conversation has moved on.'));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'dlg', a: 'bk' }))]));
     return { blocks };
   }
-  const node = dialogueNode(d, p.scene.arg2 ?? '') ?? dialogueNode(d, d.start)!;
+  const node = dialogueNode(dialogueDef, player.scene.arg2 ?? '') ??
+    dialogueNode(dialogueDef, dialogueDef.start)!;
   blocks.push(heading(`🗣️ ${npcDef.name}`, 4));
-  blocks.push(...noticesBlocks(p));
+  blocks.push(...noticesBlocks(player));
   if (node.kind === 'line') {
     if (node.speaker === 'narrator') {
       blocks.push(para({ type: 'italic', text: node.text } as RichText));
@@ -1062,11 +1086,11 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     // Irreversible confirmation panel (#126): repeats the selection, states
     // permanence, offers the consequence hint, mutates NOTHING — Confirm
     // is the only mutating control, staged through arg3.
-    if (p.scene.arg3?.startsWith('confirm:')) {
-      const choice = node.choices.find((c) => c.id === p.scene.arg3!.slice('confirm:'.length));
+    if (player.scene.arg3?.startsWith('confirm:')) {
+      const choice = node.choices.find((c) => c.id === player.scene.arg3!.slice('confirm:'.length));
       if (choice) {
         blocks.push(quote(`You — “${choice.label}”`));
-        blocks.push(...choiceQuestBlocks(p, choice));
+        blocks.push(...choiceQuestBlocks(player, choice));
         blocks.push(
           divider(),
           buttonsRow([
@@ -1087,18 +1111,20 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
     // `when` gates HIDE a response (a secret route), by design; re-render
     // is never authority — availability is revalidated at tap time.
     blocks.push(quote(`“${node.prompt}”`));
-    const choices = node.choices.filter((c) => !c.when || evalCondition(p, c.when));
+    const choices = node.choices.filter((choice) =>
+      !choice.when || evalCondition(player, choice.when)
+    );
     const defer = node.allowDeferral !== false;
-    for (const c of choices) {
-      const brief = choiceQuestBlocks(p, c);
+    for (const choice of choices) {
+      const brief = choiceQuestBlocks(player, choice);
       if (choices.length > 1 && brief.length) {
-        blocks.push(divider(), heading(c.label, 4));
+        blocks.push(divider(), heading(choice.label, 4));
       }
       blocks.push(...brief);
       const row = [
         cbBtn(
-          c.label,
-          encodeCb({ v: 'dlg', a: 'ch', arg: c.id }),
+          choice.label,
+          encodeCb({ v: 'dlg', a: 'ch', arg: choice.id }),
           choices.length === 1 ? 'primary' : undefined,
         ),
       ];
@@ -1125,11 +1151,11 @@ export function renderDialogue(p: PlayerState): InputRichMessage {
 
 // ── Death ─────────────────────────────────────────────────────────────────
 
-export function renderDeath(p: PlayerState): InputRichMessage {
+export function renderDeath(player: PlayerState): InputRichMessage {
   return {
     blocks: [
       banner('💀 You have fallen…'),
-      ...noticesBlocks(p),
+      ...noticesBlocks(player),
       quote('The dawn you seek is still ahead — and the Flame is not done with you.'),
       buttonsRow([cbBtn('🕯️ Rise again', encodeCb({ v: 'death', a: 'ok' }), 'success')]),
     ],
@@ -1163,11 +1189,11 @@ export function renderHelp(): InputRichMessage {
 
 // ── Reset confirmation ──────────────────────────────────────────────────
 
-export function renderResetConfirm(p: PlayerState): InputRichMessage {
+export function renderResetConfirm(player: PlayerState): InputRichMessage {
   return {
     blocks: [
       banner('⚠️ Delete this hero?'),
-      ...noticesBlocks(p),
+      ...noticesBlocks(player),
       para(
         'This erases your character — level, gold, gear, every quest — and starts a brand-new tale. There is no undo.',
       ),
@@ -1188,22 +1214,29 @@ export function renderClassPicker(): InputRichMessage {
       'Spring comes later each year. The fields around Emberdawn no longer grow enough to feed the village. King Aldric stole the renewing light of the Great Flame, and someone must carry a living ember back to its source. You have come to help. Choose how you will face the road:',
     ),
   ];
-  for (const cid of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
-    const c = CLASSES[cid];
+  for (const classId of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    const classDef = CLASSES[classId];
     blocks.push(para([
-      { type: 'bold', text: `${c.emoji} ${c.name} — ${c.tagline}` } as RichText,
-      { type: 'italic', text: `\n${c.desc}` } as RichText,
+      {
+        type: 'bold',
+        text: `${classDef.emoji} ${classDef.name} — ${classDef.tagline}`,
+      } as RichText,
+      { type: 'italic', text: `\n${classDef.desc}` } as RichText,
     ]));
     blocks.push(
       para(
-        `Opens with ${c.basicAction.name} (free) and ${c.startingKit}. ${c.tradeoff} Complexity: ${c.complexity}.${
-          c.beginnerPick ? ' ⭐ The forgiving first pick.' : ''
+        `Opens with ${classDef.basicAction.name} (free) and ${classDef.startingKit}. ${classDef.tradeoff} Complexity: ${classDef.complexity}.${
+          classDef.beginnerPick ? ' ⭐ The forgiving first pick.' : ''
         }`,
       ),
     );
     blocks.push(
       buttonsRow(
-        [cbBtn(`Play ${c.name}`, encodeCb({ v: 'meta', a: 'pick', arg: cid }), 'primary')],
+        [cbBtn(
+          `Play ${classDef.name}`,
+          encodeCb({ v: 'meta', a: 'pick', arg: classId }),
+          'primary',
+        )],
         'left',
       ),
     );

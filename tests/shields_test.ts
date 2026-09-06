@@ -113,15 +113,15 @@ Deno.test('shields: the canonical 200 → 60/200 → 60/100 → 0/0 regression (
   assertEquals(b.shield.player, 60, '140 damage leaves 60/200');
   // Expire contribution 'a': the batch prune removes it, the maximum
   // drops to 100, and current is untouched (nothing lost to report).
-  const a = b.effectInstances.find((i) => i.defId === 'a')!;
-  a.remaining = 1;
+  const instanceA = b.effectInstances.find((inst) => inst.defId === 'a')!;
+  instanceA.remaining = 1;
   const r1 = tickEndOfRound(b, () => 100);
   assertEquals(maxShield(b, 'player'), 100);
   assertEquals(b.shield.player, 60, 'current survives the first expiry');
   assertEquals(r1.shieldLosses, [], 'no loss — capacity absorbed the cut');
   // Expire 'b': new max 0, so current caps to 0 — the canonical 0/0.
-  const bb = b.effectInstances.find((i) => i.defId === 'b')!;
-  bb.remaining = 1;
+  const instanceB = b.effectInstances.find((inst) => inst.defId === 'b')!;
+  instanceB.remaining = 1;
   const r2 = tickEndOfRound(b, () => 100);
   assertEquals(maxShield(b, 'player'), 0);
   assertEquals(b.shield.player, 0, '0/0');

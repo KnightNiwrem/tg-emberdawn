@@ -11,7 +11,7 @@
 import type { EffectSpec, SkillDef } from './types.ts';
 import type { ClassId } from '../engine/types.ts';
 
-const S = (s: SkillDef): SkillDef => s;
+const S = (skill: SkillDef): SkillDef => skill;
 
 /** Damage — the overwhelmingly common shape. */
 const dmg = (attack: 'phys' | 'mag', power: number): EffectSpec => ({
@@ -24,12 +24,12 @@ const dmg = (attack: 'phys' | 'mag', power: number): EffectSpec => ({
 const buff = (
   stat: 'atk' | 'mag' | 'def' | 'res' | 'spd',
   pct: number,
-  dur: number,
+  duration: number,
 ): EffectSpec => ({
   kind: 'statmod',
   stat,
   pct,
-  duration: dur,
+  duration,
   timing: stat === 'atk' || stat === 'mag' ? 'defer' : 'immediate',
   tags: ['beneficial'],
 });
@@ -803,13 +803,13 @@ export function skillsForClass(classId: ClassId, upToLevel: number): SkillDef[] 
   // catalog insertion order. Sort is stable (ES2019+), so equal-level skills
   // keep their authored order — Smite before Mend Wounds at level 1.
   return SKILLS
-    .filter((s) => s.classId === classId && s.learnLevel <= upToLevel)
+    .filter((skill) => skill.classId === classId && skill.learnLevel <= upToLevel)
     .sort((a, b) => a.learnLevel - b.learnLevel);
 }
 
 /** Skills that become newly available exactly at `level`. */
 export function skillsLearnedAt(classId: ClassId, level: number): SkillDef[] {
-  return SKILLS.filter((s) => s.classId === classId && s.learnLevel === level);
+  return SKILLS.filter((skill) => skill.classId === classId && skill.learnLevel === level);
 }
 
 // ── Effect-shape helpers (#78) ── shared by the balance harness, the
@@ -817,29 +817,29 @@ export function skillsLearnedAt(classId: ClassId, level: number): SkillDef[] {
 // on ids; policies read these public shapes instead.
 
 /** True when the skill's ordered effects deal damage. */
-export function isDamageSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) => e.kind === 'damage');
+export function isDamageSkill(skill: SkillDef): boolean {
+  return skill.effects.some((effect) => effect.kind === 'damage');
 }
 
 /** Highest damage multiplier in the skill's effects (0 when none). */
-export function skillMaxDamagePower(sk: SkillDef): number {
+export function skillMaxDamagePower(skill: SkillDef): number {
   let max = 0;
-  for (const e of sk.effects) {
-    if (e.kind === 'damage') max = Math.max(max, e.power);
+  for (const effect of skill.effects) {
+    if (effect.kind === 'damage') max = Math.max(max, effect.power);
   }
   return max;
 }
 
 /** True when the skill's ordered effects restore HP/MP. */
-export function isHealSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) => e.kind === 'restore');
+export function isHealSkill(skill: SkillDef): boolean {
+  return skill.effects.some((effect) => effect.kind === 'restore');
 }
 
 /** MAG-scaled heal multiplier for heal sorting/expected-value (0 when the
  * skill heals by another shape). */
-export function skillHealPower(sk: SkillDef): number {
-  for (const e of sk.effects) {
-    if (e.kind === 'restore' && e.hpPower !== undefined) return e.hpPower;
+export function skillHealPower(skill: SkillDef): number {
+  for (const effect of skill.effects) {
+    if (effect.kind === 'restore' && effect.hpPower !== undefined) return effect.hpPower;
   }
   return 0;
 }

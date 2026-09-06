@@ -73,20 +73,20 @@ Deno.test('tx: two removals competing for one stack refuse the whole bundle', ()
 });
 
 Deno.test('tx: remove → grant reorders legally; grants accumulate for a larger removal', () => {
-  const p = hero(1502);
-  addItem(p, 'm_iron_chunk', 1);
-  applyStoryEffects(p, [remove(1), grant(1)], ctxAt('n1'));
-  assertEquals(countOf(p, 'm_iron_chunk'), 1, 'remove-then-grant nets to the original stack');
+  const playerA = hero(1502);
+  addItem(playerA, 'm_iron_chunk', 1);
+  applyStoryEffects(playerA, [remove(1), grant(1)], ctxAt('n1'));
+  assertEquals(countOf(playerA, 'm_iron_chunk'), 1, 'remove-then-grant nets to the original stack');
 
-  const q = hero(1503);
-  applyStoryEffects(q, [grant(2), grant(1), remove(3)], ctxAt('n1'));
-  assertEquals(countOf(q, 'm_iron_chunk'), 0, 'two grants cover the larger removal');
+  const playerB = hero(1503);
+  applyStoryEffects(playerB, [grant(2), grant(1), remove(3)], ctxAt('n1'));
+  assertEquals(countOf(playerB, 'm_iron_chunk'), 0, 'two grants cover the larger removal');
 
-  const r = hero(1504);
-  const before = JSON.stringify(r);
-  assert(validateStoryBundle(r, [grant(2), remove(3)], ctxAt('n1')) !== undefined);
-  assertThrows(() => applyStoryEffects(r, [grant(2), remove(3)], ctxAt('n1')));
-  assertEquals(JSON.stringify(r), before, 'an impossible cumulative removal commits nothing');
+  const playerC = hero(1504);
+  const before = JSON.stringify(playerC);
+  assert(validateStoryBundle(playerC, [grant(2), remove(3)], ctxAt('n1')) !== undefined);
+  assertThrows(() => applyStoryEffects(playerC, [grant(2), remove(3)], ctxAt('n1')));
+  assertEquals(JSON.stringify(playerC), before, 'an impossible cumulative removal commits nothing');
 });
 
 // ── replay idempotency: receipts, not per-effect guards ──────────────────

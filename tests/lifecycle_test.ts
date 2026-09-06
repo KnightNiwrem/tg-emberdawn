@@ -187,29 +187,29 @@ Deno.test('travel victories grant rewards and kill hooks but never dungeon progr
 });
 
 Deno.test('retreat after partial completion keeps earned rewards; no return rolls', () => {
-  const q = walker(1610, 'umbra');
-  q.unlockedZones.push('abyss');
+  const player = walker(1610, 'umbra');
+  player.unlockedZones.push('abyss');
   // Treasure first, then the road fight pauses the burst (3-event edge).
-  const res = startJourney(q, 'w_umbra_abyss', stub(0.95, 0.1));
+  const res = startJourney(player, 'w_umbra_abyss', stub(0.95, 0.1));
   assert(res.ok && res.step.kind === 'battle');
-  const goldAfterTreasure = q.gold;
+  const goldAfterTreasure = player.gold;
   assert(goldAfterTreasure > 50, 'the treasure event paid out');
   // Win the fight and reach the intermission (one roll still pending).
-  q.battle!.enemy.hp = 0;
-  battleAction(q, { v: 'battle', a: 'atk' });
-  assertEquals(q.journey!.completedEvents, 2);
-  battleAction(q, { v: 'battle', a: 'go' });
-  assertEquals(q.scene.view, 'journey');
-  const goldAtIntermission = q.gold;
+  player.battle!.enemy.hp = 0;
+  battleAction(player, { v: 'battle', a: 'atk' });
+  assertEquals(player.journey!.completedEvents, 2);
+  battleAction(player, { v: 'battle', a: 'go' });
+  assertEquals(player.scene.view, 'journey');
+  const goldAtIntermission = player.gold;
   // Retreat: the gold stays, no return events roll, the player is at the
   // origin (which may itself be a danger zone).
-  const lines = retreatFromJourney(q);
-  assertEquals(q.journey, undefined);
-  assertEquals(q.currentZone, 'umbra');
-  assertEquals(q.gold, goldAtIntermission, 'earned rewards remain earned');
+  const lines = retreatFromJourney(player);
+  assertEquals(player.journey, undefined);
+  assertEquals(player.currentZone, 'umbra');
+  assertEquals(player.gold, goldAtIntermission, 'earned rewards remain earned');
   assert(lines.some((l) => l.includes('turn back')));
   // The identity gate accepts the retreated save.
-  assertEquals(findUnresolvedPersistedIds(q), []);
+  assertEquals(findUnresolvedPersistedIds(player), []);
 });
 
 Deno.test('no circular route gates: a fresh player can walk to every zone', () => {

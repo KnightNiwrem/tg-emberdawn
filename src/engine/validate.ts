@@ -76,7 +76,7 @@ export class SaveUnresolvableError extends Error {
   constructor(public readonly problems: readonly SaveIdentityProblem[]) {
     super(
       'Save references content that no longer resolves: ' +
-        problems.map((p) => `${p.family} '${p.id}'`).join('; '),
+        problems.map((prob) => `${prob.family} '${prob.id}'`).join('; '),
     );
     this.name = 'SaveUnresolvableError';
   }
@@ -86,17 +86,17 @@ export class SaveUnresolvableError extends Error {
 
 /** Enemy move names double as effect source/defId identities. */
 const ENEMY_MOVE_NAMES: ReadonlySet<string> = new Set(
-  ENEMIES.flatMap((e) => [
-    ...e.moves.map((m) => m.name),
-    ...(e.special ? [e.special.move.name] : []),
-    ...(e.opening ? [e.opening.name] : []),
+  ENEMIES.flatMap((enemyDef) => [
+    ...enemyDef.moves.map((move) => move.name),
+    ...(enemyDef.special ? [enemyDef.special.move.name] : []),
+    ...(enemyDef.opening ? [enemyDef.opening.name] : []),
   ]),
 );
 
-const DIALOGUE_EFFECTS: readonly StoryEffect[] = DIALOGUES.flatMap((d) =>
-  d.nodes.flatMap((n) => {
-    if (n.kind === 'line') return n.effects ?? [];
-    if (n.kind === 'choice') return n.choices.flatMap((c) => c.effects ?? []);
+const DIALOGUE_EFFECTS: readonly StoryEffect[] = DIALOGUES.flatMap((dlg) =>
+  dlg.nodes.flatMap((node) => {
+    if (node.kind === 'line') return node.effects ?? [];
+    if (node.kind === 'choice') return node.choices.flatMap((choice) => choice.effects ?? []);
     return [];
   })
 );
@@ -104,10 +104,12 @@ const DIALOGUE_EFFECTS: readonly StoryEffect[] = DIALOGUES.flatMap((d) =>
 /** Story-event names current content can emit (dialogue effects) or consume
  * (quest storyEvent objectives). Anything else in a save is unresolvable. */
 const STORY_EVENT_NAMES: ReadonlySet<string> = new Set([
-  ...QUESTS.flatMap((q) =>
-    q.objectives.flatMap((o) => (o.kind === 'storyEvent' ? [o.target] : []))
+  ...QUESTS.flatMap((questDef) =>
+    questDef.objectives.flatMap((
+      objective,
+    ) => (objective.kind === 'storyEvent' ? [objective.target] : []))
   ),
-  ...DIALOGUE_EFFECTS.flatMap((e) => (e.kind === 'storyEvent' ? [e.event] : [])),
+  ...DIALOGUE_EFFECTS.flatMap((effect) => (effect.kind === 'storyEvent' ? [effect.event] : [])),
 ]);
 
 /** Authored decision provenance (#150): decision id -> the exact
@@ -118,15 +120,15 @@ const STORY_EVENT_NAMES: ReadonlySet<string> = new Set([
  * resolving independently is not enough. */
 const DECISION_PROVENANCE: ReadonlyMap<string, ReadonlySet<string>> = (() => {
   const map = new Map<string, Set<string>>();
-  for (const d of DIALOGUES) {
-    for (const n of d.nodes) {
-      if (n.kind !== 'choice') continue;
-      for (const c of n.choices) {
-        for (const e of c.effects ?? []) {
-          if (e.kind !== 'recordDecision') continue;
-          const tuples = map.get(e.id) ?? new Set<string>();
-          tuples.add(`${d.id}:${n.id}:${c.id}`);
-          map.set(e.id, tuples);
+  for (const dlg of DIALOGUES) {
+    for (const node of dlg.nodes) {
+      if (node.kind !== 'choice') continue;
+      for (const choice of node.choices) {
+        for (const effect of choice.effects ?? []) {
+          if (effect.kind !== 'recordDecision') continue;
+          const tuples = map.get(effect.id) ?? new Set<string>();
+          tuples.add(`${dlg.id}:${node.id}:${choice.id}`);
+          map.set(effect.id, tuples);
         }
       }
     }
@@ -168,19 +170,19 @@ const BASIC_ACTION_ID = 'basic';
 /** A persisted journey's plan events are plain authored data whose
  * references are all persisted identities (#159). */
 function validateTravelEvents(owner: string, events: readonly TravelEvent[], bad: Report): void {
-  for (const ev of events) {
-    if (!Number.isFinite(ev.weight) || ev.weight <= 0) {
-      bad(owner, String(ev.weight), 'event weight must be finite and positive');
+  for (const event of events) {
+    if (!Number.isFinite(event.weight) || event.weight <= 0) {
+      bad(owner, String(event.weight), 'event weight must be finite and positive');
     }
-    if (ev.kind === 'battle') {
-      const def = enemy(ev.enemy);
-      if (!def) bad(owner, ev.enemy, 'unknown travel battle enemy');
-      else if (def.boss) bad(owner, ev.enemy, 'boss enemy inside a route table');
+    if (event.kind === 'battle') {
+      const def = enemy(event.enemy);
+      if (!def) bad(owner, event.enemy, 'unknown travel battle enemy');
+      else if (def.boss) bad(owner, event.enemy, 'boss enemy inside a route table');
     }
-    if (ev.kind === 'treasure') {
-      if (ev.item && !item(ev.item)) bad(owner, ev.item, 'unknown travel treasure item');
-      if (ev.dropTable && !dropTable(ev.dropTable)) {
-        bad(owner, ev.dropTable, 'unknown travel drop table');
+    if (event.kind === 'treasure') {
+      if (event.item && !item(event.item)) bad(owner, event.item, 'unknown travel treasure item');
+      if (event.dropTable && !dropTable(event.dropTable)) {
+        bad(owner, event.dropTable, 'unknown travel drop table');
       }
     }
   }
@@ -188,33 +190,38 @@ function validateTravelEvents(owner: string, events: readonly TravelEvent[], bad
 
 /** The persisted journey (#159): every stored identity resolves, the
  * snapshot is internally consistent, and it matches its authored route. */
-function validateJourney(j: JourneyState, bad: Report): void {
-  const r = route(j.edgeId);
-  if (!r) {
-    bad('journey.edgeId', j.edgeId, 'unknown route id');
+function validateJourney(journey: JourneyState, bad: Report): void {
+  const routeDef = route(journey.edgeId);
+  if (!routeDef) {
+    bad('journey.edgeId', journey.edgeId, 'unknown route id');
   } else {
-    if (r.from !== j.fromZone || r.to !== j.toZone) {
-      bad('journey.endpoints', j.edgeId, 'journey endpoints do not match the route');
+    if (routeDef.from !== journey.fromZone || routeDef.to !== journey.toZone) {
+      bad('journey.endpoints', journey.edgeId, 'journey endpoints do not match the route');
     }
-    if (j.variantId !== 'base' && !(r.variants ?? []).some((v) => v.id === j.variantId)) {
-      bad('journey.variantId', j.variantId, 'unknown route variant id');
+    if (
+      journey.variantId !== 'base' &&
+      !(routeDef.variants ?? []).some((variant) => variant.id === journey.variantId)
+    ) {
+      bad('journey.variantId', journey.variantId, 'unknown route variant id');
     }
   }
-  if (!zone(j.fromZone)) bad('journey.fromZone', j.fromZone, 'unknown zone id');
-  if (!zone(j.toZone)) bad('journey.toZone', j.toZone, 'unknown zone id');
+  if (!zone(journey.fromZone)) bad('journey.fromZone', journey.fromZone, 'unknown zone id');
+  if (!zone(journey.toZone)) bad('journey.toZone', journey.toZone, 'unknown zone id');
   if (
-    !Number.isInteger(j.totalEvents) || j.totalEvents <= 0 ||
-    !Number.isInteger(j.completedEvents) || j.completedEvents < 0 ||
-    j.completedEvents > j.totalEvents
+    !Number.isInteger(journey.totalEvents) || journey.totalEvents <= 0 ||
+    !Number.isInteger(journey.completedEvents) || journey.completedEvents < 0 ||
+    journey.completedEvents > journey.totalEvents
   ) {
     bad(
       'journey.progress',
-      `${j.completedEvents}/${j.totalEvents}`,
+      `${journey.completedEvents}/${journey.totalEvents}`,
       'inconsistent journey progress',
     );
   }
-  if (j.plan.length === 0) bad('journey.plan', j.edgeId, 'a crossing carries no event table');
-  validateTravelEvents('journey.plan', j.plan, bad);
+  if (journey.plan.length === 0) {
+    bad('journey.plan', journey.edgeId, 'a crossing carries no event table');
+  }
+  validateTravelEvents('journey.plan', journey.plan, bad);
 }
 
 type Report = (family: string, id: string, detail: string) => void;
@@ -250,9 +257,9 @@ function validateEffectSource(source: EffectSource, bad: Report): void {
   }
 }
 
-function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): void {
-  if (!enemy(b.enemy.id)) bad('battle.enemy', b.enemy.id, 'unknown enemy id');
-  const origin = b.origin;
+function validateBattle(battle: BattleState, bad: Report, journey?: JourneyState): void {
+  if (!enemy(battle.enemy.id)) bad('battle.enemy', battle.enemy.id, 'unknown enemy id');
+  const origin = battle.origin;
   if (origin.kind === 'explore' || origin.kind === 'elite') {
     if (!zone(origin.zoneId)) bad('battle.origin', origin.zoneId, 'unknown origin zone');
   } else if (origin.kind === 'travel') {
@@ -261,10 +268,10 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
     // coordinator produces FOR THIS BATTLE'S PHASE (#167). A travel battle
     // without its matching journey is a corrupt combination — refused,
     // never guessed back into shape.
-    const r = route(origin.edgeId);
-    if (!r) {
+    const routeDef = route(origin.edgeId);
+    if (!routeDef) {
       bad('battle.origin', origin.edgeId, 'unknown travel edge');
-    } else if (r.from !== origin.zoneId) {
+    } else if (routeDef.from !== origin.zoneId) {
       bad('battle.origin', origin.zoneId, 'travel origin is not the edge origin');
     }
     if (!journey) {
@@ -283,7 +290,9 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
       // vice versa) is a combination the coordinator cannot produce.
       const ownsPendingRoll = origin.eventIndex === journey.completedEvents;
       const rollAlreadyCompleted = origin.eventIndex === journey.completedEvents - 1;
-      const relation = b.phase === 'won' ? rollAlreadyCompleted : b.phase === 'fled'
+      const relation = battle.phase === 'won'
+        ? rollAlreadyCompleted
+        : battle.phase === 'fled'
         ? false // flee clears the battle AND the crossing in one handler step
         : ownsPendingRoll; // 'active' and 'lost' both keep the roll pending
       if (
@@ -294,44 +303,46 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
         bad(
           'battle.origin',
           String(origin.eventIndex),
-          `travel event index does not match the journey progress (${b.phase} battle)`,
+          `travel event index does not match the journey progress (${battle.phase} battle)`,
         );
       }
     }
   } else {
-    const z = zone(origin.zoneId);
-    if (!z) {
+    const zoneDef = zone(origin.zoneId);
+    if (!zoneDef) {
       bad('battle.origin', origin.zoneId, 'unknown origin zone');
-    } else if (z.dungeon?.id !== origin.dungeonId) {
+    } else if (zoneDef.dungeon?.id !== origin.dungeonId) {
       bad('battle.origin', origin.dungeonId, 'unknown dungeon for origin zone');
     } else if (
       !Number.isInteger(origin.floor) || origin.floor < 1 ||
-      origin.floor > z.dungeon.floors.length + 1
+      origin.floor > zoneDef.dungeon.floors.length + 1
     ) {
       // Floors are 1-based; floors.length + 1 is the boss floor (world.ts).
       bad('battle.origin', String(origin.floor), 'floor outside the dungeon');
     } else {
-      const d = z.dungeon;
-      const bossFloor = origin.floor === d.floors.length + 1;
-      if (origin.boss !== bossFloor || b.enemy.isBoss !== bossFloor) {
+      const dungeon = zoneDef.dungeon;
+      const bossFloor = origin.floor === dungeon.floors.length + 1;
+      if (origin.boss !== bossFloor || battle.enemy.isBoss !== bossFloor) {
         bad(
           'battle.origin',
           String(origin.floor),
           'boss classification does not match authored floor',
         );
       }
-      const room = d.floors[origin.floor - 1];
+      const room = dungeon.floors[origin.floor - 1];
       if (!bossFloor && room.discovery) {
         bad('battle.origin', String(origin.floor), 'discovery floor cannot contain a battle');
-      } else if (bossFloor ? b.enemy.id !== d.boss : !room.enemies.includes(b.enemy.id)) {
-        bad('battle.enemy', b.enemy.id, 'enemy does not belong to the authored dungeon floor');
+      } else if (
+        bossFloor ? battle.enemy.id !== dungeon.boss : !room.enemies.includes(battle.enemy.id)
+      ) {
+        bad('battle.enemy', battle.enemy.id, 'enemy does not belong to the authored dungeon floor');
       }
     }
   }
-  for (const id of Object.keys(b.cooldowns)) {
+  for (const id of Object.keys(battle.cooldowns)) {
     if (id !== BASIC_ACTION_ID && !skill(id)) bad('battle.cooldowns', id, 'unknown skill id');
   }
-  for (const inst of b.effectInstances) {
+  for (const inst of battle.effectInstances) {
     validateEffectSource(inst.source, bad);
     const defId = inst.defId;
     if (defId.startsWith('opening:')) {
@@ -342,14 +353,14 @@ function validateBattle(b: BattleState, bad: Report, journey?: JourneyState): vo
       bad('battle.effectInstances', defId, 'unknown effect identity');
     }
   }
-  for (const key of Object.keys(b.procs ?? {})) {
+  for (const key of Object.keys(battle.procs ?? {})) {
     // Proc keys are `${itemId}:${triggerIndex}` (engine/types.ts).
     if (!item(key.split(':')[0])) bad('battle.procs', key, 'unknown item id');
   }
-  for (const drop of b.rewards?.drops ?? []) {
+  for (const drop of battle.rewards?.drops ?? []) {
     if (!item(drop)) bad('battle.rewards', drop, 'unknown drop item id');
   }
-  for (const drop of b.rewards?.contextual ?? []) {
+  for (const drop of battle.rewards?.contextual ?? []) {
     if (!item(drop.item)) bad('battle.rewards.contextual', drop.item, 'unknown contextual item id');
   }
 }
@@ -400,12 +411,12 @@ function validateScene(scene: SceneState, bad: Report): void {
       if (arg && !quest(arg)) bad('scene.arg', arg, 'unknown quest id');
       return;
     case 'npc': {
-      const def = npc(arg);
-      if (!def) return bad('scene.arg', arg, 'unknown NPC id');
+      const npcDef = npc(arg);
+      if (!npcDef) return bad('scene.arg', arg, 'unknown NPC id');
       const sub = scene.arg2 ?? '';
       if (sub.startsWith('lore:')) {
         const topicId = sub.slice('lore:'.length);
-        if (!(def.topics ?? []).some((t) => t.id === topicId)) {
+        if (!(npcDef.topics ?? []).some((topic) => topic.id === topicId)) {
           bad('scene.arg2', sub, 'unknown NPC topic id');
         }
       } else if (sub.startsWith('q:')) {
@@ -421,7 +432,7 @@ function validateScene(scene: SceneState, bad: Report): void {
       const staged = scene.arg3 ?? '';
       if (staged.startsWith('confirm:')) {
         const choiceId = staged.slice('confirm:'.length);
-        if (node.kind !== 'choice' || !node.choices.some((c) => c.id === choiceId)) {
+        if (node.kind !== 'choice' || !node.choices.some((choice) => choice.id === choiceId)) {
           bad('scene.arg3', staged, 'unknown staged confirmation choice');
         }
       }
@@ -440,63 +451,65 @@ function validateScene(scene: SceneState, bad: Report): void {
  * module doc. An empty result means those identities all resolve against the
  * CURRENT content catalog. Never repairs, relocates, or substitutes —
  * detection only. */
-export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[] {
+export function findUnresolvedPersistedIds(player: PlayerState): SaveIdentityProblem[] {
   const problems: SaveIdentityProblem[] = [];
   const bad: Report = (family, id, detail) => problems.push({ family, id, detail });
 
-  if (!zone(p.currentZone)) bad('currentZone', p.currentZone, 'unknown zone id');
+  if (!zone(player.currentZone)) bad('currentZone', player.currentZone, 'unknown zone id');
   // The respawn haven (#160) must be a real zone that IS a safe haven: a
   // corrupt pointer must never silently relocate a death to a warzone or
   // a deleted settlement.
-  const haven = zone(p.respawnHaven);
-  if (!haven) bad('respawnHaven', p.respawnHaven, 'unknown zone id');
-  else if (!haven.safeHaven) bad('respawnHaven', p.respawnHaven, 'not a safe-haven zone');
-  for (const z of p.unlockedZones) {
-    if (!zone(z)) bad('unlockedZones', z, 'unknown zone id');
+  const haven = zone(player.respawnHaven);
+  if (!haven) bad('respawnHaven', player.respawnHaven, 'unknown zone id');
+  else if (!haven.safeHaven) bad('respawnHaven', player.respawnHaven, 'not a safe-haven zone');
+  for (const zoneId of player.unlockedZones) {
+    if (!zone(zoneId)) bad('unlockedZones', zoneId, 'unknown zone id');
   }
-  for (const entry of p.inventory) {
+  for (const entry of player.inventory) {
     if (!item(entry.id)) bad('inventory', entry.id, 'unknown item id');
   }
-  for (const [slot, id] of Object.entries(p.equipment)) {
+  for (const [slot, id] of Object.entries(player.equipment)) {
     if (id && !item(id)) bad('equipment', id, `unknown item id in slot ${slot}`);
   }
-  for (const id of p.skills) {
+  for (const id of player.skills) {
     if (!skill(id)) bad('skills', id, 'unknown skill id');
   }
-  for (const id of Object.keys(p.quests)) {
+  for (const id of Object.keys(player.quests)) {
     if (!quest(id)) bad('quests', id, 'unknown quest id');
   }
-  for (const [id, o] of Object.entries(p.questOutcomes)) {
+  for (const [id, outcomeRecord] of Object.entries(player.questOutcomes)) {
     if (!quest(id)) {
       bad('questOutcomes', id, 'unknown quest id');
       continue;
     }
-    if (o.kind === 'resolved') {
+    if (outcomeRecord.kind === 'resolved') {
       // A named resolved outcome (#132) is declared content identity: a saved
       // value the quest does not declare — a typo, an undeclared quest, or a
       // cross-quest value — is recognizable by no authored condition. It is
       // reported, never repaired or substituted (#146).
-      if (!quest(id)!.outcomes?.includes(o.outcome)) {
+      if (!quest(id)!.outcomes?.includes(outcomeRecord.outcome)) {
         bad(
           'questOutcomes',
-          o.outcome,
-          `${id} does not declare resolved outcome "${o.outcome}"`,
+          outcomeRecord.outcome,
+          `${id} does not declare resolved outcome "${outcomeRecord.outcome}"`,
         );
       }
-    } else if ((o as { outcome?: unknown }).outcome !== undefined) {
+    } else if ((outcomeRecord as { outcome?: unknown }).outcome !== undefined) {
       // `outcome` is a resolved-only field (#150): a failed/locked record
       // carrying one is a malformed combination the runtime can never have
       // produced — and an outcome condition would otherwise match it as
       // though the resolution had happened. Refused, never repaired.
-      bad('questOutcomes', id, `${id} carries a named outcome on a ${o.kind} record`);
+      bad('questOutcomes', id, `${id} carries a named outcome on a ${outcomeRecord.kind} record`);
     }
   }
-  for (const key of Object.keys(p.flags)) {
+  for (const key of Object.keys(player.flags)) {
     if (key.startsWith('dgn_')) {
-      const known = ZONES.some((z) =>
-        z.dungeon &&
-        (key === `dgn_${z.dungeon.id}_boss` ||
-          z.dungeon.floors.some((_, index) => key === `dgn_${z.dungeon!.id}_cache_${index + 1}`))
+      const known = ZONES.some((zoneDef) =>
+        zoneDef.dungeon &&
+        (key === `dgn_${zoneDef.dungeon.id}_boss` ||
+          zoneDef.dungeon.floors.some((_, index) =>
+            key === `dgn_${zoneDef.dungeon!.id}_cache_${index + 1}`
+          ))
       );
       if (!known) bad('flags', key, 'unknown dungeon reward identity');
     }
@@ -509,8 +522,8 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
       bad('flags', key, 'unknown forged item id');
     }
   }
-  for (const receipt of p.storyReceipts) validateReceipt(receipt, bad);
-  for (const [id, d] of Object.entries(p.decisions)) {
+  for (const receipt of player.storyReceipts) validateReceipt(receipt, bad);
+  for (const [id, decision] of Object.entries(player.decisions)) {
     // Provenance, not component resolvability (#150): the decision id must
     // be authored, and the exact (dialogue, node, choice) tuple it persisted
     // must be the one whose recordDecision effect can produce it. Mixing a
@@ -521,81 +534,84 @@ export function findUnresolvedPersistedIds(p: PlayerState): SaveIdentityProblem[
       bad('decisions', id, 'unknown decision id');
       continue;
     }
-    if (!authored.has(`${d.dialogueId}:${d.nodeId}:${d.choiceId}`)) {
+    if (!authored.has(`${decision.dialogueId}:${decision.nodeId}:${decision.choiceId}`)) {
       bad(
         'decisions',
         id,
-        `no authored recordDecision matches ${d.dialogueId}:${d.nodeId}:${d.choiceId}`,
+        `no authored recordDecision matches ${decision.dialogueId}:${decision.nodeId}:${decision.choiceId}`,
       );
     }
   }
-  for (const event of p.storyEvents) {
+  for (const event of player.storyEvents) {
     if (!STORY_EVENT_NAMES.has(event)) bad('storyEvents', event, 'unknown story event');
   }
-  validateScene(p.scene, bad);
+  validateScene(player.scene, bad);
   // The journey and its battle are validated TOGETHER (#159), and the
   // combination is checked against the player's live location (#167):
   // until the coordinator's final arrival, the player IS still at the
   // edge origin — a save claiming any other currentZone while a crossing
   // is live is a combination the runtime can never produce.
-  if (p.journey && p.battle && p.battle.origin.kind !== 'travel') {
-    bad('journey', p.journey.edgeId, 'active journey paired with a non-travel battle');
+  if (player.journey && player.battle && player.battle.origin.kind !== 'travel') {
+    bad('journey', player.journey.edgeId, 'active journey paired with a non-travel battle');
   }
-  if (p.journey) {
-    validateJourney(p.journey, bad);
-    if (p.currentZone !== p.journey.fromZone) {
+  if (player.journey) {
+    validateJourney(player.journey, bad);
+    if (player.currentZone !== player.journey.fromZone) {
       bad(
         'currentZone',
-        p.currentZone,
-        `not the live crossing origin (${p.journey.fromZone}) — send /reset to start fresh`,
+        player.currentZone,
+        `not the live crossing origin (${player.journey.fromZone}) — send /reset to start fresh`,
       );
     }
   }
-  if (p.dungeonRun) {
-    const run = p.dungeonRun;
-    const d = zone(run.zoneId)?.dungeon;
-    if (!d || d.id !== run.dungeonId) {
+  if (player.dungeonRun) {
+    const run = player.dungeonRun;
+    const dungeon = zone(run.zoneId)?.dungeon;
+    if (!dungeon || dungeon.id !== run.dungeonId) {
       bad('dungeonRun', run.dungeonId, 'unknown dungeon for run zone');
     }
-    if (p.currentZone !== run.zoneId) bad('dungeonRun', run.zoneId, 'run is outside current zone');
-    if (p.journey) bad('dungeonRun', run.dungeonId, 'run cannot coexist with a journey');
+    if (player.currentZone !== run.zoneId) {
+      bad('dungeonRun', run.zoneId, 'run is outside current zone');
+    }
+    if (player.journey) bad('dungeonRun', run.dungeonId, 'run cannot coexist with a journey');
     if (
       !Number.isInteger(run.nextFloor) || run.nextFloor < 1 ||
-      (d && run.nextFloor > d.floors.length + 1)
+      (dungeon && run.nextFloor > dungeon.floors.length + 1)
     ) {
       bad('dungeonRun.nextFloor', String(run.nextFloor), 'floor outside the dungeon');
     }
-    if (p.battle) {
-      const b = p.battle;
-      const origin = b.origin;
+    if (player.battle) {
+      const battle = player.battle;
+      const origin = battle.origin;
       if (
         origin.kind !== 'dungeon' || origin.zoneId !== run.zoneId ||
         origin.dungeonId !== run.dungeonId ||
-        (b.phase === 'won'
+        (battle.phase === 'won'
           ? origin.boss || origin.floor + 1 !== run.nextFloor
-          : b.phase !== 'active' || origin.floor !== run.nextFloor)
+          : battle.phase !== 'active' || origin.floor !== run.nextFloor)
       ) {
         bad('dungeonRun', run.dungeonId, 'battle does not match run progress');
       }
     }
   } else if (
-    p.battle?.origin.kind === 'dungeon' &&
-    (p.battle.phase === 'active' || (p.battle.phase === 'won' && !p.battle.origin.boss))
+    player.battle?.origin.kind === 'dungeon' &&
+    (player.battle.phase === 'active' ||
+      (player.battle.phase === 'won' && !player.battle.origin.boss))
   ) {
     bad(
       'battle.origin',
-      p.battle.origin.dungeonId,
+      player.battle.origin.dungeonId,
       'unfinished dungeon battle sequence without a run',
     );
   }
-  if (p.battle) validateBattle(p.battle, bad, p.journey);
+  if (player.battle) validateBattle(player.battle, bad, player.journey);
   return problems;
 }
 
 /** Assert form of findUnresolvedPersistedIds: throws SaveUnresolvableError
  * listing every unresolved identity. Runs AFTER assertSupportedSaveVersion —
  * the version gate proves the schema, this proves the identities inside. */
-export function assertResolvablePersistedIds(p: PlayerState): void {
-  const problems = findUnresolvedPersistedIds(p);
+export function assertResolvablePersistedIds(player: PlayerState): void {
+  const problems = findUnresolvedPersistedIds(player);
   if (problems.length > 0) throw new SaveUnresolvableError(problems);
 }

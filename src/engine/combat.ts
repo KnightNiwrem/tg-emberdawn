@@ -52,9 +52,9 @@ function effStat(base: number, pct: number): number {
 
 /** Effective player offense of one damage kind: base stat sapped by live
  * `outgoing` instances, then buffed by the stat's own instances (#78). */
-function playerOffense(p: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
-  const s = statsOf(p);
-  const base = kind === 'phys' ? s.atk : s.mag;
+function playerOffense(player: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
+  const stats = statsOf(player);
+  const base = kind === 'phys' ? stats.atk : stats.mag;
   return effStat(
     base * (1 - sapPct(battle, 'player')),
     statPct(battle, 'player', kind === 'phys' ? 'atk' : 'mag'),
@@ -62,10 +62,10 @@ function playerOffense(p: PlayerState, battle: BattleState, kind: 'phys' | 'mag'
 }
 
 /** Effective player mitigation stat (DEF/RES) with its instances folded. */
-function playerMitigation(p: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
-  const s = statsOf(p);
+function playerMitigation(player: PlayerState, battle: BattleState, kind: 'phys' | 'mag'): number {
+  const stats = statsOf(player);
   return effStat(
-    kind === 'phys' ? s.def : s.res,
+    kind === 'phys' ? stats.def : stats.res,
     statPct(battle, 'player', kind === 'phys' ? 'def' : 'res'),
   );
 }
@@ -79,8 +79,8 @@ function stanceMul(battle: BattleState, side: 'player' | 'enemy'): number {
 
 /** Effective player SPD (#85): live SPD instances folded — the single
  * authority for dodge, flee and (from #86) initiative inputs. */
-export function effectivePlayerSpd(p: PlayerState, battle: BattleState): number {
-  return effStat(statsOf(p).spd, statPct(battle, 'player', 'spd'));
+export function effectivePlayerSpd(player: PlayerState, battle: BattleState): number {
+  return effStat(statsOf(player).spd, statPct(battle, 'player', 'spd'));
 }
 
 /** Effective enemy SPD (#85): enemy Slow/self-SPD instances folded, so a
@@ -379,7 +379,7 @@ export function previewBattle(
  * move is cause `opening`; battleStart item triggers are reactive procs. */
 function runOpening(
   battle: BattleState,
-  p: PlayerState,
+  player: PlayerState,
   rng: Rng,
   actor: 'player' | 'enemy',
   source: EffectSource,
@@ -391,7 +391,7 @@ function runOpening(
   trace?: CombatTraceEntry[],
 ): string[] {
   const ctx: ExecCtx = {
-    p,
+    player,
     battle,
     rng,
     actor,
@@ -413,8 +413,8 @@ function runOpening(
  * ends resolution synchronously. The winner is already decided, so no
  * later trigger may be inspected: skipped triggers consume no RNG draw
  * and write no trace, text, effects or proc bookkeeping. */
-function terminalHp(p: PlayerState, battle: BattleState): boolean {
-  return p.hp <= 0 || battle.enemy.hp <= 0;
+function terminalHp(player: PlayerState, battle: BattleState): boolean {
+  return player.hp <= 0 || battle.enemy.hp <= 0;
 }
 
 /** Scans equipped items for reactive triggers (#82, #89). Slot order, then
@@ -434,7 +434,7 @@ function terminalHp(p: PlayerState, battle: BattleState): boolean {
  * any permitted immediate-revival window) stops the scan BEFORE the next
  * trigger's eligibility/chance evaluation. */
 function runReactiveTriggers(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   rng: Rng,
   scan: 'onGuard' | { cause: DamageCause },
@@ -446,72 +446,77 @@ function runReactiveTriggers(
   const lines: string[] = [];
   const procs = battle.procs ??= {};
   for (const slot of ['weapon', 'armor', 'trinket'] as const) {
-    if (terminalHp(p, battle)) break;
-    const itemId = p.equipment[slot];
-    const it = itemId ? itemDefLookup(itemId) : undefined;
-    if (!it?.triggers?.length) continue;
-    for (const [ti, tg] of it.triggers.entries()) {
+    if (terminalHp(player, battle)) break;
+    const itemId = player.equipment[slot];
+    const item = itemId ? itemDefLookup(itemId) : undefined;
+    if (!item?.triggers?.length) continue;
+    for (const [triggerIndex, trigger] of item.triggers.entries()) {
       // #103: checked BEFORE eligibility/chance — a terminal state means
       // this trigger is never inspected at all (no roll, no attempt entry).
-      if (terminalHp(p, battle)) break;
+      if (terminalHp(player, battle)) break;
       if (scan === 'onGuard') {
-        if (tg.trigger !== 'onGuard') continue;
+        if (trigger.trigger !== 'onGuard') continue;
       } else {
-        if (tg.trigger !== 'onHpDamage' && tg.trigger !== 'onEnemyActionHpDamage') continue;
-        if (tg.trigger === 'onEnemyActionHpDamage' && scan.cause !== 'enemyAction') continue;
+        if (trigger.trigger !== 'onHpDamage' && trigger.trigger !== 'onEnemyActionHpDamage') {
+          continue;
+        }
+        if (trigger.trigger === 'onEnemyActionHpDamage' && scan.cause !== 'enemyAction') continue;
       }
-      const key = `${it.id}:${ti}`;
-      const st = procs[key] ?? { count: 0, round: 0 };
-      if (tg.maxProcs !== undefined && st.count >= tg.maxProcs) continue;
+      const key = `${item.id}:${triggerIndex}`;
+      const procState = procs[key] ?? { count: 0, round: 0 };
+      if (trigger.maxProcs !== undefined && procState.count >= trigger.maxProcs) continue;
       // Cooldown N (#89): N complete intervening rounds are unavailable —
       // a success on round R blocks R+1 … R+N and re-arms on R+N+1.
-      // st.round > 0 guards that a fresh battle never inherits a phantom
+      // procState.round > 0 guards that a fresh battle never inherits a phantom
       // cooldown.
-      if (tg.cooldown !== undefined && st.round > 0 && battle.round - st.round <= tg.cooldown) {
+      if (
+        trigger.cooldown !== undefined && procState.round > 0 &&
+        battle.round - procState.round <= trigger.cooldown
+      ) {
         continue;
       }
-      if (tg.chance !== undefined && !chance(rng, tg.chance)) {
+      if (trigger.chance !== undefined && !chance(rng, trigger.chance)) {
         recordCombatEvent(trace, {
           kind: 'procAttempt',
           round: battle.round,
-          item: it.name,
-          trigger: tg.name,
-          triggerKind: tg.trigger,
+          item: item.name,
+          trigger: trigger.name,
+          triggerKind: trigger.trigger,
           success: false,
         });
         continue;
       }
       const ctx: ExecCtx = {
-        p,
+        player,
         battle,
         rng,
         actor: 'player',
-        source: { kind: 'item', id: it.id, name: it.name },
-        displayName: tg.name,
+        source: { kind: 'item', id: item.id, name: item.name },
+        displayName: trigger.name,
         lastDamage: 0,
         targetFelled: false,
         hpDamaged: false,
         cause: 'proc',
         procProduced: true,
-        triggerIndex: ti,
+        triggerIndex,
         afterSnapshot,
         trace,
       };
       recordCombatEvent(trace, {
         kind: 'procAttempt',
         round: battle.round,
-        item: it.name,
-        trigger: tg.name,
-        triggerKind: tg.trigger,
+        item: item.name,
+        trigger: trigger.name,
+        triggerKind: trigger.trigger,
         success: true,
       });
-      lines.push(...executeSpecs(ctx, tg.effects).map((l) => `⚡ ${l}`));
-      st.count++;
-      st.round = battle.round;
-      procs[key] = st;
+      lines.push(...executeSpecs(ctx, trigger.effects).map((line) => `⚡ ${line}`));
+      procState.count++;
+      procState.round = battle.round;
+      procs[key] = procState;
       // #103: a nested lethal effect ends the scan immediately — the next
       // trigger is never considered once the winner is decided.
-      if (terminalHp(p, battle)) break;
+      if (terminalHp(player, battle)) break;
     }
   }
   return lines;
@@ -587,16 +592,16 @@ function enemyChooseMove(def: EnemyDef, battle: BattleState, rng: Rng): EnemyMov
 
 /** A move is WASTED when every effect it would apply is already satisfied —
  * ordinary damage, control and debuffs are never wasted (#83). */
-function wastedMove(m: EnemyMove, battle: BattleState): boolean {
-  return m.effects.length > 0 && m.effects.every((sp) => wastedEffect(sp, battle, m));
+function wastedMove(move: EnemyMove, battle: BattleState): boolean {
+  return move.effects.length > 0 && move.effects.every((spec) => wastedEffect(spec, battle, move));
 }
 
-function wastedEffect(sp: EffectSpec, battle: BattleState, move: EnemyMove): boolean {
+function wastedEffect(spec: EffectSpec, battle: BattleState, move: EnemyMove): boolean {
   // #90 identity: instances carry DERIVED defIds ('Move:eN', or the shared
   // 'sap' slot) — match by the same derivation, never the raw move name
   // (a raw name never equals a derived id, which left the old checks dead).
-  const defId = effectDefId(move.name, undefined, move.effects.indexOf(sp), sp);
-  switch (sp.kind) {
+  const defId = effectDefId(move.name, undefined, move.effects.indexOf(spec), spec);
+  switch (spec.kind) {
     case 'restore':
       // Healing at full HP restores 0 — wasted.
       return battle.enemy.hp >= battle.enemy.maxHp;
@@ -610,25 +615,25 @@ function wastedEffect(sp: EffectSpec, battle: BattleState, move: EnemyMove): boo
       // meaningfully depleted ward is eligible to refill. (Pool-vs-grant is
       // exact for single-ward enemies — the authored norm; overlapping
       // wards attribute the shared pool conservatively to this grant.)
-      const grant = sp.amount ?? 0;
-      const existing = battle.effectInstances.find((i) =>
-        i.side === 'enemy' && i.kind === 'shield' && i.defId === defId &&
-        (i.shieldAmount ?? 0) >= grant &&
-        (i.battleLifetime || i.remaining > 0)
+      const grant = spec.amount ?? 0;
+      const existing = battle.effectInstances.find((inst) =>
+        inst.side === 'enemy' && inst.kind === 'shield' && inst.defId === defId &&
+        (inst.shieldAmount ?? 0) >= grant &&
+        (inst.battleLifetime || inst.remaining > 0)
       );
       if (existing === undefined) return false;
-      const refills = sp.stacking !== 'refresh' &&
-        !(sp.stacking === 'strongest' && grant <= (existing.shieldAmount ?? 0));
+      const refills = spec.stacking !== 'refresh' &&
+        !(spec.stacking === 'strongest' && grant <= (existing.shieldAmount ?? 0));
       if (!refills) return true;
       return battle.shield.enemy * 2 >= grant;
     }
     case 'statmod':
-      if (sp.target === 'opponent') return false;
+      if (spec.target === 'opponent') return false;
       // Refreshing a live same-source self-buff with an equal-or-shorter
       // duration is wasted.
-      return battle.effectInstances.some((i) =>
-        i.side === 'enemy' && i.kind === 'statmod' && i.defId === defId &&
-        i.remaining >= sp.duration
+      return battle.effectInstances.some((inst) =>
+        inst.side === 'enemy' && inst.kind === 'statmod' && inst.defId === defId &&
+        inst.remaining >= spec.duration
       );
     default:
       return false;
@@ -636,7 +641,7 @@ function wastedEffect(sp: EffectSpec, battle: BattleState, move: EnemyMove): boo
 }
 
 function pickWeighted(weights: number[], rng: Rng): number {
-  const total = weights.reduce((a, b) => a + b, 0);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
   let roll = rng() * total;
   for (let i = 0; i < weights.length; i++) {
     roll -= weights[i]!;
@@ -645,16 +650,16 @@ function pickWeighted(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-function maxHpOf(battle: BattleState, p: PlayerState) {
+function maxHpOf(battle: BattleState, player: PlayerState) {
   return (side: 'player' | 'enemy'): number =>
-    side === 'player' ? statsOf(p).maxHp : battle.enemy.maxHp;
+    side === 'player' ? statsOf(player).maxHp : battle.enemy.maxHp;
 }
 
 /** #69/#86: the guided fight cannot end before every lesson beat has been
  * performed — the fixture's HP floors at 1 instead of reaching a terminal
  * transition. Never a post-zero revival: 0 HP is never observed. */
-function tutorialEnemyFloor(b: BattleState): number {
-  return b.tutorial && b.tutorialStep !== 'cleared' ? 1 : 0;
+function tutorialEnemyFloor(battle: BattleState): number {
+  return battle.tutorial && battle.tutorialStep !== 'cleared' ? 1 : 0;
 }
 
 /** The ONE synchronous player-targeted HP-loss transition (#104): every
@@ -674,7 +679,7 @@ function tutorialEnemyFloor(b: BattleState): number {
  * lethal tick behave identically — same revival order, same reaction
  * window, same trace shape (#105). */
 function resolvePlayerHpLoss(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   rng: Rng | undefined,
   loss: {
@@ -706,15 +711,15 @@ function resolvePlayerHpLoss(
       procProduced: loss.procProduced,
     });
   }
-  if (p.hp <= 0) lines.push(...onLethalHit(p, battle, loss.trace));
-  if (p.hp <= 0) return 'terminal';
+  if (player.hp <= 0) lines.push(...onLethalHit(player, battle, loss.trace));
+  if (player.hp <= 0) return 'terminal';
   if (loss.hpLost > 0 && !battle.tutorial && !loss.procProduced && rng) {
     lines.push(
       // #107: the reaction inherits the caller's snapshot phase — never a
       // literal. An opening strike's reaction is pre-snapshot; a mid-round
       // slot's reaction is deferred.
       ...runReactiveTriggers(
-        p,
+        player,
         battle,
         rng,
         { cause: loss.cause },
@@ -732,7 +737,7 @@ function resolvePlayerHpLoss(
  * depth) — nothing between validation and execution can invalidate these
  * checks (the enemy drains no MP, adds no cooldowns, removes no items). */
 function validatePlayerAction(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   action: PlayerAction,
 ): { ok: boolean; lines: string[] } {
@@ -743,44 +748,47 @@ function validatePlayerAction(
     case 'flee':
       return { ok: true, lines };
     case 'skill': {
-      const sk = skill(action.skillId);
-      if (!sk) {
+      const learnedSkill = skill(action.skillId);
+      if (!learnedSkill) {
         lines.push('…nothing happens.');
         return { ok: false, lines };
       }
-      if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
+      if (learnedSkill.classId !== player.classId || !player.skills.includes(learnedSkill.id)) {
         lines.push("You haven't learned that skill.");
         return { ok: false, lines };
       }
-      if (sk.preEmptive) {
+      if (learnedSkill.preEmptive) {
         lines.push('⚡ That skill fires on its own as the battle opens.');
         return { ok: false, lines };
       }
-      if ((battle.cooldowns[sk.id] ?? 0) > 0) {
+      if ((battle.cooldowns[learnedSkill.id] ?? 0) > 0) {
         lines.push('⏳ That skill is still on cooldown.');
         return { ok: false, lines };
       }
-      if (p.mp < sk.mpCost) {
+      if (player.mp < learnedSkill.mpCost) {
         lines.push('💧 Not enough MP.');
         return { ok: false, lines };
       }
       return { ok: true, lines };
     }
     case 'item': {
-      const it = itemDefLookup(action.itemId);
-      const entry = p.inventory.find((e) => e.id === action.itemId);
-      if (!it?.effect || !entry || entry.qty <= 0) {
+      const item = itemDefLookup(action.itemId);
+      const entry = player.inventory.find((invEntry) => invEntry.id === action.itemId);
+      if (!item?.effect || !entry || entry.qty <= 0) {
         lines.push('You rummage through your bag and find nothing useful.');
         return { ok: false, lines };
       }
-      const eff = it.effect;
+      const itemEffect = item.effect;
       // Auto-trigger-only items (Phoenix Cinder) can never be spent by hand.
-      if (eff.revivePct && !eff.healHp && !eff.healMp && !eff.cureStatus && !eff.flee) {
+      if (
+        itemEffect.revivePct && !itemEffect.healHp && !itemEffect.healMp &&
+        !itemEffect.cureStatus && !itemEffect.flee
+      ) {
         lines.push('🔥 The Cinder smolders — it will spark on its own when you fall.');
         return { ok: false, lines };
       }
       // Smoke Bomb is never wasted on a boss.
-      if (eff.flee && battle.enemy.isBoss) {
+      if (itemEffect.flee && battle.enemy.isBoss) {
         lines.push('🚫 No smoke clouds this fight — there is no escape.');
         return { ok: false, lines };
       }
@@ -792,7 +800,7 @@ function validatePlayerAction(
 /** The trace this resolution records into (#101): owned by performAction,
  * returned on its result — no ambient installation anywhere. */
 export function performAction(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   action: PlayerAction,
   rng: Rng = defaultRng,
@@ -805,10 +813,10 @@ export function performAction(
   // #96 defensive entry check: a pre-existing terminal state (an opening
   // that already ended the fight, or a battle resumed past 0 HP) resolves
   // immediately — no round runs, no enemy phase, no bookkeeping.
-  if (battle.enemy.hp <= 0 || p.hp <= 0) {
+  if (battle.enemy.hp <= 0 || player.hp <= 0) {
     const outcome: BattleOutcome = battle.enemy.hp <= 0 ? 'victory' : 'defeat';
     recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
-    if (outcome === 'defeat') delete p.dungeonRun;
+    if (outcome === 'defeat') delete player.dungeonRun;
     return { battle, lines: [], skipped: false, consumedTurn: false, outcome, trace };
   }
 
@@ -817,7 +825,7 @@ export function performAction(
   // #86 step 1 — validate WITHOUT charging: an invalid command consumes no
   // round, ticks nothing, and hands the enemy nothing. Its lines stay
   // handler feedback only (never in the battle log — #67/#32).
-  const check = validatePlayerAction(p, battle, action);
+  const check = validatePlayerAction(player, battle, action);
   if (!check.ok) {
     return {
       battle,
@@ -831,12 +839,12 @@ export function performAction(
 
   const lines: string[] = [];
   let skipped = false;
-  const terminalNow = (): boolean => terminalHp(p, battle);
+  const terminalNow = (): boolean => terminalHp(player, battle);
 
   // #86 step 2 — initiative snapshot: effective SPD after opening and
   // start-of-round modifiers. Ties keep the documented player-first rule;
   // SPD changes DURING the round wait for the next round's snapshot.
-  const playerFirst = effectivePlayerSpd(p, battle) >= effectiveEnemySpd(battle);
+  const playerFirst = effectivePlayerSpd(player, battle) >= effectiveEnemySpd(battle);
 
   /** The player's slot (#86 steps 3–4): turn-start periodics, stun check,
    * then the action — with a terminal stop after every HP-changing unit. */
@@ -844,9 +852,9 @@ export function performAction(
     // Turn-start periodic effects (#78) tick at the player's slot, one at
     // a time — poison does not care whether you can act, but a lethal tick
     // ends the round BEFORE the action and before any later tick (#86).
-    const started = gatherTurnStartTicks(battle, maxHpOf(battle, p));
-    for (const t of started) {
-      lines.push(...applyPeriodicTick(p, battle, t, rng, trace));
+    const started = gatherTurnStartTicks(battle, maxHpOf(battle, player));
+    for (const tick of started) {
+      lines.push(...applyPeriodicTick(player, battle, tick, rng, trace));
       if (terminalNow()) return 'terminal';
     }
     for (const loss of settleTurnStart(battle, started, trace)) {
@@ -858,7 +866,7 @@ export function performAction(
       skipped = true;
       return 'continue';
     }
-    const res = applyPlayerAction(p, battle, action, rng, trace);
+    const res = applyPlayerAction(player, battle, action, rng, trace);
     lines.push(...res.lines);
     // #69 rework: the guided fight advances its lesson beats only on the
     // intended action kinds, in order — the beats cannot be skipped or
@@ -886,18 +894,18 @@ export function performAction(
       lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
       return 'continue';
     }
-    const s = statsOf(p);
+    const playerStats = statsOf(player);
     if (
       battle.tutorial && battle.tutorialStep === 'item' &&
-      p.hp > Math.floor(s.maxHp * 0.7)
+      player.hp > Math.floor(playerStats.maxHp * 0.7)
     ) {
       // #69 rework: the scripted teaching hit — deterministic, nonlethal,
       // lands the hero clearly below the item-lesson threshold, so the
       // lesson is always reachable through real play no matter how the
       // damage rolls go.
-      const target = Math.max(1, Math.floor(s.maxHp * 0.45));
-      const dmg = Math.max(1, p.hp - target);
-      p.hp = Math.max(1, p.hp - dmg);
+      const target = Math.max(1, Math.floor(playerStats.maxHp * 0.45));
+      const dmg = Math.max(1, player.hp - target);
+      player.hp = Math.max(1, player.hp - dmg);
       lines.push(`💥 ${battle.enemy.name} flares with old hearth-fire — ${dmg} damage to you!`);
       if (battle.guarding) {
         lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
@@ -906,7 +914,7 @@ export function performAction(
       // through the shared transition (trace → revival → terminal →
       // reactions); its floor keeps the hero above 0, so the interception
       // never fires — and tutorial fights never scan reactions.
-      resolvePlayerHpLoss(p, battle, rng, {
+      resolvePlayerHpLoss(player, battle, rng, {
         resolved: dmg,
         hpLost: dmg,
         attacker: 'enemy',
@@ -918,7 +926,7 @@ export function performAction(
       }, lines);
     } else {
       const move = enemyChooseMove(def, battle, rng);
-      lines.push(...enemyAct(p, battle, move, rng, trace));
+      lines.push(...enemyAct(player, battle, move, rng, trace));
     }
     battle.guarding = false;
     return terminalNow() ? 'terminal' : 'continue';
@@ -932,13 +940,13 @@ export function performAction(
       ? 'fled'
       : battle.enemy.hp <= 0
       ? 'victory'
-      : p.hp <= 0
+      : player.hp <= 0
       ? 'defeat'
       : 'ongoing';
     if (outcome === 'victory' || outcome === 'defeat') {
       recordCombatEvent(trace, { kind: 'terminal', round: actedRound, outcome });
     }
-    if (outcome === 'defeat' || outcome === 'fled') delete p.dungeonRun;
+    if (outcome === 'defeat' || outcome === 'fled') delete player.dungeonRun;
     return { battle, lines, skipped, consumedTurn: true, outcome, trace };
   };
 
@@ -958,10 +966,10 @@ export function performAction(
   // BOTH slots. Ticks land one at a time; the first terminal state stops
   // the remaining queue and all later bookkeeping (expiry, cooldown decay).
   battle.round++;
-  const eor = gatherRoundEndTicks(battle, maxHpOf(battle, p));
+  const eor = gatherRoundEndTicks(battle, maxHpOf(battle, player));
   let ended = false;
-  for (const t of eor) {
-    lines.push(...applyPeriodicTick(p, battle, t, rng, trace));
+  for (const tick of eor) {
+    lines.push(...applyPeriodicTick(player, battle, tick, rng, trace));
     if (terminalNow()) {
       ended = true;
       break;
@@ -972,9 +980,9 @@ export function performAction(
     for (const loss of applyShieldExpiry(battle, expired)) {
       lines.push(`🛡️ ${loss.lost} Shield capacity fades.`);
     }
-    for (const [k, v] of Object.entries(battle.cooldowns)) {
-      if (v <= 1) delete battle.cooldowns[k];
-      else battle.cooldowns[k] = v - 1;
+    for (const [skillId, remainingCd] of Object.entries(battle.cooldowns)) {
+      if (remainingCd <= 1) delete battle.cooldowns[skillId];
+      else battle.cooldowns[skillId] = remainingCd - 1;
     }
   }
   return finish();
@@ -986,80 +994,82 @@ export function performAction(
  * reactive equipment for THIS event (broad onHpDamage triggers only —
  * there is no attacker for the narrow enemy-action ones to blame). */
 function applyPeriodicTick(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
-  t: PeriodicTick,
+  tick: PeriodicTick,
   rng?: Rng,
   trace?: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
-  if (t.amount >= 0) {
-    if (t.side === 'player') {
-      const max = statsOf(p).maxHp;
-      const heal = Math.min(t.amount, max - p.hp);
-      p.hp = Math.min(max, p.hp + t.amount);
+  if (tick.amount >= 0) {
+    if (tick.side === 'player') {
+      const max = statsOf(player).maxHp;
+      const heal = Math.min(tick.amount, max - player.hp);
+      player.hp = Math.min(max, player.hp + tick.amount);
       recordCombatEvent(trace, {
         kind: 'periodicTick',
         round: battle.round,
-        side: t.side,
-        name: t.name,
-        amount: t.amount,
+        side: tick.side,
+        name: tick.name,
+        amount: tick.amount,
         applied: heal,
       });
-      if (heal > 0) lines.push(`💚 You recover ${heal} HP (${t.name}).`);
+      if (heal > 0) lines.push(`💚 You recover ${heal} HP (${tick.name}).`);
     } else {
-      const heal = Math.min(t.amount, battle.enemy.maxHp - battle.enemy.hp);
-      battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + t.amount);
+      const heal = Math.min(tick.amount, battle.enemy.maxHp - battle.enemy.hp);
+      battle.enemy.hp = Math.min(battle.enemy.maxHp, battle.enemy.hp + tick.amount);
       recordCombatEvent(trace, {
         kind: 'periodicTick',
         round: battle.round,
-        side: t.side,
-        name: t.name,
-        amount: t.amount,
+        side: tick.side,
+        name: tick.name,
+        amount: tick.amount,
         applied: heal,
       });
-      if (heal > 0) lines.push(`💚 ${battle.enemy.name} recovers ${heal} HP (${t.name}).`);
+      if (heal > 0) lines.push(`💚 ${battle.enemy.name} recovers ${heal} HP (${tick.name}).`);
     }
     return lines;
   }
-  const dmg = -t.amount;
+  const dmg = -tick.amount;
   // Periodic damage routes through the target's ward like any other
   // damage (#79); the spec opts out with bypassShield. The pool takes the
   // full tick first; only overflow reaches HP.
   let hpDmg = dmg;
   let absorbed = 0;
   let broke = false;
-  if (!t.instance.bypassShield) {
+  if (!tick.instance.bypassShield) {
     // #105: periodic absorption feeds the same resolution trace as direct
     // damage — a ward broken by a tick emits its shieldBreak in order.
-    const a = absorbShield(battle, t.side, dmg, trace);
-    absorbed = a.absorbed;
-    hpDmg = a.hpDamage;
-    broke = a.broke;
+    const absorb = absorbShield(battle, tick.side, dmg, trace);
+    absorbed = absorb.absorbed;
+    hpDmg = absorb.hpDamage;
+    broke = absorb.broke;
   }
-  if (t.side === 'player') {
+  if (tick.side === 'player') {
     // #104: the periodic family runs the ONE shared player-targeted HP-loss
     // transition — trace, then the immediate revival interception, then the
     // terminal stop, then a revived survivor's reactions — exactly like a
     // direct hit. #89: periodic HP loss is its own cause — broad onHpDamage
     // triggers answer it; there is no attacker for the narrow one to blame.
-    const hpBefore = p.hp;
-    p.hp = Math.max(0, p.hp - hpDmg);
+    const hpBefore = player.hp;
+    player.hp = Math.max(0, player.hp - hpDmg);
     recordCombatEvent(trace, {
       kind: 'periodicTick',
       round: battle.round,
-      side: t.side,
-      name: t.name,
-      amount: t.amount,
-      applied: p.hp - hpBefore,
+      side: tick.side,
+      name: tick.name,
+      amount: tick.amount,
+      applied: player.hp - hpBefore,
     });
     lines.push(
-      `☠️ You take ${hpDmg} damage (${t.name}).${absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''}`,
+      `☠️ You take ${hpDmg} damage (${tick.name}).${
+        absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
+      }`,
     );
     if (broke) lines.push('🛡️ Your Shield breaks!');
-    resolvePlayerHpLoss(p, battle, rng, {
+    resolvePlayerHpLoss(player, battle, rng, {
       resolved: hpDmg,
-      hpLost: hpBefore - p.hp,
+      hpLost: hpBefore - player.hp,
       attacker: null,
       cause: 'periodic',
       procProduced: false,
@@ -1078,9 +1088,9 @@ function applyPeriodicTick(
     recordCombatEvent(trace, {
       kind: 'periodicTick',
       round: battle.round,
-      side: t.side,
-      name: t.name,
-      amount: t.amount,
+      side: tick.side,
+      name: tick.name,
+      amount: tick.amount,
       applied: battle.enemy.hp - hpBefore,
     });
     if (battle.enemy.hp < hpBefore) {
@@ -1098,7 +1108,7 @@ function applyPeriodicTick(
       });
     }
     lines.push(
-      `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${t.name}).${
+      `☠️ ${battle.enemy.name} takes ${hpDmg} damage (${tick.name}).${
         absorbed > 0 ? ` (🛡️ ${absorbed} absorbed)` : ''
       }`,
     );
@@ -1115,7 +1125,7 @@ function applyPeriodicTick(
 // ── The generic effect resolver (#78) ───────────────────────────────────
 
 interface ExecCtx {
-  p: PlayerState;
+  player: PlayerState;
   battle: BattleState;
   rng: Rng;
   /** Who is applying the specs: skills cast as the player; enemy moves as
@@ -1189,8 +1199,8 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
   // pre-#78 resolver draw-for-draw.
   if (
     ctx.actor === 'enemy' &&
-    specs.some((sp) =>
-      sp.kind === 'damage' && sp.power > 0 && targetSideOf(sp, 'enemy') === 'player'
+    specs.some((spec) =>
+      spec.kind === 'damage' && spec.power > 0 && targetSideOf(spec, 'enemy') === 'player'
     )
   ) {
     // Both sides read EFFECTIVE SPD (#85): a slowed enemy is slipped more
@@ -1198,7 +1208,7 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
     if (
       chance(
         ctx.rng,
-        dodgeChance(effectivePlayerSpd(ctx.p, ctx.battle), effectiveEnemySpd(ctx.battle)),
+        dodgeChance(effectivePlayerSpd(ctx.player, ctx.battle), effectiveEnemySpd(ctx.battle)),
       )
     ) {
       lines.push(
@@ -1207,14 +1217,14 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
       return lines;
     }
   }
-  for (let ei = 0; ei < specs.length; ei++) {
-    const spec = specs[ei]!;
+  for (let effectIndex = 0; effectIndex < specs.length; effectIndex++) {
+    const spec = specs[effectIndex]!;
     // #86: terminal state stops the ordered spec list — no rider, drain or
     // proc resolves after an unrevived actor reached 0 HP. Phoenix already
     // ran synchronously inside the damage path (a successful revival means
     // combat is NOT terminal); the tutorial floor keeps the fixture alive
     // before its lessons clear, so it never blocks tutorial riders.
-    if (ctx.battle.enemy.hp <= 0 || ctx.p.hp <= 0) break;
+    if (ctx.battle.enemy.hp <= 0 || ctx.player.hp <= 0) break;
     // Riders never land on a corpse — checked BEFORE the chance draw so a
     // felled target never consumes a roll (long-standing rng parity).
     if (spec.requireSurvivor && ctx.targetFelled) continue;
@@ -1257,13 +1267,13 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'shield': {
-        lines.push(...applyShieldEffect(ctx, spec, side, ei));
+        lines.push(...applyShieldEffect(ctx, spec, side, effectIndex));
         break;
       }
       case 'statmod':
       case 'control':
       case 'periodic': {
-        lines.push(...applyStatusEffect(ctx, spec, side, ei));
+        lines.push(...applyStatusEffect(ctx, spec, side, effectIndex));
         break;
       }
       case 'cleanse': {
@@ -1275,8 +1285,8 @@ function executeSpecs(ctx: ExecCtx, specs: readonly EffectSpec[]): string[] {
         break;
       }
       case 'resource': {
-        const max = statsOf(ctx.p).maxMp;
-        const target = side === 'player' ? ctx.p : null;
+        const max = statsOf(ctx.player).maxMp;
+        const target = side === 'player' ? ctx.player : null;
         if (target && spec.mpPctOfMax) {
           const before = target.mp;
           target.mp = Math.min(max, target.mp + Math.floor(max * spec.mpPctOfMax));
@@ -1302,8 +1312,8 @@ function applyLifestealEffect(
   if (!(ctx.lastDamage > 0)) return [];
   const attempted = Math.floor(ctx.lastDamage * spec.pct);
   if (!(attempted > 0)) return [];
-  const target = ctx.actor === 'player' ? ctx.p : ctx.battle.enemy;
-  const max = ctx.actor === 'player' ? statsOf(ctx.p).maxHp : ctx.battle.enemy.maxHp;
+  const target = ctx.actor === 'player' ? ctx.player : ctx.battle.enemy;
+  const max = ctx.actor === 'player' ? statsOf(ctx.player).maxHp : ctx.battle.enemy.maxHp;
   const before = target.hp;
   target.hp = Math.min(max, target.hp + attempted);
   const applied = target.hp - before;
@@ -1335,9 +1345,9 @@ function applyShieldEffect(
   // the stat the class actually has), flat otherwise. The caster's
   // own sap scales it like any offense stat (#79).
   const base = ctx.actor === 'player'
-    ? playerOffense(ctx.p, ctx.battle, 'mag')
+    ? playerOffense(ctx.player, ctx.battle, 'mag')
     : enemyOffense(ctx.battle, 'mag');
-  const defBase = ctx.actor === 'player' ? playerMitigation(ctx.p, ctx.battle, 'phys') : 0;
+  const defBase = ctx.actor === 'player' ? playerMitigation(ctx.player, ctx.battle, 'phys') : 0;
   const amount = Math.round(
     base * (spec.magPower ?? 0) * 2 + defBase * (spec.defPower ?? 0) * 2 +
       (spec.amount ?? 0),
@@ -1467,8 +1477,8 @@ function defaultInstanceLine(
 ): string | undefined {
   if (spec.quiet) return undefined;
   if (spec.line) {
-    const n = amount ?? primaryAmount(spec);
-    return spec.line.replace('{n}', String(n));
+    const displayAmount = amount ?? primaryAmount(spec);
+    return spec.line.replace('{n}', String(displayAmount));
   }
   const enemyName = ctx.battle.enemy.name;
   switch (spec.kind) {
@@ -1528,14 +1538,15 @@ function applyDamageEffect(
   spec: Extract<EffectSpec, { kind: 'damage' }>,
   target: 'player' | 'enemy',
 ): string[] {
-  const { p, battle, rng } = ctx;
+  const { player, battle, rng } = ctx;
   const def = enemyDef(battle.enemy.id);
   if (!def) return [];
   const lines: string[] = [];
   const attacker = ctx.actor;
-  const hpOf = (side: 'player' | 'enemy'): number => side === 'player' ? p.hp : battle.enemy.hp;
+  const hpOf = (side: 'player' | 'enemy'): number =>
+    side === 'player' ? player.hp : battle.enemy.hp;
   const maxHpOf = (side: 'player' | 'enemy'): number =>
-    side === 'player' ? statsOf(p).maxHp : battle.enemy.maxHp;
+    side === 'player' ? statsOf(player).maxHp : battle.enemy.maxHp;
   let dealt: { dmg: number; crit: boolean };
   if (attacker === 'player') {
     // Player strike: crit (luck) + variance; the target's mitigation is the
@@ -1543,13 +1554,13 @@ function applyDamageEffect(
     // self-buffs all land — then stance modifiers.
     const targetMitigation = target === 'enemy'
       ? enemyMitigation(battle, spec.attack)
-      : playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player');
+      : playerMitigation(player, battle, spec.attack) * stanceMul(battle, 'player');
     dealt = dealDamage(
       spec.power,
-      playerOffense(p, battle, spec.attack),
+      playerOffense(player, battle, spec.attack),
       targetMitigation,
       rng,
-      statsOf(p).luck,
+      statsOf(player).luck,
     );
   } else {
     // #85: the enemy's offense folds its own live ATK/MAG instances (sap
@@ -1559,7 +1570,7 @@ function applyDamageEffect(
     const offense = enemyOffense(battle, spec.attack);
     const guard = target === 'player' && battle.guarding ? 0.5 : 1;
     const mitig = (target === 'player'
-      ? playerMitigation(p, battle, spec.attack) * stanceMul(battle, 'player')
+      ? playerMitigation(player, battle, spec.attack) * stanceMul(battle, 'player')
       : enemyMitigation(battle, spec.attack)) * 0.85;
     // #115: the target's incoming modifier does NOT enter the raw formula
     // here — the shared post-processing block below applies it EXACTLY ONCE
@@ -1587,10 +1598,10 @@ function applyDamageEffect(
   let absorbed = 0;
   let broke = false;
   if (!spec.bypassShield) {
-    const a = absorbShield(battle, target, dealt.dmg, ctx.trace);
-    absorbed = a.absorbed;
-    hpDmg = a.hpDamage;
-    broke = a.broke;
+    const absorb = absorbShield(battle, target, dealt.dmg, ctx.trace);
+    absorbed = absorb.absorbed;
+    hpDmg = absorb.hpDamage;
+    broke = absorb.broke;
   }
   if (target === 'enemy') {
     // #69/#86: the guided fight cannot end before every lesson beat has
@@ -1646,11 +1657,11 @@ function applyDamageEffect(
   // damage (#109) — both run the ONE shared player-targeted HP-loss
   // transition, so self-damage obeys the same immediate-revival and
   // terminal-stop contract as any other hit (#104).
-  const hpBefore = p.hp;
-  p.hp = Math.max(0, p.hp - hpDmg);
+  const hpBefore = player.hp;
+  player.hp = Math.max(0, player.hp - hpDmg);
   ctx.lastDamage = dealt.dmg;
   ctx.hpDamaged = hpDmg > 0;
-  ctx.targetFelled = p.hp <= 0;
+  ctx.targetFelled = player.hp <= 0;
   lines.push(
     attacker === 'player'
       ? `💢 ${ctx.displayName} recoils — ${hpDmg} damage to you!${
@@ -1670,11 +1681,11 @@ function applyDamageEffect(
   // wearer still answers the lethal event; an unrecovered terminal hit
   // (hp 0) procs nothing. Proc-produced damage never dispatches — the
   // recursion boundary is structural (#89).
-  resolvePlayerHpLoss(p, battle, rng, {
+  resolvePlayerHpLoss(player, battle, rng, {
     // #106: the resolved blow AND the actual HP delta — a lethal overkill
     // records hpLost = the HP the player actually had.
     resolved: hpDmg,
-    hpLost: hpBefore - p.hp,
+    hpLost: hpBefore - player.hp,
     // #109: the trace names the ACTUAL attacker — player recoil is
     // self-inflicted (attacker 'player', target 'player').
     attacker,
@@ -1697,25 +1708,25 @@ function applyRestoreEffect(
   spec: Extract<EffectSpec, { kind: 'restore' }>,
   side: 'player' | 'enemy',
 ): string[] {
-  const { p, battle } = ctx;
+  const { player, battle } = ctx;
   const lines: string[] = [];
   const source = `${ctx.source.kind}:${ctx.source.name}`;
   if (side === 'player') {
-    const max = statsOf(p).maxHp;
+    const max = statsOf(player).maxHp;
     let attempted = 0;
     if (spec.hpFull) attempted = max;
     else if (spec.hpPctOfMax !== undefined) attempted = Math.floor(max * spec.hpPctOfMax);
     else if (spec.hpPower !== undefined) {
       attempted = Math.round(
-        playerOffense(p, battle, 'mag') * spec.hpPower * 2.0 + (spec.hpFlat ?? 0),
+        playerOffense(player, battle, 'mag') * spec.hpPower * 2.0 + (spec.hpFlat ?? 0),
       );
     }
     // Full restores announce even at full HP (Miracle parity) — with the
     // applied amount, which is honestly 0 there.
     if (spec.hpFull || attempted > 0) {
-      const before = p.hp;
-      p.hp = Math.min(max, p.hp + attempted);
-      const applied = p.hp - before;
+      const before = player.hp;
+      player.hp = Math.min(max, player.hp + attempted);
+      const applied = player.hp - before;
       recordCombatEvent(ctx.trace, {
         kind: 'hpRestored',
         round: battle.round,
@@ -1733,10 +1744,10 @@ function applyRestoreEffect(
       );
     }
     if (spec.mpPctOfMax) {
-      const maxMp = statsOf(p).maxMp;
-      const before = p.mp;
-      p.mp = Math.min(maxMp, p.mp + Math.floor(maxMp * spec.mpPctOfMax));
-      if (p.mp > before) lines.push(`💧 You restore ${p.mp - before} MP.`);
+      const maxMp = statsOf(player).maxMp;
+      const before = player.mp;
+      player.mp = Math.min(maxMp, player.mp + Math.floor(maxMp * spec.mpPctOfMax));
+      if (player.mp > before) lines.push(`💧 You restore ${player.mp - before} MP.`);
     }
   } else {
     const max = battle.enemy.maxHp;
@@ -1766,9 +1777,9 @@ function applyRestoreEffect(
 }
 
 function applySkill(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
-  sk: SkillDef,
+  skillDef: SkillDef,
   rng: Rng,
   cause: DamageCause,
   procProduced: boolean,
@@ -1779,17 +1790,17 @@ function applySkill(
   // Buff-style skills announce ONCE with their generated mechanical
   // summary (#67 copy, #120): the statmods themselves stay quiet. The
   // rules line derives from the effects — flavor never substitutes.
-  const selfBuff = sk.effects.some((e) =>
-    e.kind === 'statmod' && targetSideOf(e, 'player') === 'player' && !e.quiet
+  const selfBuff = skillDef.effects.some((effect) =>
+    effect.kind === 'statmod' && targetSideOf(effect, 'player') === 'player' && !effect.quiet
   );
-  if (selfBuff) lines.push(`🔆 ${sk.name}! ${mechanicsText(sk.effects)}`);
+  if (selfBuff) lines.push(`🔆 ${skillDef.name}! ${mechanicsText(skillDef.effects)}`);
   const ctx: ExecCtx = {
-    p,
+    player,
     battle,
     rng,
     actor: 'player',
-    source: { kind: 'skill', id: sk.id, name: sk.name },
-    displayName: sk.name,
+    source: { kind: 'skill', id: skillDef.id, name: skillDef.name },
+    displayName: skillDef.name,
     lastDamage: 0,
     targetFelled: false,
     hpDamaged: false,
@@ -1798,7 +1809,7 @@ function applySkill(
     afterSnapshot,
     trace,
   };
-  lines.push(...executeSpecs(ctx, sk.effects));
+  lines.push(...executeSpecs(ctx, skillDef.effects));
   return lines;
 }
 
@@ -1807,7 +1818,7 @@ function applySkill(
  * actions (cooldown/MP/unusable item) never do, so they never hand the
  * enemy a free round. */
 function applyPlayerAction(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   action: PlayerAction,
   rng: Rng,
@@ -1821,9 +1832,9 @@ function applyPlayerAction(
       // The free basic action is class-typed (#70): Warrior/Rogue swing ATK
       // vs DEF, Mage/Cleric channel MAG vs RES — read from the class
       // catalog so button labels, history text and mechanics agree.
-      const basic = CLASSES[p.classId].basicAction;
+      const basic = CLASSES[player.classId].basicAction;
       const ctx: ExecCtx = {
-        p,
+        player,
         battle,
         rng,
         actor: 'player',
@@ -1847,50 +1858,55 @@ function applyPlayerAction(
       return { lines, consumedTurn: true };
     }
     case 'skill': {
-      const sk = skill(action.skillId);
-      if (!sk) {
+      const chosenSkill = skill(action.skillId);
+      if (!chosenSkill) {
         lines.push('…nothing happens.');
         return { lines, consumedTurn: false };
       }
       // Engine-side authority: only learned, class-owned skills may fire.
       // The UI hides the rest; forged or stale taps must not cast them.
-      if (sk.classId !== p.classId || !p.skills.includes(sk.id)) {
+      if (chosenSkill.classId !== player.classId || !player.skills.includes(chosenSkill.id)) {
         lines.push("You haven't learned that skill.");
         return { lines, consumedTurn: false };
       }
       // Pre-emptive skills (#80) fire in the opening phase; they are never
       // manual casts (the battle menu hides them too).
-      if (sk.preEmptive) {
+      if (chosenSkill.preEmptive) {
         lines.push('⚡ That skill fires on its own as the battle opens.');
         return { lines, consumedTurn: false };
       }
-      if ((battle.cooldowns[sk.id] ?? 0) > 0) {
+      if ((battle.cooldowns[chosenSkill.id] ?? 0) > 0) {
         lines.push('⏳ That skill is still on cooldown.');
         return { lines, consumedTurn: false };
       }
-      if (p.mp < sk.mpCost) {
+      if (player.mp < chosenSkill.mpCost) {
         lines.push('💧 Not enough MP.');
         return { lines, consumedTurn: false };
       }
-      p.mp -= sk.mpCost;
-      if (sk.cooldown > 0) battle.cooldowns[sk.id] = sk.cooldown + 1;
-      lines.push(...applySkill(p, battle, sk, rng, 'playerAction', false, true, trace));
+      player.mp -= chosenSkill.mpCost;
+      if (chosenSkill.cooldown > 0) battle.cooldowns[chosenSkill.id] = chosenSkill.cooldown + 1;
+      lines.push(
+        ...applySkill(player, battle, chosenSkill, rng, 'playerAction', false, true, trace),
+      );
       return { lines, consumedTurn: true };
     }
     case 'item': {
-      const eff = itemDefLookup(action.itemId)?.effect;
+      const itemEffect = itemDefLookup(action.itemId)?.effect;
       // Auto-trigger-only items (Phoenix Cinder) can never be spent by hand.
-      if (eff?.revivePct && !eff.healHp && !eff.healMp && !eff.cureStatus && !eff.flee) {
+      if (
+        itemEffect?.revivePct && !itemEffect.healHp && !itemEffect.healMp &&
+        !itemEffect.cureStatus && !itemEffect.flee
+      ) {
         lines.push('🔥 The Cinder smolders — it will spark on its own when you fall.');
         return { lines, consumedTurn: false };
       }
       // Smoke Bomb: guaranteed escape from non-boss fights (never wasted).
-      if (eff?.flee) {
+      if (itemEffect?.flee) {
         if (battle.enemy.isBoss) {
           lines.push('🚫 No smoke clouds this fight — there is no escape.');
           return { lines, consumedTurn: false };
         }
-        const used = consumeItem(p, action.itemId, battle, trace);
+        const used = consumeItem(player, action.itemId, battle, trace);
         if (!used) {
           lines.push('You rummage through your bag and find nothing useful.');
           return { lines, consumedTurn: false };
@@ -1899,7 +1915,7 @@ function applyPlayerAction(
         lines.push(...used, '💨 Smoke floods the field — you slip away safely!');
         return { lines, consumedTurn: true };
       }
-      const consumed = consumeItem(p, action.itemId, battle, trace);
+      const consumed = consumeItem(player, action.itemId, battle, trace);
       if (!consumed) {
         lines.push('You rummage through your bag and find nothing useful.');
         return { lines, consumedTurn: false };
@@ -1909,20 +1925,23 @@ function applyPlayerAction(
     }
     case 'guard': {
       battle.guarding = true;
-      p.mp = Math.min(statsOf(p).maxMp, p.mp + Math.ceil(statsOf(p).maxMp * 0.08));
+      player.mp = Math.min(
+        statsOf(player).maxMp,
+        player.mp + Math.ceil(statsOf(player).maxMp * 0.08),
+      );
       lines.push('🛡️ You brace behind your guard (+MP).');
       if (!battle.tutorial) {
         // #107 audit: this literal is CORRECT — the guard action runs in the
         // player's slot, which always executes after the round's snapshot
         // (initiative is snapshotted before either slot acts).
-        lines.push(...runReactiveTriggers(p, battle, rng, 'onGuard', true, trace));
+        lines.push(...runReactiveTriggers(player, battle, rng, 'onGuard', true, trace));
       }
       return { lines, consumedTurn: true };
     }
     case 'flee': {
       // Effective SPD both sides (#85) drives escape odds — Rogue identity,
       // and enemy Slows now genuinely open the way out.
-      const spd = effectivePlayerSpd(p, battle);
+      const spd = effectivePlayerSpd(player, battle);
       const foeSpd = effectiveEnemySpd(battle);
       if (battle.enemy.isBoss) {
         lines.push('🚫 There is no escape from this fight.');
@@ -1942,38 +1961,38 @@ function applyPlayerAction(
  * player state, so round numbers and removal events are exact. Caller
  * validates kind. */
 function consumeItem(
-  p: PlayerState,
+  player: PlayerState,
   itemId: string,
   battle: BattleState,
   trace?: CombatTraceEntry[],
 ): string[] | undefined {
-  const entry = p.inventory.find((e) => e.id === itemId);
+  const entry = player.inventory.find((invEntry) => invEntry.id === itemId);
   if (!entry || entry.qty <= 0) return undefined;
   const itemDef = itemDefLookup(itemId);
   if (!itemDef?.effect) return undefined;
-  const s = statsOf(p);
+  const stats = statsOf(player);
   const lines: string[] = [];
-  const eff = itemDef.effect;
-  if (eff.healHp) {
-    const before = p.hp;
-    p.hp = Math.min(s.maxHp, p.hp + eff.healHp);
+  const itemEffect = itemDef.effect;
+  if (itemEffect.healHp) {
+    const before = player.hp;
+    player.hp = Math.min(stats.maxHp, player.hp + itemEffect.healHp);
     recordCombatEvent(trace, {
       kind: 'hpRestored',
       round: battle.round,
       side: 'player',
       source: `item:${itemDef.name}`,
       cause: 'item',
-      attempted: eff.healHp,
-      applied: p.hp - before,
+      attempted: itemEffect.healHp,
+      applied: player.hp - before,
     });
-    lines.push(`🧪 ${itemDef.name} restores ${p.hp - before} HP.`);
+    lines.push(`🧪 ${itemDef.name} restores ${player.hp - before} HP.`);
   }
-  if (eff.healMp) {
-    const before = p.mp;
-    p.mp = Math.min(s.maxMp, p.mp + eff.healMp);
-    lines.push(`💧 ${itemDef.name} restores ${p.mp - before} MP.`);
+  if (itemEffect.healMp) {
+    const before = player.mp;
+    player.mp = Math.min(stats.maxMp, player.mp + itemEffect.healMp);
+    lines.push(`💧 ${itemDef.name} restores ${player.mp - before} MP.`);
   }
-  if (eff.cureStatus) {
+  if (itemEffect.cureStatus) {
     // Real tagged cleanse (#78): removes every removable harmful instance —
     // today that is the sapped-strength family; tomorrow it is whatever the
     // shared vocabulary ships. #105: each removal records its typed
@@ -1987,7 +2006,9 @@ function consumeItem(
     if (removed.length > 0) lines.push(`🧴 ${itemDef.name} cleanses your harmful effects.`);
   }
   entry.qty--;
-  if (entry.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== itemId);
+  if (entry.qty <= 0) {
+    player.inventory = player.inventory.filter((invEntry) => invEntry.id !== itemId);
+  }
   return [`You use ${itemDef.name}.`, ...lines];
 }
 
@@ -2006,20 +2027,20 @@ export function dodgeChance(playerSpd: number, enemySpd: number): number {
  * 🌀 intro (#25 parity: never any implicit chip damage, and heal/guard
  * moves carry their own headline lines). */
 function enemyAct(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   move: EnemyMove,
   rng: Rng,
   trace: CombatTraceEntry[],
 ): string[] {
   const lines: string[] = [];
-  const announcesIntro = !move.effects.some((e) =>
-    e.kind === 'damage' || e.kind === 'restore' ||
-    (e.kind === 'statmod' && e.stat === 'mitigation')
+  const announcesIntro = !move.effects.some((effect) =>
+    effect.kind === 'damage' || effect.kind === 'restore' ||
+    (effect.kind === 'statmod' && effect.stat === 'mitigation')
   );
   if (announcesIntro) lines.push(`🌀 ${battle.enemy.name} uses ${move.name}.`);
   const ctx: ExecCtx = {
-    p,
+    player,
     battle,
     rng,
     actor: 'enemy',
@@ -2043,24 +2064,26 @@ function enemyAct(
  * `revived` trace entry (attempted formula, applied delta) in the same
  * caller-owned resolution trace — before any later reaction resolves. */
 export function onLethalHit(
-  p: PlayerState,
+  player: PlayerState,
   battle: BattleState,
   trace?: CombatTraceEntry[],
 ): string[] {
-  const feather = p.inventory.find((e) => e.id === 'c_phoenix_feather');
+  const feather = player.inventory.find((invEntry) => invEntry.id === 'c_phoenix_feather');
   if (!feather || battle.phoenixUsed) return [];
   battle.phoenixUsed = true;
   feather.qty--;
-  if (feather.qty <= 0) p.inventory = p.inventory.filter((e) => e.id !== feather.id);
-  const attempted = Math.floor(statsOf(p).maxHp * 0.5);
-  const before = p.hp;
-  p.hp = attempted;
+  if (feather.qty <= 0) {
+    player.inventory = player.inventory.filter((invEntry) => invEntry.id !== feather.id);
+  }
+  const attempted = Math.floor(statsOf(player).maxHp * 0.5);
+  const before = player.hp;
+  player.hp = attempted;
   recordCombatEvent(trace, {
     kind: 'revived',
     round: battle.round,
     source: 'item:Phoenix Cinder',
     attempted,
-    applied: p.hp - before,
+    applied: player.hp - before,
   });
   return ['🔥 The Phoenix Cinder blazes — you rise again at half health!'];
 }
@@ -2082,8 +2105,8 @@ export function rollRewards(
 }
 
 /** UI/test helper: live instances on one side (render derives from these). */
-export function liveEffects(b: BattleState, side: 'player' | 'enemy'): EffectInstance[] {
-  return b.effectInstances.filter((i) => i.side === side);
+export function liveEffects(battle: BattleState, side: 'player' | 'enemy'): EffectInstance[] {
+  return battle.effectInstances.filter((inst) => inst.side === side);
 }
 
 /** Re-export for balance metrics consumers. */

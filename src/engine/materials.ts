@@ -11,21 +11,21 @@ import { temperMaterialsForTier } from './forge.ts';
 
 export function materialUses(id: string): string[] {
   const uses: string[] = [];
-  const tools = GATHERING_SITES.filter((s) => s.tool === id);
+  const tools = GATHERING_SITES.filter((site) => site.tool === id);
   if (tools.length) {
     uses.push(
       `Reusable gathering tool: ${
-        [...new Set(tools.map((s) => s.activity))].join(', ')
+        [...new Set(tools.map((site) => site.activity))].join(', ')
       }. Keep it in your bag.`,
     );
   }
-  if (GATHERING_SITES.some((s) => s.baitTables && Object.hasOwn(s.baitTables, id))) {
+  if (GATHERING_SITES.some((site) => site.baitTables && Object.hasOwn(site.baitTables, id))) {
     uses.push(
       'Fishing bait: one is consumed per cast. Choose bait at a fishing site to see its catch table.',
     );
   }
-  const recipes = RECIPES.filter((r) => r.inputs.some((m) => m.id === id));
-  if (recipes.length) uses.push(`Recipes: ${recipes.map((r) => r.name).join(', ')}.`);
+  const recipes = RECIPES.filter((recipe) => recipe.inputs.some((input) => input.id === id));
+  if (recipes.length) uses.push(`Recipes: ${recipes.map((recipe) => recipe.name).join(', ')}.`);
   const tiers = Array.from({ length: 8 }, (_, i) => i + 1).filter((tier) =>
     (['weapon', 'armor'] as const).some((slot) => temperMaterialsForTier(tier, slot).includes(id))
   );
@@ -39,49 +39,57 @@ export function materialUses(id: string): string[] {
 /** One source per entry, so a reference page can paginate without truncating directions. */
 export function materialSources(id: string): string[] {
   const sources: string[] = [];
-  for (const s of GATHERING_SITES) {
-    const bait = Object.entries(s.baitTables ?? {}).filter(([, ys]) =>
-      ys.some((y) => y.item === id)
+  for (const site of GATHERING_SITES) {
+    const bait = Object.entries(site.baitTables ?? {}).filter(([, dropList]) =>
+      dropList.some((drop) => drop.item === id)
     );
-    if (!s.yields.some((y) => y.item === id) && !bait.length) continue;
+    if (!site.yields.some((drop) => drop.item === id) && !bait.length) continue;
     const needs = [
-      s.tool ? `Tool: ${itemName(s.tool)}` : '',
-      bait.length ? `Bait: ${bait.map(([id]) => itemName(id)).join(' or ')}` : '',
+      site.tool ? `Tool: ${itemName(site.tool)}` : '',
+      bait.length ? `Bait: ${bait.map(([baitId]) => itemName(baitId)).join(' or ')}` : '',
     ].filter(Boolean);
     sources.push(
-      `${s.label}: ${zone(s.zoneId)!.name}${needs.length ? `\n${needs.join('\n')}` : ''}`,
+      `${site.label}: ${zone(site.zoneId)!.name}${needs.length ? `\n${needs.join('\n')}` : ''}`,
     );
   }
-  for (const z of ZONES) {
-    if (z.explore.some((e) => e.kind === 'treasure' && e.item === id)) {
-      sources.push(`Search / explore: ${z.name}`);
+  for (const zoneDef of ZONES) {
+    if (
+      zoneDef.explore.some((encounter) => encounter.kind === 'treasure' && encounter.item === id)
+    ) {
+      sources.push(`Search / explore: ${zoneDef.name}`);
     }
-    if (z.lootTable && dropTable(z.lootTable)?.entries.some((e) => e.item === id)) {
-      sources.push(`Regional battle finds: ${z.name}`);
+    if (
+      zoneDef.lootTable && dropTable(zoneDef.lootTable)?.entries.some((entry) => entry.item === id)
+    ) {
+      sources.push(`Regional battle finds: ${zoneDef.name}`);
     }
-    for (const [i, f] of (z.dungeon?.floors ?? []).entries()) {
-      if (f.treasure?.item === id) {
-        sources.push(`First-visit cache: ${z.dungeon!.name}\n${z.name} · Floor ${i + 1}`);
+    for (const [floorIndex, floor] of (zoneDef.dungeon?.floors ?? []).entries()) {
+      if (floor.treasure?.item === id) {
+        sources.push(
+          `First-visit cache: ${zoneDef.dungeon!.name}\n${zoneDef.name} · Floor ${floorIndex + 1}`,
+        );
       }
     }
-    if (z.dungeon?.firstClear?.item === id) {
-      sources.push(`First-clear reward: ${z.dungeon.name}\n${z.name}`);
+    if (zoneDef.dungeon?.firstClear?.item === id) {
+      sources.push(`First-clear reward: ${zoneDef.dungeon.name}\n${zoneDef.name}`);
     }
   }
-  for (const e of ENEMIES.filter((e) => (e.drops?.[id] ?? 0) > 0)) {
-    sources.push(`Monster loot: ${e.name}`);
+  for (const enemyDef of ENEMIES.filter((enemyDef) => (enemyDef.drops?.[id] ?? 0) > 0)) {
+    sources.push(`Monster loot: ${enemyDef.name}`);
   }
-  for (const shop of SHOPS.filter((s) => s.stock.some((g) => g.items.includes(id)))) {
-    const places = ZONES.filter((z) => z.services?.shop === shop.id);
-    for (const z of places) {
-      sources.push(`Shop: ${shop.name}\n${z.name} · Local stock requirements apply`);
+  for (
+    const shop of SHOPS.filter((shopDef) => shopDef.stock.some((group) => group.items.includes(id)))
+  ) {
+    const places = ZONES.filter((zoneDef) => zoneDef.services?.shop === shop.id);
+    for (const place of places) {
+      sources.push(`Shop: ${shop.name}\n${place.name} · Local stock requirements apply`);
     }
   }
-  for (const r of RECIPES.filter((r) => r.output.id === id)) {
-    for (const z of r.zones) sources.push(`${r.name}: ${zone(z)!.name}`);
+  for (const recipe of RECIPES.filter((r) => r.output.id === id)) {
+    for (const zoneId of recipe.zones) sources.push(`${recipe.name}: ${zone(zoneId)!.name}`);
   }
-  for (const q of QUESTS.filter((q) => q.rewards.items?.[id])) {
-    sources.push(`Quest reward: ${q.name}`);
+  for (const questDef of QUESTS.filter((q) => q.rewards.items?.[id])) {
+    sources.push(`Quest reward: ${questDef.name}`);
   }
   return sources;
 }
@@ -89,7 +97,9 @@ export function materialSources(id: string): string[] {
 export function resourceFacts(id: string): string[] {
   const def = item(id);
   if (
-    !def || (def.kind !== 'material' && !RECIPES.some((r) => r.inputs.some((m) => m.id === id)))
+    !def ||
+    (def.kind !== 'material' &&
+      !RECIPES.some((recipe) => recipe.inputs.some((input) => input.id === id)))
   ) return [];
   return materialUses(id);
 }
@@ -103,17 +113,20 @@ export interface ItemUseGroup {
 /** Production and gathering roles, kept structured for sectioned reference pages. */
 export function itemUseGroups(id: string): ItemUseGroup[] {
   const groups: ItemUseGroup[] = [];
-  const recipes = RECIPES.filter((r) => r.inputs.some((m) => m.id === id));
+  const recipes = RECIPES.filter((recipe) => recipe.inputs.some((input) => input.id === id));
   if (recipes.length) {
     groups.push({
       title: 'Recipes',
-      entries: recipes.map((r) => ({
-        title: r.name,
+      entries: recipes.map((recipe) => ({
+        title: recipe.name,
         detail: `Consumes ${
-          r.inputs.filter((m) => m.id === id).reduce((n, m) => n + m.qty, 0)
+          recipe.inputs.filter((input) => input.id === id).reduce(
+            (sum, input) => sum + input.qty,
+            0,
+          )
         } per batch\nProduces: ${
-          itemName(r.output.id)
-        } ×${r.output.qty}\nRequired level: ${r.level}`,
+          itemName(recipe.output.id)
+        } ×${recipe.output.qty}\nRequired level: ${recipe.level}`,
       })),
     });
   }
@@ -145,17 +158,21 @@ export function itemUseGroups(id: string): ItemUseGroup[] {
       'Foraging',
     ]] as const
   ) {
-    const sites = GATHERING_SITES.filter((s) =>
-      s.activity === activity && (s.tool === id || Object.hasOwn(s.baitTables ?? {}, id))
+    const sites = GATHERING_SITES.filter((site) =>
+      site.activity === activity && (site.tool === id || Object.hasOwn(site.baitTables ?? {}, id))
     );
     if (!sites.length) continue;
-    const reusable = sites.every((s) => s.tool === id);
+    const reusable = sites.every((site) => site.tool === id);
     groups.push({
       title,
       description: reusable ? 'Reusable tool. Keep it in your bag.' : 'Bait: 1 consumed per cast.',
-      entries: sites.map((s) => ({
-        title: zone(s.zoneId)!.name,
-        detail: s.tool === id ? undefined : s.tool ? `Tool: ${itemName(s.tool)}` : undefined,
+      entries: sites.map((site) => ({
+        title: zone(site.zoneId)!.name,
+        detail: site.tool === id
+          ? undefined
+          : site.tool
+          ? `Tool: ${itemName(site.tool)}`
+          : undefined,
       })),
     });
   }

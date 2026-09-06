@@ -78,24 +78,24 @@ function orderOf(lines: string[]): { player: number; enemy: number } | undefined
 Deno.test('#86: effective SPD decides who acts first — both directions', () => {
   // Fast player: the enemy is slowed to its floor.
   let fast: { player: number; enemy: number } | undefined;
-  for (let s = 1; s <= 200 && !fast; s++) {
-    const p = hero(2000 + s, 'warrior', 10);
-    const b = fight('e_rat', p, s);
+  for (let seed = 1; seed <= 200 && !fast; seed++) {
+    const p = hero(2000 + seed, 'warrior', 10);
+    const b = fight('e_rat', p, seed);
     b.enemy.hp = 99999; // survive the round so both actions are visible
     injectMod(b, 'enemy', 'spd', -0.95);
-    fast = orderOf(round(p, b, s).lines);
+    fast = orderOf(round(p, b, seed).lines);
   }
   assertExists(fast, 'a comparable fast-player seed exists');
   assert(fast.player < fast.enemy, `fast player acts first (${fast.player} vs ${fast.enemy})`);
 
   // Slow player: the same hero sprinting is all the enemy needs.
   let slow: { player: number; enemy: number } | undefined;
-  for (let s = 1; s <= 200 && !slow; s++) {
-    const p = hero(2300 + s, 'warrior', 10);
-    const b = fight('e_rat', p, s);
+  for (let seed = 1; seed <= 200 && !slow; seed++) {
+    const p = hero(2300 + seed, 'warrior', 10);
+    const b = fight('e_rat', p, seed);
     b.enemy.hp = 99999; // survive the round so both actions are visible
     injectMod(b, 'player', 'spd', -0.95);
-    slow = orderOf(round(p, b, s).lines);
+    slow = orderOf(round(p, b, seed).lines);
   }
   assertExists(slow, 'a comparable slow-player seed exists');
   assert(slow.enemy < slow.player, `slow player acts second (${slow.enemy} vs ${slow.player})`);
@@ -103,29 +103,29 @@ Deno.test('#86: effective SPD decides who acts first — both directions', () =>
 
 Deno.test('#86: equal SPD is a documented tie — the player takes slot 1', () => {
   let seen: { player: number; enemy: number } | undefined;
-  for (let s = 1; s <= 200 && !seen; s++) {
-    const p = hero(2600 + s, 'warrior', 10);
-    const b = fight('e_rat', p, s);
+  for (let seed = 1; seed <= 200 && !seen; seed++) {
+    const p = hero(2600 + seed, 'warrior', 10);
+    const b = fight('e_rat', p, seed);
     b.enemy.hp = 99999; // survive the round so both actions are visible
     // Floor BOTH sides to effective SPD 1 → guaranteed tie.
     injectMod(b, 'player', 'spd', -0.95);
     injectMod(b, 'enemy', 'spd', -0.95);
-    seen = orderOf(round(p, b, s).lines);
+    seen = orderOf(round(p, b, seed).lines);
   }
   assertExists(seen, 'a comparable tie seed exists');
   assert(seen.player < seen.enemy, `ties keep the player first (${seen.player} vs ${seen.enemy})`);
 });
 
 Deno.test('#86: a faster player’s lethal hit skips the enemy slot and ALL end-of-round work', () => {
-  for (let s = 1; s <= 100; s++) {
-    const p = hero(2900 + s, 'warrior', 30);
-    const b = fight('e_rat', p, s);
+  for (let seed = 1; seed <= 100; seed++) {
+    const p = hero(2900 + seed, 'warrior', 30);
+    const b = fight('e_rat', p, seed);
     injectMod(b, 'enemy', 'spd', -0.95); // player first, guaranteed
     b.enemy.hp = 5; // one-shot territory
     // A round-end DoT on the winner must never tick this round.
     const dot = applyInstance(b, periodicSeed('dot_a', 'player', -3, 'roundEnd'));
     const hpBefore = p.hp;
-    const res = round(p, b, s);
+    const res = round(p, b, seed);
     assertEquals(res.outcome, 'victory');
     assertEquals(p.hp, hpBefore, 'the winner’s DoT never ticked');
     assertEquals(b.round, 1, 'no end-of-round ran — the round counter never advanced');
@@ -138,15 +138,15 @@ Deno.test('#86: a faster player’s lethal hit skips the enemy slot and ALL end-
 });
 
 Deno.test('#86: a faster enemy’s kill stops the queued action’s resource costs', () => {
-  for (let s = 1; s <= 200; s++) {
-    const p = hero(3200 + s, 'cleric', 5);
+  for (let seed = 1; seed <= 200; seed++) {
+    const p = hero(3200 + seed, 'cleric', 5);
     p.mp = 100;
     p.inventory.push({ id: 'c_minor_potion', qty: 1 });
     const potionsBefore = p.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
-    const b = fight('e_rat', p, s);
+    const b = fight('e_rat', p, seed);
     injectMod(b, 'enemy', 'spd', 0.95); // enemy first, guaranteed
     injectMod(b, 'enemy', 'atk', 19.5); // one lethal swing
-    const res = round(p, b, s, { kind: 'skill', skillId: 'sk_mend' });
+    const res = round(p, b, seed, { kind: 'skill', skillId: 'sk_mend' });
     if (res.outcome !== 'defeat') continue;
     assertEquals(p.mp, 100, 'MP never charged — the player never reached their slot');
     assertEquals(b.cooldowns['sk_mend'] ?? 0, 0, 'cooldown never began');

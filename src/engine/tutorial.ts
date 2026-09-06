@@ -10,8 +10,8 @@ import { grantItem } from './quests.ts';
 import type { ClassId, PlayerState } from './types.ts';
 
 /** XP half of the outcome (#69): every hero exits the prologue at level 2+. */
-function grantTutorialXp(p: PlayerState): string[] {
-  return p.level < 2 ? grantXp(p, xpForNextLevel(1) + 5 - p.xp) : [];
+function grantTutorialXp(player: PlayerState): string[] {
+  return player.level < 2 ? grantXp(player, xpForNextLevel(1) + 5 - player.xp) : [];
 }
 
 /** ONE canonical post-tutorial constructor (#74): the fresh class kit with
@@ -24,15 +24,15 @@ export function createPostTutorialPlayer(
   name: string,
   classId: ClassId,
 ): PlayerState {
-  const p = createPlayer(userId, name, classId);
-  grantTutorialXp(p);
-  return p;
+  const player = createPlayer(userId, name, classId);
+  grantTutorialXp(player);
+  return player;
 }
 
 /** Live-path outcome: XP top-up plus the potion the lesson actually spent. */
-export function applyTutorialOutcome(p: PlayerState): string[] {
-  const lines = [...grantTutorialXp(p)];
-  grantItem(p, 'c_minor_potion', 1);
+export function applyTutorialOutcome(player: PlayerState): string[] {
+  const lines = [...grantTutorialXp(player)];
+  grantItem(player, 'c_minor_potion', 1);
   lines.push("🎒 Maren's satchel replaces what the lesson spent.");
   return lines;
 }

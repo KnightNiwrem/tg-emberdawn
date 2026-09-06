@@ -42,9 +42,9 @@ const voice = (opts: MechOpts | undefined): { self: MechVoice; opponent: MechVoi
   opponent: opts?.opponent ?? TARGET_VOICE,
 });
 
-const pct = (n: number): number => Math.round(n * 100);
+const pct = (ratio: number): number => Math.round(ratio * 100);
 
-const rounds = (n: number): string => (n === 1 ? '1 round' : `${n} rounds`);
+const rounds = (count: number): string => (count === 1 ? '1 round' : `${count} rounds`);
 
 /** Canonical display noun for an effect tag in rules text. */
 function tagName(tag: string): string {
@@ -134,9 +134,9 @@ function statmodSentence(
   const val = pct(Math.abs(spec.pct));
   const dur = durationText(spec);
   const toSelf = spec.target !== 'opponent';
-  const v = toSelf ? voices.self : voices.opponent;
-  const takes = v.subj === 'you' ? 'you take' : `${v.subj} takes`;
-  const deals = v.subj === 'you' ? 'you deal' : `${v.subj} deals`;
+  const targetVoice = toSelf ? voices.self : voices.opponent;
+  const takes = targetVoice.subj === 'you' ? 'you take' : `${targetVoice.subj} takes`;
+  const deals = targetVoice.subj === 'you' ? 'you deal' : `${targetVoice.subj} deals`;
   switch (spec.stat) {
     case 'incoming':
       // pct > 0 amplifies damage taken; < 0 reduces it.
@@ -150,11 +150,11 @@ function statmodSentence(
     case 'mitigation':
       return `${
         spec.pct >= 0 ? 'Raises' : 'Lowers'
-      } ${v.poss} damage mitigation by ${val}% ${dur}.`;
+      } ${targetVoice.poss} damage mitigation by ${val}% ${dur}.`;
     default:
       return `${
         spec.pct >= 0 ? 'Raises' : 'Lowers'
-      } ${v.poss} ${spec.stat.toUpperCase()} by ${val}% ${dur}.`;
+      } ${targetVoice.poss} ${spec.stat.toUpperCase()} by ${val}% ${dur}.`;
   }
 }
 
@@ -180,14 +180,14 @@ export function mechanicsLines(specs: readonly EffectSpec[], opts?: MechOpts): s
     const lines: string[] = [];
     switch (spec.kind) {
       case 'damage': {
-        let s = `Deals ${pct(spec.power)}% ${spec.attack === 'phys' ? 'ATK' : 'MAG'} damage`;
+        let sentence = `Deals ${pct(spec.power)}% ${spec.attack === 'phys' ? 'ATK' : 'MAG'} damage`;
         if (spec.execute) {
-          s += ` (+${pct(spec.execute.bonusPct)}% against targets below ${
+          sentence += ` (+${pct(spec.execute.bonusPct)}% against targets below ${
             pct(spec.execute.belowPct)
           }% HP)`;
         }
-        s += '.';
-        lines.push(s);
+        sentence += '.';
+        lines.push(sentence);
         if (spec.bypassShield) lines.push('Ignores Shield.');
         break;
       }
@@ -238,15 +238,15 @@ export function mechanicsLines(specs: readonly EffectSpec[], opts?: MechOpts): s
         break;
       }
       case 'cleanse': {
-        const s = cleanseScope(spec.max);
-        lines.push(chance + `Removes ${s.scope}${tagList(spec.tags)} ${s.noun}.`);
+        const scopeInfo = cleanseScope(spec.max);
+        lines.push(chance + `Removes ${scopeInfo.scope}${tagList(spec.tags)} ${scopeInfo.noun}.`);
         break;
       }
       case 'dispel': {
-        const s = cleanseScope(spec.max);
+        const scopeInfo = cleanseScope(spec.max);
         lines.push(
           chance +
-            `Removes ${s.scope}${tagList(spec.tags)} ${s.noun} from ${
+            `Removes ${scopeInfo.scope}${tagList(spec.tags)} ${scopeInfo.noun} from ${
               spec.target === 'opponent' ? voices.opponent.obj : voices.self.obj
             }.`,
         );

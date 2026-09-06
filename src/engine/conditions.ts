@@ -15,38 +15,43 @@ function statusList(is: string | string[]): QuestStatus[] {
 }
 
 /** Pure, deterministic evaluation. Never mutates the player. */
-export function evalCondition(p: PlayerState, c: Condition): boolean {
-  if ('all' in c) return c.all.every((sub) => evalCondition(p, sub));
-  if ('any' in c) return c.any.some((sub) => evalCondition(p, sub));
-  if ('not' in c) return !evalCondition(p, c.not);
-  if ('questStatus' in c) {
-    return statusList(c.questStatus.is).includes(
-      p.quests[c.questStatus.questId]?.status ?? 'unavailable',
+export function evalCondition(player: PlayerState, condition: Condition): boolean {
+  if ('all' in condition) return condition.all.every((sub) => evalCondition(player, sub));
+  if ('any' in condition) return condition.any.some((sub) => evalCondition(player, sub));
+  if ('not' in condition) return !evalCondition(player, condition.not);
+  if ('questStatus' in condition) {
+    return statusList(condition.questStatus.is).includes(
+      player.quests[condition.questStatus.questId]?.status ?? 'unavailable',
     );
   }
-  if ('decision' in c) {
-    const rec = p.decisions[c.decision.id];
+  if ('decision' in condition) {
+    const rec = player.decisions[condition.decision.id];
     if (!rec) return false;
-    return c.decision.choiceId === undefined || rec.choiceId === c.decision.choiceId;
+    return condition.decision.choiceId === undefined ||
+      rec.choiceId === condition.decision.choiceId;
   }
-  if ('flag' in c) {
-    const v = p.flags[c.flag.id];
-    if (v === undefined) return false;
-    return c.flag.equals === undefined || v === c.flag.equals;
+  if ('flag' in condition) {
+    const flagValue = player.flags[condition.flag.id];
+    if (flagValue === undefined) return false;
+    return condition.flag.equals === undefined || flagValue === condition.flag.equals;
   }
-  if ('levelAtLeast' in c) return p.level >= c.levelAtLeast;
-  if ('ownsItem' in c) return countOf(p, c.ownsItem.itemId) >= (c.ownsItem.count ?? 1);
-  if ('inZone' in c) return p.currentZone === c.inZone;
-  if ('questOutcome' in c) {
-    const o = p.questOutcomes[c.questOutcome.questId];
-    if (!o) return false;
-    if (c.questOutcome.kind !== undefined && o.kind !== c.questOutcome.kind) return false;
+  if ('levelAtLeast' in condition) return player.level >= condition.levelAtLeast;
+  if ('ownsItem' in condition) {
+    return countOf(player, condition.ownsItem.itemId) >= (condition.ownsItem.count ?? 1);
+  }
+  if ('inZone' in condition) return player.currentZone === condition.inZone;
+  if ('questOutcome' in condition) {
+    const outcome = player.questOutcomes[condition.questOutcome.questId];
+    if (!outcome) return false;
+    if (condition.questOutcome.kind !== undefined && outcome.kind !== condition.questOutcome.kind) {
+      return false;
+    }
     // A named outcome is a resolved-only concept (#150): a failed/locked
     // record never matches an outcome query — even when the condition omits
     // `kind` — because such a record can never have carried one.
     if (
-      c.questOutcome.outcome !== undefined &&
-      (o.kind !== 'resolved' || o.outcome !== c.questOutcome.outcome)
+      condition.questOutcome.outcome !== undefined &&
+      (outcome.kind !== 'resolved' || outcome.outcome !== condition.questOutcome.outcome)
     ) {
       return false;
     }
@@ -57,7 +62,7 @@ export function evalCondition(p: PlayerState, c: Condition): boolean {
 
 /** Every content id a condition references — the integrity test's crawl
  * list (quest ids, item ids, zone ids). */
-export function conditionRefs(c: Condition): {
+export function conditionRefs(condition: Condition): {
   quests: string[];
   items: string[];
   zones: string[];
@@ -72,6 +77,6 @@ export function conditionRefs(c: Condition): {
     if ('ownsItem' in cond) out.items.push(cond.ownsItem.itemId);
     if ('inZone' in cond) out.zones.push(cond.inZone);
   };
-  walk(c);
+  walk(condition);
   return out;
 }

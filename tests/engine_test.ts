@@ -201,14 +201,28 @@ Deno.test('combat: MAG/ATK buffs and Sapped modify the correct free action (#70)
     performAction(p, b, { kind: 'attack' }, seeded(33));
     return before - b.enemy.hp;
   };
-  const m = dmg('mage', {});
-  assert(dmg('mage', { mag: 0.5 }) > m, '+MAG must raise the mage free action');
-  assertEquals(dmg('mage', { atk: 0.5 }), m, '+ATK must not touch the mage free action');
-  assert(dmg('mage', { weaken: 0.5 }) < m, 'Sapped must lower the mage free action');
-  const w = dmg('warrior', {});
-  assert(dmg('warrior', { atk: 0.5 }) > w, '+ATK must raise the warrior free action');
-  assertEquals(dmg('warrior', { mag: 0.5 }), w, '+MAG must not touch the warrior free action');
-  assert(dmg('warrior', { weaken: 0.5 }) < w, 'Sapped must lower the warrior free action');
+  const mageBaseDamage = dmg('mage', {});
+  assert(dmg('mage', { mag: 0.5 }) > mageBaseDamage, '+MAG must raise the mage free action');
+  assertEquals(
+    dmg('mage', { atk: 0.5 }),
+    mageBaseDamage,
+    '+ATK must not touch the mage free action',
+  );
+  assert(dmg('mage', { weaken: 0.5 }) < mageBaseDamage, 'Sapped must lower the mage free action');
+  const warriorBaseDamage = dmg('warrior', {});
+  assert(
+    dmg('warrior', { atk: 0.5 }) > warriorBaseDamage,
+    '+ATK must raise the warrior free action',
+  );
+  assertEquals(
+    dmg('warrior', { mag: 0.5 }),
+    warriorBaseDamage,
+    '+MAG must not touch the warrior free action',
+  );
+  assert(
+    dmg('warrior', { weaken: 0.5 }) < warriorBaseDamage,
+    'Sapped must lower the warrior free action',
+  );
 });
 
 Deno.test('combat: free action mitigates with DEF (phys) / RES (mag) (#70)', () => {

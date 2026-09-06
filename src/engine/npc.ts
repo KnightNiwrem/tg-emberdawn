@@ -44,16 +44,16 @@ export interface NpcTopic {
  * pending AND the conversation belongs to the selected NPC. At any other
  * contact the row is a non-mutating progress reminder (#131). */
 function ownedConversation(
-  p: PlayerState,
-  q: QuestDef,
+  player: PlayerState,
+  questDef: QuestDef,
   npcId: string,
 ): string | undefined {
-  if (!q.conversationDialogue) return undefined;
-  const pendingEvent = q.objectives.some((o) =>
-    o.kind === 'storyEvent' && !p.storyEvents.includes(o.target)
+  if (!questDef.conversationDialogue) return undefined;
+  const pendingEvent = questDef.objectives.some((objective) =>
+    objective.kind === 'storyEvent' && !player.storyEvents.includes(objective.target)
   );
   if (!pendingEvent) return undefined;
-  const conv = dialogue(q.conversationDialogue);
+  const conv = dialogue(questDef.conversationDialogue);
   return conv?.npcId === npcId ? conv.id : undefined;
 }
 
@@ -61,62 +61,62 @@ function ownedConversation(
  * ready turn-ins, then new offers, then active business, then authored
  * lore. Quest-catalog order is never a filter — `find` would hide the
  * rest; this enumerates. */
-export function npcTopics(p: PlayerState, npcId: string): NpcTopic[] {
+export function npcTopics(player: PlayerState, npcId: string): NpcTopic[] {
   const topics: NpcTopic[] = [];
-  for (const q of QUESTS) {
+  for (const questDef of QUESTS) {
     // Turn-in business belongs to the configured finisher alone (#63) —
     // and only a dialogue that NPC actually owns is routable (#131).
-    if (q.finishNpc === npcId && p.quests[q.id]?.status === 'turnIn') {
-      const d = dialogue(q.turnInDialogue);
+    if (questDef.finishNpc === npcId && player.quests[questDef.id]?.status === 'turnIn') {
+      const dlg = dialogue(questDef.turnInDialogue);
       topics.push({
-        id: q.id,
+        id: questDef.id,
         kind: 'questTurnIn',
-        questId: q.id,
-        label: `🏁 Report: ${q.name}`,
-        dialogueId: d?.npcId === npcId ? d.id : undefined,
+        questId: questDef.id,
+        label: `🏁 Report: ${questDef.name}`,
+        dialogueId: dlg?.npcId === npcId ? dlg.id : undefined,
       });
     }
   }
-  for (const q of QUESTS) {
+  for (const questDef of QUESTS) {
     // Offers belong to the configured starter alone (#63).
-    if (q.startNpc === npcId && p.quests[q.id]?.status === 'available') {
-      const d = dialogue(q.offerDialogue);
+    if (questDef.startNpc === npcId && player.quests[questDef.id]?.status === 'available') {
+      const dlg = dialogue(questDef.offerDialogue);
       topics.push({
-        id: q.id,
+        id: questDef.id,
         kind: 'questOffer',
-        questId: q.id,
-        label: `📜 ${q.name}`,
-        dialogueId: d?.npcId === npcId ? d.id : undefined,
+        questId: questDef.id,
+        label: `📜 ${questDef.name}`,
+        dialogueId: dlg?.npcId === npcId ? dlg.id : undefined,
       });
     }
   }
-  for (const q of QUESTS) {
+  for (const questDef of QUESTS) {
     // Active business is listed at BOTH contacts so the player always has
     // a pointer; only the conversation's OWNING NPC opens it — the other
     // contact's row is a pure progress reminder (#131).
     if (
-      (q.startNpc === npcId || q.finishNpc === npcId) &&
-      p.quests[q.id]?.status === 'active'
+      (questDef.startNpc === npcId || questDef.finishNpc === npcId) &&
+      player.quests[questDef.id]?.status === 'active'
     ) {
       topics.push({
-        id: q.id,
+        id: questDef.id,
         kind: 'questActive',
-        questId: q.id,
-        label: `⏳ ${q.name}`,
-        dialogueId: ownedConversation(p, q, npcId),
+        questId: questDef.id,
+        label: `⏳ ${questDef.name}`,
+        dialogueId: ownedConversation(player, questDef, npcId),
       });
     }
   }
-  for (const t of npc(npcId)?.topics ?? []) {
+  for (const topic of npc(npcId)?.topics ?? []) {
     // Authored availability conditions (#125): the shared declarative
     // language, evaluated pure at enumeration time and revalidated at tap
     // time by re-resolving the row in the handler (#131).
-    if (t.when && !evalCondition(p, t.when)) continue;
+    if (topic.when && !evalCondition(player, topic.when)) continue;
     // A dialogue-backed topic routes only to a dialogue this NPC owns —
     // foreign-owned wiring is content corruption, never a route (#131).
-    const d = t.dialogue ? dialogue(t.dialogue) : undefined;
-    if (t.dialogue && d?.npcId !== npcId) continue;
-    topics.push({ id: t.id, kind: 'lore', label: `❓ ${t.label}`, dialogueId: d?.id });
+    const dlg = topic.dialogue ? dialogue(topic.dialogue) : undefined;
+    if (topic.dialogue && dlg?.npcId !== npcId) continue;
+    topics.push({ id: topic.id, kind: 'lore', label: `❓ ${topic.label}`, dialogueId: dlg?.id });
   }
   return topics;
 }

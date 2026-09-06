@@ -24,11 +24,11 @@ export function rollDropTable(
   tableId: string,
   rng: Rng = defaultRng,
 ): ContextualDrop[] {
-  const t = dropTable(tableId);
-  if (!t) return [];
+  const table = dropTable(tableId);
+  if (!table) return [];
   const out: ContextualDrop[] = [];
-  for (const e of t.entries) {
-    if (rng() < e.chance) out.push({ item: e.item, qty: e.qty ?? 1 });
+  for (const entry of table.entries) {
+    if (rng() < entry.chance) out.push({ item: entry.item, qty: entry.qty ?? 1 });
   }
   return out;
 }
@@ -44,16 +44,16 @@ export function rollDropTable(
  * the rendered lines).
  */
 export function grantContextualDrops(
-  p: PlayerState,
+  player: PlayerState,
   drops: readonly ContextualDrop[],
 ): { lines: string[]; granted: string[] } {
   const lines: string[] = [];
   const granted: string[] = [];
   for (const drop of drops) {
-    if (!questDropAllowed(p, drop.item)) continue;
+    if (!questDropAllowed(player, drop.item)) continue;
     granted.push(drop.item);
     lines.push(`🎁 Found: ${itemName(drop.item)}${drop.qty > 1 ? ` ×${drop.qty}` : ''}`);
-    for (const qid of grantItem(p, drop.item, drop.qty)) lines.push(questReadyLine(qid));
+    for (const qid of grantItem(player, drop.item, drop.qty)) lines.push(questReadyLine(qid));
   }
   return { lines, granted };
 }

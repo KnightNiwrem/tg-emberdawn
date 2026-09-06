@@ -141,62 +141,67 @@ Deno.test('identity gate: a fully valid current save passes byte-for-byte (#141)
 });
 
 Deno.test('identity gate: zone families (#141)', () => {
-  const p = createPlayer(961, 'T', 'warrior');
-  p.currentZone = GONE;
-  expectProblems(p, 'currentZone');
+  const playerWithBadZone = createPlayer(961, 'T', 'warrior');
+  playerWithBadZone.currentZone = GONE;
+  expectProblems(playerWithBadZone, 'currentZone');
 
-  const q = createPlayer(962, 'T', 'warrior');
-  q.unlockedZones.push(GONE);
-  expectProblems(q, 'unlockedZones');
+  const playerWithBadUnlocked = createPlayer(962, 'T', 'warrior');
+  playerWithBadUnlocked.unlockedZones.push(GONE);
+  expectProblems(playerWithBadUnlocked, 'unlockedZones');
 });
 
 Deno.test('identity gate: item, skill and quest families (#141)', () => {
-  const p = createPlayer(963, 'T', 'warrior');
-  p.inventory.push({ id: GONE, qty: 1 });
-  expectProblems(p, 'inventory');
+  const playerWithBadInventory = createPlayer(963, 'T', 'warrior');
+  playerWithBadInventory.inventory.push({ id: GONE, qty: 1 });
+  expectProblems(playerWithBadInventory, 'inventory');
 
-  const eq = createPlayer(964, 'T', 'warrior');
-  eq.equipment.weapon = GONE;
-  expectProblems(eq, 'equipment');
+  const playerWithBadEquipment = createPlayer(964, 'T', 'warrior');
+  playerWithBadEquipment.equipment.weapon = GONE;
+  expectProblems(playerWithBadEquipment, 'equipment');
 
-  const sk = createPlayer(965, 'T', 'warrior');
-  sk.skills.push(GONE);
-  expectProblems(sk, 'skills');
+  const playerWithBadSkill = createPlayer(965, 'T', 'warrior');
+  playerWithBadSkill.skills.push(GONE);
+  expectProblems(playerWithBadSkill, 'skills');
 
-  const qu = createPlayer(966, 'T', 'warrior');
-  qu.quests[GONE] = { status: 'active', counts: [0] };
-  expectProblems(qu, 'quests');
+  const playerWithBadQuest = createPlayer(966, 'T', 'warrior');
+  playerWithBadQuest.quests[GONE] = { status: 'active', counts: [0] };
+  expectProblems(playerWithBadQuest, 'quests');
 
-  const qo = createPlayer(967, 'T', 'warrior');
-  qo.questOutcomes[GONE] = { kind: 'resolved', outcome: 'gone', at: 1 };
-  expectProblems(qo, 'questOutcomes');
+  const playerWithBadOutcome = createPlayer(967, 'T', 'warrior');
+  playerWithBadOutcome.questOutcomes[GONE] = { kind: 'resolved', outcome: 'gone', at: 1 };
+  expectProblems(playerWithBadOutcome, 'questOutcomes');
 });
 
 Deno.test('identity gate: flags and narrative records (#141)', () => {
-  const p = createPlayer(968, 'T', 'warrior');
-  p.flags[`forge_i_${GONE}`] = 3;
-  expectProblems(p, 'flags');
+  const playerWithBadFlag = createPlayer(968, 'T', 'warrior');
+  playerWithBadFlag.flags[`forge_i_${GONE}`] = 3;
+  expectProblems(playerWithBadFlag, 'flags');
 
-  const ev = createPlayer(969, 'T', 'warrior');
-  ev.storyEvents.push(GONE);
-  expectProblems(ev, 'storyEvents');
+  const playerWithBadStoryEvent = createPlayer(969, 'T', 'warrior');
+  playerWithBadStoryEvent.storyEvents.push(GONE);
+  expectProblems(playerWithBadStoryEvent, 'storyEvents');
 
-  const rc = createPlayer(970, 'T', 'warrior');
-  rc.storyReceipts.push(`choice:${GONE}:x:y`);
-  expectProblems(rc, 'storyReceipts');
+  const playerWithBadReceipt = createPlayer(970, 'T', 'warrior');
+  playerWithBadReceipt.storyReceipts.push(`choice:${GONE}:x:y`);
+  expectProblems(playerWithBadReceipt, 'storyReceipts');
 
-  const rc2 = createPlayer(971, 'T', 'warrior');
-  rc2.storyReceipts.push('totally-unstructured');
-  expectProblems(rc2, 'storyReceipts');
+  const playerWithUnstructuredReceipt = createPlayer(971, 'T', 'warrior');
+  playerWithUnstructuredReceipt.storyReceipts.push('totally-unstructured');
+  expectProblems(playerWithUnstructuredReceipt, 'storyReceipts');
 
-  const dc = createPlayer(972, 'T', 'warrior');
+  const playerWithBadDecision = createPlayer(972, 'T', 'warrior');
   const { dialogueId, nodeId, choiceId } = someChoice();
-  dc.decisions[GONE] = { choiceId, dialogueId, nodeId, chosenAt: 1 };
-  expectProblems(dc, 'decisions');
+  playerWithBadDecision.decisions[GONE] = { choiceId, dialogueId, nodeId, chosenAt: 1 };
+  expectProblems(playerWithBadDecision, 'decisions');
 
-  const dc2 = createPlayer(973, 'T', 'warrior');
-  dc2.decisions['ferry_shrine_pledge'] = { choiceId: GONE, dialogueId, nodeId, chosenAt: 1 };
-  expectProblems(dc2, 'decisions');
+  const playerWithBadDecisionChoice = createPlayer(973, 'T', 'warrior');
+  playerWithBadDecisionChoice.decisions['ferry_shrine_pledge'] = {
+    choiceId: GONE,
+    dialogueId,
+    nodeId,
+    chosenAt: 1,
+  };
+  expectProblems(playerWithBadDecisionChoice, 'decisions');
 });
 
 Deno.test('identity gate: a decision is valid only against its exact authored provenance (#150)', () => {

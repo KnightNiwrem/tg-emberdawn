@@ -68,38 +68,39 @@ export type GearProfile = 'starting' | 'best';
 /** A hero leveled through the REAL grantXp curve (skills/pools canonical),
  * then equipped per profile. Never used in production play. */
 export function makeHero(classId: ClassId, level: number, gear: GearProfile): PlayerState {
-  const p = createPlayer(0, 'Sim', classId);
+  const player = createPlayer(0, 'Sim', classId);
   let xp = 0;
   for (let l = 1; l < level; l++) xp += xpForNextLevel(l);
-  grantXp(p, xp);
-  if (gear === 'best') equipBest(p);
-  const s = statsOf(p);
-  p.hp = s.maxHp;
-  p.mp = s.maxMp;
-  return p;
+  grantXp(player, xp);
+  if (gear === 'best') equipBest(player);
+  const derived = statsOf(player);
+  player.hp = derived.maxHp;
+  player.mp = derived.maxMp;
+  return player;
 }
 
 function statWeight(id: string): number {
-  const s = itemDef(id)?.stats ?? {};
-  return (s.atk ?? 0) + (s.def ?? 0) + (s.mag ?? 0) + (s.res ?? 0) + (s.spd ?? 0) +
-    (s.luck ?? 0) + (s.hp ?? 0) / 4 + (s.mp ?? 0) / 2;
+  const stats = itemDef(id)?.stats ?? {};
+  return (stats.atk ?? 0) + (stats.def ?? 0) + (stats.mag ?? 0) + (stats.res ?? 0) +
+    (stats.spd ?? 0) +
+    (stats.luck ?? 0) + (stats.hp ?? 0) / 4 + (stats.mp ?? 0) / 2;
 }
 
 /** Equips the best equippable catalog gear (class + level legal, never
  * unique trophies) — approximates "current best normally obtainable gear". */
-function equipBest(p: PlayerState): void {
+function equipBest(player: PlayerState): void {
   for (const kind of ['weapon', 'armor', 'trinket'] as const) {
     const candidates = ITEMS.filter((it) =>
-      it.kind === kind && !it.unique && isEquippable(it.id, p.classId, p.level).ok
+      it.kind === kind && !it.unique && isEquippable(it.id, player.classId, player.level).ok
     );
     const best = candidates.sort((a, b) =>
       statWeight(b.id) - statWeight(a.id) || b.level - a.level
     )[0];
-    if (best && statWeight(best.id) > statWeight(p.equipment[kind] ?? '')) {
-      p.equipment[kind] = best.id;
+    if (best && statWeight(best.id) > statWeight(player.equipment[kind] ?? '')) {
+      player.equipment[kind] = best.id;
     }
   }
-  clampPools(p);
+  clampPools(player);
 }
 
 // ── Policies ────────────────────────────────────────────────────────────
@@ -129,20 +130,20 @@ export const POLICIES = {
 // ── Effect-shape classifiers (#84) — public spec shapes only ────────────
 
 /** Self-targeted beneficial statmod (War Cry, Iron Wall, Time Warp…). */
-function isBuffSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) =>
+function isBuffSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) =>
     e.kind === 'statmod' && e.target !== 'opponent' && (e.pct ?? 0) > 0
   );
 }
 
 /** A shield-granting skill (Aegis of Dawn…). */
-function isShieldSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) => e.kind === 'shield');
+function isShieldSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) => e.kind === 'shield');
 }
 
 /** Enemy-side damage-over-time (Poison…): negative periodic on the foe. */
-function isDotSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) =>
+function isDotSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) =>
     e.kind === 'periodic' && e.target === 'opponent' &&
     ((e.perRound ?? 0) < 0 || (e.pctOfMaxPerRound ?? 0) < 0)
   );
@@ -152,25 +153,25 @@ function isDotSkill(sk: SkillDef): boolean {
  * (damage+debuff hybrids stay in the offense family, #84 ordering). */
 /** A debuff-only utility skill (no damage, no heal): the tactical policy
  * casts these for value, and the harness counts them (#84). */
-export function isPureDebuffSkill(sk: SkillDef): boolean {
-  if (isDamageSkill(sk)) return false;
-  return sk.effects.some((e) =>
+export function isPureDebuffSkill(skill: SkillDef): boolean {
+  if (isDamageSkill(skill)) return false;
+  return skill.effects.some((e) =>
     e.kind === 'statmod' && e.target === 'opponent' && (e.pct ?? 0) < 0
   );
 }
 
-function isCleanseSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) => e.kind === 'cleanse');
+function isCleanseSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) => e.kind === 'cleanse');
 }
 
-function isDispelSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) => e.kind === 'dispel');
+function isDispelSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) => e.kind === 'dispel');
 }
 
 /** Self-targeted healing-over-time (#81): positive periodic on the caster
  * (Renew). Direct heals own the emergency lanes; regen owns the long grind. */
-function isRegenSkill(sk: SkillDef): boolean {
-  return sk.effects.some((e) =>
+function isRegenSkill(skill: SkillDef): boolean {
+  return skill.effects.some((e) =>
     e.kind === 'periodic' && e.target !== 'opponent' &&
     ((e.perRound ?? 0) > 0 || (e.pctOfMaxPerRound ?? 0) > 0)
   );
@@ -179,9 +180,9 @@ function isRegenSkill(sk: SkillDef): boolean {
 /** Expected total DoT damage over its full authored duration, against this
  * fight's enemy (mirrors the periodic formulas; folded sap ignored — the
  * policy wants an order-of-magnitude payoff check, not a prediction). */
-function expectedDotTotal(sk: SkillDef, enemyMaxHp: number): number {
+function expectedDotTotal(skill: SkillDef, enemyMaxHp: number): number {
   let total = 0;
-  for (const e of sk.effects) {
+  for (const e of skill.effects) {
     if (e.kind !== 'periodic') continue;
     const flat = e.perRound ?? 0;
     const pctMax = e.pctOfMaxPerRound ?? 0;
@@ -197,58 +198,60 @@ const MP_ITEMS = ['c_greater_ether', 'c_ether', 'c_minor_ether'];
 /** The harness's action chooser — exported so tests can pin tactical
  * decisions directly (#87 polarity coverage). */
 export function chooseAction(
-  p: PlayerState,
-  b: BattleState,
+  player: PlayerState,
+  battle: BattleState,
   policy: Policy,
   lastWasGuard: boolean,
 ): PlayerAction {
   if (policy.name === 'free') return { kind: 'attack' };
-  const s = statsOf(p);
-  const learned = p.skills
+  const derived = statsOf(player);
+  const learned = player.skills
     .map((id) => skillDef(id))
-    .filter((sk): sk is SkillDef => Boolean(sk));
+    .filter((skill): skill is SkillDef => Boolean(skill));
   // #84: pre-emptive skills are NOT castable (they fire in the battle
   // opening, #80) — no policy may ever select one, or the engine refuses
   // the action and the hero burns its turn.
-  const usable = (sk: SkillDef): boolean =>
-    !sk.preEmptive && (b.cooldowns[sk.id] ?? 0) === 0 && p.mp >= sk.mpCost;
+  const usable = (skill: SkillDef): boolean =>
+    !skill.preEmptive && (battle.cooldowns[skill.id] ?? 0) === 0 && player.mp >= skill.mpCost;
   // #78: policies read public effect shapes, never legacy scalar fields.
   const offense = learned
     .filter(isDamageSkill)
-    .sort((a, z) => skillMaxDamagePower(z) - skillMaxDamagePower(a));
+    .sort((a, b) => skillMaxDamagePower(b) - skillMaxDamagePower(a));
   const heals = learned
     .filter(isHealSkill)
-    .sort((a, z) => skillHealPower(z) - skillHealPower(a));
+    .sort((a, b) => skillHealPower(b) - skillHealPower(a));
 
   if (policy.name === 'skill') {
-    const sk = offense.find(usable);
-    return sk ? { kind: 'skill', skillId: sk.id } : { kind: 'attack' };
+    const skill = offense.find(usable);
+    return skill ? { kind: 'skill', skillId: skill.id } : { kind: 'attack' };
   }
 
   if (policy.name === 'tactical') {
-    return tacticalAction(p, b, policy, lastWasGuard, learned, usable, offense, heals);
+    return tacticalAction(player, battle, policy, lastWasGuard, learned, usable, offense, heals);
   }
 
   // rotation — a sensibly played hero.
-  const hurting = p.hp < s.maxHp * 0.5;
-  if (hurting && policy.items && p.hp < s.maxHp * 0.35) {
-    const potion = HEAL_ITEMS.find((id) => countOf(p, id) > 0);
+  const hurting = player.hp < derived.maxHp * 0.5;
+  if (hurting && policy.items && player.hp < derived.maxHp * 0.35) {
+    const potion = HEAL_ITEMS.find((id) => countOf(player, id) > 0);
     if (potion) return { kind: 'item', itemId: potion };
   }
   if (hurting) {
     const heal = heals.find(usable);
     if (heal) return { kind: 'skill', skillId: heal.id };
   }
-  const sk = offense.find(usable);
-  if (sk) return { kind: 'skill', skillId: sk.id };
-  const cheapest = offense.map((x) => x.mpCost).sort((a, z) => a - z)[0] ?? 0;
-  if (policy.items && p.mp < cheapest) {
-    const ether = MP_ITEMS.find((id) => countOf(p, id) > 0);
+  const skill = offense.find(usable);
+  if (skill) return { kind: 'skill', skillId: skill.id };
+  const cheapest = offense.map((x) => x.mpCost).sort((a, b) => a - b)[0] ?? 0;
+  if (policy.items && player.mp < cheapest) {
+    const ether = MP_ITEMS.find((id) => countOf(player, id) > 0);
     if (ether) return { kind: 'item', itemId: ether };
   }
   // Starved and hurting: alternate guard (mitigate + recover MP) with the
   // free action so a stalled rotation still deals damage.
-  if (p.hp < s.maxHp * 0.4 && p.mp < cheapest && !lastWasGuard) return { kind: 'guard' };
+  if (player.hp < derived.maxHp * 0.4 && player.mp < cheapest && !lastWasGuard) {
+    return { kind: 'guard' };
+  }
   return { kind: 'attack' };
 }
 
@@ -261,115 +264,126 @@ export function chooseAction(
  * the remaining fight pays → pure debuff while it has time → damage
  * rotation → item/guard/attack fallbacks (shared with the plain rotation). */
 function tacticalAction(
-  p: PlayerState,
-  b: BattleState,
+  player: PlayerState,
+  battle: BattleState,
   policy: Policy,
   lastWasGuard: boolean,
   learned: SkillDef[],
-  usable: (sk: SkillDef) => boolean,
+  usable: (skill: SkillDef) => boolean,
   offense: SkillDef[],
   heals: SkillDef[],
 ): PlayerAction {
-  const s = statsOf(p);
+  const derived = statsOf(player);
   // #90: liveness is source-scoped — any live instance whose stacking
   // identity derives from the skill's id (any of its effects/triggers).
   const liveOn = (side: 'player' | 'enemy', sourceId: string): boolean =>
-    hasLiveFromSource(b, side, sourceId);
+    hasLiveFromSource(battle, side, sourceId);
   const firstUsable = (skills: SkillDef[]): SkillDef | undefined => skills.find(usable);
 
   // 1. Cleanse MEANINGFUL harm: a live control effect, or several harmful
   //    instances at once. A single mild debuff is not worth the action.
-  const harmful = b.effectInstances.filter(
-    (i) => i.side === 'player' && i.tags.includes('harmful') && i.removable,
+  const harmful = battle.effectInstances.filter(
+    (inst) => inst.side === 'player' && inst.tags.includes('harmful') && inst.removable,
   );
   const cleanser = firstUsable(learned.filter(isCleanseSkill));
-  if (cleanser && (harmful.some((i) => i.kind === 'control') || harmful.length >= 2)) {
+  if (cleanser && (harmful.some((inst) => inst.kind === 'control') || harmful.length >= 2)) {
     return { kind: 'skill', skillId: cleanser.id };
   }
   // 2. Dispel a live, removable enemy benefit (boss wards, enemy buffs).
   const dispeller = firstUsable(learned.filter(isDispelSkill));
   if (
     dispeller &&
-    b.effectInstances.some((i) =>
-      i.side === 'enemy' && i.tags.includes('beneficial') && i.removable
+    battle.effectInstances.some((inst) =>
+      inst.side === 'enemy' && inst.tags.includes('beneficial') && inst.removable
     )
   ) {
     return { kind: 'skill', skillId: dispeller.id };
   }
   // 3. Heal under the same hurt gate as the plain rotation.
-  if (p.hp < s.maxHp * 0.5) {
+  if (player.hp < derived.maxHp * 0.5) {
     const heal = firstUsable(heals);
     if (heal) return { kind: 'skill', skillId: heal.id };
   }
   // 3b. Regen (#81): sustained healing while not critical — one cast, then
   // the ticks work for free. Never refreshed while live.
-  const regen = learned.filter(isRegenSkill).find((sk) => usable(sk) && !liveOn('player', sk.id));
-  if (regen && p.hp < s.maxHp * 0.75) {
+  const regen = learned.filter(isRegenSkill).find((skill) =>
+    usable(skill) && !liveOn('player', skill.id)
+  );
+  if (regen && player.hp < derived.maxHp * 0.75) {
     return { kind: 'skill', skillId: regen.id };
   }
   // 4. Shield an empty pool — never re-grant over a live same-source ward
   //    (over-shield waste is a structural failure, #84).
   const shield = firstUsable(learned.filter(isShieldSkill));
-  if (shield && b.shield.player === 0 && !liveOn('player', shield.id)) {
+  if (shield && battle.shield.player === 0 && !liveOn('player', shield.id)) {
     return { kind: 'skill', skillId: shield.id };
   }
   // 5. Buff once per live window; setup only pays while the fight lasts.
-  const buff = learned.filter(isBuffSkill).find((sk) => usable(sk) && !liveOn('player', sk.id));
-  if (buff && b.enemy.hp > b.enemy.maxHp * 0.3) {
+  const buff = learned.filter(isBuffSkill).find((skill) =>
+    usable(skill) && !liveOn('player', skill.id)
+  );
+  if (buff && battle.enemy.hp > battle.enemy.maxHp * 0.3) {
     return { kind: 'skill', skillId: buff.id };
   }
   // 5b. Shatter a live ward (#88): ordinary damage pools INTO the ward —
   //     a ward-ignoring strike pays through it instead of feeding it.
-  if (b.shield.enemy > 0) {
-    const piercer = offense.find((sk) =>
-      usable(sk) && sk.effects.some((e) => e.kind === 'damage' && e.bypassShield === true)
+  if (battle.shield.enemy > 0) {
+    const piercer = offense.find((skill) =>
+      usable(skill) &&
+      skill.effects.some((effect) => effect.kind === 'damage' && effect.bypassShield === true)
     );
     if (piercer) return { kind: 'skill', skillId: piercer.id };
   }
   // 5c. Execute window (#88): inside a finisher's threshold its bonus
   //     strike is the expected-value pick, ahead of raw-power sorting.
-  const foeHpPct = b.enemy.hp / b.enemy.maxHp;
-  const finisher = offense.find((sk) =>
-    usable(sk) &&
-    sk.effects.some((e) => e.kind === 'damage' && e.execute && foeHpPct < e.execute.belowPct)
+  const foeHpPct = battle.enemy.hp / battle.enemy.maxHp;
+  const finisher = offense.find((skill) =>
+    usable(skill) &&
+    skill.effects.some((effect) =>
+      effect.kind === 'damage' && effect.execute && foeHpPct < effect.execute.belowPct
+    )
   );
   if (finisher) return { kind: 'skill', skillId: finisher.id };
   // 6. DoT when the remaining fight is long enough for the ticks to pay.
-  const dot = learned.filter(isDotSkill).find((sk) => usable(sk) && !liveOn('enemy', sk.id));
-  if (dot && b.enemy.hp > expectedDotTotal(dot, b.enemy.maxHp)) {
+  const dot = learned.filter(isDotSkill).find((skill) =>
+    usable(skill) && !liveOn('enemy', skill.id)
+  );
+  if (dot && battle.enemy.hp > expectedDotTotal(dot, battle.enemy.maxHp)) {
     return { kind: 'skill', skillId: dot.id };
   }
   // 7. Pure debuff (sap / weaken) while it has time. Damage-carrying
   //    breaks are NOT here — they stay in the offense family (#84).
-  const debuff = learned.filter(isPureDebuffSkill).find((sk) =>
-    usable(sk) && !liveOn('enemy', sk.id)
+  const debuff = learned.filter(isPureDebuffSkill).find((skill) =>
+    usable(skill) && !liveOn('enemy', skill.id)
   );
-  if (debuff && b.enemy.hp > b.enemy.maxHp * 0.35) {
+  if (debuff && battle.enemy.hp > battle.enemy.maxHp * 0.35) {
     return { kind: 'skill', skillId: debuff.id };
   }
   // 8. Damage rotation, then the shared fallbacks. While the fight still
   //    has length, prefer the break rider that matches the hero's OWN
   //    damage type (#88): a phys hero sundering DEF buys real strikes;
   //    the same hero shattering RES would buy nothing.
-  const prefStat = CLASSES[p.classId].basicAction.kind === 'phys' ? 'def' : 'res';
-  const breakPick = b.enemy.hp > b.enemy.maxHp * 0.5
-    ? offense.find((cand) =>
-      usable(cand) && !liveOn('enemy', cand.id) &&
-      cand.effects.some((e) => e.kind === 'statmod' && e.stat === prefStat)
+  const prefStat = CLASSES[player.classId].basicAction.kind === 'phys' ? 'def' : 'res';
+  const breakPick = battle.enemy.hp > battle.enemy.maxHp * 0.5
+    ? offense.find((candidate) =>
+      usable(candidate) && !liveOn('enemy', candidate.id) &&
+      candidate.effects.some((effect) => effect.kind === 'statmod' && effect.stat === prefStat)
     )
     : undefined;
-  const sk = breakPick ?? offense.find(usable);
-  if (sk) return { kind: 'skill', skillId: sk.id };
-  const cheapest = offense.map((x) => x.mpCost).sort((a, z) => a - z)[0] ?? 0;
-  if (policy.items && p.hp < s.maxHp * 0.35) {
-    const potion = HEAL_ITEMS.find((id) => countOf(p, id) > 0);
+  const skill = breakPick ?? offense.find(usable);
+  if (skill) return { kind: 'skill', skillId: skill.id };
+  const cheapest = offense.map((x) => x.mpCost).sort((a, b) => a - b)[0] ?? 0;
+  if (policy.items && player.hp < derived.maxHp * 0.35) {
+    const potion = HEAL_ITEMS.find((id) => countOf(player, id) > 0);
     if (potion) return { kind: 'item', itemId: potion };
   }
-  if (policy.items && p.mp < cheapest) {
-    const ether = MP_ITEMS.find((id) => countOf(p, id) > 0);
+  if (policy.items && player.mp < cheapest) {
+    const ether = MP_ITEMS.find((id) => countOf(player, id) > 0);
     if (ether) return { kind: 'item', itemId: ether };
   }
-  if (p.hp < s.maxHp * 0.4 && p.mp < cheapest && !lastWasGuard) return { kind: 'guard' };
+  if (player.hp < derived.maxHp * 0.4 && player.mp < cheapest && !lastWasGuard) {
+    return { kind: 'guard' };
+  }
   return { kind: 'attack' };
 }
 
@@ -615,7 +629,7 @@ export function runFight(
   rng: Rng,
   origin: BattleOrigin = { kind: 'explore', zoneId: 'whisperwood' },
 ): FightResult {
-  const p = structuredClone(hero) as PlayerState;
+  const player = structuredClone(hero) as PlayerState;
   // #101: the harness collects ONLY its own fight's trace — startBattle
   // and every performAction return their entries explicitly, so nested or
   // concurrent fights cannot cross-contaminate, no collector can leak on
@@ -627,44 +641,44 @@ export function runFight(
   const result = emptyFightResult();
   // #80: the harness constructs battles through the SAME opening pipeline
   // as live play — full hero context, seeded rng.
-  const started = startBattle(enemyId, origin, { player: p, rng });
+  const started = startBattle(enemyId, origin, { player, rng });
   if (!started) throw new Error(`balance harness: unknown enemy ${enemyId}`);
-  const b = started.battle;
-  p.battle = b;
+  const battle = started.battle;
+  player.battle = battle;
   events.push(...started.trace);
-  if (b.opening?.lines.length) scanFightLines(result, b.opening.lines);
+  if (battle.opening?.lines.length) scanFightLines(result, battle.opening.lines);
   // #96: the opening's explicit adjudication — a terminal opening ends the
   // fight before round 1; victory still routes through resolveVictory.
   if (started.outcome === 'victory') {
-    resolveVictory(p, b, rng);
+    resolveVictory(player, battle, rng);
     result.outcome = 'win';
   } else if (started.outcome === 'defeat') {
     result.outcome = 'lose';
   }
-  while (result.outcome === 'timeout' && b.phase === 'active' && rounds < 200) {
-    sampleFightEffects(result, b, seenIids);
-    const action = chooseAction(p, b, policy, lastWasGuard);
+  while (result.outcome === 'timeout' && battle.phase === 'active' && rounds < 200) {
+    sampleFightEffects(result, battle, seenIids);
+    const action = chooseAction(player, battle, policy, lastWasGuard);
     lastWasGuard = action.kind === 'guard';
-    const mpBefore = p.mp;
-    const res = performAction(p, b, action, rng);
+    const mpBefore = player.mp;
+    const res = performAction(player, battle, action, rng);
     rounds++;
     events.push(...res.trace);
     if (res.skipped) result.skippedRounds++;
     if (!res.consumedTurn) result.invalidActions++;
-    result.mpSpent += Math.max(0, mpBefore - p.mp);
+    result.mpSpent += Math.max(0, mpBefore - player.mp);
     if (action.kind === 'skill' && res.consumedTurn) {
       recordSkillCast(result, action.skillId);
     }
     scanFightLines(result, res.lines);
     if (action.kind === 'guard') {
       result.guardRounds++;
-      result.mpFromGuard += Math.max(0, p.mp - mpBefore);
+      result.mpFromGuard += Math.max(0, player.mp - mpBefore);
     }
     if (action.kind === 'item') result.itemsUsed++;
     // #86: the engine's explicit terminal adjudication — shared with the
     // live handler and the tutorial (one outcome authority).
     if (res.outcome === 'victory') {
-      resolveVictory(p, b, rng);
+      resolveVictory(player, battle, rng);
       result.outcome = 'win';
       break;
     }
@@ -674,10 +688,10 @@ export function runFight(
     }
   }
   aggregateFightTrace(result, events);
-  const s = statsOf(p);
+  const derived = statsOf(player);
   result.rounds = rounds;
-  result.hpPct = s.maxHp > 0 ? p.hp / s.maxHp : 0;
-  result.mpPct = s.maxMp > 0 ? p.mp / s.maxMp : 0;
+  result.hpPct = derived.maxHp > 0 ? player.hp / derived.maxHp : 0;
+  result.mpPct = derived.maxMp > 0 ? player.mp / derived.maxMp : 0;
   return result;
 }
 
@@ -693,9 +707,9 @@ export interface EncounterSource {
  * live explore() could actually roll at `level` (#74: one shared
  * eligibility rule — the harness must never simulate an impossible state). */
 export function zoneNormalPool(zoneId: string, level: number): EncounterSource[] {
-  const z = zoneDef(zoneId);
-  if (!z) return [];
-  return z.explore
+  const zone = zoneDef(zoneId);
+  if (!zone) return [];
+  return zone.explore
     .filter((e) => e.kind === 'battle')
     .filter((e) => encounterEligible(e, level))
     .map((e) => ({ enemyId: e.enemy, weight: e.weight, origin: { kind: 'explore', zoneId } }));
@@ -703,9 +717,9 @@ export function zoneNormalPool(zoneId: string, level: number): EncounterSource[]
 
 /** Battle + elite table, exactly as explore() rolls it at `level`. */
 export function zoneHostilePool(zoneId: string, level: number): EncounterSource[] {
-  const z = zoneDef(zoneId);
-  if (!z) return [];
-  return z.explore
+  const zone = zoneDef(zoneId);
+  if (!zone) return [];
+  return zone.explore
     .filter((e) => e.kind === 'battle' || e.kind === 'elite')
     .filter((e) => encounterEligible(e, level))
     .map((e) => ({
@@ -720,9 +734,9 @@ export function zoneHostilePool(zoneId: string, level: number): EncounterSource[
  * or when the level has no live hostiles. */
 export function eliteShare(zoneId: string, level: number): number {
   const pool = zoneHostilePool(zoneId, level);
-  const total = pool.reduce((a, s) => a + s.weight, 0);
+  const total = pool.reduce((sum, s) => sum + s.weight, 0);
   if (total === 0) return 0;
-  const elite = pool.filter((s) => s.origin.kind === 'elite').reduce((a, s) => a + s.weight, 0);
+  const elite = pool.filter((s) => s.origin.kind === 'elite').reduce((sum, s) => sum + s.weight, 0);
   return elite / total;
 }
 
@@ -730,26 +744,30 @@ export function eliteShare(zoneId: string, level: number): number {
  * tables actually drop `target` at `level`, best rate first. */
 export function exploreDropZonesFor(target: string, unlocked: string[], level: number): string[] {
   const zones: { id: string; rate: number }[] = [];
-  for (const z of ZONES) {
-    if (!unlocked.includes(z.id)) continue;
+  for (const zone of ZONES) {
+    if (!unlocked.includes(zone.id)) continue;
     let rate = 0;
-    for (const ev of z.explore) {
+    for (const ev of zone.explore) {
       if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
       if (!encounterEligible(ev, level)) continue;
       const drops = ENEMIES.find((e) => e.id === ev.enemy)?.drops ?? {};
       rate = Math.max(rate, drops[target] ?? 0);
     }
-    if (rate > 0) zones.push({ id: z.id, rate });
+    if (rate > 0) zones.push({ id: zone.id, rate });
   }
-  return zones.sort((a, b) => b.rate - a.rate).map((z) => z.id);
+  return zones.sort((a, b) => b.rate - a.rate).map((zone) => zone.id);
 }
 
 /** Pure collection planner (#74): do the dungeon's REMAINING normal floors
  * (fromFloor = the next uncleared floor, 1-based) still yield `target`,
  * through an authored cache or an enemy drop? */
-export function dungeonFloorsYield(target: string, d: DungeonDef, fromFloor: number): boolean {
-  for (let f = Math.max(1, fromFloor); f <= d.floors.length; f++) {
-    const floor = d.floors[f - 1]!;
+export function dungeonFloorsYield(
+  target: string,
+  dungeon: DungeonDef,
+  fromFloor: number,
+): boolean {
+  for (let f = Math.max(1, fromFloor); f <= dungeon.floors.length; f++) {
+    const floor = dungeon.floors[f - 1]!;
     if (floor.treasure?.item === target) return true;
     if (floor.enemies.some((id) => ENEMIES.find((e) => e.id === id)?.drops?.[target])) return true;
   }
@@ -895,15 +913,15 @@ function addInto(dst: Record<string, number>, src: Record<string, number>): void
 }
 
 /** Per-fight average of an observation map, rounded (#84). */
-function avgMap(m: Record<string, number>, f: number): Record<string, number> {
+function avgMap(counts: Record<string, number>, fightCount: number): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(m)) out[k] = r3(v / f);
+  for (const [key, value] of Object.entries(counts)) out[key] = r3(value / fightCount);
   return out;
 }
 
 export function runCell(spec: CellSpec): CellStat {
   const hero = makeHero(spec.classId, spec.level, spec.gear);
-  const total = spec.sources.reduce((a, s) => a + s.weight, 0);
+  const total = spec.sources.reduce((sum, s) => sum + s.weight, 0);
   const acc = {
     wins: 0,
     losses: 0,
@@ -1543,8 +1561,8 @@ const CH1 = [
   'm4_blessing',
 ] as const;
 
-function weaponTier(p: PlayerState): number {
-  return p.equipment.weapon ? itemDef(p.equipment.weapon)?.tier ?? 0 : 0;
+function weaponTier(player: PlayerState): number {
+  return player.equipment.weapon ? itemDef(player.equipment.weapon)?.tier ?? 0 : 0;
 }
 
 /** Chapter 1 from a hero fresh OUT of the prologue (canonical tutorial
@@ -1554,7 +1572,7 @@ export function simulateChapterOne(classId: ClassId, seed: number): ProgressionR
   return driveQuests(classId, seed, CH1, 'm4_blessing');
 }
 
-const ALL_MAINS = QUESTS.filter((q) => q.main).map((q) => q.id);
+const ALL_MAINS = QUESTS.filter((questDef) => questDef.main).map((questDef) => questDef.id);
 
 /** #88: the FULL main questline m1→m25 with the same real-combat
  * machinery — the balance evidence that every chapter (not just the
@@ -1568,14 +1586,14 @@ export function simulateCampaign(classId: ClassId, seed: number): ProgressionRep
  * fields stay testable through the object. Bounded: the tracked quests and
  * the aggregate failure map are finite by construction. */
 function formatStallReport(stall: StallDiagnostic): string {
-  const active = stall.quests.find((q) => q.status === 'active');
+  const active = stall.quests.find((questStatus) => questStatus.status === 'active');
   const detail = active?.objectives
     ? ` active=${active.id}[${
-      active.objectives.map((o) => `${o.kind}:${o.target}:${o.have}/${o.need}`).join(', ')
+      active.objectives.map((obj) => `${obj.kind}:${obj.target}:${obj.have}/${obj.need}`).join(', ')
     }]`
     : ' no-active';
-  const pending = stall.quests.filter((q) => q.status !== 'done').slice(0, 8)
-    .map((q) => `${q.id}:${q.status}`).join(' ');
+  const pending = stall.quests.filter((questStatus) => questStatus.status !== 'done').slice(0, 8)
+    .map((questStatus) => `${questStatus.id}:${questStatus.status}`).join(' ');
   const gear =
     `weapon=${stall.equipment.weapon}(t${stall.gearTiers.weapon}) armor=${stall.equipment.armor}(t${stall.gearTiers.armor}) trinket=${stall.equipment.trinket}(t${stall.gearTiers.trinket})`;
   const last = stall.lastAttempt
@@ -1586,8 +1604,12 @@ function formatStallReport(stall: StallDiagnostic): string {
     `zone=${stall.zone} zones=[${stall.unlockedZones.join(',')}] ` +
     `pending=[${pending}]${detail} ` +
     `gear[${gear}] triggers=[${stall.gearTriggers.join(',')}] ` +
-    `consumables=[${stall.consumables.map((c) => `${c.id}x${c.qty}`).join(',')}]` +
-    `${last} failures={${Object.entries(stall.failures).map(([k, v]) => `${k}:${v}`).join(',')}}`;
+    `consumables=[${
+      stall.consumables.map((consumable) => `${consumable.id}x${consumable.qty}`).join(',')
+    }]` +
+    `${last} failures={${
+      Object.entries(stall.failures).map(([key, count]) => `${key}:${count}`).join(',')
+    }}`;
 }
 
 /** One campaign fight's completed result; counters observe real engine actions. */
@@ -1602,12 +1624,12 @@ export interface CampaignFightResult {
  * road policy; its terminal outcome uses the same bookkeeping as any
  * other action. Operates on the live simulation hero, never a clone. */
 export function runCampaignFight(
-  p: PlayerState,
-  b: BattleState,
+  player: PlayerState,
+  battle: BattleState,
   kind: 'objective' | 'grind' | 'road',
   rng: Rng,
 ): CampaignFightResult {
-  p.battle = b;
+  player.battle = battle;
   const result: CampaignFightResult = {
     outcome: 'retreat',
     rounds: 0,
@@ -1616,57 +1638,59 @@ export function runCampaignFight(
   };
   let lastWasGuard = false;
   // Bound attempts too: a refused policy action must not hang the harness.
-  for (let attempts = 0; b.phase === 'active' && attempts < 200; attempts++) {
+  for (let attempts = 0; battle.phase === 'active' && attempts < 200; attempts++) {
     const escaping = kind === 'road' && result.rounds > 1 &&
-      p.hp < statsOf(p).maxHp * 0.2 && HEAL_ITEMS.every((id) => countOf(p, id) === 0);
+      player.hp < statsOf(player).maxHp * 0.2 && HEAL_ITEMS.every((id) =>
+        countOf(player, id) === 0
+      );
     const action: PlayerAction = escaping
       ? { kind: 'flee' }
-      : chooseAction(p, b, POLICIES.rotationWithItems, lastWasGuard);
+      : chooseAction(player, battle, POLICIES.rotationWithItems, lastWasGuard);
     if (!escaping) lastWasGuard = action.kind === 'guard';
-    const res = performAction(p, b, action, rng);
+    const res = performAction(player, battle, action, rng);
     if (res.consumedTurn) {
       result.rounds++;
       if (action.kind === 'item') result.itemsUsed++;
     }
     if (res.outcome === 'victory') {
-      resolveVictory(p, b, rng);
-      if (b.origin.kind === 'travel') completeTravelBattleEvent(p);
-      result.contextualDrops = b.rewards?.contextual?.length ?? 0;
+      resolveVictory(player, battle, rng);
+      if (battle.origin.kind === 'travel') completeTravelBattleEvent(player);
+      result.contextualDrops = battle.rewards?.contextual?.length ?? 0;
       result.outcome = 'win';
       break;
     }
     if (res.outcome === 'defeat') {
-      applyDeath(p);
-      p.battle = undefined;
-      p.journey = undefined;
+      applyDeath(player);
+      player.battle = undefined;
+      player.journey = undefined;
       result.outcome = 'death';
       break;
     }
     if (res.outcome === 'fled') {
-      p.battle = undefined;
-      p.journey = undefined;
+      player.battle = undefined;
+      player.journey = undefined;
       result.outcome = 'fled';
       break;
     }
   }
   // Live Continue dismisses a terminal battle before any next floor or world action.
-  if (result.outcome !== 'retreat') p.battle = undefined;
-  if (result.outcome === 'retreat' && b.origin.kind === 'dungeon') {
-    p.battle = undefined;
-    abandonDungeon(p);
+  if (result.outcome !== 'retreat') player.battle = undefined;
+  if (result.outcome === 'retreat' && battle.origin.kind === 'dungeon') {
+    player.battle = undefined;
+    abandonDungeon(player);
   }
   if (kind === 'road') {
-    p.battle = undefined;
+    player.battle = undefined;
     // A timeout abandons the crossing through the live retreat authority.
-    if (result.outcome !== 'win' && p.journey) retreatFromJourney(p);
+    if (result.outcome !== 'win' && player.journey) retreatFromJourney(player);
   }
   return result;
 }
 
 /** Use only carried supplies between rooms; thresholds leave some missing
  * resources rather than spending a whole potion on trivial damage. */
-function prepareDungeonFloor(p: PlayerState): number {
-  if (!p.dungeonRun || p.battle) return 0;
+function prepareDungeonFloor(player: PlayerState): number {
+  if (!player.dungeonRun || player.battle) return 0;
   let used = 0;
   for (
     const [pool, maximum, shelf] of [
@@ -1674,9 +1698,9 @@ function prepareDungeonFloor(p: PlayerState): number {
       ['mp', 'maxMp', MP_ITEMS],
     ] as const
   ) {
-    while (p[pool] < statsOf(p)[maximum] * 0.75) {
-      const id = shelf.find((candidate) => countOf(p, candidate) > 0);
-      if (!id || !useRecoveryItem(p, id).ok) break;
+    while (player[pool] < statsOf(player)[maximum] * 0.75) {
+      const id = shelf.find((candidate) => countOf(player, candidate) > 0);
+      if (!id || !useRecoveryItem(player, id).ok) break;
       used++;
     }
   }
@@ -1696,7 +1720,7 @@ export function runDungeon(
   rounds: number;
   floors: { floor: number; hp: number; mp: number; battle: boolean }[];
 } {
-  const p = structuredClone(hero);
+  const player = structuredClone(hero);
   const result: ReturnType<typeof runDungeon> = {
     outcome: 'blocked',
     itemsUsed: 0,
@@ -1704,13 +1728,13 @@ export function runDungeon(
     floors: [],
   };
   for (let step = 0; step <= dungeon.floors.length; step++) {
-    result.itemsUsed += prepareDungeonFloor(p);
-    const floor = nextDungeonFloor(p, dungeon);
-    const entered = diveDungeon(p, dungeon, rng);
+    result.itemsUsed += prepareDungeonFloor(player);
+    const floor = nextDungeonFloor(player, dungeon);
+    const entered = diveDungeon(player, dungeon, rng);
     if (!entered.ok) return result;
-    result.floors.push({ floor, hp: p.hp, mp: p.mp, battle: !!entered.battle });
+    result.floors.push({ floor, hp: player.hp, mp: player.mp, battle: !!entered.battle });
     if (!entered.battle) continue;
-    const fought = runCampaignFight(p, entered.battle, 'objective', rng);
+    const fought = runCampaignFight(player, entered.battle, 'objective', rng);
     result.rounds += fought.rounds;
     result.itemsUsed += fought.itemsUsed;
     if (fought.outcome !== 'win') {
@@ -1737,16 +1761,16 @@ export function driveQuests(
   seed: number,
   quests: readonly string[],
   stopQuest: string,
-  onTurnIn?: (p: PlayerState, questId: string) => void,
+  onTurnIn?: (player: PlayerState, questId: string) => void,
 ): ProgressionReport {
   const rng: Rng = seededRng(seed);
   // #74: ONE canonical post-tutorial constructor — the fresh class kit at
   // level 2. The live item lesson spends a potion and the reward replaces
   // it (net zero), so the canonical inventory is the untouched kit; the
   // full-flow tutorial test pins real play to this exact state.
-  const p = createPostTutorialPlayer(0, 'Sim', classId);
-  p.tutorial = 'done'; // the sim models a player past the prologue (#69)
-  syncAvailability(p);
+  const player = createPostTutorialPlayer(0, 'Sim', classId);
+  player.tutorial = 'done'; // the sim models a player past the prologue (#69)
+  syncAvailability(player);
   let deaths = 0;
   let fights = 0;
   let grind = 0;
@@ -1757,7 +1781,7 @@ export function driveQuests(
   const report: ProgressionReport = {
     classId,
     seed,
-    startLevel: p.level,
+    startLevel: player.level,
     beats,
     endLevel: 1,
     endGold: 0,
@@ -1813,37 +1837,37 @@ export function driveQuests(
   };
   /** The structured telemetry sink (#169): one record per resolved road
    * event, emitted by the coordinator at its resolution point. */
-  const onJourneyEvent: JourneyTelemetry = (e) => {
-    travel.eventOutcomes[e.kind] = (travel.eventOutcomes[e.kind] ?? 0) + 1;
-    const byEdge = travel.eventOutcomesByEdge[e.edgeId] ??= {};
-    byEdge[e.kind] = (byEdge[e.kind] ?? 0) + 1;
-    if (e.granted?.length) travel.contextualDrops += e.granted.length;
+  const onJourneyEvent: JourneyTelemetry = (event) => {
+    travel.eventOutcomes[event.kind] = (travel.eventOutcomes[event.kind] ?? 0) + 1;
+    const byEdge = travel.eventOutcomesByEdge[event.edgeId] ??= {};
+    byEdge[event.kind] = (byEdge[event.kind] ?? 0) + 1;
+    if (event.granted?.length) travel.contextualDrops += event.granted.length;
   };
   /** BFS over currently usable edges — adjacency, unlocks and conditions
    * all honored. Returns the edge-id path, or undefined when disconnected. */
   const findPath = (toZone: string): string[] | undefined =>
-    findRoutePath(p, (id) => id === toZone);
+    findRoutePath(player, (id) => id === toZone);
   /** #162: a determined traveler walks RESTED and STOCKED. Before roads
    * that roll events, the hero heals at the nearest safe haven (arrival
    * is the one authority — walking there IS the rest), tops up potions at
    * the nearest counter, and walks BACK to the departure point. The whole
    * prep runs under the inPrep flag: its own roads never re-prep. */
   const prepForRoad = (): void => {
-    const s = statsOf(p);
-    const origin = p.currentZone;
-    const needsPrep = p.hp < s.maxHp * 0.9 || countOf(p, 'c_minor_potion') < 2;
+    const stats = statsOf(player);
+    const origin = player.currentZone;
+    const needsPrep = player.hp < stats.maxHp * 0.9 || countOf(player, 'c_minor_potion') < 2;
     if (!needsPrep) return;
     // The old search checked targets before its >8 expansion guard,
     // so a haven exactly nine hops away remains eligible (#182).
-    const path = findRoutePath(p, (id) => zoneDef(id)?.safeHaven === true, {
+    const path = findRoutePath(player, (id) => zoneDef(id)?.safeHaven === true, {
       includeStart: false,
       maxHops: 9,
     });
     if (path) walkPath(path);
-    if (shopInZone(p.currentZone)) shopHere();
+    if (shopInZone(player.currentZone)) shopHere();
     // Supplies: a haven without a counter sends the hero to the nearest
     // one that stocks heal potions (still under inPrep — no nested prep).
-    if (HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) < 3) restock();
+    if (HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) < 3) restock();
     // Return to the departure point — still under inPrep (no nested prep).
     const back = findPath(origin);
     if (back) walkPath(back);
@@ -1861,32 +1885,32 @@ export function driveQuests(
     // Pre-arrival condition sampling (#169): HP/MP captured BEFORE every
     // coordinator call; on arrival, the last sample is the road's own
     // condition — never the safe-haven full heal that masks it.
-    let preHp = p.hp;
-    let preMp = p.mp;
-    const start = startJourney(p, edgeId, rng, onJourneyEvent);
+    let preHp = player.hp;
+    let preMp = player.mp;
+    const start = startJourney(player, edgeId, rng, onJourneyEvent);
     if (!start.ok) return false;
     let step = start.step;
     let guard = 0;
     while (guard++ < 60) {
       if (step.kind === 'arrived') {
         travel.edgeArrivals[edgeId] = (travel.edgeArrivals[edgeId] ?? 0) + 1;
-        const s = statsOf(p);
-        travel.hpArrivalSumPct += s.maxHp > 0 ? preHp / s.maxHp : 0;
-        travel.mpArrivalSumPct += s.maxMp > 0 ? preMp / s.maxMp : 0;
+        const stats = statsOf(player);
+        travel.hpArrivalSumPct += stats.maxHp > 0 ? preHp / stats.maxHp : 0;
+        travel.mpArrivalSumPct += stats.maxMp > 0 ? preMp / stats.maxMp : 0;
         travel.arrivalSamples++;
         return true;
       }
       if (step.kind === 'progress') {
-        preHp = p.hp;
-        preMp = p.mp;
-        step = advanceJourney(p, rng, onJourneyEvent);
+        preHp = player.hp;
+        preMp = player.mp;
+        step = advanceJourney(player, rng, onJourneyEvent);
         continue;
       }
       const outcome = fight(step.battle, 'road');
       if (outcome === 'win') {
-        preHp = p.hp;
-        preMp = p.mp;
-        step = advanceJourney(p, rng, onJourneyEvent);
+        preHp = player.hp;
+        preMp = player.mp;
+        step = advanceJourney(player, rng, onJourneyEvent);
         continue;
       }
       return false;
@@ -1906,8 +1930,8 @@ export function driveQuests(
       if (!crossEdge(edgeId)) return false;
       const here = routeDef(edgeId)?.to;
       if (
-        !inPrep && rePreps < 3 && here !== undefined && p.currentZone === here &&
-        p.hp < statsOf(p).maxHp * 0.55
+        !inPrep && rePreps < 3 && here !== undefined && player.currentZone === here &&
+        player.hp < statsOf(player).maxHp * 0.55
       ) {
         rePreps++;
         inPrep = true;
@@ -1919,7 +1943,7 @@ export function driveQuests(
         // Prep may have relocated the hero (death on the way back): the
         // remaining edges no longer start here — abort; the caller's next
         // walkTo re-plans from wherever the hero now stands.
-        if (p.currentZone !== here) return false;
+        if (player.currentZone !== here) return false;
       }
     }
     return true;
@@ -1928,11 +1952,11 @@ export function driveQuests(
    * usable edges — no retries, no recursion. Eventful paths prep first
    * (heal + restock at a haven, then back to the departure point). */
   const walkTo = (zoneId: string): boolean => {
-    if (p.currentZone === zoneId) return true;
+    if (player.currentZone === zoneId) return true;
     const path = findPath(zoneId);
     if (!path || path.length === 0) return false; // disconnected: never pretend
     const eventful = path.some((id) => {
-      const plan = resolveRouteForSim(p, id);
+      const plan = resolveRouteForSim(player, id);
       return plan !== undefined && plan.eventCount > 0;
     });
     if (eventful && !inPrep) {
@@ -1943,7 +1967,7 @@ export function driveQuests(
         inPrep = false;
       }
       // Re-plan: prep may have relocated the hero (death on the way back).
-      if (p.currentZone === zoneId) return true;
+      if (player.currentZone === zoneId) return true;
       const replanned = findPath(zoneId);
       if (!replanned) return false;
       return walkPath(replanned);
@@ -1954,9 +1978,9 @@ export function driveQuests(
    * deaths and aborted crossings by resting at the nearest shop — the
    * same loop a determined player runs. The sim can no longer teleport. */
   const goto = (zoneId: string): void => {
-    if (p.dungeonRun && p.currentZone !== zoneId) abandonDungeon(p);
+    if (player.dungeonRun && player.currentZone !== zoneId) abandonDungeon(player);
     let guard = 0;
-    while (p.currentZone !== zoneId && guard++ < 25) {
+    while (player.currentZone !== zoneId && guard++ < 25) {
       if (walkTo(zoneId)) return;
       restock();
     }
@@ -1965,24 +1989,26 @@ export function driveQuests(
    * NEAREST unlocked shop — havens passed on the way heal on arrival —
    * then shop at the physical counter. */
   const restock = (): void => {
-    if (p.dungeonRun) abandonDungeon(p);
+    if (player.dungeonRun) abandonDungeon(player);
     let guard = 0;
     // Recovery targets a counter that actually stocks HEAL potions — an
     // antidote-only shelf cannot sustain a road walk.
-    const short = (): boolean => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) < 3;
+    const short = (): boolean => HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) < 3;
     while (short() && guard++ < 12) {
-      if (shopInZone(p.currentZone)) {
+      if (shopInZone(player.currentZone)) {
         shop(); // a counter right here may already stock the shelf
         if (!short()) break;
       }
-      const path = findRoutePath(p, (id) => {
-        const stock = resolveStock({ ...p, currentZone: id });
-        return stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId));
+      const path = findRoutePath(player, (id) => {
+        const stock = resolveStock({ ...player, currentZone: id });
+        return stock.some((offering) =>
+          (HEAL_ITEMS as readonly string[]).includes(offering.itemId)
+        );
       }, { includeStart: false });
       const walked = path !== undefined && walkPath(path);
       if (!walked) return; // nowhere to recover — keep playing honestly
     }
-    if (shopInZone(p.currentZone)) shop();
+    if (shopInZone(player.currentZone)) shop();
   };
   /** One real fight. 'death' applies the real death flow (revive at the
    * safe haven, −10% gold); 'retreat' is a timeout — heal up, no death.
@@ -1990,17 +2016,17 @@ export function driveQuests(
    * and from ROAD fights (#162): a road fight runs a flee policy when the
    * hero is nearly spent, and its victory completes the pending journey
    * event at the one owned point. */
-  const originLabel = (b: BattleState): string => {
-    const o = b.origin;
-    if (o.kind === 'dungeon') {
-      return `dungeon@${o.zoneId}:floor${o.floor}${o.boss ? ':boss' : ''}`;
+  const originLabel = (battle: BattleState): string => {
+    const origin = battle.origin;
+    if (origin.kind === 'dungeon') {
+      return `dungeon@${origin.zoneId}:floor${origin.floor}${origin.boss ? ':boss' : ''}`;
     }
-    if (o.kind === 'travel') {
+    if (origin.kind === 'travel') {
       // Route origin diagnostics (#160): the report identifies the edge a
       // travel fight came from, not just its origin zone.
-      return `travel@${o.zoneId}:${o.edgeId}#${o.eventIndex}`;
+      return `travel@${origin.zoneId}:${origin.edgeId}#${origin.eventIndex}`;
     }
-    return `${o.kind}@${o.zoneId}`;
+    return `${origin.kind}@${origin.zoneId}`;
   };
   // #111: observation-only stall context — written after each fight, never
   // read by policy, never touching RNG or combat state.
@@ -2009,14 +2035,14 @@ export function driveQuests(
   let failureStreak = 0;
   const failures: Record<string, number> = {};
   const fight = (
-    b: BattleState,
+    battle: BattleState,
     kind: 'objective' | 'grind' | 'road',
   ): 'win' | 'death' | 'retreat' | 'fled' => {
     fights++;
     if (kind === 'objective') objective++;
     else if (kind === 'grind') grind++;
     else travel.travelBattles++;
-    const resolved = runCampaignFight(p, b, kind, rng);
+    const resolved = runCampaignFight(player, battle, kind, rng);
     const { outcome: result, rounds } = resolved;
     itemsUsed += resolved.itemsUsed;
     travel.contextualDrops += resolved.contextualDrops;
@@ -2029,64 +2055,68 @@ export function driveQuests(
     // #111: record the attempt AFTER resolution — the diagnostic observes
     // the completed fight only.
     lastAttempt = {
-      enemy: b.enemy.id,
-      origin: originLabel(b),
+      enemy: battle.enemy.id,
+      origin: originLabel(battle),
       outcome: result === 'fled' ? 'retreat' : result,
       rounds,
     };
     if (result === 'win') {
       failureStreak = 0;
     } else {
-      failureStreak = b.enemy.id === lastFoughtEnemy ? failureStreak + 1 : 1;
-      failures[b.enemy.id] = (failures[b.enemy.id] ?? 0) + 1;
+      failureStreak = battle.enemy.id === lastFoughtEnemy ? failureStreak + 1 : 1;
+      failures[battle.enemy.id] = (failures[battle.enemy.id] ?? 0) + 1;
     }
-    lastFoughtEnemy = b.enemy.id;
+    lastFoughtEnemy = battle.enemy.id;
     return result;
   };
 
   const equipFromBag = (id: string): void => {
     const kind = itemDef(id)?.kind;
     if (kind !== 'weapon' && kind !== 'armor' && kind !== 'trinket') return;
-    if (!removeItem(p, id, 1)) return;
-    p.equipment[kind] = id;
-    clampPools(p);
+    if (!removeItem(player, id, 1)) return;
+    player.equipment[kind] = id;
+    clampPools(player);
   };
 
   function shopHere(): void {
     // #161: the hero shops only where a shop actually stands — resolveStock
     // returns an empty shelf anywhere else, and buy() revalidates.
-    const stock = resolveStock(p).map((o) => o.itemId);
+    const stock = resolveStock(player).map((offering) => offering.itemId);
     for (const kind of ['weapon', 'armor'] as const) {
-      const cur = p.equipment[kind] ?? '';
+      const cur = player.equipment[kind] ?? '';
       const curW = statWeight(cur);
       const better = stock
         .filter((id) =>
           (kind === 'weapon' ? id.startsWith('w_') : id.startsWith('a_')) &&
-          isEquippable(id, p.classId, p.level).ok &&
+          isEquippable(id, player.classId, player.level).ok &&
           statWeight(id) > curW &&
-          (itemDef(id)?.price ?? 0) <= p.gold - 30 // keep a potion buffer
+          (itemDef(id)?.price ?? 0) <= player.gold - 30 // keep a potion buffer
         )
         .sort((a, b) => statWeight(b) - statWeight(a))[0];
-      if (better && buy(p, better).ok) {
+      if (better && buy(player, better).ok) {
         equipFromBag(better);
       }
     }
     // Best trinket already in the bag.
-    const trinket = p.inventory
-      .map((e) => e.id)
-      .filter((id) => itemDef(id)?.kind === 'trinket' && isEquippable(id, p.classId, p.level).ok)
+    const trinket = player.inventory
+      .map((entry) => entry.id)
+      .filter((id) =>
+        itemDef(id)?.kind === 'trinket' && isEquippable(id, player.classId, player.level).ok
+      )
       .sort((a, b) => statWeight(b) - statWeight(a))[0];
-    if (trinket && statWeight(trinket) > statWeight(p.equipment.trinket ?? '')) {
+    if (trinket && statWeight(trinket) > statWeight(player.equipment.trinket ?? '')) {
       equipFromBag(trinket);
     }
     // Pack for an uninterrupted descent: prefer the strongest local
     // healing supply, and carry MP supplies for classes with costly rotations.
-    const stocked = (): number => HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0);
+    const stocked = (): number => HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0);
     for (const id of HEAL_ITEMS) {
-      while (stocked() < 10 && buy(p, id).ok) { /* the shelf carries it */ }
+      while (stocked() < 10 && buy(player, id).ok) { /* the shelf carries it */ }
     }
     for (const id of MP_ITEMS) {
-      while (MP_ITEMS.reduce((n, itemId) => n + countOf(p, itemId), 0) < 4 && buy(p, id).ok) {
+      while (
+        MP_ITEMS.reduce((sum, itemId) => sum + countOf(player, itemId), 0) < 4 && buy(player, id).ok
+      ) {
         /* Finite supplies paid for at this counter. */
       }
     }
@@ -2097,64 +2127,66 @@ export function driveQuests(
    * lives at regional counters), shops there, and never accesses a remote
    * shelf. */
   function shop(): void {
-    if (shopInZone(p.currentZone)) shopHere();
+    if (shopInZone(player.currentZone)) shopHere();
     /** Trip to the nearest counter stocking heal potions when the shelf
      * runs low — supplies are survival, independent of gear upgrades. */
     const potionTrip = (): boolean => {
-      if (HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) >= 6) return true;
+      if (HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) >= 6) return true;
       let pot: { zoneId: string; dist: number } | undefined;
-      for (const z of ZONES) {
-        if (!p.unlockedZones.includes(z.id) || !shopInZone(z.id)) continue;
-        const stock = resolveStock({ ...p, currentZone: z.id } as PlayerState);
-        if (!stock.some((o) => (HEAL_ITEMS as readonly string[]).includes(o.itemId))) continue;
-        const path = findPath(z.id);
+      for (const zone of ZONES) {
+        if (!player.unlockedZones.includes(zone.id) || !shopInZone(zone.id)) continue;
+        const stock = resolveStock({ ...player, currentZone: zone.id } as PlayerState);
+        if (
+          !stock.some((offering) => (HEAL_ITEMS as readonly string[]).includes(offering.itemId))
+        ) continue;
+        const path = findPath(zone.id);
         if (!path) continue;
-        if (!pot || path.length < pot.dist) pot = { zoneId: z.id, dist: path.length };
+        if (!pot || path.length < pot.dist) pot = { zoneId: zone.id, dist: path.length };
       }
       if (!pot) return false;
       let guard = 0;
-      while (p.currentZone !== pot.zoneId && guard++ < 6) {
+      while (player.currentZone !== pot.zoneId && guard++ < 6) {
         if (walkTo(pot.zoneId)) break;
         return false; // aborted mid-walk; the next shop() call retries
       }
-      if (p.currentZone === pot.zoneId) shopHere();
-      return HEAL_ITEMS.reduce((n, id) => n + countOf(p, id), 0) >= 6;
+      if (player.currentZone === pot.zoneId) shopHere();
+      return HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) >= 6;
     };
     potionTrip();
     // Best (nearest) shop offering a strictly better, affordable piece.
     let best: { zoneId: string; gain: number; dist: number } | undefined;
-    for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id) || !shopInZone(z.id)) continue;
-      const probe = { ...p, currentZone: z.id } as PlayerState;
+    for (const zone of ZONES) {
+      if (!player.unlockedZones.includes(zone.id) || !shopInZone(zone.id)) continue;
+      const probe = { ...player, currentZone: zone.id } as PlayerState;
       const stock = resolveStock(probe);
       let gain = 0;
       for (const kind of ['weapon', 'armor'] as const) {
-        const curW = statWeight(p.equipment[kind] ?? '');
+        const curW = statWeight(player.equipment[kind] ?? '');
         const better = stock
-          .filter((o) => {
-            const id = o.itemId;
+          .filter((offering) => {
+            const id = offering.itemId;
             return (kind === 'weapon' ? id.startsWith('w_') : id.startsWith('a_')) &&
-              isEquippable(id, p.classId, p.level).ok &&
-              statWeight(id) > curW && o.price <= p.gold - 30;
+              isEquippable(id, player.classId, player.level).ok &&
+              statWeight(id) > curW && offering.price <= player.gold - 30;
           })
           .sort((a, b) => statWeight(b.itemId) - statWeight(a.itemId))[0];
         if (better) gain += statWeight(better.itemId) - curW;
       }
       if (gain <= 0) continue;
-      const path = findPath(z.id);
+      const path = findPath(zone.id);
       if (!path) continue;
-      if (!best || path.length < best.dist) best = { zoneId: z.id, gain, dist: path.length };
+      if (!best || path.length < best.dist) best = { zoneId: zone.id, gain, dist: path.length };
     }
     if (best) {
       // A REAL trip: bounded walk to the regional counter, then shop.
       let guard = 0;
-      while (p.currentZone !== best.zoneId && guard++ < 6) {
+      while (player.currentZone !== best.zoneId && guard++ < 6) {
         if (walkTo(best.zoneId)) break;
         // Aborted mid-walk (death/flee): the death flow relocated us; the
         // next shop attempt happens on the caller's next shop() call.
         return;
       }
-      if (p.currentZone === best.zoneId) shopHere();
+      if (player.currentZone === best.zoneId) shopHere();
     }
   }
 
@@ -2162,26 +2194,26 @@ export function driveQuests(
   const grindOneLevel = (): number => {
     // #88: at the level cap a grind can never pay — bail before burning
     // 300 explores that cannot gain a level.
-    if (p.level >= MAX_LEVEL) return 0;
-    const start = p.level;
+    if (player.level >= MAX_LEVEL) return 0;
+    const start = player.level;
     // Farm where the hero's band is LIVE (#73, #88): the highest unlocked
     // zone whose hostile table still spawns at this level — the Outskirts
     // for levels 1–2, the Whisperwood from 3, later wilds as they unlock.
     const farmZone =
-      [...hostileZones()].reverse().find((z) =>
-        p.unlockedZones.includes(z.id) && zoneHostilePool(z.id, p.level).length > 0
+      [...hostileZones()].reverse().find((zone) =>
+        player.unlockedZones.includes(zone.id) && zoneHostilePool(zone.id, player.level).length > 0
       )?.id ?? 'outskirts';
-    let n = 0;
+    let fightsCount = 0;
     let sinceWalk = 0;
-    while (p.level === start && n < 300) {
-      n++;
+    while (player.level === start && fightsCount < 300) {
+      fightsCount++;
       explores++;
-      if (p.currentZone !== farmZone) {
+      if (player.currentZone !== farmZone) {
         // Farm the live pool right here a bounded number of fights between
         // walk attempts — the hero grows into a fair crossing instead of
         // re-walking the same hot road every iteration. At the cap XP
         // buys no levels, so the walk re-attempts on variance alone.
-        const poolLive = zoneHostilePool(p.currentZone, p.level).length > 0;
+        const poolLive = zoneHostilePool(player.currentZone, player.level).length > 0;
         if (!poolLive || sinceWalk >= 12) {
           sinceWalk = 0;
           walkTo(farmZone);
@@ -2189,47 +2221,54 @@ export function driveQuests(
         }
         sinceWalk++;
       }
-      if (zoneHostilePool(p.currentZone, p.level).length === 0) {
+      if (zoneHostilePool(player.currentZone, player.level).length === 0) {
         restock(); // heal and re-arm at the nearest counter, then retry
         continue;
       }
-      const out = explore(p, rng, 0);
+      const out = explore(player, rng, 0);
       if (out.kind === 'battle' && fight(out.battle, 'grind') !== 'win') restock();
     }
-    if (p.level > start) shop(); // #74: gear beats land right after level-ups
-    return n;
+    if (player.level > start) shop(); // #74: gear beats land right after level-ups
+    return fightsCount;
   };
 
-  const questCount = (qid: string, idx: number): number => p.quests[qid]?.counts[idx] ?? 0;
+  const questCount = (questId: string, objectiveIndex: number): number =>
+    player.quests[questId]?.counts[objectiveIndex] ?? 0;
 
   /** First unlocked zone whose hostile table spawns the enemy AT THE
    * HERO'S LEVEL (#73 + the shared eligibility rule, #74) — the Outskirts
    * come before the Whisperwood for shared early spawns. */
   const zoneOfEnemy = (enemyId: string): string | undefined => {
-    for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id)) continue;
+    for (const zone of ZONES) {
+      if (!player.unlockedZones.includes(zone.id)) continue;
       if (
-        z.explore.some((e) =>
-          (e.kind === 'battle' || e.kind === 'elite') && e.enemy === enemyId &&
-          encounterEligible(e, p.level)
+        zone.explore.some((encounter) =>
+          (encounter.kind === 'battle' || encounter.kind === 'elite') &&
+          encounter.enemy === enemyId &&
+          encounterEligible(encounter, player.level)
         )
       ) {
-        return z.id;
+        return zone.id;
       }
     }
     return undefined;
   };
 
-  const farmKills = (qid: string, objIdx: number, enemyId: string, need: number): boolean => {
-    const zid = zoneOfEnemy(enemyId);
-    if (!zid) return false;
+  const farmKills = (
+    questId: string,
+    objectiveIndex: number,
+    enemyId: string,
+    need: number,
+  ): boolean => {
+    const zoneId = zoneOfEnemy(enemyId);
+    if (!zoneId) return false;
     let local = 0;
     let sinceWalk = 0;
-    while (questCount(qid, objIdx) < need) {
+    while (questCount(questId, objectiveIndex) < need) {
       if (++local > 400) return false;
-      if (p.currentZone === zid) {
+      if (player.currentZone === zoneId) {
         explores++;
-        const out = explore(p, rng, 0);
+        const out = explore(player, rng, 0);
         if (out.kind === 'battle') {
           if (fight(out.battle, 'objective') !== 'win') restock();
         }
@@ -2239,15 +2278,15 @@ export function driveQuests(
       // Between attempts, a live local pool farms bounded fights — the
       // hero grows into a fair crossing instead of face-planting into the
       // same road forever.
-      const poolLive = zoneHostilePool(p.currentZone, p.level).length > 0;
+      const poolLive = zoneHostilePool(player.currentZone, player.level).length > 0;
       if (!poolLive || sinceWalk >= 12) {
         sinceWalk = 0;
-        walkTo(zid);
+        walkTo(zoneId);
         continue;
       }
       sinceWalk++;
       explores++;
-      const out = explore(p, rng, 0);
+      const out = explore(player, rng, 0);
       if (out.kind === 'battle') {
         if (fight(out.battle, 'objective') !== 'win') restock();
       }
@@ -2259,16 +2298,18 @@ export function driveQuests(
    * (#74) — collection farming follows REAL sources instead of grinding a
    * pool that can never pay out. */
   const dropZonesFor = (target: string): string[] =>
-    exploreDropZonesFor(target, p.unlockedZones, p.level);
+    exploreDropZonesFor(target, player.unlockedZones, player.level);
 
   /** Reachable dungeon whose remaining normal floors can still yield the
    * target (#74) — the sim dives REAL floors instead of pretending wilds
    * or shops are the only sources. */
-  const dungeonSourceFor = (target: string): { zoneId: string; d: DungeonDef } | undefined => {
-    for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id) || !z.dungeon) continue;
-      if (dungeonFloorsYield(target, z.dungeon, nextDungeonFloor(p, z.dungeon))) {
-        return { zoneId: z.id, d: z.dungeon };
+  const dungeonSourceFor = (
+    target: string,
+  ): { zoneId: string; dungeon: DungeonDef } | undefined => {
+    for (const zone of ZONES) {
+      if (!player.unlockedZones.includes(zone.id) || !zone.dungeon) continue;
+      if (dungeonFloorsYield(target, zone.dungeon, nextDungeonFloor(player, zone.dungeon))) {
+        return { zoneId: zone.id, dungeon: zone.dungeon };
       }
     }
     return undefined;
@@ -2278,11 +2319,11 @@ export function driveQuests(
    * hero (#161) — hops go where the shelf actually carries it. */
   const stockedZones = (target: string): string[] => {
     const out: string[] = [];
-    for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id)) continue;
-      if (!shopInZone(z.id)) continue;
-      const probe = { ...p, currentZone: z.id } as PlayerState;
-      if (resolveStock(probe).some((o) => o.itemId === target)) out.push(z.id);
+    for (const zone of ZONES) {
+      if (!player.unlockedZones.includes(zone.id)) continue;
+      if (!shopInZone(zone.id)) continue;
+      const probe = { ...player, currentZone: zone.id } as PlayerState;
+      if (resolveStock(probe).some((offering) => offering.itemId === target)) out.push(zone.id);
     }
     return out;
   };
@@ -2290,28 +2331,29 @@ export function driveQuests(
   const farmCollect = (target: string, need: number): boolean => {
     const price = itemDef(target)?.price ?? 0;
     let local = 0;
-    while (countOf(p, target) < need) {
+    while (countOf(player, target) < need) {
       if (++local > 60) return false; // safety net, never the plan (#74)
       // 1. Buy when THIS counter genuinely stocks it and it's affordable (#73).
       if (
-        resolveStock(p).some((o) => o.itemId === target) && p.gold >= price + 20 &&
-        buy(p, target).ok
+        resolveStock(player).some((offering) => offering.itemId === target) &&
+        player.gold >= price + 20 &&
+        buy(player, target).ok
       ) continue;
       // 2. Farm the best eligible wild drop source.
       const zones = dropZonesFor(target);
       if (zones.length > 0) {
         goto(zones[0]!);
         explores++;
-        const out = explore(p, rng, 0);
+        const out = explore(player, rng, 0);
         if (out.kind === 'battle' && fight(out.battle, 'objective') !== 'win') restock();
         continue;
       }
       // 3. Dive REAL dungeon floors that still yield it (#73: the taught
       //    route — caches + Mycelids in the Rootbound Hollow).
-      const ds = dungeonSourceFor(target);
-      if (ds) {
-        goto(ds.zoneId);
-        const res = diveDungeon(p, ds.d, rng);
+      const dungeonSource = dungeonSourceFor(target);
+      if (dungeonSource) {
+        goto(dungeonSource.zoneId);
+        const res = diveDungeon(player, dungeonSource.dungeon, rng);
         if (res.ok && res.battle) {
           if (fight(res.battle, 'objective') !== 'win') restock();
         } else if (!res.ok) {
@@ -2321,7 +2363,7 @@ export function driveQuests(
       }
       // 4. Hop to a zone whose shelf GENUINELY stocks it — next loop buys.
       const stocking = stockedZones(target);
-      if (stocking.length > 0 && p.gold >= price) {
+      if (stocking.length > 0 && player.gold >= price) {
         goto(stocking[0]!);
         continue;
       }
@@ -2337,11 +2379,11 @@ export function driveQuests(
     let attempts = 0;
     let bossDeaths = 0;
     while (attempts++ < 80) {
-      const d = dungeonOf(zoneDef(zoneId)!);
-      if (!d) return false;
+      const dungeon = dungeonOf(zoneDef(zoneId)!);
+      if (!dungeon) return false;
       goto(zoneId);
-      itemsUsed += prepareDungeonFloor(p);
-      const res = diveDungeon(p, d, rng);
+      itemsUsed += prepareDungeonFloor(player);
+      const res = diveDungeon(player, dungeon, rng);
       if (!res.ok) {
         restock();
         continue;
@@ -2349,8 +2391,8 @@ export function driveQuests(
       if (!res.battle) continue; // Authored discovery; retain the same run and resources.
       const isBoss = res.battle.origin.kind === 'dungeon' && res.battle.origin.boss;
       if (isBoss && report.aranyaLevel === 0 && zoneId === 'whisperwood') {
-        report.aranyaLevel = p.level;
-        report.aranyaGearTier = weaponTier(p);
+        report.aranyaLevel = player.level;
+        report.aranyaGearTier = weaponTier(player);
         report.aranyaDeathsBefore = deaths;
       }
       const out = fight(res.battle, 'objective');
@@ -2372,66 +2414,71 @@ export function driveQuests(
   };
 
   const turnInReady = (): void => {
-    syncAvailability(p);
-    for (const qid of quests) {
-      if (p.quests[qid]?.status !== 'turnIn') continue;
-      const q = quest(qid);
-      if (!q) continue;
-      const zid = zoneOfNpc(q.finishNpc)?.id;
-      if (!zid) continue;
-      goto(zid);
+    syncAvailability(player);
+    for (const questId of quests) {
+      if (player.quests[questId]?.status !== 'turnIn') continue;
+      const questDef = quest(questId);
+      if (!questDef) continue;
+      const zoneId = zoneOfNpc(questDef.finishNpc)?.id;
+      if (!zoneId) continue;
+      goto(zoneId);
       // #127: conversation-driven objectives advance through story events
       // — emit every event the quest's objectives await.
-      for (const obj of q.objectives) {
-        if (obj.kind === 'storyEvent') onStoryEvent(p, obj.target);
+      for (const obj of questDef.objectives) {
+        if (obj.kind === 'storyEvent') onStoryEvent(player, obj.target);
       }
-      if (p.quests[qid]?.status === 'turnIn' && turnInQuest(p, qid, q.finishNpc).ok) {
+      if (
+        player.quests[questId]?.status === 'turnIn' &&
+        turnInQuest(player, questId, questDef.finishNpc).ok
+      ) {
         beats.push({
-          questId: qid,
-          level: p.level,
-          gold: p.gold,
+          questId,
+          level: player.level,
+          gold: player.gold,
           deaths,
           fights,
           grindFights: grind,
           itemsUsed,
         });
-        onTurnIn?.(p, qid);
+        onTurnIn?.(player, questId);
         shop(); // #74: gear beats land right after quest rewards
       }
     }
   };
 
   const acceptAvailable = (): void => {
-    syncAvailability(p);
-    for (const qid of quests) {
-      if (p.quests[qid]?.status !== 'available') continue;
-      const q = quest(qid);
-      if (!q) continue;
-      const zid = zoneOfNpc(q.startNpc)?.id;
-      if (!zid) continue;
-      goto(zid);
-      if (p.quests[qid]?.status === 'available') acceptQuest(p, qid, q.startNpc);
+    syncAvailability(player);
+    for (const questId of quests) {
+      if (player.quests[questId]?.status !== 'available') continue;
+      const questDef = quest(questId);
+      if (!questDef) continue;
+      const zoneId = zoneOfNpc(questDef.startNpc)?.id;
+      if (!zoneId) continue;
+      goto(zoneId);
+      if (player.quests[questId]?.status === 'available') {
+        acceptQuest(player, questId, questDef.startNpc);
+      }
     }
   };
 
   let guard = 0;
-  const statusOf = (qid: string): string | undefined => p.quests[qid]?.status;
+  const statusOf = (questId: string): string | undefined => player.quests[questId]?.status;
   const guardLimit = 300 + quests.length * 40;
   while (statusOf(stopQuest) !== 'done' && ++guard < guardLimit) {
     turnInReady();
     if (statusOf(stopQuest) === 'done') break;
     acceptAvailable();
-    const active = quests.find((id) => p.quests[id]?.status === 'active');
+    const active = quests.find((id) => player.quests[id]?.status === 'active');
     if (!active) {
       grindOneLevel();
       continue;
     }
-    const q = quest(active)!;
+    const questDef = quest(active)!;
     let progressed = false;
-    for (let i = 0; i < q.objectives.length; i++) {
-      const obj = q.objectives[i]!;
+    for (let i = 0; i < questDef.objectives.length; i++) {
+      const obj = questDef.objectives[i]!;
       const need = obj.count ?? 1;
-      const have = obj.kind === 'collect' ? countOf(p, obj.target) : questCount(active, i);
+      const have = obj.kind === 'collect' ? countOf(player, obj.target) : questCount(active, i);
       if (have >= need) continue;
       if (obj.kind === 'kill') {
         // #88: dungeon-sourced kills (chapter bosses, floor mobs) route
@@ -2442,58 +2489,62 @@ export function driveQuests(
           ? 'whisperwood'
           : zoneOfEnemy(obj.target)
           ? undefined
-          : ZONES.find((z) => z.dungeon && dungeonBossSource(z.id)?.enemyId === obj.target)?.id ??
-            ZONES.find((z) => z.dungeon && dungeonFloorsYield(obj.target, z.dungeon, 1))?.id;
+          : ZONES.find((zone) => zone.dungeon && dungeonBossSource(zone.id)?.enemyId === obj.target)
+            ?.id ??
+            ZONES.find((zone) => zone.dungeon && dungeonFloorsYield(obj.target, zone.dungeon, 1))
+              ?.id;
         progressed = diveZone ? clearBoss(diveZone) : farmKills(active, i, obj.target, need);
       } else if (obj.kind === 'collect') {
         progressed = farmCollect(obj.target, need);
       } else if (obj.kind === 'storyEvent') {
-        onStoryEvent(p, obj.target);
+        onStoryEvent(player, obj.target);
         progressed = questCount(active, i) >= need;
       } else if (obj.kind === 'reach') {
         // #162: the reach objective is a REAL journey — the road IS the
         // objective, rolled and fought through the live engine.
         goto(obj.target);
-        progressed = p.currentZone === obj.target;
+        progressed = player.currentZone === obj.target;
       } else if (obj.kind === 'dungeon') {
         // #88: later chapters gate story beats behind dungeon dives —
         // clear the named dungeon's boss with real fights.
-        const dz = ZONES.find((z) => z.dungeon?.id === obj.target);
-        progressed = dz ? clearBoss(dz.id) : false;
+        const dungeonZone = ZONES.find((zone) => zone.dungeon?.id === obj.target);
+        progressed = dungeonZone ? clearBoss(dungeonZone.id) : false;
       }
       if (!progressed) break;
     }
     if (!progressed) grindOneLevel();
   }
-  if (p.quests[stopQuest]?.status !== 'done') {
+  if (player.quests[stopQuest]?.status !== 'done') {
     // #111: the stall is reported as STRUCTURED data first — the string is
     // formatted from it, so the report and the message can never drift.
-    const equipped = (slot: 'weapon' | 'armor' | 'trinket'): string => p.equipment[slot] ?? '';
+    const equipped = (slot: 'weapon' | 'armor' | 'trinket'): string => player.equipment[slot] ?? '';
     const tierOf = (id: string): number => id ? itemDef(id)?.tier ?? 0 : 0;
     const stallQuests: StallQuest[] = quests.map((id) => {
-      const status = p.quests[id]?.status ?? 'none';
+      const status = player.quests[id]?.status ?? 'none';
       if (status !== 'active') return { id, status };
-      const q = quest(id);
+      const questDef = quest(id);
       return {
         id,
         status,
-        objectives: q?.objectives.map((o, i) => ({
-          kind: o.kind,
-          target: o.target,
-          have: o.kind === 'collect' ? countOf(p, o.target) : questCount(id, i),
-          need: o.count ?? 1,
+        objectives: questDef?.objectives.map((obj, objectiveIndex) => ({
+          kind: obj.kind,
+          target: obj.target,
+          have: obj.kind === 'collect'
+            ? countOf(player, obj.target)
+            : questCount(id, objectiveIndex),
+          need: obj.count ?? 1,
         })) ?? [],
       };
     });
     const stall: StallDiagnostic = {
-      level: p.level,
-      zone: p.currentZone,
-      unlockedZones: [...p.unlockedZones],
-      hp: p.hp,
-      maxHp: statsOf(p).maxHp,
-      mp: p.mp,
-      maxMp: statsOf(p).maxMp,
-      gold: p.gold,
+      level: player.level,
+      zone: player.currentZone,
+      unlockedZones: [...player.unlockedZones],
+      hp: player.hp,
+      maxHp: statsOf(player).maxHp,
+      mp: player.mp,
+      maxMp: statsOf(player).maxMp,
+      gold: player.gold,
       equipment: {
         weapon: equipped('weapon'),
         armor: equipped('armor'),
@@ -2505,11 +2556,11 @@ export function driveQuests(
         trinket: tierOf(equipped('trinket')),
       },
       gearTriggers: (['weapon', 'armor', 'trinket'] as const).flatMap((slot) =>
-        itemDef(equipped(slot))?.triggers?.map((t) => t.name) ?? []
+        itemDef(equipped(slot))?.triggers?.map((trigger) => trigger.name) ?? []
       ),
-      consumables: p.inventory
-        .filter((e) => itemDef(e.id)?.kind === 'consumable' && e.qty > 0)
-        .map((e) => ({ id: e.id, qty: e.qty })),
+      consumables: player.inventory
+        .filter((entry) => itemDef(entry.id)?.kind === 'consumable' && entry.qty > 0)
+        .map((entry) => ({ id: entry.id, qty: entry.qty })),
       quests: stallQuests,
       lastAttempt,
       failureStreak,
@@ -2520,11 +2571,11 @@ export function driveQuests(
     // progress so a harness regression is readable from the report alone.
     report.stuck = formatStallReport(stall);
   }
-  report.chapter1Done = p.quests['m4_blessing']?.status === 'done';
+  report.chapter1Done = player.quests['m4_blessing']?.status === 'done';
   // #88: full-campaign completion — every main quest m1→m25 done.
-  report.campaignDone = ALL_MAINS.every((id) => p.quests[id]?.status === 'done');
-  report.endLevel = p.level;
-  report.endGold = p.gold;
+  report.campaignDone = ALL_MAINS.every((id) => player.quests[id]?.status === 'done');
+  report.endLevel = player.level;
+  report.endGold = player.gold;
   report.totalDeaths = deaths;
   report.totalFights = fights;
   report.totalObjectiveFights = objective;
@@ -2534,7 +2585,7 @@ export function driveQuests(
   // #169: finalize the derived travel metrics — the explicit means over
   // arrival samples and the derived event total (the exact sum of the
   // structured outcome counts, by construction).
-  const outcomes = Object.values(travel.eventOutcomes).reduce((a, n) => a + n, 0);
+  const outcomes = Object.values(travel.eventOutcomes).reduce((sum, count) => sum + count, 0);
   travel.totalRoadEvents = outcomes;
   travel.hpPctOnArrival = travel.arrivalSamples > 0
     ? travel.hpArrivalSumPct / travel.arrivalSamples
@@ -2547,18 +2598,18 @@ export function driveQuests(
 }
 
 function seededRng(seed: number): Rng {
-  let a = seed >>> 0;
+  let state = seed >>> 0;
   return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let temp = Math.imul(state ^ (state >>> 15), 1 | state);
+    temp = (temp + Math.imul(temp ^ (temp >>> 7), 61 | temp)) ^ temp;
+    return ((temp ^ (temp >>> 14)) >>> 0) / 4294967296;
   };
 }
 export { seededRng };
 
 /** Enemies explicitly flagged as tutorial fixtures (#69). */
 export function tutorialEnemies(): EnemyDef[] {
-  return ENEMIES.filter((e) => e.tutorial === true);
+  return ENEMIES.filter((enemy) => enemy.tutorial === true);
 }

@@ -111,20 +111,20 @@ Deno.test('perilous departures stage an explicit confirmation; starter roads sta
   // A two-event road never stages: it departs on the first tap.
   // Both a battle and an all-quiet crossing depart immediately (#186).
   for (const roll of [0.1, 0.8]) {
-    const q = walker(1705, 'sunspire', ['sunspire', 'frostpeak']);
+    const twoEventHero = walker(1705, 'sunspire', ['sunspire', 'frostpeak']);
     withFixedRandom(
       roll,
-      () => travelAction(q, { v: 'travel', a: 'go', arg: 'w_sunspire_frostpeak' }),
+      () => travelAction(twoEventHero, { v: 'travel', a: 'go', arg: 'w_sunspire_frostpeak' }),
     );
-    assertEquals(q.scene.view, roll === 0.1 ? 'battle' : 'zone');
-    assertEquals(q.currentZone, roll === 0.1 ? 'sunspire' : 'frostpeak');
-    assertEquals(q.journey !== undefined, roll === 0.1);
-    retreatFromJourney(q);
+    assertEquals(twoEventHero.scene.view, roll === 0.1 ? 'battle' : 'zone');
+    assertEquals(twoEventHero.currentZone, roll === 0.1 ? 'sunspire' : 'frostpeak');
+    assertEquals(twoEventHero.journey !== undefined, roll === 0.1);
+    retreatFromJourney(twoEventHero);
   }
   // Zero-event roads are immediate too.
-  const r = walker(1706, 'mirefoot', ['mirefoot', 'hollowmere']);
-  travelAction(r, { v: 'travel', a: 'go', arg: 'w_mirefoot_hollowmere' });
-  assertEquals(r.currentZone, 'hollowmere');
+  const zeroEventHero = walker(1706, 'mirefoot', ['mirefoot', 'hollowmere']);
+  travelAction(zeroEventHero, { v: 'travel', a: 'go', arg: 'w_mirefoot_hollowmere' });
+  assertEquals(zeroEventHero.currentZone, 'hollowmere');
 });
 
 // ── the zone hub ─────────────────────────────────────────────────────────
