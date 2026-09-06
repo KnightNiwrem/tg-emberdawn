@@ -65,7 +65,7 @@ Deno.test('death revives at the LAST reached haven, not the catalog first', () =
   assertEquals(p.currentZone, 'mirefoot', 'the last reached haven, not the first');
   assertEquals(p.respawnHaven, 'mirefoot');
   assertEquals(p.gold, 90, 'the existing gold penalty holds');
-  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
+  assertEquals(p.hp, statsOf(p).maxHp, 'revival fully restores (#212)');
   assert(line.includes('Mirefoot'), 'the recovery line names the haven');
   // A fresh hero still wakes at the village.
   const fresh = walker(1603, 'outskirts');

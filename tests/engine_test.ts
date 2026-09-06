@@ -856,7 +856,10 @@ Deno.test('death revives at a safe haven, not where you fell', () => {
   assert(line.includes('black out'));
   assertEquals(p.stats.deaths, 1);
   assertEquals(p.gold, 900);
-  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
+  // Full revive (#212): the haven full-heals on arrival anyway — the gold
+  // loss and the lost position are the penalty, not a walk out and back in.
+  assertEquals(p.hp, statsOf(p).maxHp);
+  assertEquals(p.mp, statsOf(p).maxMp);
   assertEquals(p.currentZone, 'emberdawn');
 });
 

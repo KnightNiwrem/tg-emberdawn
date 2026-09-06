@@ -65,7 +65,7 @@ Deno.test('campaign flee: a lethal failed escape reports death and counts the fi
   assertEquals(result.rounds, 3);
   assertEquals(b.history.length, 3);
   assertEquals(p.gold, 90, 'the real death penalty is applied once');
-  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
+  assertEquals(p.hp, statsOf(p).maxHp, 'revival fully restores (#212)');
   assertEquals(p.currentZone, p.respawnHaven);
   assertEquals(p.battle, undefined);
   assertEquals(p.journey, undefined);

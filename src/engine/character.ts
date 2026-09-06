@@ -204,15 +204,19 @@ export function xpProgress(p: PlayerState): { current: number; needed: number } 
 }
 
 /** Applies death penalties; the player wakes at their LAST reached safe
- * haven (#160 — never merely the first haven in the catalog) with 50% HP. */
+ * haven (#160 — never merely the first haven in the catalog), fully
+ * restored (#212): the haven's arrival authority full-heals anyway, so a
+ * partial revive is one free walk out and back — friction, not a penalty.
+ * The real costs are the gold loss and losing your place (the active
+ * dungeon run is abandoned; the road back costs its event rolls). */
 export function applyDeath(p: PlayerState): string {
   delete p.dungeonRun;
   p.stats.deaths++;
   const lost = Math.floor(p.gold * 0.1);
   p.gold -= lost;
   const s = statsOf(p);
-  p.hp = Math.max(1, Math.floor(s.maxHp * 0.5));
-  p.mp = Math.floor(s.maxMp * 0.5);
+  p.hp = s.maxHp;
+  p.mp = s.maxMp;
   const haven = zone(p.respawnHaven)?.safeHaven ? p.respawnHaven : 'emberdawn';
   p.currentZone = haven;
   const name = ZONES.find((z) => z.id === haven)?.name ?? 'a safe haven';

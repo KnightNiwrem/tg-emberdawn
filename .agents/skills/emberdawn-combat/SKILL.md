@@ -67,13 +67,15 @@ stay-and-fight defensive tool; Flee still uses SPD separately.
 
 ## Death and revival
 
-- Death: −10% gold, revive at 50% HP/MP at the LAST safe haven the hero actually reached
-  (`p.respawnHaven`, never where you fell, never merely the catalog's first haven). The pointer
-  moves ONLY through the one arrival authority (`arriveAt` in `src/engine/world.ts`) when a crossing
-  finally reaches a safe-haven zone — a journey that has merely begun or a crossing still mid-road
-  never relocates it. A corrupt pointer refuses the load (identity gate); the engine's `emberdawn`
-  fallback is the last-ditch revive, not a repair. Retreat from a crossing returns to the edge
-  ORIGIN, not the haven.
+- Death: −10% gold, revive FULLY restored at the LAST safe haven the hero actually reached
+  (`p.respawnHaven`, never where you fell, never merely the catalog's first haven). The full revive
+  is deliberate (#212): the haven's arrival authority full-heals anyway, so a partial revive is
+  bypassed by one free walk out and back — the real penalties are the gold loss, the lost position,
+  and the abandoned dungeon run. The pointer moves ONLY through the one arrival authority
+  (`arriveAt` in `src/engine/world.ts`) when a crossing finally reaches a safe-haven zone — a
+  journey that has merely begun or a crossing still mid-road never relocates it. A corrupt pointer
+  refuses the load (identity gate); the engine's `emberdawn` fallback is the last-ditch revive, not
+  a repair. Retreat from a crossing returns to the edge ORIGIN, not the haven.
 - Phoenix Cinder auto-revives once per battle (`phoenixUsed`), only from the auto trigger — never by
   hand.
 
