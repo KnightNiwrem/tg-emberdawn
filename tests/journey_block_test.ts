@@ -82,7 +82,7 @@ Deno.test('intermission: direct buy, sell and temper refuse without mutation', (
       temper(player, 'weapon'),
     ]
   ) {
-    assertEquals(attempt.ok, false, 'the mutation is refused');
+    assert(!attempt.ok, 'the mutation is refused');
     assert(
       attempt.lines.some((line) => line.includes('crossing')),
       `guidance: ${attempt.lines[0]}`,
@@ -100,7 +100,7 @@ Deno.test('intermission: explore and dungeon dives refuse at the engine', () => 
   const dungeon = dungeonOf(zone('sunspire')!);
   assert(dungeon);
   const dive = diveDungeon(player, dungeon, seeded(2));
-  assertEquals(dive.ok, false, 'the dive refuses');
+  assert(!dive.ok, 'the dive refuses');
   assert(dive.lines.some((line) => line.includes('crossing')));
   assertEquals(footprint(player), before, 'no battle started, nothing rolled');
 });
@@ -113,10 +113,10 @@ Deno.test('intermission: quest lifecycle contacts refuse at the engine', () => {
   // Origin-zone contacts are physically present — presence alone must
   // never authorize quest business on the road.
   const accept = acceptQuest(player, 'm4_floors', 'npc_warden_tom');
-  assertEquals(accept.ok, false);
+  assert(!accept.ok);
   assert(accept.lines.some((line) => line.includes('crossing')));
   const turnIn = turnInQuest(player, 'm4_floors', 'npc_warden_tom');
-  assertEquals(turnIn.ok, false);
+  assert(!turnIn.ok);
   assert(turnIn.lines.some((line) => line.includes('crossing')));
   assertEquals(footprint(player), before, 'quest state untouched');
 });
@@ -125,7 +125,7 @@ Deno.test('intermission: the story ops refuse — choices and bundles never appl
   const player = intermission(1663, 'whisperwood', 'hollowmere');
   const before = footprint(player);
   const choice = applyDialogueChoice(player, { choiceId: 'whatever', now: 0 });
-  assertEquals(choice.ok, false);
+  assert(!choice.ok);
   assert((choice.refusal ?? '').includes('crossing'), `refusal: ${choice.refusal}`);
   const bundle = validateStoryBundle(
     player,
@@ -307,6 +307,6 @@ Deno.test('after arrival the same actions work again (the refusal is journey-sco
     'explore no longer refuses once the road ends',
   );
   const noQuest = acceptQuest(player, 'm13_pass', 'npc_outcast');
-  assertEquals(noQuest.ok, false, 'still gated by quest availability — not by the journey');
+  assert(!noQuest.ok, 'still gated by quest availability — not by the journey');
   assert(!noQuest.msg.includes('crossing'), 'the journey is not the refuser anymore');
 });

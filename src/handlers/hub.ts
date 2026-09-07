@@ -6,7 +6,7 @@
 import { DUNGEON_BLOCK } from '../engine/dungeon_run.ts';
 import type { PlayerState } from '../engine/types.ts';
 import type { Cb } from '../codec.ts';
-import { abandonDungeon, bossGateBlock, diveDungeon, dungeonOf, explore } from '../engine/world.ts';
+import { abandonDungeon, diveDungeon, dungeonOf, explore } from '../engine/world.ts';
 import { advanceJourney, retreatFromJourney, startJourney } from '../engine/journey.ts';
 import { zone as zoneDef } from '../content/zones.ts';
 import { buy, offeredPrice, sell, shopAt } from '../engine/shops.ts';
@@ -84,14 +84,14 @@ function diveAction(player: PlayerState, confirmed = false): MutationResult {
     return { toast: 'Open the dungeon entrance first.' };
   }
   const result = diveDungeon(player, dungeon);
-  if (!result.ok || !result.battle) {
-    if (!result.ok) return { toast: result.lines[0] ?? bossGateBlock(player, dungeon) };
+  if (!result.ok) return { toast: result.lines[0] };
+  if (result.kind === 'discovery') {
     player.notices = result.lines;
     player.scene = { view: 'zone' };
     return {};
   }
   // #96: enterBattle resolves the opening's explicit adjudication.
-  return enterBattle(player, result.battle, result.outcome ?? 'ongoing', result.lines);
+  return enterBattle(player, result.battle, result.outcome, result.lines);
 }
 
 /** Talk to a zone NPC: opens the explicit topic-selection scene (#123).

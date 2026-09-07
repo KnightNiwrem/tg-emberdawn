@@ -158,14 +158,14 @@ Deno.test('choices: incompatible re-choices and engine-level replays are refused
   player.scene = { view: 'dialogue', arg: DIALOGUE, arg2: CHOICE_NODE };
   const before = JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents });
   const result = applyDialogueChoice(player, { choiceId: 'decline', now: 2 });
-  assertEquals(result.ok, false);
+  assert(!result.ok);
   assertEquals(
     JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents }),
     before,
   );
   // A forged choice id refuses.
   const forged = applyDialogueChoice(player, { choiceId: 'nope', now: 2 });
-  assertEquals(forged.ok, false);
+  assert(!forged.ok);
 });
 
 Deno.test('choices: full router — double taps, cancellation, stale confirmations (#43, #126)', async () => {
@@ -361,7 +361,7 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
     'an unmet condition hides the response',
   );
   const refused = applyDialogueChoice(player, { choiceId: 'vouch', now: 1 });
-  assertEquals(refused.ok, false, 'tap-time reevaluation gates the effects');
+  assert(!refused.ok, 'tap-time reevaluation gates the effects');
   assertEquals(Object.keys(player.decisions).length, 0);
   // After the condition passes, the response renders and applies — like
   // every committing pledge response, from its staged confirmation panel.
@@ -372,7 +372,7 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
   );
   player.scene.arg3 = 'confirm:vouch';
   const ok = applyDialogueChoice(player, { choiceId: 'vouch', now: 1 });
-  assertEquals(ok.ok, true);
+  assert(ok.ok);
   assertEquals(player.decisions['ferry_shrine_pledge']?.choiceId, 'vouch');
   assertEquals(ok.nextNodeId, 'n6');
   // The vouch route is the believer route: the beacon started, the debt

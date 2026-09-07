@@ -40,41 +40,19 @@ export function resolveRoute(player: PlayerState, route: RouteDef): ResolvedRout
   const variant = (route.variants ?? []).find((variant) =>
     !variant.when || evalCondition(player, variant.when)
   );
-  if (!variant) {
-    return {
-      edgeId: route.id,
-      variantId: 'base',
-      from: route.from,
-      to: route.to,
-      eventCount: route.eventCount,
-      events: route.events ?? [],
-      ...(route.name !== undefined ? { name: route.name } : {}),
-      ...(route.desc !== undefined ? { desc: route.desc } : {}),
-      ...(route.risk !== undefined ? { risk: route.risk } : {}),
-    };
-  }
+  const name = variant?.name ?? route.name;
+  const desc = variant?.desc ?? route.desc;
+  const risk = variant?.risk ?? route.risk;
   return {
     edgeId: route.id,
-    variantId: variant.id,
+    variantId: variant?.id ?? 'base',
     from: route.from,
     to: route.to,
-    eventCount: variant.eventCount,
-    events: variant.events ?? route.events ?? [],
-    ...(variant.name !== undefined
-      ? { name: variant.name }
-      : route.name !== undefined
-      ? { name: route.name }
-      : {}),
-    ...(variant.desc !== undefined
-      ? { desc: variant.desc }
-      : route.desc !== undefined
-      ? { desc: route.desc }
-      : {}),
-    ...(variant.risk !== undefined
-      ? { risk: variant.risk }
-      : route.risk !== undefined
-      ? { risk: route.risk }
-      : {}),
+    eventCount: variant?.eventCount ?? route.eventCount,
+    events: variant?.events ?? route.events ?? [],
+    ...(name !== undefined ? { name } : {}),
+    ...(desc !== undefined ? { desc } : {}),
+    ...(risk !== undefined ? { risk } : {}),
   };
 }
 

@@ -115,3 +115,7 @@ story-authority contracts remain in force. Reset confirmation requires its activ
 - #228: independent safe-haven forage recharge deadlines, with two-haven expiry coverage.
 - #229: quiet rest messages disclose applied HP/MP recovery.
 - #230: MemoryStore reads and writes own separate copies; failed delivery cannot save by aliasing.
+
+- #232: dungeon entry and dialogue application expose explicit success/refusal variants.
+- #233: forge mutations and rendering use resolved quotes; route variants share one plan
+  constructor.

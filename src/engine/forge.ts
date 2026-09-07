@@ -89,45 +89,67 @@ export function forgeCapability(
   return { slots, maxTemper: Math.min(MAX_TEMPER, maxTemper) };
 }
 
-/** Why the current forge cannot temper this slot right now — for UI copy
- * and for the engine's own revalidation. undefined = the work may proceed. */
-export function temperBlock(
-  player: PlayerState,
-  slot: 'weapon' | 'armor',
-): string | undefined {
-  const caps = forgeCapability(player);
-  if (!caps) return 'There is no forge here.';
-  if (!caps.slots.has(slot)) {
-    return slot === 'weapon'
-      ? "⚒️ This forge doesn't work weapons."
-      : "⚒️ This forge doesn't work armor.";
-  }
-  const equipped = player.equipment[slot];
-  if (!equipped) return 'Nothing equipped in that slot.';
-  if (temperLevelOf(player, equipped) >= caps.maxTemper) {
-    return temperLevelOf(player, equipped) >= MAX_TEMPER
-      ? `⚒️ ${itemName(equipped)} is fully tempered (+${MAX_TEMPER}).`
-      : `⚒️ ${itemName(equipped)} is beyond this forge's craft (+${caps.maxTemper} here).`;
-  }
-  return undefined;
+export interface TemperCost {
+  gold: number;
+  materials: MaterialCost[];
 }
 
-/** Cost of the NEXT temper at the current forge — undefined when the
- * forge cannot (or need not) temper the slot further. */
-export function temperCost(
+export type TemperQuote =
+  | { ok: false; refusal: string }
+  | { ok: true; itemId: string; level: number; cost: TemperCost };
+
+/** Resolve the equipped pattern, local capability, and next cost together.
+ * Renderers may share their freshly resolved capability across slots. Mutations
+ * call this with live state, never with a quote or capability from the UI. */
+export function temperQuote(
   player: PlayerState,
   slot: 'weapon' | 'armor',
-): { gold: number; materials: MaterialCost[] } | undefined {
-  if (temperBlock(player, slot)) return undefined;
-  const equipped = player.equipment[slot]!;
-  const lvl = temperLevelOf(player, equipped);
+  capability = forgeCapability(player),
+): TemperQuote {
+  const refuse = (refusal: string): TemperQuote => ({ ok: false, refusal });
+  if (!capability) return refuse('There is no forge here.');
+  if (!capability.slots.has(slot)) {
+    return refuse(
+      slot === 'weapon'
+        ? "⚒️ This forge doesn't work weapons."
+        : "⚒️ This forge doesn't work armor.",
+    );
+  }
+  const itemId = player.equipment[slot];
+  if (!itemId) return refuse('Nothing equipped in that slot.');
+  const level = temperLevelOf(player, itemId);
+  if (level >= capability.maxTemper) {
+    return refuse(
+      level >= MAX_TEMPER
+        ? `⚒️ ${itemName(itemId)} is fully tempered (+${MAX_TEMPER}).`
+        : `⚒️ ${itemName(itemId)} is beyond this forge's craft (+${capability.maxTemper} here).`,
+    );
+  }
+  const tier = item(itemId)!.tier;
   return {
-    gold: 15 * (item(equipped)?.tier ?? 1) * (lvl + 1),
-    materials: temperMaterialsForTier(item(equipped)?.tier ?? 1, slot).map((id, index) => ({
-      id,
-      qty: lvl + 1 + index,
-    })),
+    ok: true,
+    itemId,
+    level,
+    cost: {
+      gold: 15 * tier * (level + 1),
+      materials: temperMaterialsForTier(tier, slot).map((id, index) => ({
+        id,
+        qty: level + 1 + index,
+      })),
+    },
   };
+}
+
+/** Refusal-only projection for callers that need guidance. */
+export function temperBlock(player: PlayerState, slot: 'weapon' | 'armor'): string | undefined {
+  const quote = temperQuote(player, slot);
+  return quote.ok ? undefined : quote.refusal;
+}
+
+/** Cost-only projection for callers that need a preview. */
+export function temperCost(player: PlayerState, slot: 'weapon' | 'armor'): TemperCost | undefined {
+  const quote = temperQuote(player, slot);
+  return quote.ok ? quote.cost : undefined;
 }
 
 export function temper(
@@ -141,11 +163,9 @@ export function temper(
   if (player.battle) return { ok: false, lines: ['⚔️ Finish the fight first.'] };
   if (player.dungeonRun) return { ok: false, lines: [DUNGEON_BLOCK] };
   if (player.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
-  const block = temperBlock(player, slot);
-  if (block) return { ok: false, lines: [block] };
-  const equipped = player.equipment[slot]!;
-  const cost = temperCost(player, slot);
-  if (!cost) return { ok: false, lines: ['The forge refuses.'] };
+  const quote = temperQuote(player, slot);
+  if (!quote.ok) return { ok: false, lines: [quote.refusal] };
+  const { itemId, level, cost } = quote;
   if (player.gold < cost.gold) return { ok: false, lines: [`💰 Needs ${cost.gold} gold.`] };
   const missing = cost.materials.filter((mat) => countOf(player, mat.id) < mat.qty);
   if (missing.length) {
@@ -156,12 +176,11 @@ export function temper(
   }
   for (const mat of cost.materials) removeItem(player, mat.id, mat.qty);
   player.gold -= cost.gold;
-  const lvl = temperLevelOf(player, equipped);
-  player.flags[temperKey(equipped)] = lvl + 1;
+  player.flags[temperKey(itemId)] = level + 1;
   return {
     ok: true,
     lines: [
-      `⚒️ ${itemName(equipped)} tempered to +${lvl + 1}!`,
+      `⚒️ ${itemName(itemId)} tempered to +${level + 1}!`,
       `Cost: ${cost.gold} gold · ${
         cost.materials.map((mat) => `${mat.qty}× ${itemName(mat.id)}`).join(' · ')
       }`,

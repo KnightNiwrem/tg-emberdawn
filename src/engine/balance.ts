@@ -1771,7 +1771,7 @@ export function runDungeon(
     const entered = diveDungeon(player, dungeon, rng);
     if (!entered.ok) return result;
     result.floors.push({ floor, hp: player.hp, mp: player.mp, battle: !!entered.battle });
-    if (!entered.battle) continue;
+    if (entered.kind === 'discovery') continue;
     const fought = runCampaignFight(player, entered.battle, 'objective', rng);
     result.rounds += fought.rounds;
     result.itemsUsed += fought.itemsUsed;
@@ -2394,7 +2394,7 @@ export function driveQuests(
       if (dungeonSource) {
         goto(dungeonSource.zoneId);
         const res = diveDungeon(player, dungeonSource.dungeon, rng);
-        if (res.ok && res.battle) {
+        if (res.ok && res.kind === 'battle') {
           if (fight(res.battle, 'objective') !== 'win') restock();
         } else if (!res.ok) {
           restock();
@@ -2428,7 +2428,7 @@ export function driveQuests(
         restock();
         continue;
       }
-      if (!res.battle) continue; // Authored discovery; retain the same run and resources.
+      if (res.kind === 'discovery') continue; // Authored discovery; retain the same run and resources.
       const isBoss = res.battle.origin.kind === 'dungeon' && res.battle.origin.boss;
       if (isBoss && report.aranyaLevel === 0 && zoneId === 'whisperwood') {
         report.aranyaLevel = player.level;

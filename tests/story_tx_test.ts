@@ -159,7 +159,7 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   const before = JSON.stringify(player);
 
   const r2 = applyDialogueChoice(player, { ...args, now: 2 });
-  assertEquals(r2.ok, true);
+  assert(r2.ok);
   assertEquals(r2.nextNodeId, 'n4', 'the replay still routes to the next beat');
   assertEquals(r2.lines, [], 'the replay carries no notices');
   assertEquals(r2.decided, undefined);
@@ -171,7 +171,7 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   await store.set(1507, player);
   const reloaded = (await store.get(1507))!;
   const r3 = applyDialogueChoice(reloaded, { ...args, now: 3 });
-  assertEquals(r3.ok, true);
+  assert(r3.ok);
   assertEquals(r3.lines, []);
   assertEquals(JSON.stringify(reloaded), before, 'the receipt survives persistence');
 
@@ -180,7 +180,7 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   player.scene.arg3 = undefined;
   const before4 = JSON.stringify(player);
   const r4 = applyDialogueChoice(player, { choiceId: 'decline', now: 4 });
-  assertEquals(r4.ok, false);
+  assert(!r4.ok);
   assertEquals(JSON.stringify(player), before4);
 });
 

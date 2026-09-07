@@ -398,12 +398,18 @@ export function bossGateBlock(player: PlayerState, dungeon: DungeonDef): string 
   return undefined;
 }
 
+/** Entry either refuses, resolves a discovery, or returns a fully adjudicated opening. */
+export type DungeonEntry =
+  | { ok: false; lines: string[]; battle?: never; outcome?: never }
+  | { ok: true; kind: 'discovery'; lines: string[]; battle?: never; outcome?: never }
+  | { ok: true; kind: 'battle'; lines: string[]; battle: BattleState; outcome: BattleOutcome };
+
 /** Starts at floor one, or continues the same uninterrupted descent. */
 export function diveDungeon(
   player: PlayerState,
   requested: DungeonDef,
   rng: Rng = defaultRng,
-): { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } {
+): DungeonEntry {
   if (player.journey) return { ok: false, lines: [JOURNEY_BLOCK] };
   if (player.battle) return { ok: false, lines: ['Finish the current battle first.'] };
   const dungeon = zone(player.currentZone)?.dungeon;
@@ -433,7 +439,7 @@ export function diveDungeon(
       ...onDungeonFloorVictory(player, dungeon, floor, ready),
     ];
     for (const id of [...new Set(ready)]) lines.push(questReadyLine(id));
-    return { ok: true, lines };
+    return { ok: true, kind: 'discovery', lines };
   }
   if (!enemyId || !enemyDef(enemyId)) {
     return { ok: false, lines: ['This dungeon floor is unavailable.'] };
@@ -449,6 +455,7 @@ export function diveDungeon(
   if (!started) return { ok: false, lines: ['This dungeon floor is unavailable.'] };
   return {
     ok: true,
+    kind: 'battle',
     battle: started.battle,
     outcome: started.outcome,
     lines: [

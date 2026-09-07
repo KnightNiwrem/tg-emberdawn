@@ -528,17 +528,16 @@ export interface ChoiceApplyArgs {
   now: number;
 }
 
-export interface ChoiceApplyResult {
-  ok: boolean;
-  refusal?: string;
-  /** Node to render next; undefined → the conversation ends and the
-   * player returns to the NPC topic menu. */
-  nextNodeId?: string;
-  /** Notices for the next screen (lines + once-only readiness, #119). */
-  lines: string[];
-  /** True when the applied choice was recorded as this decision's winner. */
-  decided?: string;
-}
+export type ChoiceApplyResult =
+  | { ok: false; refusal: string; lines: string[] }
+  | {
+    ok: true;
+    /** Absent when the conversation ends and returns to the topic menu. */
+    nextNodeId?: string;
+    lines: string[];
+    /** Decision id recorded by this application, if any. */
+    decided?: string;
+  };
 
 /** The ONE central operation that validates and applies a dialogue choice
  * (#126, authority hardened #130). The context is derived from the PLAYER'S

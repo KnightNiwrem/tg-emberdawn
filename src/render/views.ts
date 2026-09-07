@@ -17,7 +17,7 @@ import { CLASSES, MAX_LEVEL, xpForNextLevel } from '../engine/classes.ts';
 import { statsOf, xpProgress } from '../engine/character.ts';
 import { item, itemName, sellPrice } from '../content/items.ts';
 import { resolveStock as offeringsAt, shopAt } from '../engine/shops.ts';
-import { forgeAt, forgeCapability, temperBlock, temperCost } from '../engine/forge.ts';
+import { forgeAt, forgeCapability, temperQuote } from '../engine/forge.ts';
 import { materialSources } from '../engine/materials.ts';
 import { gatheringOptions } from '../engine/gathering.ts';
 import { recipeBlock, recipesAt } from '../engine/crafting.ts';
@@ -739,9 +739,11 @@ export function renderForge(player: PlayerState): InputRichMessage {
       ],
     };
   }
-  const weaponCost = temperCost(player, 'weapon');
-  const armorCost = temperCost(player, 'armor');
   const caps = forgeCapability(player)!;
+  const weaponQuote = temperQuote(player, 'weapon', caps);
+  const armorQuote = temperQuote(player, 'armor', caps);
+  const weaponCost = weaponQuote.ok ? weaponQuote.cost : undefined;
+  const armorCost = armorQuote.ok ? armorQuote.cost : undefined;
   const blocks: Block[] = [
     heading(`⚒️ ${forge.name}`, 3),
     ...(forge.desc ? [para({ type: 'italic', text: forge.desc } as RichText)] : []),
@@ -776,8 +778,8 @@ export function renderForge(player: PlayerState): InputRichMessage {
       );
     }
   }
-  const weaponBlock = temperBlock(player, 'weapon');
-  const armorBlock = temperBlock(player, 'armor');
+  const weaponBlock = weaponQuote.ok ? undefined : weaponQuote.refusal;
+  const armorBlock = armorQuote.ok ? undefined : armorQuote.refusal;
   blocks.push(
     buttonsRow([
       weaponCost

@@ -39,7 +39,7 @@ function storySnapshot(player: PlayerState): string {
 function assertRefused(player: PlayerState, choiceId: string): void {
   const before = storySnapshot(player);
   const result = applyDialogueChoice(player, { choiceId, now: 1 });
-  assertEquals(result.ok, false);
+  assert(!result.ok);
   assertEquals(storySnapshot(player), before, 'a refusal mutates nothing — not even a receipt');
 }
 
@@ -97,7 +97,7 @@ Deno.test('authority: an irreversible choice refuses before its confirmation is 
   atChoice(player); // on the choice list, no panel staged
   const before = storySnapshot(player);
   const result = applyDialogueChoice(player, { choiceId: 'promise', now: 1 });
-  assertEquals(result.ok, false);
+  assert(!result.ok);
   assert(
     result.refusal?.includes('Confirm'),
     `points at the confirmation screen: ${result.refusal}`,
@@ -127,7 +127,7 @@ Deno.test('authority: an ordinary choice refuses while a confirmation is staged'
     arg3: 'confirm:accept',
   };
   const result = applyDialogueChoice(player, { choiceId: 'accept', now: 1 });
-  assertEquals(result.ok, false, 'the staged panel is the live sub-state, not the list');
+  assert(!result.ok, 'the staged panel is the live sub-state, not the list');
   assertEquals(player.decisions['ferry_shrine_pledge'], undefined);
   assertEquals(player.storyReceipts, []);
   assertEquals(player.quests['m1_embers']?.status, 'available', 'nothing was accepted');
@@ -171,7 +171,7 @@ Deno.test('authority: an identical retry is a complete no-op (#129 receipts)', (
   assert(r1.ok);
   const before = JSON.stringify(player);
   const r2 = applyDialogueChoice(player, { choiceId: 'promise', now: 2 });
-  assertEquals(r2.ok, true, 'the retry is accepted…');
+  assert(r2.ok, 'the retry is accepted…');
   assertEquals(r2.nextNodeId, 'n4', '…routes to the authored next beat…');
   assertEquals(r2.lines, [], '…but carries no notices…');
   assertEquals(JSON.stringify(player), before, '…and mutates nothing at all');
