@@ -19,6 +19,7 @@ import {
   onKill,
   onZoneEnter,
   questDropAllowed,
+  questObjectivePending,
   questReadyLine,
   syncAvailability,
 } from './quests.ts';
@@ -215,6 +216,28 @@ export function nextDiveIsBoss(player: PlayerState, dungeon: DungeonDef): boolea
   return nextFloor(player, dungeon) >= dungeon.floors.length + 1;
 }
 
+/** Hidden quest assistance over an ALREADY eligible exploration pool.
+ * No extra RNG draws, state changes, or edits to the authored event table.
+ * Guarantees compete at base weights; otherwise the strongest boost wins. */
+export function questEncounterWeights(
+  player: PlayerState,
+  pool: readonly ExploreEvent[],
+): number[] {
+  const weights = pool.map((event) => {
+    let weight = event.weight;
+    for (const boost of event.questBoosts ?? []) {
+      if (!questObjectivePending(player, boost.questId, boost.objective)) continue;
+      if (boost.weight === 'guaranteed') return 'guaranteed';
+      weight = Math.max(weight, boost.weight);
+    }
+    return weight;
+  });
+  const hasGuarantee = weights.includes('guaranteed');
+  return weights.map((weight, index) =>
+    weight === 'guaranteed' ? pool[index].weight : hasGuarantee ? 0 : weight
+  );
+}
+
 export function explore(
   player: PlayerState,
   rng: Rng = defaultRng,
@@ -279,7 +302,7 @@ export function explore(
       }
     }
   }
-  const weights = pool.map((event) => event.weight);
+  const weights = questEncounterWeights(player, pool);
   const eventIndex = weightedIndex(rng, weights);
   const event = pool[eventIndex];
   if (!event) {

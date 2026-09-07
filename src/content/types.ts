@@ -583,31 +583,44 @@ export interface QuestDef {
   outcomes?: readonly string[];
 }
 
+/** Hidden exploration assistance, active only while this objective is pending.
+ * Numeric weights replace (never multiply) the base weight; competing rules
+ * use the largest. Guaranteed events form an exclusive pool at base weights.
+ * See docs/quest-encounters.md for authoring and eligibility rules. */
+export interface QuestEncounterBoost {
+  questId: string;
+  objective: Pick<Objective, 'kind' | 'target'>;
+  weight: number | 'guaranteed';
+}
+
 export type ExploreEvent =
-  | {
-    kind: 'battle';
-    enemy: string;
-    weight: number;
-    /** Authored encounter eligibility (#73): the event only rolls for
-     * players at/above this level. Unauthored = always eligible. Keeps
-     * low-level protection in CONTENT, not ad-hoc engine checks. */
-    minPlayerLevel?: number;
-    /** Symmetric ceiling — author sparingly: returning to earlier areas
-     * should still work (old enemies stay spawnable end-game). */
-    maxPlayerLevel?: number;
-  }
-  | { kind: 'treasure'; gold?: number; item?: string; weight: number; text: string }
-  | { kind: 'rest'; healPct: number; weight: number; text: string }
-  | { kind: 'flavor'; weight: number; text: string }
-  | {
-    kind: 'elite';
-    enemy: string;
-    weight: number;
-    text: string;
-    /** Elites are opt-in: locked until the player is this level (#73). */
-    minPlayerLevel?: number;
-    maxPlayerLevel?: number;
-  };
+  & { questBoosts?: readonly QuestEncounterBoost[] }
+  & (
+    | {
+      kind: 'battle';
+      enemy: string;
+      weight: number;
+      /** Authored encounter eligibility (#73): the event only rolls for
+       * players at/above this level. Unauthored = always eligible. Keeps
+       * low-level protection in CONTENT, not ad-hoc engine checks. */
+      minPlayerLevel?: number;
+      /** Symmetric ceiling — author sparingly: returning to earlier areas
+       * should still work (old enemies stay spawnable end-game). */
+      maxPlayerLevel?: number;
+    }
+    | { kind: 'treasure'; gold?: number; item?: string; weight: number; text: string }
+    | { kind: 'rest'; healPct: number; weight: number; text: string }
+    | { kind: 'flavor'; weight: number; text: string }
+    | {
+      kind: 'elite';
+      enemy: string;
+      weight: number;
+      text: string;
+      /** Elites are opt-in: locked until the player is this level (#73). */
+      minPlayerLevel?: number;
+      maxPlayerLevel?: number;
+    }
+  );
 
 export interface DungeonFloor {
   /** Cache granted once per hero, on first clearing this floor. Repeating

@@ -169,6 +169,22 @@ function objectiveProgress(
   return 0;
 }
 
+/** Read-only encounter relevance; shares readiness's live objective counts.
+ * Completing the selected objective stops assistance even when another
+ * objective keeps the quest active. Never advances the quest lifecycle. */
+export function questObjectivePending(
+  player: PlayerState,
+  questId: string,
+  objective: Pick<Objective, 'kind' | 'target'>,
+): boolean {
+  const questProgress = player.quests[questId];
+  if (questProgress?.status !== 'active' || player.questOutcomes[questId]) return false;
+  return quest(questId)?.objectives.some((candidate, index) =>
+    candidate.kind === objective.kind && candidate.target === objective.target &&
+    objectiveProgress(player, questProgress, candidate, index) < (candidate.count ?? 1)
+  ) ?? false;
+}
+
 function questComplete(player: PlayerState, id: string): boolean {
   const questDef = quest(id);
   const questProgress = player.quests[id];

@@ -165,6 +165,12 @@ export const ZONES: readonly ZoneDef[] = [
         kind: 'elite',
         enemy: 'e_stag',
         weight: 1,
+        // 18 / (18 + 18) = 50% while the accepted hunt is unfinished.
+        questBoosts: [{
+          questId: 'sq_stag',
+          objective: { kind: 'kill', target: 'e_stag' },
+          weight: 18,
+        }],
         minPlayerLevel: 5,
         text: 'A massive stag with emberless eyes crashes through the brush!',
       },
