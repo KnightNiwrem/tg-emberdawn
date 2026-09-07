@@ -127,16 +127,10 @@ function dealDamage(
   return { dmg: variance(rng, raw), crit };
 }
 
-/** Authoritative context for battle construction (#80): the opening phase
- * resolves INSIDE `startBattle`, so the caller supplies the fighting hero
- * and the seeded RNG. Openings persist in the returned battle state (shield
- * pool, effect instances, opening log) and are never rerolled on
- * save/load/rerender — this pipeline is the only place they run. */
+/** Opening context: startBattle resolves openings once and persists their outcomes.
+ * Save/load and rendering never reroll them. */
 export interface StartBattleOpts {
-  /** The fighting hero (#91: MANDATORY) — enemy-global openings, equipped
-   * battle-start triggers and learned pre-emptive skills all need a
-   * stat/target owner, so a playable battle cannot be constructed without
-   * one. A hero-less battle container must go through previewBattle. */
+  /** Required target/stat owner. Use previewBattle for a context-free container. */
   player: PlayerState;
   /** Seeded RNG for opening chance rolls — one draw per authored chance,
    * outcome-only persistence afterwards. Explicit by contract: opening
@@ -194,9 +188,7 @@ export function startBattle(
   // item charges, no cooldowns; chance rolls draw the injected RNG exactly
   // once and only the outcomes persist.
   const opening: string[] = [];
-  // #101: the construction owns its trace — every opening entry (ward,
-  // opening move, procs, pre-emptives, terminal adjudication) appends here
-  // in exact synchronous resolution order.
+  // This construction owns the trace in synchronous resolution order.
   const trace: CombatTraceEntry[] = [];
   // #96: the opening is an ORDERED RESOLUTION PHASE under the same
   // terminal invariant as a round (#86) — after every HP-changing effect
@@ -799,8 +791,9 @@ function validatePlayerAction(
   }
 }
 
-/** The trace this resolution records into (#101): owned by performAction,
- * returned on its result — no ambient installation anywhere. */
+/** Resolve one command synchronously: validate, snapshot initiative, resolve slots,
+ * then surviving-round bookkeeping. Stop immediately on terminal HP or escape.
+ * This call owns and returns its trace; invalid commands consume no round. */
 export function performAction(
   player: PlayerState,
   battle: BattleState,
@@ -812,9 +805,7 @@ export function performAction(
   if (!def || battle.phase !== 'active') {
     return { battle, lines: [], skipped: false, consumedTurn: false, outcome: 'ongoing', trace };
   }
-  // #96 defensive entry check: a pre-existing terminal state (an opening
-  // that already ended the fight, or a battle resumed past 0 HP) resolves
-  // immediately — no round runs, no enemy phase, no bookkeeping.
+  // An already-terminal fight resolves without running another round.
   if (battle.enemy.hp <= 0 || player.hp <= 0) {
     const outcome: BattleOutcome = battle.enemy.hp <= 0 ? 'victory' : 'defeat';
     recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
@@ -824,9 +815,7 @@ export function performAction(
 
   const actedRound = battle.round;
 
-  // #86 step 1 — validate WITHOUT charging: an invalid command consumes no
-  // round, ticks nothing, and hands the enemy nothing. Its lines stay
-  // handler feedback only (never in the battle log — #67/#32).
+  // Invalid-command feedback belongs to the handler, outside battle history.
   const check = validatePlayerAction(player, battle, action);
   if (!check.ok) {
     return {
@@ -843,17 +832,14 @@ export function performAction(
   let skipped = false;
   const terminalNow = (): boolean => terminalHp(player, battle);
 
-  // #86 step 2 — initiative snapshot: effective SPD after opening and
-  // start-of-round modifiers. Ties keep the documented player-first rule;
-  // SPD changes DURING the round wait for the next round's snapshot.
+  // Snapshot initiative once; ties favor the player. Mid-round SPD changes
+  // affect initiative only at the next snapshot.
   const playerFirst = effectivePlayerSpd(player, battle) >= effectiveEnemySpd(battle);
 
   /** The player's slot (#86 steps 3–4): turn-start periodics, stun check,
    * then the action — with a terminal stop after every HP-changing unit. */
   const runPlayerSlot = (): 'continue' | 'terminal' | 'fled' => {
-    // Turn-start periodic effects (#78) tick at the player's slot, one at
-    // a time — poison does not care whether you can act, but a lethal tick
-    // ends the round BEFORE the action and before any later tick (#86).
+    // Periodics precede stun and action; a lethal tick stops the remaining queue.
     const started = gatherTurnStartTicks(battle, maxHpOf(battle, player));
     for (const tick of started) {
       lines.push(...applyPeriodicTick(player, battle, tick, rng, trace));
@@ -870,9 +856,7 @@ export function performAction(
     }
     const res = applyPlayerAction(player, battle, action, rng, trace);
     lines.push(...res.lines);
-    // #69 rework: the guided fight advances its lesson beats only on the
-    // intended action kinds, in order — the beats cannot be skipped or
-    // reordered, whatever the damage rolls do.
+    // Lessons advance only on the required action, in teaching order.
     if (battle.tutorial && res.consumedTurn) {
       const step = battle.tutorialStep;
       if (step === 'basic' && action.kind === 'attack') battle.tutorialStep = 'skill';
@@ -890,9 +874,7 @@ export function performAction(
   const runEnemySlot = (): 'continue' | 'terminal' => {
     battle.enemy.turn++;
     if (consumeStun(battle, 'enemy', trace)) {
-      // The stun is consumed the moment the enemy loses its action (#78);
-      // was the stunnedEnemy flag. A stunned turn advances the counter —
-      // time passes — but chooses no move (#26).
+      // A stunned slot advances the action counter but selects no move.
       lines.push(`😵 ${battle.enemy.name} is stunned and cannot act!`);
       return 'continue';
     }
@@ -901,10 +883,7 @@ export function performAction(
       battle.tutorial && battle.tutorialStep === 'item' &&
       player.hp > Math.floor(playerStats.maxHp * 0.7)
     ) {
-      // #69 rework: the scripted teaching hit — deterministic, nonlethal,
-      // lands the hero clearly below the item-lesson threshold, so the
-      // lesson is always reachable through real play no matter how the
-      // damage rolls go.
+      // A deterministic, nonlethal hit makes the item lesson reachable.
       const target = Math.max(1, Math.floor(playerStats.maxHp * 0.45));
       const dmg = Math.max(1, player.hp - target);
       player.hp = Math.max(1, player.hp - dmg);
@@ -912,10 +891,8 @@ export function performAction(
       if (battle.guarding) {
         lines.push('🛡️ Your guard blunted it — a real hit still gets through.');
       }
-      // #104: even the deterministic teaching hit resolves its HP loss
-      // through the shared transition (trace → revival → terminal →
-      // reactions); its floor keeps the hero above 0, so the interception
-      // never fires — and tutorial fights never scan reactions.
+      // Keep the shared HP-loss trace; the floor prevents revival and the
+      // tutorial suppresses reactions.
       resolvePlayerHpLoss(player, battle, rng, {
         resolved: dmg,
         hpLost: dmg,
@@ -952,10 +929,7 @@ export function performAction(
     return { battle, lines, skipped, consumedTurn: true, outcome, trace };
   };
 
-  // #86 steps 3–5 — resolve up to two slots in initiative order; the first
-  // terminal state ends the round immediately: the defeated actor never
-  // takes its queued action, no riders/procs follow, and end-of-round work
-  // never runs.
+  // Resolve slots in initiative order; a terminal slot skips all remaining work.
   if (playerFirst) {
     if (runPlayerSlot() !== 'continue') return finish();
     if (runEnemySlot() === 'terminal') return finish();
@@ -964,9 +938,8 @@ export function performAction(
     if (runPlayerSlot() !== 'continue') return finish();
   }
 
-  // #86 step 6 — end-of-round bookkeeping only when BOTH actors survived
-  // BOTH slots. Ticks land one at a time; the first terminal state stops
-  // the remaining queue and all later bookkeeping (expiry, cooldown decay).
+  // Both slots survived. A lethal end-of-round tick still skips later ticks,
+  // expiry, and cooldown decay.
   battle.round++;
   const eor = gatherRoundEndTicks(battle, maxHpOf(battle, player));
   let ended = false;

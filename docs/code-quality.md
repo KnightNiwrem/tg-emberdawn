@@ -115,10 +115,18 @@ story-authority contracts remain in force. Reset confirmation requires its activ
 - #228: independent safe-haven forage recharge deadlines, with two-haven expiry coverage.
 - #229: quiet rest messages disclose applied HP/MP recovery.
 - #230: MemoryStore reads and writes own separate copies; failed delivery cannot save by aliasing.
-
 - #232: dungeon entry and dialogue application expose explicit success/refusal variants.
 - #233: forge mutations and rendering use resolved quotes; route variants share one plan
   constructor.
-
 - #231: named scene variants replace positional arguments; return destinations and item references
   are structured JSON. Pre-launch version 16 refuses older saves without migration.
+
+- #234: campaign shop planning takes explicit player state; travel accounting owns one accumulator.
+  Nearest-shop selection checks for an upgrade without sorting unused candidates or calculating
+  unused gains. The apparent shop retry loops always exited on their first iteration; explicit
+  single attempts preserve that behavior. Thirteen seeded campaign reports, including a deliberate
+  stall, matched byte-for-byte after the refactor.
+- #235: story and combat comments state current contracts and explain local ordering. Repeated
+  implementation history is consolidated here and in the story/combat skills; initiative snapshots,
+  lethal stops, transactional receipts, and final readiness reconciliation remain documented next to
+  their owners. This prose cleanup changes no executable code.

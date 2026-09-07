@@ -58,6 +58,16 @@ import { zone as zoneDef, ZONES } from '../content/zones.ts';
 import { type Rng } from './rng.ts';
 import { type CombatTraceEntry } from './telemetry.ts';
 
+import { nearestSupplyShop, nearestUpgradeShop, statWeight } from './campaign_policy.ts';
+import {
+  createTravelMetrics,
+  finalizeTravelMetrics,
+  recordJourneyEvent,
+  recordTravelArrival,
+  type TravelMetrics,
+} from './campaign_metrics.ts';
+export type { TravelMetrics } from './campaign_metrics.ts';
+
 // ── Heroes ──────────────────────────────────────────────────────────────
 
 /** Gear the simulation hero wears: `starting` = the level-1 class kit
@@ -79,13 +89,6 @@ export function makeHero(classId: ClassId, level: number, gear: GearProfile): Pl
   player.hp = derived.maxHp;
   player.mp = derived.maxMp;
   return player;
-}
-
-function statWeight(id: string): number {
-  const stats = itemDef(id)?.stats ?? {};
-  return (stats.atk ?? 0) + (stats.def ?? 0) + (stats.mag ?? 0) + (stats.res ?? 0) +
-    (stats.spd ?? 0) +
-    (stats.luck ?? 0) + (stats.hp ?? 0) / 4 + (stats.mp ?? 0) / 2;
 }
 
 /** Equips the best equippable catalog gear (class + level legal, never
@@ -1512,51 +1515,6 @@ export interface StallDiagnostic {
   failures: Record<string, number>;
 }
 
-/** #162/#169: route-level travel metrics, collected from the REAL journeys
- * the campaign sim walks — no teleport or economy bypass exists to hide
- * compound attrition. Every event metric comes from the coordinator's
- * STRUCTURED telemetry records (#169) — rendered prose is never parsed,
- * so changing narrative text cannot change telemetry. */
-export interface TravelMetrics {
-  /** Departures per edge id. */
-  edgeAttempts: Record<string, number>;
-  /** Successful final arrivals per edge id. */
-  edgeArrivals: Record<string, number>;
-  /** Resolved road events by structured kind (flavor/rest/treasure/
-   * battle) across every road the sim walked — one count per resolved
-   * roll, exactly once. Battle records emit when the road PRESENTS a
-   * fight, so this sum can never be lower than `travelBattles`. */
-  eventOutcomes: Record<string, number>;
-  /** The same composition per edge id (#169: per-road tuning reads its
-   * own road, not a global blend). */
-  eventOutcomesByEdge: Record<string, Record<string, number>>;
-  /** Road fights and the rounds they took. */
-  travelBattles: number;
-  travelRounds: number;
-  /** Deaths and successful flee-escapes on roads. */
-  roadDeaths: number;
-  roadFlees: number;
-  /** Contextual (#158) item grants on roads, measured from STRUCTURED
-   * grants only (#169): the coordinator's post-filter `granted` lists and
-   * staged victory `rewards.contextual` — never found-item lines. */
-  contextualDrops: number;
-  /** Raw SUM of per-arrival HP/MP fractions (#169: unambiguous — divide
-   * by `arrivalSamples` for the mean; the finalized means below are what
-   * reports print). The samples are PRE-arrival: the road's condition
-   * when the last coordinator call began, BEFORE any safe-haven full
-   * heal masks it. */
-  hpArrivalSumPct: number;
-  mpArrivalSumPct: number;
-  /** Finalized MEANS over `arrivalSamples`, in [0,1] (#169 — the old
-   * field documented a mean but stored the unnormalized sum). */
-  hpPctOnArrival: number;
-  mpPctOnArrival: number;
-  arrivalSamples: number;
-  /** Every forced road event the main story required — the derived sum
-   * of `eventOutcomes`, finalized with the means. */
-  totalRoadEvents: number;
-}
-
 export interface ProgressionReport {
   classId: ClassId;
   seed: number;
@@ -1816,6 +1774,7 @@ export function driveQuests(
   let explores = 0;
   let itemsUsed = 0;
   const beats: ProgressionBeat[] = [];
+  const travel = createTravelMetrics();
   const report: ProgressionReport = {
     classId,
     seed,
@@ -1829,58 +1788,14 @@ export function driveQuests(
     totalGrindFights: 0,
     totalEncounterAttempts: 0,
     totalItemsUsed: 0,
-    travel: {
-      edgeAttempts: {},
-      edgeArrivals: {},
-      eventOutcomes: {},
-      eventOutcomesByEdge: {},
-      travelBattles: 0,
-      travelRounds: 0,
-      roadDeaths: 0,
-      roadFlees: 0,
-      contextualDrops: 0,
-      hpArrivalSumPct: 0,
-      mpArrivalSumPct: 0,
-      hpPctOnArrival: 0,
-      mpPctOnArrival: 0,
-      arrivalSamples: 0,
-      totalRoadEvents: 0,
-    },
+    travel,
     chapter1Done: false,
     campaignDone: false,
     aranyaLevel: 0,
     aranyaGearTier: 0,
     aranyaDeathsBefore: 0,
   };
-  // #162/#169: route-level travel metrics — collected from the REAL
-  // journeys the sim walks; no simulation-only travel or economy bypass
-  // exists. Every event metric arrives through the coordinator's
-  // structured telemetry sink — never through rendered prose.
-  const travel: TravelMetrics = {
-    edgeAttempts: {},
-    edgeArrivals: {},
-    eventOutcomes: {},
-    eventOutcomesByEdge: {},
-    travelBattles: 0,
-    travelRounds: 0,
-    roadDeaths: 0,
-    roadFlees: 0,
-    contextualDrops: 0,
-    hpArrivalSumPct: 0,
-    mpArrivalSumPct: 0,
-    hpPctOnArrival: 0,
-    mpPctOnArrival: 0,
-    arrivalSamples: 0,
-    totalRoadEvents: 0,
-  };
-  /** The structured telemetry sink (#169): one record per resolved road
-   * event, emitted by the coordinator at its resolution point. */
-  const onJourneyEvent: JourneyTelemetry = (event) => {
-    travel.eventOutcomes[event.kind] = (travel.eventOutcomes[event.kind] ?? 0) + 1;
-    const byEdge = travel.eventOutcomesByEdge[event.edgeId] ??= {};
-    byEdge[event.kind] = (byEdge[event.kind] ?? 0) + 1;
-    if (event.granted?.length) travel.contextualDrops += event.granted.length;
-  };
+  const onJourneyEvent: JourneyTelemetry = (event) => recordJourneyEvent(travel, event);
   /** BFS over currently usable edges — adjacency, unlocks and conditions
    * all honored. Returns the edge-id path, or undefined when disconnected. */
   const findPath = (toZone: string): string[] | undefined =>
@@ -1931,11 +1846,7 @@ export function driveQuests(
     let guard = 0;
     while (guard++ < 60) {
       if (step.kind === 'arrived') {
-        travel.edgeArrivals[edgeId] = (travel.edgeArrivals[edgeId] ?? 0) + 1;
-        const stats = statsOf(player);
-        travel.hpArrivalSumPct += stats.maxHp > 0 ? preHp / stats.maxHp : 0;
-        travel.mpArrivalSumPct += stats.maxMp > 0 ? preMp / stats.maxMp : 0;
-        travel.arrivalSamples++;
+        recordTravelArrival(travel, edgeId, { hp: preHp, mp: preMp, ...statsOf(player) });
         return true;
       }
       if (step.kind === 'progress') {
@@ -2168,66 +2079,19 @@ export function driveQuests(
     if (shopInZone(player.currentZone)) shopHere();
     /** Trip to the nearest counter stocking heal potions when the shelf
      * runs low — supplies are survival, independent of gear upgrades. */
-    const potionTrip = (): boolean => {
-      if (HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) >= 6) return true;
-      let pot: { zoneId: string; dist: number } | undefined;
-      for (const zone of ZONES) {
-        if (!player.unlockedZones.includes(zone.id) || !shopInZone(zone.id)) continue;
-        const stock = resolveStock({ ...player, currentZone: zone.id } as PlayerState);
-        if (
-          !stock.some((offering) => (HEAL_ITEMS as readonly string[]).includes(offering.itemId))
-        ) continue;
-        const path = findPath(zone.id);
-        if (!path) continue;
-        if (!pot || path.length < pot.dist) pot = { zoneId: zone.id, dist: path.length };
-      }
-      if (!pot) return false;
-      let guard = 0;
-      while (player.currentZone !== pot.zoneId && guard++ < 6) {
-        if (walkTo(pot.zoneId)) break;
-        return false; // aborted mid-walk; the next shop() call retries
-      }
-      if (player.currentZone === pot.zoneId) shopHere();
-      return HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) >= 6;
+    const potionTrip = (): void => {
+      if (HEAL_ITEMS.reduce((sum, id) => sum + countOf(player, id), 0) >= 6) return;
+      const supplyZone = nearestSupplyShop(player, HEAL_ITEMS);
+      if (!supplyZone) return;
+      // One attempt; an aborted crossing is retried on the next shop() call.
+      if (player.currentZone !== supplyZone && !walkTo(supplyZone)) return;
+      if (player.currentZone === supplyZone) shopHere();
     };
     potionTrip();
-    // Best (nearest) shop offering a strictly better, affordable piece.
-    let best: { zoneId: string; gain: number; dist: number } | undefined;
-    for (const zone of ZONES) {
-      if (!player.unlockedZones.includes(zone.id) || !shopInZone(zone.id)) continue;
-      const probe = { ...player, currentZone: zone.id } as PlayerState;
-      const stock = resolveStock(probe);
-      let gain = 0;
-      for (const kind of ['weapon', 'armor'] as const) {
-        const curW = statWeight(player.equipment[kind] ?? '');
-        const better = stock
-          .filter((offering) => {
-            const id = offering.itemId;
-            return (kind === 'weapon' ? id.startsWith('w_') : id.startsWith('a_')) &&
-              isEquippable(id, player.classId, player.level).ok &&
-              statWeight(id) > curW && offering.price <= player.gold - 30;
-          })
-          .sort((leftOffering, rightOffering) =>
-            statWeight(rightOffering.itemId) - statWeight(leftOffering.itemId)
-          )[0];
-        if (better) gain += statWeight(better.itemId) - curW;
-      }
-      if (gain <= 0) continue;
-      const path = findPath(zone.id);
-      if (!path) continue;
-      if (!best || path.length < best.dist) best = { zoneId: zone.id, gain, dist: path.length };
-    }
-    if (best) {
-      // A REAL trip: bounded walk to the regional counter, then shop.
-      let guard = 0;
-      while (player.currentZone !== best.zoneId && guard++ < 6) {
-        if (walkTo(best.zoneId)) break;
-        // Aborted mid-walk (death/flee): the death flow relocated us; the
-        // next shop attempt happens on the caller's next shop() call.
-        return;
-      }
-      if (player.currentZone === best.zoneId) shopHere();
-    }
+    const upgradeZone = nearestUpgradeShop(player);
+    if (!upgradeZone) return;
+    if (player.currentZone !== upgradeZone && !walkTo(upgradeZone)) return;
+    if (player.currentZone === upgradeZone) shopHere();
   }
 
   /** Explore-farm until the level rises; returns fights spent. */
@@ -2626,18 +2490,7 @@ export function driveQuests(
   report.totalGrindFights = grind;
   report.totalEncounterAttempts = explores;
   report.totalItemsUsed = itemsUsed;
-  // #169: finalize the derived travel metrics — the explicit means over
-  // arrival samples and the derived event total (the exact sum of the
-  // structured outcome counts, by construction).
-  const outcomes = Object.values(travel.eventOutcomes).reduce((sum, count) => sum + count, 0);
-  travel.totalRoadEvents = outcomes;
-  travel.hpPctOnArrival = travel.arrivalSamples > 0
-    ? travel.hpArrivalSumPct / travel.arrivalSamples
-    : 0;
-  travel.mpPctOnArrival = travel.arrivalSamples > 0
-    ? travel.mpArrivalSumPct / travel.arrivalSamples
-    : 0;
-  report.travel = travel;
+  finalizeTravelMetrics(travel);
   return report;
 }
 
