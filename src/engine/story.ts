@@ -103,8 +103,8 @@ export interface StoryResult {
    * revoked (lock/fail/resolve/turn-in) never appears here — announce once. */
   readyQuests: string[];
   /** Transition log of the quests this bundle started (#137) — NOT a
-   * final-state summary: a later effect in the same bundle may have locked,
-   * failed, resolved or turned in a listed quest. Read `p.quests` for the
+   * final-state summary: a later effect in the same bundle may have resolved
+   * or turned in a listed quest. Read `player.quests` for the
    * committed status. */
   startedQuests: string[];
   /** Story events emitted (deduped). */

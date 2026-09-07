@@ -49,15 +49,16 @@ sink. This is a documented design choice, not a bug.
 
 ## Evaluated dead-code findings
 
-`npx fallow` output is advisory — evaluate findings, do not auto-apply them:
+`npx fallow` output is advisory. Follow the review boundaries in
+[docs/code-quality.md](../../../docs/code-quality.md#accepted-boundaries):
 
-- "Unlisted dependencies" (grammy, grammy-testing) is a Node-only heuristic and a false positive
+- Unused functions, re-exports, and export-visibility cleanup remain deferred under #185. Preserve
+  them unless the owner explicitly revisits that scope. Do not remove unused APIs or narrow export
+  visibility solely to clear findings, whether manually or automatically.
+- "Unlisted dependencies" (grammy, grammy-testing, pg) is a Node-only heuristic and a false positive
   here: this is a Deno project; dependencies live in `deno.json`, not `package.json`.
-- One residual ~12-line clone pair in `render/views.ts` (shop buy vs sell rows) is accepted: the two
-  rows differ in label, action, and semantics, and a shared abstraction would be more indirect than
-  the duplication.
-- Large dispatch switches (`callbacks.ts`, view renderers) are flat and exhaustive by design;
-  complexity lives in data, not control flow.
+- Shop buy/sell row duplication in `src/render/views.ts` is accepted: the two rows differ in label,
+  action, and semantics, and a shared abstraction would be more indirect than the duplication.
 
 ## Large dispatch switches
 

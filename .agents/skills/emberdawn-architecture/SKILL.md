@@ -14,25 +14,31 @@ Authoritative code and tests: `src/handlers/session.ts`, `src/handlers/callbacks
 
 ## One live message per player
 
-- Each player has exactly one live game message (`p.messageId`). Every view change edits that
-  message in place through `commit()` in `src/handlers/session.ts`. `commit()` resends and re-points
-  `p.messageId` only when Telegram reports the tracked message is missing or no longer editable (the
-  `RESENDABLE` list). Other edit failures — including rate limits and oversized messages — surface
-  instead of resending. "Message is not modified" succeeds without advancing the rendered revision.
-- Never send extra button-bearing messages during normal play. The only exceptions are the class
-  picker and the post-reset picker, which render before a player exists.
-- Backing out of an interaction or traveling resets the scene and bumps `uiRev`.
+- Each player has exactly one live game message (`player.messageId`). Normal gameplay view changes
+  edit it through `commit()` in `src/handlers/session.ts`. Initial delivery and explicit `/start`
+  re-centering send a fresh live message; `/start` deliberately clears the tracked pointer first,
+  and older copies become stale.
+- When editing a tracked message, `commit()` resends and updates `player.messageId` only when
+  Telegram reports it is missing or no longer editable (the `RESENDABLE` list). Other edit failures
+  — including rate limits and oversized messages — surface instead of resending. "Message is not
+  modified" succeeds without advancing the rendered revision.
+- Never send additional button-bearing messages during normal gameplay. The class picker and
+  post-reset picker are stateless onboarding screens; confirmed reset delivers the picker before
+  deleting the old save, as described below. Explicit `/start` replaces the live game message.
+- Back and travel actions select the appropriate scene. Successful `commit()` owns the `uiRev`
+  advance; scene selection does not independently bump it.
 
 ## Staleness and revision guard
 
-- Taps on older message copies are answered with a toast and ignored (`isLiveMessage` via
-  `tapIsCurrent`). Newer-than-tracked message ids are adopted, together with the render revision
-  that copy was stamped with.
-- Every committed render stamps its buttons with the player's `uiRev` (cycled 1..9999, embedded in
-  callback data as `<view>:<rev>:<action>`). The router in `src/handlers/callbacks.ts` rejects
-  revision mismatches BEFORE any mutation, so replays and double-taps on the same live message are
-  no-ops. Every gameplay callback must carry its stamped revision; rev-less callbacks are rejected
-  as stale.
+- Every committed render stamps its buttons with the rendered `uiRev` (cycled 1..9999, embedded in
+  callback data as `<view>:<rev>:<action>[:<arg>]`). Every gameplay callback must carry that
+  revision.
+- The router uses `tapIsCurrent` in `src/handlers/session.ts` before gameplay mutation. It rejects
+  revisionless taps before any adoption, and answers taps on older message copies with a stale
+  toast. For the tracked message, a revision mismatch is stale, so replays and double-taps after a
+  committed revision advance are no-ops. A newer-than-tracked message copy is deliberately adopted
+  as authoritative, together with its stamped revision; this updates `messageId` and `uiRev` before
+  gameplay proceeds.
 - The only exception is the class picker (`m:pk:<class>`), which renders before a player exists and
   bypasses the staleness guard.
 - Do not weaken this guard into "always process": stale taps corrupt pacing.
@@ -45,14 +51,15 @@ strings in renderers or handlers.
 
 ## Locking and cross-instance consistency
 
-Every update runs inside `PlayerStore.withLock(user)`:
+Every user-associated update runs inside `PlayerStore.withLock(userId)`:
 
 - The bot's per-user promise chain serializes updates within one process.
 - `PgStore.withLock` holds a Postgres transaction-scoped advisory lock on a dedicated connection
-  around the whole load → mutate → save flow, which runs entirely on that same connection. Two bot
-  instances can never interleave a read-modify-write for one player (no lost writes); concurrent
-  updates for distinct players can never starve the connection pool; a failed section rolls back
-  atomically and the lock releases with the transaction, so there is no explicit unlock to leak.
+  around the whole load → mutate → render → save flow. State queries reuse that same connection, so
+  two bot instances cannot interleave a read-modify-write for one player. Reuse prevents the pool
+  deadlock caused by lock holders requesting a second connection. Failed sections roll back database
+  writes; Telegram sends and edits already delivered are outside that transaction. The lock releases
+  with the transaction, so there is no explicit unlock to leak.
 - `MemoryStore.withLock` is a passthrough for single-process tests.
 - Never mutate player state outside the lock. Never hold the lock across user input.
 
@@ -106,13 +113,14 @@ text.
    No/cancel resumes the live scene — a pending fight stays a fight. A redelivered confirmation
    after deletion is a harmless no-op; once a new hero exists, the staleness guard rejects old reset
    callbacks. The delivery-before-delete guarantee applies only to this confirmed flow.
-2. **Too-old or unversioned pre-launch save:** the save cannot be loaded, so a confirmation scene
-   cannot be staged or persisted. An explicit `/reset` deletes it immediately and presents the class
-   picker — this is the documented escape hatch for disposable development saves.
+2. **Unsupported pre-launch save:** an old/unversioned save or a current-version save rejected by
+   `assertResolvablePersistedIds()` cannot be loaded, so a confirmation scene cannot be staged or
+   persisted. An explicit `/reset` deletes it immediately and presents the class picker — this is
+   the documented escape hatch for disposable development saves.
 3. **Newer-version save:** refused without mutation or deletion, with a reply telling the player
    their progress is safe.
 
-Case 2 is regression-tested in `tests/repair2_test.ts`.
+Case 2 is regression-tested in `tests/repair2_test.ts` and `tests/save_identity_test.ts`.
 
 ## Webhook boundary
 
@@ -129,8 +137,8 @@ Case 2 is regression-tested in `tests/repair2_test.ts`.
   nonliteral — never a rules source. The player-facing mechanical summary is generated from the
   structured effect specs by `src/engine/mechanics.ts`
   (`mechanicsText`/`mechanicsLines`/`consumableEffectLines`); equipment triggers disclose their
-  mechanics the same way (`triggerDisclosure` in `render/menus.ts`). Never re-type numbers in
-  authored prose, and never replace the generated summary with a second hand-written description.
+  mechanics the same way (`triggerDisclosure` in `render/menus.ts`). Never duplicate mechanical
+  quantities in authored prose or replace the generated summary with a hand-written description.
 - Canonical rules vocabulary: **Shield** (the absorbable pool), **DEF/RES**, **round** (duration and
   tick unit), **action** (one actor's opportunity to act), **beneficial/harmful effect** (cleanse
   and dispel categories).
@@ -140,5 +148,5 @@ Case 2 is regression-tested in `tests/repair2_test.ts`.
   and may use in-world wording, but generic effect output (shield grants, capacity fades, dispels)
   still uses the canonical terms: the pool is always "Shield" (never "ward"), durations are rounds,
   and removals name beneficial or harmful effects.
-- The balance harness parses some of those generic lines (the SHIELD_FADE and SHIELD_WASTE regexes
-  in `src/engine/balance.ts`). Keep them in sync if the copy changes.
+- Some balance metrics still parse generic battle lines, while others use structured trace entries.
+  When changing that copy, follow the parser and telemetry guidance in `emberdawn-combat`.

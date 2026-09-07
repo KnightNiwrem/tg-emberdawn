@@ -15,10 +15,11 @@ imply launch, and nothing may infer or automate the transition.
 
 - Once an ID can be persisted by a live release, it is part of the durable save contract. Persisted
   content IDs must remain resolvable and must not be renamed, deleted, or reused casually.
-- Persistable IDs include more than `currentZone`: inventory and equipment items, quest keys,
-  learned skills, active-battle enemies and effect sources, battle origin zone/dungeon IDs, scene
-  arguments, and IDs encoded into durable flags.
-- Display names and other non-identity presentation may change freely.
+- The contract covers nested and encoded identities as well as top-level catalog keys. Use the
+  identity-location inventory in `src/engine/validate.ts` as a starting point; the live baseline
+  must cover every identity that can appear in a supported save, including any the validator omits.
+- Presentation fields may change freely only when they do not participate in persisted identities.
+  Enemy move names currently serve as effect identities and are covered by the durable-ID contract.
 - Retiring content may stop future acquisition while retaining lookup compatibility.
 - Any intentional incompatible change requires an explicit versioned save migration (ordered
   `stateVersion` steps, never "state looks old" sniffing) or another deliberate compatibility

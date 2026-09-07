@@ -26,9 +26,9 @@ export interface PlayerStore {
    * by the user id on a dedicated connection for the duration of `fn`, and
    * fn's state queries run on that SAME connection (#37) — so two instances
    * can never interleave read-modify-write cycles for the same player, a
-   * committed update is never silently lost, and concurrent distinct-user
-   * updates can never starve the pool. The in-memory store is a passthrough
-   * — a single process serializes per-user work via the bot's promise chain
+   * committed update is never silently lost, and state queries avoid the
+   * deadlock from requesting a second pooled connection. The in-memory store
+   * is a passthrough — a single process serializes per-user work via the bot's promise chain
    * and has no cross-instance race. */
   withLock<T>(userId: number, fn: () => Promise<T>): Promise<T>;
 }
@@ -148,9 +148,9 @@ export class PgStore implements PlayerStore {
    * itself, so there is no explicit unlock step whose failure could hand a
    * pooled session back with the lock still attached. fn's get/set/delete
    * route through that same client (async-local scope), so a lock holder
-   * never needs a second pool connection: N concurrent distinct-user
-   * updates can never starve the pool. A failed section rolls back
-   * atomically — half-applied state can never commit. */
+   * never needs a second pool connection, avoiding pool-exhaustion deadlock.
+   * A failed section rolls back database writes atomically. Already-delivered
+   * Telegram messages are outside this transaction and cannot be rolled back. */
   async withLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {

@@ -21,8 +21,8 @@ export function createBot(options: BotOptions): Bot<Context> {
   // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a
   // transaction-scoped advisory lock around the whole update, so a second
   // bot instance waits instead of racing a lost-update against this one.
-  // The locked section runs on its own connection (#37) — concurrent
-  // distinct-user updates can never starve the connection pool.
+  // State queries reuse the connection holding the lock (#37), avoiding
+  // the pool-exhaustion deadlock caused by requesting a second connection.
   const chains = new Map<number, Promise<void>>();
   bot.use(async (ctx, next) => {
     const userId = ctx.from?.id;

@@ -39,15 +39,18 @@ These apply to every change:
    complete before rendering or persistence proceeds. No event bus, no detached state mutation, no
    parallel mutation of the same fight. Async I/O belongs only at the Telegram/database boundary.
    Pinned by `tests/architecture_test.ts`.
-3. **Single live message.** Each player has exactly one live game message. Every view change edits
-   it in place via `commit()` in `src/handlers/session.ts`. Never send extra button-bearing messages
-   during normal play.
+3. **Single live message.** Each player has exactly one live game message. Normal gameplay view
+   changes edit it in place via `commit()` in `src/handlers/session.ts`. Explicit `/start` delivers
+   a fresh live message; older copies become stale. Never send extra button-bearing messages during
+   normal play.
 4. **Staleness and revision guard.** Every committed render stamps its buttons with the player's
-   `uiRev`; the router rejects stale messages and revision mismatches BEFORE any mutation, so
-   replays and double-taps are no-ops. Do not weaken this into "always process".
-5. **Cross-instance consistency.** Every update runs inside `PlayerStore.withLock(user)` around the
-   whole load → mutate → save flow. Never mutate player state outside the lock; never hold the lock
-   across user input.
+   `uiRev`; the router validates message identity and revision BEFORE gameplay mutation. Tracked
+   messages require a matching revision; a newer copy may become authoritative by adopting its
+   stamped revision. Stale taps and revisionless gameplay callbacks are no-ops. Do not weaken this
+   into "always process".
+5. **Cross-instance consistency.** Every user-associated update runs inside
+   `PlayerStore.withLock(user)` around the whole load → mutate → save flow. Never mutate player
+   state outside the lock; never hold the lock across user input.
 6. **callback_data budget.** 64 bytes maximum, built and parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Never inline raw callback strings in renderers or handlers.
 7. **Persisted state is plain JSON.** `PlayerState` — including its nested `BattleState` — is

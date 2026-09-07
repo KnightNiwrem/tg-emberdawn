@@ -5,10 +5,10 @@ description: Use when adding or changing Emberdawn items, skills, enemies, zones
 
 # Emberdawn content authoring
 
-Rules for adding or changing content in `src/content/`. Content modules are pure data — they never
-import grammy or touch Telegram/Deno-specific APIs. Content refers only to real ids defined in other
-content modules; the integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce this
-and must stay green.
+Rules for adding or changing content in `src/content/`. Content definitions are declarative data;
+pure construction and lookup helpers are allowed. Content modules never import grammy or touch
+Telegram/Deno-specific APIs. Content refers only to real ids defined in other content modules; the
+integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce this and must stay green.
 
 ## Adding content checklist
 
@@ -19,7 +19,8 @@ and must stay green.
    each catalog's real convention.
 2. Enemy stats: use `mk()` with level and multipliers — never raw numbers.
 3. Wire drops at sensible probabilities (bosses 0.4–1.0, field 0.1–0.6).
-4. Quest rewards should cover roughly 2–3 shop tiers of gear at that level.
+4. Evaluate quest rewards against eligible local shop stock and prices at that quest beat, including
+   item rewards and required expenditures. Check the relevant progression and balance tests.
 5. Run the content-integrity tests; they catch dangling ids.
 6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
    engine also filters them). Battles belong in the wilds players travel to. They also author no
@@ -32,7 +33,7 @@ and must stay green.
    changes follow `emberdawn-persistence`.
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
    enough dungeon floor slots. `tests/progression_test.ts` enforces encounter capacity, and the full
-   m1→m25 simulation walks the entire quest graph through the pure engine.
+   m1→m25 simulation walks the main questline through the pure engine.
 10. Quest and dialogue content must also satisfy `emberdawn-story-and-quests`: lifecycle contacts,
     offer/turn-in dialogues, story-event objectives, and topic wiring are all content-integrity
     tested.
@@ -57,11 +58,12 @@ and must stay green.
   forge-work, and the forge is a bounded per-pattern sink) and boost only that item's own base
   stats. The two temper materials are chosen by the item's tier and slot, not the player's location.
 - Gathering and processing (#203/#204) use explicit local catalogs in `content/gathering.ts` and
-  `content/crafting.ts`. Gathering requires authored tools/bait and shares three charges per zone,
-  replenished six hours after the last use. Refusals never spend ingredients, bait, gold or charges.
-  Tools remain ordinary inventory materials. Recipe inputs and material uses are derived for the UI;
-  do not promise future facilities in flavor text. See `docs/resources-and-crafting.md` for sources,
-  the early supply chain, tempering costs, and current extension boundaries.
+  `content/crafting.ts`. Gathering requires authored tools/bait and shares three charges per zone
+  across activities. Spending the final charge starts a six-hour timer; all three replenish when it
+  expires. Partially spent allowances do not recharge. Refusals never spend ingredients, bait, gold
+  or charges. Tools remain ordinary inventory materials. Recipe inputs and material uses are derived
+  for the UI; do not promise future facilities in flavor text. See `docs/resources-and-crafting.md`
+  for sources, the early supply chain, tempering costs, and current extension boundaries.
 
 ## Endgame economy
 
@@ -69,8 +71,8 @@ and must stay green.
 - Safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
   last charge is spent; `explore()` takes an injected `now` for deterministic tests). Free travel
   never refreshes it.
-- The Vault boss floor consumes the Sunspire Key on the first victorious entry; its sole source is
-  the m11_toll reward.
+- The Vault consumes the Sunspire Key on the first boss victory; its sole source is the m11_toll
+  reward.
 - Boss first-clears award boss trinkets `t_12`–`t_18`: never stocked, `unique` (unsellable and
   un-droppable earned trophies).
 
@@ -78,10 +80,11 @@ and must stay green.
 
 The bridge to Aranya is authored, not an unexplained grind: m1_embers (4× Lv-1 ember-rats in the
 Outskirts) → m2_letter (delivery) → m3_wolves (3× Lv-4 wolves, Whisperwood) → m4_floors
-(silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: two Iron Chunks, no coin cost; the
-village band runs [1,7] so Bram's rack stocks tier 2) → m3_roots (Aranya, level 7) → m4_blessing
-(shards, level 8, unlocks Hollowmere). Every dungeon authors `recommendedLevel`; see
-`emberdawn-combat` for how it is surfaced.
+(silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: two Iron Chunks, no coin cost; Bram's
+authored tier-2 stock group opens when the quest becomes active and remains open afterward, subject
+to equipment eligibility) → m3_roots (Aranya, level 7) → m4_blessing (shards, level 8, unlocks
+Hollowmere). Every dungeon authors `recommendedLevel`; see `emberdawn-combat` for how it is
+surfaced.
 
 ## Skill cadence
 
@@ -90,12 +93,15 @@ level 4. Ladders stay distinct rather than uniform: warrior's second damage tier
 with Iron Wall moved to 16; cleric's offensive upgrade is 11 (Radiant Burst) with Holy Ward at 16,
 and Judgment strikes for 290% MAG so late-game cleric damage is not stranded. The class picker
 states the starting kit, tradeoff, and complexity, and marks Warrior as the forgiving beginner pick.
-Skill descriptions are machine-checked against their authored coefficients in the test suite.
+Mechanical summaries are generated from `effects` by `src/engine/mechanics.ts`; authors provide
+structured effects and nonmechanical flavor. New effect shapes require summary-renderer support and
+relevant tests.
 
 ## Story and theme
 
 The game is about seeking hope for a future: the player is a Dawncaller, the Sundered King is
 despair hoarding tomorrow, and each chapter recovers a piece of the dawn. Chapter flags are
 `chapter1Done`…`chapter6Done`; the game-clear moment is defeating King Aldric (flag set via the
-dungeon first-clear `crownRestored`). Keep new writing in this register: setbacks are real but
-framed as "not yet", never "never". For prose style, load `emberdawn-narrative-writing`.
+dungeon first-clear `crownRestored`). Preserve an overall hopeful tone while stating permanent
+consequences plainly: a closed quest branch or forfeited reward must not sound temporarily
+unavailable. For prose style and consequence disclosure, load `emberdawn-narrative-writing`.

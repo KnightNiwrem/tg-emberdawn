@@ -10,10 +10,11 @@ The umbrella invariant in the root `AGENTS.md` applies at all times; this skill 
 implementation detail behind it.
 
 Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `src/engine/npc.ts`,
-`src/engine/types.ts`, `src/engine/conditions.ts`, `src/content/dialogues.ts`,
-`src/content/quests.ts`, `src/handlers/hub.ts`, `tests/story_tx_test.ts`,
+`src/engine/types.ts`, `src/engine/conditions.ts`, `src/content/types.ts`,
+`src/content/dialogues.ts`, `src/content/quest_dialogues.ts`, `src/content/quests.ts`,
+`src/engine/world.ts`, `src/handlers/hub.ts`, `tests/story_tx_test.ts`,
 `tests/choice_authority_test.ts`, `tests/choice_test.ts`, `tests/npc_topics_test.ts`,
-`tests/dialogue_test.ts`, `tests/quest_copy_test.ts`.
+`tests/dialogue_test.ts`, `tests/quest_copy_test.ts`, `tests/tutorial_test.ts`.
 
 ## Quest state machine
 
@@ -26,11 +27,13 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   caused it. `resolveVictory` collects ready ids from drops, the kill, the availability refresh,
   dungeon bookkeeping, and first-clear rewards, and appends one deduped `questReadyLine`
   (`📜 "<name>" is ready to turn in!` — the one shared formatter) per quest after all of the
-  victory's mutations. `travel()` puts it in the arrival lines; the talk interaction puts it in the
-  interaction notices. It is never re-derived at render time and never re-announced for an
+  victory's mutations. `arriveAt()` puts it in the arrival lines; the dialogue interaction puts it
+  in the interaction notices. It is never re-derived at render time and never re-announced for an
   already-`turnIn` quest.
-- Random quest-item drops are relevance-capped (`questDropAllowed`): they flow only while an open
-  (available or active) quest still needs them, and stop permanently once it is done.
+- Random quest-kind item drops are relevance-capped (`questDropAllowed`) to the largest matching
+  collect requirement among available, active, or turnIn quests. They stop when the bag reaches that
+  cap or no open quest needs the item. Completing one quest does not block drops another open quest
+  needs; materials and consumables are not capped.
 
 ## Quest lifecycle contacts and physical authority
 
@@ -57,10 +60,11 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 
 ## Dialogue scenes
 
-- Authored conversations live in `src/content/dialogues.ts` (`DialogueDef`: stable id, owning NPC,
-  start node, and a graph of `DialogueNode`s). A node is a `line` (explicit npc/player/narrator
-  speaker and an optional `next` link), a `choice` (a prompt with branching `DialogueChoice`s), or
-  an `end`.
+- Quest offers, conversations, and turn-ins live in `src/content/quest_dialogues.ts`; ambient
+  conversations and the combined registry live in `src/content/dialogues.ts`. A `DialogueDef` has a
+  stable id, owning NPC, start node, and a graph of `DialogueNode`s. A node is a `line` (explicit
+  npc/player/narrator speaker and an optional `next` link), a `choice` (a prompt with branching
+  `DialogueChoice`s), or an `end`.
 - The scene persists `(arg: dialogueId, arg2: nodeId)` so rerenders and `/start` reproduce the exact
   current beat.
 - Dialogue copy follows the #133 contract (machine-checked in `tests/dialogue_copy_test.ts`, prose
@@ -85,7 +89,7 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
 - Application goes through the one central op, `applyDialogueChoice` in `src/engine/story.ts`, which
   derives its context from the player's live scene — never from caller assertions:
   - the scene must be the dialogue view;
-  - the dialogue id and current node id come from `p.scene`;
+  - the dialogue id and current node id come from `player.scene`;
   - the acting NPC is resolved from the dialogue definition (`dialogue.npcId`) and must be
     physically present in the player's current zone;
   - the choice must belong to that current choice node;
@@ -99,15 +103,19 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   never story state), and the ch/cf wire-intent contract (#136): `ch` applies an ordinary choice but
   only stages the panel for an irreversible one, and `cf` is honored solely for an irreversible
   choice from its exact staged `confirm:<choiceId>` panel — a forged or mismatched `cf` is a
-  non-mutating refusal. Confirm is the only mutating control; Go back/Not now/Leave never touch it.
-  The handler passes the engine exactly the tapped choice id.
+  non-mutating refusal. On an irreversible-choice confirmation panel, only Confirm commits story
+  effects; Go back/Not now/Leave perform navigation only. Ordinary choices apply directly, and
+  Continue can enter a line with authored effects. The handler passes the engine exactly the tapped
+  choice id.
 - Callback revision and message staleness are transport-level authority, enforced by the locked
   per-player router before any handler runs. The rev guard kills wire-level double taps and replays.
-- Every committed application records a one-shot receipt in `p.storyReceipts`. Replaying a receipted
-  choice (`choice:<dlg>:<node>:<id>`) or line-entry (`line:<dlg>:<node>`) application is a complete
-  no-op: it can never double-grant, double-start, re-lock, or re-notify.
-- Shipped irreversible choices are sparing and harmless by design; mutually exclusive content
-  requires an explicit `lockQuest` effect.
+- Every committed application records a one-shot receipt in `player.storyReceipts`. Replaying a
+  receipted choice (`choice:<dlg>:<node>:<id>`) or line-entry (`line:<dlg>:<node>`) application
+  never repeats its story mutations or notices. A receipted choice may still return its authored
+  next node for navigation; entering that node honors its own effect receipt. Journey/dungeon guards
+  still run before receipt handling, independently of the router's revision and message guards.
+- Use irreversible choices sparingly and disclose permanent consequences. Mutually exclusive quest
+  branches use explicit `lockQuest` effects.
 
 ## Narrative state and story effects
 
@@ -118,7 +126,7 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   stays separate. A flag condition without `equals` tests existence, including false/0 values.
   Content integrity validates condition references (`tests/quest_copy_test.ts`).
 - Quest terminal state is queryable (#132): the `questOutcome` condition matches a quest's permanent
-  resolution in `p.questOutcomes` by terminal kind and/or named outcome. Semantics: ordinary
+  resolution in `player.questOutcomes` by terminal kind and/or named outcome. Semantics: ordinary
   `turnInQuest` completion persists NO outcome entry (query completion with `questStatus: 'done'`);
   only `resolveQuest` persists a named outcome, and the RUNTIME refuses any named resolution the
   target quest does not declare (#146): a quest with no `outcomes` list accepts no named resolution
@@ -134,25 +142,28 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   retroactively filled duplicate objective to stand in for parent progress. `beginQuest` still
   credits an already-fired story event to a starting quest's storyEvent objective (the reach
   ever-visited policy's counterpart) for any content that relies on it.
-- Irreversible choices are recorded in `p.decisions` with choice and provenance — never reduced to
-  unexplained booleans. Provenance is validated EXACTLY (#150): the persisted-identity gate accepts
-  a decision only when its `(dialogue, node, choice)` tuple is one that authored a matching
-  `recordDecision` for that id — individually resolvable components are not enough — and
-  `recordDecision` is authored only on choice nodes (content integrity rejects line-node
-  authorship). A locked or failed quest (`p.questOutcomes`, `questExcluded`) is never resurrected by
-  `syncAvailability`.
+- `irreversible: true` requires staged confirmation; it does not itself record a decision. Choices
+  that need a queryable decision ledger entry author `recordDecision`, which stores choice identity
+  and provenance in `player.decisions`. Provenance is validated EXACTLY (#150): the
+  persisted-identity gate accepts a decision only when its `(dialogue, node, choice)` tuple is one
+  that authored a matching `recordDecision` for that id — individually resolvable components are not
+  enough — and `recordDecision` is authored only on choice nodes (content integrity rejects
+  line-node authorship). A locked or failed quest (`player.questOutcomes`, `questExcluded`) is never
+  resurrected by `syncAvailability`.
 - Terminal quest outcomes are monotonic: a resolved/completed quest never becomes locked/failed, a
   locked/failed quest never starts or resolves, and one terminal kind never overwrites another.
-- Story consequences use the bounded `StoryEffect` vocabulary (`src/engine/story.ts`). Bundles are
-  transactional: validation and application are the same ordered run against a draft clone of the
-  player (`validateStoryBundle` discards the draft, `applyStoryEffects` commits it once), so every
-  effect's preconditions see the projected result of all earlier effects (grant → remove nets to
-  zero; an impossible cumulative removal refuses the whole bundle), and any refusal leaves the live
-  player byte-for-byte unchanged with no receipt recorded. Both entry points share the application
-  receipt (#137): an already-committed application validates clean and applies as a no-op. The
-  returned `StoryResult` describes the final committed draft: `readyQuests` is deduplicated and
-  reconciled to quests still `turnIn` at commit, while `startedQuests` is a transition log (a later
-  effect may have locked or resolved a listed quest — read `p.quests` for final state).
+- Story consequences use the bounded `StoryEffect` vocabulary defined in `src/content/types.ts` and
+  applied in `src/engine/story.ts`. Bundles are transactional: validation and application are the
+  same ordered run against a draft clone of the player (`validateStoryBundle` discards the draft,
+  `applyStoryEffects` commits it once), so every effect's preconditions see the projected result of
+  all earlier effects (grant → remove nets to zero; an impossible cumulative removal refuses the
+  whole bundle), and any refusal leaves the live player byte-for-byte unchanged with no receipt
+  recorded. Both entry points share the application receipt (#137): after journey/dungeon guards, an
+  already-committed bundle validates successfully and applies without repeated story mutations or
+  notices. The returned `StoryResult` describes the final committed draft: `readyQuests` is
+  deduplicated and reconciled to quests still `turnIn` at commit, while `startedQuests` is a
+  transition log (a later effect may have resolved or turned in a listed quest — read
+  `player.quests` for final state).
 - Lifecycle reconciliation priority (#145): this is a RESULT-reconciliation priority, not a pipeline
   of execution phases. Effects still run in authored order against the draft (#129), and the single
   `active → turnIn` authority (`refreshProgress`, #119) still flips quests the moment a causal
@@ -185,9 +196,11 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   a second identical interaction.
 - Topics are bound to their owning NPC: the resolver row is the single authority for both rendering
   and selection. Each row carries the dialogue it opens only when the selected NPC owns it
-  (`dialogue.npcId === selected NPC`), and handlers re-resolve the exact row (kind + id) from a
-  fresh `npcTopics(p, npcId)` at tap time, so stale, forged, or condition-hidden selections (a lore
-  `when` is re-evaluated on selection) refuse without mutation.
+  (`dialogue.npcId === selected NPC`). At tap time, handlers re-resolve a fresh
+  `npcTopics(player, npcId)` by non-lore + quest id or lore + topic id; quest callbacks do not
+  encode the offer/active/turn-in subtype. Missing or condition-hidden selections refuse without
+  story mutation, and the router independently rejects stale rendered buttons before the handler
+  runs.
 - Active-business policy: the row is listed at both contacts as a pointer, but the quest's
   `conversationDialogue` opens only at the NPC who owns it while its event is pending; any other
   contact's row is a pure non-mutating progress reminder. m2_letter can emit `heard_bram_reading`
@@ -203,13 +216,18 @@ Zone."). Log navigation can never act on a quest.
 ## Guided prologue
 
 Fresh heroes run a directed prologue before the real hub opens: Elder Maren's ember brief → one
-controlled battle vs `e_cinder_mite` (a `tutorial`-flagged level-1 fixture; the balance harness
-proves no class can lose it) with contextual coaching inside the live battle (free action → starting
-skill/MP → Guard → Items when hurt) → a deterministic ember reward that exits every hero at level 2
-→ release into the real hub (Maren's board = m1, Whisperwood, flee/level advice).
+controlled battle vs `e_cinder_mite` (a `tutorial`-flagged level-1 fixture) → the ember reward →
+release into the real hub. The engine enforces basic action → skill → Guard → item lesson beats in
+order and prevents victory until they are complete. A scripted nonlethal hit after Guard makes the
+item lesson reachable. Coaching explains the current beat inside the live battle;
+`tests/tutorial_test.ts` checks the flow across classes. The balance harness checks sampled fights
+under its configured policy, not every possible action sequence. The reward tops up heroes to at
+least level 2 and replaces the lesson's potion. Release guidance points to Maren's Sparks of Trouble
+quest, the Outskirts, and later Whisperwood travel, with level, flee, road-event, and safe-haven
+advice.
 
-- State is `p.tutorial` (`'maren' → 'outskirts' → 'fight' → 'done'`). `/start` resumes the current
-  step, tutorial handlers revalidate the step so replays are refused, the uiRev guard kills
+- State is `player.tutorial` (`'maren' → 'outskirts' → 'fight' → 'done'`). `/start` resumes the
+  current step, tutorial handlers revalidate the step so replays are refused, the uiRev guard kills
   double-taps, and the reward is flag-idempotent.
 - During the prologue the zone view renders only the directed action (progressive disclosure —
   travel, explore, shop, and the NPC list are withheld).

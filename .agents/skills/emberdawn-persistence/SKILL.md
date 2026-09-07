@@ -9,18 +9,18 @@ Detailed rules for save shape, schema versioning, and stores. The active PRE-LAU
 the root `AGENTS.md`; this skill carries the mechanics. Post-launch migration policy lives in
 `emberdawn-release` and is inactive until launch is explicitly approved.
 
-Authoritative code and tests: `src/engine/types.ts`, `src/persistence/store.ts`,
-`src/persistence/migrate.ts`, `tests/persistence_pg_test.ts`. Run `deno task test:pg` (or
-`deno task test:pg:local` for a throwaway Docker Postgres) whenever persistence or schema behavior
-changes.
+Authoritative code and tests: `src/engine/types.ts`, `src/engine/character.ts` (save-version
+constant and gate), `src/engine/validate.ts` (persisted identity gate), `src/persistence/store.ts`,
+and `tests/persistence_pg_test.ts`. `src/persistence/migrate.ts` handles PostgreSQL schema setup,
+not `PlayerState` migrations. Run `deno task test:pg` (or `deno task test:pg:local` for a throwaway
+Docker Postgres) whenever persistence or schema behavior changes.
 
 ## Persisted shapes
 
-- `PlayerState` (`src/engine/types.ts`) is plain JSON: no Dates, Maps, Sets, class instances, or
-  functions. Anything you add must survive `JSON.stringify`.
-- `PlayerState` — including its nested `battle?: BattleState` — is persisted as plain JSON:
-  `PgStore.set()` serializes the whole `PlayerState` into JSONB. Battle-scoped state (for example
-  battle buffs) belongs on `BattleState`; it is saved and restored with the player.
+- `PlayerState` (`src/engine/types.ts`), including its nested `battle?: BattleState`, is plain JSON:
+  no Dates, Maps, Sets, class instances, or functions. `PgStore.set()` serializes the whole player
+  into JSONB; added state must preserve its meaning through that round trip. Battle-scoped state
+  (for example battle buffs) belongs on `BattleState`; it is saved and restored with the player.
   `BattleState.effectSeq` is persisted deliberately for deterministic save/load behavior. Genuinely
   derived, runtime-only context — such as `DerivedStats` — is never persisted.
 - Required battle fields (`phoenixUsed`, `effectInstances`, `effectSeq`, `shield`, `history`) are
@@ -31,9 +31,8 @@ changes.
   identities. `QuestOutcome` is a discriminated union (#150): `outcome` is a resolved-only field,
   and the identity gate also refuses a persisted decision whose `(dialogue, node, choice)` tuple no
   authored `recordDecision` produced.
-- Persistable content IDs include more than `currentZone`: inventory and equipment items, quest
-  keys, learned skills, active-battle enemies and effect sources, battle origin zone/dungeon IDs,
-  scene arguments, and IDs encoded into durable flags.
+- Persistable content IDs include nested and encoded identities, not just top-level catalog keys.
+  Use the identity-location inventory in `src/engine/validate.ts` when auditing persisted fields.
 
 ## stateVersion lifecycle
 
@@ -59,8 +58,7 @@ The version gate alone cannot catch ID renames or removals, because they do not 
 TypeScript shape. So every gameplay load also runs the central identity gate,
 `assertResolvablePersistedIds()` in `src/engine/validate.ts` — pure, non-mutating, and run after
 `assertSupportedSaveVersion()` and before any mutation or render. It checks the persisted identity
-locations listed in its module doc (zones, items, skills, quests, flags, receipts, decisions, story
-events, scene args, and the active battle) against the current content catalogs and throws
+locations listed in its module doc against the current content catalogs and throws
 `SaveUnresolvableError` listing every unresolved identity it finds. The list covers the high-risk
 persisted identity locations; the validator is not an exhaustive runtime schema validator and is not
 a substitute for the post-launch durable-ID policy (IDs that can occur in supported live saves must
@@ -78,5 +76,5 @@ Covered by `tests/save_identity_test.ts`.
 ## Stores
 
 `PlayerStore` has two implementations: `PgStore` (Postgres/JSONB) and `MemoryStore` (tests). The
-whole per-player load → mutate → save flow runs inside `PlayerStore.withLock(user)`; see
+whole per-player load → mutate → save flow runs inside `PlayerStore.withLock(userId)`; see
 `emberdawn-architecture` for the locking contract.
