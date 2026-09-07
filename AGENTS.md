@@ -9,11 +9,19 @@ Runtime: **Deno** + **grammY**, built on Bot API Rich Messages — buttons live 
 never in `reply_markup`. Normal play happens in one live game message per player, edited in place on
 every action.
 
+The bot is private-chat-only: its hard BotFather setting prevents adding it to groups. Group chat
+handling and custom-crafted callback payloads are outside the supported scope. Preserve normal
+stale-tap protection and existing engine/story authority; confirmation actions require their active
+confirmation scene.
+
 ## Release lifecycle — current status: PRE-LAUNCH
 
 This section is the only source of truth for whether save-compatibility obligations are active.
 Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply launch.
 
+- Releases move forward only. A functional revert ships as a new forward change; never redeploy an
+  older binary or downgrade a schema. Transaction rollback on a failed database operation is a
+  separate, required atomicity mechanism. This does not change the pre-launch save policy below.
 - Development and playtest saves are DISPOSABLE; they carry no compatibility promise.
 - Persisted-shape changes advance `stateVersion`; older development saves are refused rather than
   migrated. Do not add `PlayerState`/save-payload migrations for retired pre-launch development

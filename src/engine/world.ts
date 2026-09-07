@@ -278,16 +278,17 @@ export function explore(
   // the caches dry up for hours — leaving and returning can no longer
   // refresh the faucet, so the Emberdawn loop is a 6-hour wait, not four taps.
   const forageKey = `forage_${currentZoneDef.id}`;
+  const resetKey = `forageReset_${currentZoneDef.id}`;
   let foraged = typeof player.flags[forageKey] === 'number' ? player.flags[forageKey]! : 0;
   if (currentZoneDef.safeHaven) {
     // The faucet recharges on a REAL-TIME cooldown — walking away and
     // back never refreshes it. `now` is injected so the engine stays deterministic (#3).
     if (foraged >= MAX_FORAGE_CHARGES) {
-      const resetAt = player.flags['forageResetAt'];
+      const resetAt = player.flags[resetKey];
       if (typeof resetAt === 'number' && now >= resetAt) {
         foraged = 0;
         delete player.flags[forageKey];
-        delete player.flags['forageResetAt'];
+        delete player.flags[resetKey];
       }
     }
     if (foraged >= MAX_FORAGE_CHARGES) {
@@ -298,7 +299,7 @@ export function explore(
       if (left >= MAX_FORAGE_CHARGES) {
         // Stamp the recharge the MOMENT the last charge is spent (#3) —
         // never one interaction later, or idle time gets re-charged.
-        player.flags['forageResetAt'] = now + FORAGE_COOLDOWN_MS;
+        player.flags[resetKey] = now + FORAGE_COOLDOWN_MS;
       }
     }
   }

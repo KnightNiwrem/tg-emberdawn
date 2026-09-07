@@ -222,10 +222,40 @@ export const INCOMPATIBLE_SAVE_REPLY =
 export const UNRESOLVABLE_SAVE_REPLY =
   '⚠️ This pre-launch save references content that no longer exists and cannot be loaded. Send /reset to start fresh.';
 
-/** Runs a mutation against an ALREADY-LOADED player and persists. Loading
- * happens exactly once per tap: a second store.get() (Postgres) returns a
- * fresh deserialized object and would silently drop in-memory state such
- * as newer-message adoption. */
+/** One classified read, before message adoption or any player mutation. */
+export type PlayerLoad =
+  | { kind: 'missing' }
+  | { kind: 'ready'; player: PlayerState }
+  | { kind: 'refused'; reason: 'old' | 'new' | 'identity'; message: string };
+
+export async function loadPlayer(store: PlayerStore, userId: number): Promise<PlayerLoad> {
+  const player = await store.get(userId);
+  if (!player) return { kind: 'missing' };
+  try {
+    assertSupportedSaveVersion(player);
+    assertResolvablePersistedIds(player);
+    return { kind: 'ready', player };
+  } catch (error) {
+    if (error instanceof SaveTooOldError) {
+      return { kind: 'refused', reason: 'old', message: INCOMPATIBLE_SAVE_REPLY };
+    }
+    if (error instanceof SaveUnresolvableError) {
+      return { kind: 'refused', reason: 'identity', message: UNRESOLVABLE_SAVE_REPLY };
+    }
+    if (error instanceof SaveTooNewError) {
+      return {
+        kind: 'refused',
+        reason: 'new',
+        message:
+          '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
+      };
+    }
+    throw error;
+  }
+}
+
+/** Mutate a player validated by loadPlayer, deliver, then save the final message pointer.
+ * Callers hold the user lock throughout; this operation never loads a second copy. */
 export async function withLoadedPlayer(
   ctx: Context,
   store: PlayerStore,
@@ -233,36 +263,6 @@ export async function withLoadedPlayer(
   mutate: (player: PlayerState) => MutationResult | void | Promise<MutationResult | void>,
 ): Promise<void> {
   if (!ctx.chat) return;
-  try {
-    assertSupportedSaveVersion(player); // compatibility gate — refuses, never rewrites
-    assertResolvablePersistedIds(player); // identity gate (#141) — after schema, before mutation/render
-  } catch (error) {
-    if (error instanceof SaveTooOldError) {
-      // Incompatible pre-launch save (#44, #116): refuse to guess — the
-      // player must explicitly reset. The stored JSON stays untouched.
-      await answerCallbackBestEffort(ctx);
-      await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
-      return;
-    }
-    if (error instanceof SaveUnresolvableError) {
-      // Same-version save with dangling content ids (#141): refuse before
-      // any mutation or render, leave the stored JSON untouched, and point
-      // at the explicit /reset path. Never repair or substitute.
-      await answerCallbackBestEffort(ctx);
-      await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
-      return;
-    }
-    if (!(error instanceof SaveTooNewError)) throw error;
-    // A NEWER binary wrote this save. Never read-mutate-write it: a rollback
-    // must not silently downgrade player data (#4).
-    await answerCallbackBestEffort(ctx);
-    await ctx
-      .reply(
-        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
-      )
-      .catch(() => {});
-    return;
-  }
   const result = (await mutate(player)) ?? {};
   player.stats.lastPlayed = Date.now();
   // Respond FIRST: commit may update player.messageId (resend fallback), and the

@@ -12,6 +12,7 @@ import type { PlayerStore } from '../persistence/store.ts';
 import {
   commit,
   deliverClassPicker,
+  loadPlayer,
   type MutationResult,
   tapIsCurrent,
   withLoadedPlayer,
@@ -55,11 +56,18 @@ export async function handleCallback(ctx: Context, store: PlayerStore): Promise<
   // Load exactly ONCE. Postgres re-deserializes on every get(), so a second
   // load would silently drop in-memory changes such as newer-message
   // adoption made by the staleness guard below.
-  const player = await store.get(from.id);
-  if (!player) {
+  const loaded = await loadPlayer(store, from.id);
+  if (loaded.kind === 'refused') {
+    await answerCallbackBestEffort(ctx);
+    await ctx.reply(loaded.message).catch(() => {});
+    return;
+  }
+  if (loaded.kind === 'missing') {
     await answerCallbackBestEffort(ctx, { text: 'Tap /start to begin your tale.' });
     return;
   }
+
+  const player = loaded.player;
 
   // Combined staleness + render-revision guard (#16): a replay of an
   // already-acted-on button (same message, older revision) is rejected
@@ -200,7 +208,13 @@ async function handleMeta(
   userId: number,
   name: string,
 ): Promise<void> {
-  const existing = await store.get(userId);
+  const loaded = await loadPlayer(store, userId);
+  if (loaded.kind === 'refused') {
+    await answerCallbackBestEffort(ctx);
+    await ctx.reply(loaded.message).catch(() => {});
+    return;
+  }
+  const existing = loaded.kind === 'ready' ? loaded.player : undefined;
 
   // Character creation is the ONLY meta action allowed without a save — and
   // it is refused outright when a character exists, so a stale class picker
@@ -246,6 +260,10 @@ async function handleMeta(
   }
 
   if (cb.a === 'resetYes') {
+    if (existing.scene.view !== 'reset') {
+      await answerCallbackBestEffort(ctx, { text: 'Open the reset confirmation first.' });
+      return;
+    }
     // Confirmed deletion (#62): the save is destroyed outright — no
     // replacement hero is built or persisted. Deliver the class picker
     // FIRST (edit the confirmation in place, resend fallback), so a failed
@@ -259,8 +277,7 @@ async function handleMeta(
     return;
   }
 
-  metaAction(existing, cb);
-
-  // help / reset / resetNo: scene-only changes on the already-loaded player.
-  await withLoadedPlayer(ctx, store, existing, () => {});
+  await withLoadedPlayer(ctx, store, existing, (player) => {
+    metaAction(player, cb);
+  });
 }

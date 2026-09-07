@@ -34,6 +34,12 @@ Docker Postgres) whenever persistence or schema behavior changes.
 - Persistable content IDs include nested and encoded identities, not just top-level catalog keys.
   Use the identity-location inventory in `src/engine/validate.ts` when auditing persisted fields.
 
+## Deployment direction
+
+Releases move forward only, as recorded in AGENTS.md. Functional reverts are new forward changes,
+not old binary deployments or schema downgrades. The newer-save refusal remains a consistency check,
+not a supported rollback workflow. Pre-launch older saves are still refused, not migrated.
+
 ## stateVersion lifecycle
 
 - `stateVersion` is required; fresh players are stamped `CURRENT_STATE_VERSION`.
@@ -74,6 +80,9 @@ resettable save.
 Covered by `tests/save_identity_test.ts`.
 
 ## Stores
+
+`MemoryStore` clones on read and write so a loaded mutation requires an explicit save, like JSONB.
+Its lock remains a single-process passthrough, not a transaction emulator.
 
 `PlayerStore` has two implementations: `PgStore` (Postgres/JSONB) and `MemoryStore` (tests). The
 whole per-player load → mutate → save flow runs inside `PlayerStore.withLock(userId)`; see

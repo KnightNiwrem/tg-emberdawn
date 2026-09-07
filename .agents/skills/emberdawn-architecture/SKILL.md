@@ -12,6 +12,12 @@ Authoritative code and tests: `src/handlers/session.ts`, `src/handlers/callbacks
 `src/codec.ts`, `src/bot.ts`, `src/webhook-server.ts`, `src/persistence/store.ts`, and
 `tests/architecture_test.ts`.
 
+## Supported transport and deployment
+
+The root AGENTS.md records the private-chat-only BotFather setting, forward-only releases, and
+exclusion of custom-crafted callback payloads. Do not add group session ownership or binary rollback
+support. Database transaction rollback remains required for failed updates.
+
 ## One live message per player
 
 - Each player has exactly one live game message (`player.messageId`). Normal gameplay view changes
@@ -33,6 +39,8 @@ Authoritative code and tests: `src/handlers/session.ts`, `src/handlers/callbacks
 - Every committed render stamps its buttons with the rendered `uiRev` (cycled 1..9999, embedded in
   callback data as `<view>:<rev>:<action>[:<arg>]`). Every gameplay callback must carry that
   revision.
+- `loadPlayer` classifies one store read and validates its version and persisted identities before
+  any message adoption, mutation, or render. Commands and callbacks share this gate.
 - The router uses `tapIsCurrent` in `src/handlers/session.ts` before gameplay mutation. It rejects
   revisionless taps before any adoption, and answers taps on older message copies with a stale
   toast. For the tracked message, a revision mismatch is stale, so replays and double-taps after a
@@ -106,10 +114,10 @@ text.
 `handleReset()` in `src/handlers/commands.ts` behaves differently depending on the save it finds:
 
 1. **Supported current save:** `/reset` and the character menu's delete-hero control only stage an
-   explicit Yes/No confirmation (the `reset` view). The confirmed `resetYes` deletes the save
-   (`store.delete`) and delivers the stateless class picker in place (with a resend fallback).
-   Delivery is attempted FIRST, so a failed delivery leaves the old save intact; nothing is
-   persisted again until a class is picked through the normal no-player path (`pickClass`).
+   explicit Yes/No confirmation (the `reset` view). `resetYes` requires that active scene and
+   deletes the save (`store.delete`) and delivers the stateless class picker in place (with a resend
+   fallback). Delivery is attempted FIRST, so a failed delivery leaves the old save intact; nothing
+   is persisted again until a class is picked through the normal no-player path (`pickClass`).
    No/cancel resumes the live scene — a pending fight stays a fight. A redelivered confirmation
    after deletion is a harmless no-op; once a new hero exists, the staleness guard rejects old reset
    callbacks. The delivery-before-delete guarantee applies only to this confirmed flow.

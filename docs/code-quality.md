@@ -102,3 +102,16 @@ reported success for mocked API failures, and `runMatrix` had zero calls despite
 91.2% of branches. The baseline suite passed 743 tests with four PostgreSQL tests skipped locally;
 the separate PostgreSQL CI suite exercises `ensureSchema` through `PgStore.open`. New webhook tests
 run the script in a subprocess with a fake transport, which a static import graph may still miss.
+
+## September review follow-up
+
+The owner clarified the supported operating model in #227: the BotFather setting prevents group
+membership, releases always move forward (including functional reverts), and custom-crafted callback
+payloads are outside scope. The crafted death callback and unknown-item navigation reproductions are
+therefore recorded, not expanded into a defensive callback framework. Existing staleness and
+story-authority contracts remain in force. Reset confirmation requires its active scene.
+
+- #227: one classified player load before message adoption or mutation; shared save refusal rules.
+- #228: independent safe-haven forage recharge deadlines, with two-haven expiry coverage.
+- #229: quiet rest messages disclose applied HP/MP recovery.
+- #230: MemoryStore reads and writes own separate copies; failed delivery cannot save by aliasing.

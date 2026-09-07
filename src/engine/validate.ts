@@ -513,9 +513,9 @@ export function findUnresolvedPersistedIds(player: PlayerState): SaveIdentityPro
       );
       if (!known) bad('flags', key, 'unknown dungeon reward identity');
     }
-    for (const prefix of ['gather_', 'gatherReset_']) {
+    for (const prefix of ['gather_', 'gatherReset_', 'forage_', 'forageReset_']) {
       if (key.startsWith(prefix) && !zone(key.slice(prefix.length))) {
-        bad('flags', key, 'unknown gathering zone id');
+        bad('flags', key, 'unknown resource zone id');
       }
     }
     if (key.startsWith(FORGE_FLAG_PREFIX) && !item(key.slice(FORGE_FLAG_PREFIX.length))) {

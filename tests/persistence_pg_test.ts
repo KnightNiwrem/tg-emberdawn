@@ -107,13 +107,17 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     // older checkpoint never stamps it current or repairs its payload.
     const carrier = createPlayer(1910, 'Carrier', 'rogue');
     carrier.currentZone = 'whisperwood';
+    carrier.flags.forage_emberdawn = 3;
+    carrier.flags.forageReset_emberdawn = 1000;
+    carrier.flags.forage_mirefoot = 3;
+    carrier.flags.forageReset_mirefoot = 2000;
     carrier.quests.sq_locket = { status: 'turnIn', counts: [1] };
     carrier.inventory.push({ id: 'q_pells_locket', qty: 1 }, { id: 'q_wisp_lantern', qty: 1 });
     carrier.scene = { view: 'dialogue', arg: 'dlg_sq_locket_turnin', arg2: 'ta' };
     await store.set(carrier.userId, carrier);
     const current = (await store.get(carrier.userId))!;
     assertEquals(current, carrier);
-    assertEquals(current.stateVersion, 14);
+    assertEquals(current.stateVersion, CURRENT_STATE_VERSION);
     assertSupportedSaveVersion(current);
     assertResolvablePersistedIds(current);
     carrier.stateVersion = CURRENT_STATE_VERSION - 1;

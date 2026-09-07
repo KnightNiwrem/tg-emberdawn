@@ -283,7 +283,7 @@ Deno.test('quest encounters: guaranteed treasure uses live bag progress and resp
     player.quests['sq_ore'] = { status: 'active', counts: [0] };
     zoneDef.explore = [ironEvent([{ ...oreBoost, weight: 'guaranteed' }]), quiet];
     player.flags['forage_emberdawn'] = 3;
-    player.flags['forageResetAt'] = 1000;
+    player.flags['forageReset_emberdawn'] = 1000;
     assertEquals(explore(player, () => 0, 0), { kind: 'result', lines: ['Quiet.'] });
     assertEquals(player.quests['sq_ore'].status, 'active');
   } finally {

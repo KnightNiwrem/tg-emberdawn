@@ -20,8 +20,8 @@ export function applyQuietEvent(
       return { lines: [`${event.text}`], granted: [] };
     case 'rest': {
       const stats = statsOf(player);
-      const healHp = Math.floor(stats.maxHp * event.healPct);
-      const healMp = Math.floor(stats.maxMp * event.healPct);
+      const healHp = Math.min(stats.maxHp - player.hp, Math.floor(stats.maxHp * event.healPct));
+      const healMp = Math.min(stats.maxMp - player.mp, Math.floor(stats.maxMp * event.healPct));
       player.hp = Math.min(stats.maxHp, player.hp + healHp);
       player.mp = Math.min(stats.maxMp, player.mp + healMp);
       return {

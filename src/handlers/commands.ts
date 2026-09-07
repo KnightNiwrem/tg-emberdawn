@@ -2,52 +2,22 @@
 
 import type { Context } from 'grammy';
 import type { PlayerStore } from '../persistence/store.ts';
-import { commit, INCOMPATIBLE_SAVE_REPLY, UNRESOLVABLE_SAVE_REPLY } from './session.ts';
-import { renderClassPicker } from '../render/views.ts';
-import { renderHelp } from '../render/views.ts';
-import {
-  assertSupportedSaveVersion,
-  SaveTooNewError,
-  SaveTooOldError,
-} from '../engine/character.ts';
-import { assertResolvablePersistedIds, SaveUnresolvableError } from '../engine/validate.ts';
+import { commit, loadPlayer } from './session.ts';
+import { renderClassPicker, renderHelp } from '../render/views.ts';
 
 export async function handleStart(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
   if (!from || !ctx.chat) return;
-  const existing = await store.get(from.id);
-  if (!existing) {
+  const loaded = await loadPlayer(store, from.id);
+  if (loaded.kind === 'missing') {
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
-  // Re-center ONLY: /start means "the live message is buried" — never a
-  // gameplay action. Battles, gold, deaths and location are all preserved;
-  // abandoning a fight is what /reset is for.
-  try {
-    assertSupportedSaveVersion(existing); // the compatibility gate runs here too
-    assertResolvablePersistedIds(existing); // and the identity gate (#141)
-  } catch (error) {
-    if (error instanceof SaveTooOldError) {
-      // Incompatible pre-launch save (#44, #116): refuse and point at
-      // /reset — never silently rewrite it.
-      await ctx.reply(INCOMPATIBLE_SAVE_REPLY).catch(() => {});
-      return;
-    }
-    if (error instanceof SaveUnresolvableError) {
-      // Same-version save with dangling content ids (#141): refuse before
-      // the re-center render, leave the stored JSON untouched.
-      await ctx.reply(UNRESOLVABLE_SAVE_REPLY).catch(() => {});
-      return;
-    }
-    if (!(error instanceof SaveTooNewError)) throw error;
-    // Newer-binary save: refuse to touch it rather than downgrade (#4).
-    await ctx
-      .reply(
-        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
-      )
-      .catch(() => {});
+  if (loaded.kind === 'refused') {
+    await ctx.reply(loaded.message).catch(() => {});
     return;
   }
+  const existing = loaded.player;
   existing.notices = ['🧭 The flame guides you back.'];
   // Resume whatever was happening — a live fight resumes as a fight, a lost
   // one stays on the death screen, and a battle-free crossing re-centers
@@ -73,31 +43,22 @@ export async function handleHelp(ctx: Context): Promise<void> {
 export async function handleReset(ctx: Context, store: PlayerStore): Promise<void> {
   const from = ctx.from;
   if (!from || !ctx.chat) return;
-  const player = await store.get(from.id);
-  if (!player) {
+  const loaded = await loadPlayer(store, from.id);
+  if (loaded.kind === 'missing') {
     await ctx.replyWithRichMessage(renderClassPicker());
     return;
   }
-  try {
-    assertSupportedSaveVersion(player);
-    assertResolvablePersistedIds(player);
-  } catch (error) {
-    if (error instanceof SaveTooOldError || error instanceof SaveUnresolvableError) {
-      // The save cannot be loaded, so a confirmation cannot be staged. An
-      // explicit /reset is the documented escape hatch (#44, #116, #141):
-      // drop the unloadable save and offer the class picker.
+  if (loaded.kind === 'refused') {
+    if (loaded.reason === 'new') {
+      await ctx.reply(loaded.message).catch(() => {});
+    } else {
+      // Unloadable pre-launch saves cannot stage a confirmation scene.
       await store.delete(from.id);
       await ctx.replyWithRichMessage(renderClassPicker());
-      return;
     }
-    if (!(error instanceof SaveTooNewError)) throw error;
-    await ctx
-      .reply(
-        '⛔ This save was written by a newer version of the game. Update the app to continue — your progress is safe.',
-      )
-      .catch(() => {});
     return;
   }
+  const player = loaded.player;
   // DESTRUCTIVE — never act on the slash command alone (#19): stage the
   // explicit Yes/No confirmation on the live message instead. State is
   // only destroyed when the player taps resetYes (m:ry).

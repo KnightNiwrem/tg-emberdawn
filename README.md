@@ -14,7 +14,8 @@ lives in the message body itself and edits in place. No `reply_markup` anywhere.
 > Then guard what you lit.
 
 **Pre-launch:** development and playtest saves are disposable. See [AGENTS.md](AGENTS.md) for the
-release and save-compatibility policy.
+release and save-compatibility policy. Releases move forward only, including functional reverts. The
+bot's BotFather setting prevents group membership; gameplay is exclusively in private chats.
 
 ## AI generation and reuse
 

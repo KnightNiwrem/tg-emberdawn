@@ -232,7 +232,7 @@ Deno.test('narrative: recovered regions survive reload and agree between arrival
 });
 
 Deno.test('campaign checkpoint: all older development versions are refused without a rewrite', () => {
-  assertEquals(CURRENT_STATE_VERSION, 14);
+  assertEquals(CURRENT_STATE_VERSION, 15);
   const player = createPlayer(1910, 'Reader', 'rogue');
   assertSupportedSaveVersion(player);
   for (let stateVersion = 0; stateVersion < CURRENT_STATE_VERSION; stateVersion++) {

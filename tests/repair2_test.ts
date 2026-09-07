@@ -5,7 +5,7 @@
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { prepareBot } from 'grammy-testing';
 import { createBot } from '../src/bot.ts';
-import { MemoryStore, type PlayerStore } from '../src/persistence/store.ts';
+import { MemoryStore } from '../src/persistence/store.ts';
 import { handleCallback } from '../src/handlers/callbacks.ts';
 import { handleReset, handleStart } from '../src/handlers/commands.ts';
 import { INCOMPATIBLE_SAVE_REPLY } from '../src/handlers/session.ts';
@@ -58,7 +58,6 @@ import {
 import { renderBattle, renderItemMenu } from '../src/render/battle.ts';
 import { renderQuestDetail, renderQuests, renderResetConfirm } from '../src/render/views.ts';
 import { CLASS_IDS } from '../src/engine/types.ts';
-import type { PlayerState } from '../src/engine/types.ts';
 import {
   fakeCtx,
   fakeCtxCapture,
@@ -126,20 +125,7 @@ Deno.test('stale class picker cannot overwrite an existing character', async () 
 });
 
 Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async () => {
-  // Clone-on-read reproduces Postgres: every get() returns fresh JSON.
-  const backing = new Map<number, PlayerState>();
-  const store: PlayerStore = {
-    get: (id) => Promise.resolve(backing.has(id) ? structuredClone(backing.get(id)!) : undefined),
-    set: (id, player) => {
-      backing.set(id, structuredClone(player));
-      return Promise.resolve();
-    },
-    delete: (id) => {
-      backing.delete(id);
-      return Promise.resolve();
-    },
-    withLock: (_id, fn) => fn(),
-  };
+  const store = new MemoryStore();
   const player = createPlayer(900, 'T', 'warrior');
   player.messageId = 100;
   await store.set(900, player);
@@ -450,7 +436,7 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
   assertEquals(player.flags['forage_emberdawn'], 3);
   // The 6h recharge is stamped the MOMENT the last charge is spent (#3) —
   // not one interaction later.
-  assertEquals(player.flags['forageResetAt'], t0 + 2000 + 6 * 3_600_000);
+  assertEquals(player.flags['forageReset_emberdawn'], t0 + 2000 + 6 * 3_600_000);
   const gold0 = player.gold;
   const inv0 = structuredClone(player.inventory);
   // Free-travel loop + explores before expiry: the faucet stays dry.
@@ -1734,4 +1720,30 @@ Deno.test('renderer invariant: every catalog item detail has only valid button r
       );
     }
   }
+});
+
+Deno.test('reset confirmation requires its active scene', async () => {
+  const store = new MemoryStore();
+  const player = createPlayer(227, 'T', 'warrior');
+  player.messageId = 100;
+  player.uiRev = 3;
+  await store.set(player.userId, player);
+  const request = fakeCtxCapture(player.userId, 100, withRev(3, 'm:ry'));
+  await handleCallback(request.ctx, store);
+  assertEquals(await store.get(player.userId), player);
+  assertEquals(request.edits.length, 0, 'no picker replaces a non-confirmation scene');
+});
+
+Deno.test('meta save refusal precedes scene changes and newer-message adoption', async () => {
+  const store = new MemoryStore();
+  const player = createPlayer(2271, 'T', 'warrior');
+  player.stateVersion = CURRENT_STATE_VERSION - 1;
+  player.messageId = 100;
+  player.uiRev = 3;
+  await store.set(player.userId, player);
+  const request = fakeCtxCapture(player.userId, 101, withRev(4, 'm:reset'));
+  await handleCallback(request.ctx, store);
+  assertEquals(await store.get(player.userId), player);
+  assertEquals(request.edits.length, 0);
+  assert(request.replies.includes(INCOMPATIBLE_SAVE_REPLY));
 });

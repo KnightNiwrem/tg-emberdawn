@@ -109,8 +109,9 @@ export function clampPools(player: PlayerState): void {
  * v13 (#189–#191): campaign rebase checkpoint; revised narrative identities
  * and quest objects.
  * v14 (#207): consecutive dungeon attempts with separate permanent cache receipts.
+ * v15 (#228): per-zone forage recharge deadlines.
  * All earlier development saves require /reset. */
-export const CURRENT_STATE_VERSION = 14;
+export const CURRENT_STATE_VERSION = 15;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */

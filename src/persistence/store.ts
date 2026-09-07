@@ -51,7 +51,8 @@ export class MemoryStore implements PlayerStore {
 
   // deno-lint-ignore require-await
   async get(userId: number): Promise<PlayerState | undefined> {
-    return this.map.get(userId);
+    const state = this.map.get(userId);
+    return state === undefined ? undefined : structuredClone(state);
   }
 
   // deno-lint-ignore require-await
