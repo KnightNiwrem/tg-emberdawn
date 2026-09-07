@@ -84,44 +84,47 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
   const battleContract: (
     enemyId: string,
     origin: BattleOrigin,
-    opts: StartBattleOpts,
+    options: StartBattleOpts,
   ) => StartBattleResult | undefined = startBattle;
   const actionContract: (
-    p: PlayerState,
-    b: BattleState,
-    a: PlayerAction,
+    player: PlayerState,
+    battle: BattleState,
+    action: PlayerAction,
     rng?: Rng,
   ) => ActionResult = performAction;
 
   // Victory, exploration and dungeons.
-  const victoryContract: (p: PlayerState, b: BattleState, rng?: Rng) => string[] = resolveVictory;
-  const exploreContract: (p: PlayerState, rng?: Rng, now?: number) => ExploreOutcome = explore;
+  const victoryContract: (player: PlayerState, battle: BattleState, rng?: Rng) => string[] =
+    resolveVictory;
+  const exploreContract: (player: PlayerState, rng?: Rng, now?: number) => ExploreOutcome = explore;
   const diveContract: (
-    p: PlayerState,
-    d: DungeonDef,
+    player: PlayerState,
+    dungeon: DungeonDef,
     rng?: Rng,
   ) => { ok: boolean; battle?: BattleState; outcome?: BattleOutcome; lines: string[] } =
     diveDungeon;
-  const travelContract: (p: PlayerState, edgeId: string, rng?: Rng) => JourneyStart = startJourney;
-  const journeyContract: (p: PlayerState, rng?: Rng) => JourneyStep = advanceJourney;
+  const travelContract: (player: PlayerState, edgeId: string, rng?: Rng) => JourneyStart =
+    startJourney;
+  const journeyContract: (player: PlayerState, rng?: Rng) => JourneyStep = advanceJourney;
 
   // Quest progress "hooks" — directly invoked synchronous functions. The
   // hooks RETURN the quests they just made turn-in-ready (#119): readiness
   // is data the caller announces, never a side channel.
   const acceptContract: (
-    p: PlayerState,
+    player: PlayerState,
     id: string,
     npcId: string,
   ) => { ok: boolean; msg: string; lines: string[] } = acceptQuest;
-  const turnInContract: (p: PlayerState, id: string, npcId: string) => TurnInResult = turnInQuest;
-  const storyEventContract: (p: PlayerState, event: string) => string[] = onStoryEvent;
-  const killContract: (p: PlayerState, enemyId: string) => string[] = onKill;
-  const zoneContract: (p: PlayerState, zoneId: string) => string[] = onZoneEnter;
-  const syncContract: (p: PlayerState) => string[] = syncAvailability;
+  const turnInContract: (player: PlayerState, id: string, npcId: string) => TurnInResult =
+    turnInQuest;
+  const storyEventContract: (player: PlayerState, event: string) => string[] = onStoryEvent;
+  const killContract: (player: PlayerState, enemyId: string) => string[] = onKill;
+  const zoneContract: (player: PlayerState, zoneId: string) => string[] = onZoneEnter;
+  const syncContract: (player: PlayerState) => string[] = syncAvailability;
 
   // Progression and death.
-  const xpContract: (p: PlayerState, xp: number) => string[] = grantXp;
-  const deathContract: (p: PlayerState) => string = applyDeath;
+  const xpContract: (player: PlayerState, xp: number) => string[] = grantXp;
+  const deathContract: (player: PlayerState) => string = applyDeath;
 
   // The contracts are load-bearing: reference them so the assignments can
   // never be pruned as dead code.
@@ -140,13 +143,13 @@ Deno.test('architecture: gameplay entry points are pinned to synchronous signatu
 // ── 2. No pending work after return ──────────────────────────────────────
 
 Deno.test('architecture: a full action is COMPLETE at return — state, log, trace, procs (#102)', () => {
-  const p = createPlayer(10200, 'T', 'warrior');
-  p.level = 10;
-  const started = startBattle('e_rat', ORIGIN, { player: p, rng: () => 0.5 })!;
-  const b = started.battle;
-  p.battle = b;
-  b.enemy.hp = 12; // one strike from terminal
-  const res = performAction(p, b, { kind: 'attack' }, () => 0.5);
+  const player = createPlayer(10200, 'T', 'warrior');
+  player.level = 10;
+  const started = startBattle('e_rat', ORIGIN, { player, rng: () => 0.5 })!;
+  const battle = started.battle;
+  player.battle = battle;
+  battle.enemy.hp = 12; // one strike from terminal
+  const res = performAction(player, battle, { kind: 'attack' }, () => 0.5);
 
   // No queue to drain, no tick to await: the result is not a thenable and
   // every consequence of the action already exists on the plain objects.
@@ -156,17 +159,20 @@ Deno.test('architecture: a full action is COMPLETE at return — state, log, tra
   // The terminal round is recorded, the outcome adjudicated, the trace
   // closed — all synchronously, observable immediately after the return.
   assertEquals(res.outcome, 'victory');
-  assertEquals(b.history.length, 1, 'the terminal round is in the history NOW');
-  assertEquals(b.enemy.hp <= 0, true);
-  const terminal = res.trace.filter((e) => e.kind === 'terminal');
+  assertEquals(battle.history.length, 1, 'the terminal round is in the history NOW');
+  assertEquals(battle.enemy.hp <= 0, true);
+  const terminal = res.trace.filter((event) => event.kind === 'terminal');
   assertEquals(terminal.length, 1, 'the terminal entry is on the trace NOW');
   assert(
-    res.trace.some((e) => e.kind === 'hpDamaged' && e.target === 'enemy'),
+    res.trace.some((event) => event.kind === 'hpDamaged' && event.target === 'enemy'),
     'the damage entry is on the trace NOW',
   );
 
   // The construction side: the opening trace exists at return too.
-  assert(started.trace.every((e) => typeof e.kind === 'string'), 'opening trace is plain data');
+  assert(
+    started.trace.every((event) => typeof event.kind === 'string'),
+    'opening trace is plain data',
+  );
   // previewBattle: no opening resolved, no pending work — a static record.
   const pv = previewBattle('e_rat', ORIGIN)!;
   assertEquals(pv.history.length, 0);
@@ -183,24 +189,24 @@ Deno.test('architecture: a lethal first slot ends resolution in order — termin
   //  - NOTHING follows the terminal entry — no end-of-round effects, no
   //    later riders, no counter advancement;
   //  - the caller sees only the fully resolved state.
-  for (let s = 1; s <= 100; s++) {
-    const p = createPlayer(11400 + s, 'T', 'warrior');
-    p.level = 30;
-    const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(s) })!.battle;
-    p.battle = b;
-    injectMod(b, 'enemy', 'spd', -0.95); // the player takes the first slot
-    b.enemy.hp = 5; // one-strike terminal
-    const res = performAction(p, b, { kind: 'attack' }, seeded(s));
+  for (let seed = 1; seed <= 100; seed++) {
+    const player = createPlayer(11400 + seed, 'T', 'warrior');
+    player.level = 30;
+    const battle = startBattle('e_rat', ORIGIN, { player, rng: seeded(seed) })!.battle;
+    player.battle = battle;
+    injectMod(battle, 'enemy', 'spd', -0.95); // the player takes the first slot
+    battle.enemy.hp = 5; // one-strike terminal
+    const res = performAction(player, battle, { kind: 'attack' }, seeded(seed));
     if (res.outcome !== 'victory') continue; // find a decisive seed
 
     assert(
-      !res.trace.some((e) => e.kind === 'hpDamaged' && e.target === 'player'),
+      !res.trace.some((event) => event.kind === 'hpDamaged' && event.target === 'player'),
       'the defeated actor never acted',
     );
     const last = res.trace[res.trace.length - 1];
     assertEquals(last?.kind, 'terminal', 'the terminal entry closes the trace');
-    assertEquals(b.round, 1, 'no end-of-round bookkeeping ran after the kill');
-    assertEquals(b.enemy.hp <= 0, true, 'terminal state is visible at return');
+    assertEquals(battle.round, 1, 'no end-of-round bookkeeping ran after the kill');
+    assertEquals(battle.enemy.hp <= 0, true, 'terminal state is visible at return');
     return;
   }
   throw new Error('no lethal first-slot seed found');
@@ -241,7 +247,7 @@ async function dependencyClosure(root: string): Promise<string[]> {
   const graph = JSON.parse(new TextDecoder().decode(out.stdout)) as {
     modules: { specifier: string }[];
   };
-  return graph.modules.map((m) => m.specifier);
+  return graph.modules.map((module) => module.specifier);
 }
 
 Deno.test('architecture: gameplay modules depend only on local gameplay code (compiler graph, #114)', async () => {

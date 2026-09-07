@@ -37,9 +37,9 @@ export interface MechOpts {
   opponent?: MechVoice;
 }
 
-const voice = (opts: MechOpts | undefined): { self: MechVoice; opponent: MechVoice } => ({
-  self: opts?.self ?? PLAYER_VOICE,
-  opponent: opts?.opponent ?? TARGET_VOICE,
+const voice = (options: MechOpts | undefined): { self: MechVoice; opponent: MechVoice } => ({
+  self: options?.self ?? PLAYER_VOICE,
+  opponent: options?.opponent ?? TARGET_VOICE,
 });
 
 const pct = (ratio: number): number => Math.round(ratio * 100);
@@ -169,8 +169,8 @@ function shieldCapacity(spec: Extract<EffectSpec, { kind: 'shield' }>): string {
 }
 
 /** One sentence (or sentence group) per effect spec, in authored order. */
-export function mechanicsLines(specs: readonly EffectSpec[], opts?: MechOpts): string[] {
-  const voices = voice(opts);
+export function mechanicsLines(specs: readonly EffectSpec[], options?: MechOpts): string[] {
+  const voices = voice(options);
   const out: string[] = [];
   for (const spec of specs) {
     const chance = 'chance' in spec && spec.chance !== undefined
@@ -274,8 +274,8 @@ export function mechanicsLines(specs: readonly EffectSpec[], opts?: MechOpts): s
 }
 
 /** The full mechanical summary as one text block (sentences joined). */
-export function mechanicsText(specs: readonly EffectSpec[], opts?: MechOpts): string {
-  return mechanicsLines(specs, opts).join(' ');
+export function mechanicsText(specs: readonly EffectSpec[], options?: MechOpts): string {
+  return mechanicsLines(specs, options).join(' ');
 }
 
 /** Mechanical disclosure for a consumable's bag effect (#98): derived

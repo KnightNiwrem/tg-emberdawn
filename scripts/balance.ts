@@ -24,35 +24,39 @@ import {
 import { CLASS_IDS } from '../src/engine/types.ts';
 import { enemy as enemyDef } from '../src/content/enemies.ts';
 
-const pct = (n: number): string => `${(n * 100).toFixed(1)}%`;
+const pct = (fraction: number): string => `${(fraction * 100).toFixed(1)}%`;
 
-function cellLine(c: CellStat): string {
+function cellLine(cell: CellStat): string {
   return [
-    c.classId.padEnd(8),
-    `Lv${String(c.level).padStart(2)}`,
-    c.gear === 'best' ? 'best' : 'strt',
-    c.policy.padEnd(8),
-    `${pct(c.winRate).padStart(6)}`,
-    `lose ${pct(c.lossRate).padStart(5)}`,
-    `ttk ${String(c.avgRoundsWin).padStart(5)}`,
-    `hp ${pct(c.avgHpPctEnd).padStart(5)}`,
-    `dmg ${String(c.avgDealt).padStart(6)}`,
-    `took ${String(c.avgTaken).padStart(6)}`,
-    `items ${c.avgItems.toFixed(2)}`,
-    `guard ${c.guardFreq.toFixed(2)}`,
-    `crit ${c.critsPerFight.toFixed(2)}`,
-    `skip ${c.avgSkippedRounds.toFixed(2)}`,
-    `util ${c.avgBuffCasts.toFixed(2)}/${c.avgShieldCasts.toFixed(2)}/${c.avgDotCasts.toFixed(2)}`,
+    cell.classId.padEnd(8),
+    `Lv${String(cell.level).padStart(2)}`,
+    cell.gear === 'best' ? 'best' : 'strt',
+    cell.policy.padEnd(8),
+    `${pct(cell.winRate).padStart(6)}`,
+    `lose ${pct(cell.lossRate).padStart(5)}`,
+    `ttk ${String(cell.avgRoundsWin).padStart(5)}`,
+    `hp ${pct(cell.avgHpPctEnd).padStart(5)}`,
+    `dmg ${String(cell.avgDealt).padStart(6)}`,
+    `took ${String(cell.avgTaken).padStart(6)}`,
+    `items ${cell.avgItems.toFixed(2)}`,
+    `guard ${cell.guardFreq.toFixed(2)}`,
+    `crit ${cell.critsPerFight.toFixed(2)}`,
+    `skip ${cell.avgSkippedRounds.toFixed(2)}`,
+    `util ${cell.avgBuffCasts.toFixed(2)}/${cell.avgShieldCasts.toFixed(2)}/${
+      cell.avgDotCasts.toFixed(2)
+    }`,
   ].join(' · ');
 }
 
 /** The source-attributed effect observation for one cell (#84) — the top
  * few live effects by uptime, with their applying source. */
-function effectLine(c: CellStat): string {
-  return Object.entries(c.effectRounds)
-    .sort((a, z) => z[1] - a[1])
+function effectLine(cell: CellStat): string {
+  return Object.entries(cell.effectRounds)
+    .sort((leftEffect, rightEffect) => rightEffect[1] - leftEffect[1])
     .slice(0, 4)
-    .map(([k, v]) => `${k} [${c.effectSources[k] ?? '?'}] ${v.toFixed(1)}r`)
+    .map(([effectKey, rounds]) =>
+      `${effectKey} [${cell.effectSources[effectKey] ?? '?'}] ${rounds.toFixed(1)}r`
+    )
     .join(' · ');
 }
 
@@ -71,21 +75,21 @@ for (const zone of hostileZones()) {
       zone.levels[1]
     }) · rotation, best gear, ${MATRIX_FIGHTS} fights/cell`,
   );
-  for (const c of matrix.filter((x) => x.pool === zone.id)) console.log(cellLine(c));
-  const free = matrix.filter((x) => x.pool === `${zone.id}:normal`);
+  for (const cell of matrix.filter((cell) => cell.pool === zone.id)) console.log(cellLine(cell));
+  const free = matrix.filter((cell) => cell.pool === `${zone.id}:normal`);
   if (free.length > 0) {
     console.log(`— free-action policy (level ≤ 9, normals only) —`);
-    for (const c of free) console.log(cellLine(c));
+    for (const cell of free) console.log(cellLine(cell));
   }
   // #84: the effect-aware policy beside the plain rotation — the reviewed
   // before/after pair for #81–#83 balance evidence.
-  const tactical = matrix.filter((x) => x.pool === `${zone.id}:tactical`);
+  const tactical = matrix.filter((cell) => cell.pool === `${zone.id}:tactical`);
   if (tactical.length > 0) {
     console.log(`— tactical policy (effect-aware, #84) —`);
-    for (const c of tactical) {
-      console.log(cellLine(c));
-      const eff = effectLine(c);
-      if (eff) console.log(`         effects: ${eff}`);
+    for (const cell of tactical) {
+      console.log(cellLine(cell));
+      const effectSummary = effectLine(cell);
+      if (effectSummary) console.log(`         effects: ${effectSummary}`);
     }
   }
 }
@@ -94,30 +98,36 @@ for (const zone of hostileZones()) {
 header('Class outliers per zone/level (max/min winRate)');
 for (const zone of hostileZones()) {
   const byLevel = new Map<number, CellStat[]>();
-  for (const c of matrix) {
-    if (c.pool !== zone.id || c.policy !== 'rotation') continue;
-    byLevel.set(c.level, [...(byLevel.get(c.level) ?? []), c]);
+  for (const cell of matrix) {
+    if (cell.pool !== zone.id || cell.policy !== 'rotation') continue;
+    byLevel.set(cell.level, [...(byLevel.get(cell.level) ?? []), cell]);
   }
   for (const [level, cells] of byLevel) {
-    const rates = cells.map((c) => c.winRate).filter((r) => r > 0);
+    const rates = cells.map((cell) => cell.winRate).filter((winRate) => winRate > 0);
     if (rates.length < 2) continue;
-    const hi = Math.max(...rates);
-    const lo = Math.min(...rates);
-    const bestC = cells.find((c) => c.winRate === hi)!;
-    const worstC = cells.find((c) => c.winRate === lo)!;
+    const highestWinRate = Math.max(...rates);
+    const lowestWinRate = Math.min(...rates);
+    const bestCell = cells.find((cell) => cell.winRate === highestWinRate)!;
+    const worstCell = cells.find((cell) => cell.winRate === lowestWinRate)!;
     console.log(
-      `${zone.id} Lv${level}: best ${bestC.classId} ${pct(hi)} · worst ${worstC.classId} ${
-        pct(lo)
-      } · ratio ${(hi / Math.max(lo, 0.001)).toFixed(2)}x`,
+      `${zone.id} Lv${level}: best ${bestCell.classId} ${
+        pct(highestWinRate)
+      } · worst ${worstCell.classId} ${pct(lowestWinRate)} · ratio ${
+        (highestWinRate / Math.max(lowestWinRate, 0.001)).toFixed(2)
+      }x`,
     );
   }
 }
 
 // ── 2. Gear cliff ───────────────────────────────────────────────────────
 header('Boss gear cliff — Aranya (tier-1 starting kit vs tier-2 breakpoint)');
-for (const c of matrix.filter((x) => x.pool.startsWith('boss:') && !x.pool.endsWith(':tactical'))) {
-  const bossId = c.pool.slice(5);
-  console.log(`${bossId.padEnd(10)} ${cellLine(c)}`);
+for (
+  const cell of matrix.filter((cell) =>
+    cell.pool.startsWith('boss:') && !cell.pool.endsWith(':tactical')
+  )
+) {
+  const bossId = cell.pool.slice(5);
+  console.log(`${bossId.padEnd(10)} ${cellLine(cell)}`);
 }
 
 // ── 3. Tutorial safety registry ─────────────────────────────────────────
@@ -126,7 +136,7 @@ header('Tutorial-flagged encounters (harness-invariant #74)');
 if (tutors.length === 0) {
   console.log('none yet — the guided prologue (#69) will flag its controlled enemy');
 } else {
-  for (const t of tutors) console.log(`${t.id} ${t.name} Lv${t.level}`);
+  for (const enemyDef of tutors) console.log(`${enemyDef.id} ${enemyDef.name} Lv${enemyDef.level}`);
 }
 
 // ── 4. Progression simulation ───────────────────────────────────────────
@@ -134,7 +144,7 @@ header('Chapter-one progression — post-tutorial hero (Lv 2), real combat/rewar
 for (const cid of CLASS_IDS) {
   const rep = simulateChapterOne(cid, 4100 + ['warrior', 'mage', 'rogue', 'cleric'].indexOf(cid));
   const beatStr = rep.beats
-    .map((b) => `${b.questId}@Lv${b.level}(${b.deaths}d/${b.fights}f)`)
+    .map((beat) => `${beat.questId}@Lv${beat.level}(${beat.deaths}d/${beat.fights}f)`)
     .join(' → ');
   console.log(
     `${cid.padEnd(8)} ${
@@ -154,14 +164,16 @@ for (const cid of CLASS_IDS) {
 
 // ── 5. Elite exposure ───────────────────────────────────────────────────
 header('Elite exposure in hostile tables (live share at the levels that matter, #74)');
-for (const z of hostileZones()) {
-  for (const ev of z.explore) {
-    if (ev.kind !== 'elite') continue;
-    const locked = ev.minPlayerLevel ?? 1;
-    const hi = Math.min(z.levels[1], Math.max(locked, z.levels[0]));
-    const at = (lv: number): string => `${pct(eliteShare(z.id, lv))} @Lv${lv}`;
+for (const zoneDef of hostileZones()) {
+  for (const event of zoneDef.explore) {
+    if (event.kind !== 'elite') continue;
+    const locked = event.minPlayerLevel ?? 1;
+    const upperLevel = Math.min(zoneDef.levels[1], Math.max(locked, zoneDef.levels[0]));
+    const at = (lv: number): string => `${pct(eliteShare(zoneDef.id, lv))} @Lv${lv}`;
     console.log(
-      `${z.id}: ${ev.enemy} (${enemyDef(ev.enemy)?.name}) — ${at(z.levels[0])} · ${at(hi)}`,
+      `${zoneDef.id}: ${event.enemy} (${enemyDef(event.enemy)?.name}) — ${
+        at(zoneDef.levels[0])
+      } · ${at(upperLevel)}`,
     );
   }
 }

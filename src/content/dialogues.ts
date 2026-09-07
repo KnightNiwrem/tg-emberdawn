@@ -324,12 +324,12 @@ export const DIALOGUES: readonly DialogueDef[] = [
   },
 ];
 
-const DIALOGUE_INDEX = new Map(DIALOGUES.map((d) => [d.id, d]));
+const DIALOGUE_INDEX = new Map(DIALOGUES.map((dialogueDef) => [dialogueDef.id, dialogueDef]));
 
 export function dialogue(id: string): DialogueDef | undefined {
   return DIALOGUE_INDEX.get(id);
 }
 
-export function dialogueNode(d: DialogueDef, nodeId: string): DialogueNode | undefined {
-  return d.nodes.find((n) => n.id === nodeId);
+export function dialogueNode(dialogueDef: DialogueDef, nodeId: string): DialogueNode | undefined {
+  return dialogueDef.nodes.find((node) => node.id === nodeId);
 }

@@ -11,26 +11,34 @@ import { fakeCtx } from './helpers.ts';
 
 Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(940, 'T', 'warrior');
-  p.level = 45;
+  const player = createPlayer(940, 'T', 'warrior');
+  player.level = 45;
   // Unlock every zone flag so every reachable side quest goes live (the
   // two decision-gated pledge routes stay shut without their decision).
   for (
-    const z of ['whisperwood', 'hollowmere', 'sunspire', 'frostpeak', 'cinder', 'umbra', 'abyss']
+    const zoneId of [
+      'whisperwood',
+      'hollowmere',
+      'sunspire',
+      'frostpeak',
+      'cinder',
+      'umbra',
+      'abyss',
+    ]
   ) {
-    p.flags[`zone_${z}`] = true;
+    player.flags[`zone_${zoneId}`] = true;
   }
-  p.quests['m3_roots'] = { status: 'done', counts: [] }; // sq_stag's prereq
-  syncAvailability(p);
-  p.messageId = 700;
-  await store.set(940, p);
+  player.quests['m3_roots'] = { status: 'done', counts: [] }; // sq_stag's prereq
+  syncAvailability(player);
+  player.messageId = 700;
+  await store.set(940, player);
 
   // 17 live side quests → three pages. Page 0 holds quests 1–8 and ends at
   // the pledge parent; the 9th (sq_scarabs) must not be stranded the way
   // sq_lynx once was; the 17th (sq_null) is reachable on the last page.
-  const page0 = JSON.stringify(renderQuests(p, 0));
-  const page1 = JSON.stringify(renderQuests(p, 1));
-  const page2 = JSON.stringify(renderQuests(p, 2));
+  const page0 = JSON.stringify(renderQuests(player, 0));
+  const page1 = JSON.stringify(renderQuests(player, 1));
+  const page2 = JSON.stringify(renderQuests(player, 2));
   assert(page0.includes('q:q:sq_shrine_pledge'), 'page 0 holds quests 1–8');
   assert(!page0.includes('q:q:sq_scarabs'), 'the 9th quest is not on page 0');
   assert(page1.includes('q:q:sq_scarabs'), 'the 9th quest lives on page 1');
@@ -75,49 +83,49 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
 Deno.test('the Quest Log renders no lifecycle mutation callbacks in ANY state (#65)', () => {
   // Drive every list+detail state a quest can be in; none may offer accept
   // or turn-in — the journal informs, the NPC interaction acts (#64).
-  const p = createPlayer(944, 'T', 'warrior');
-  p.level = 45;
-  p.quests['m2_letter'] = { status: 'done', counts: [] };
-  syncAvailability(p);
+  const player = createPlayer(944, 'T', 'warrior');
+  player.level = 45;
+  player.quests['m2_letter'] = { status: 'done', counts: [] };
+  syncAvailability(player);
   for (const id of ['m1_embers', 'm3_roots', 'sq_rats', 'sq_lynx']) {
-    for (const st of ['available', 'active', 'turnIn', 'done'] as const) {
-      p.quests[id] = { status: st, counts: [] };
-      const list = JSON.stringify(renderQuests(p));
-      const detail = JSON.stringify(renderQuestDetail(p, id));
-      assert(!list.includes('q:a:'), `list leaks accept for ${id}@${st}`);
-      assert(!list.includes('q:t:'), `list leaks turn-in for ${id}@${st}`);
-      assert(!detail.includes('q:a:'), `detail leaks accept for ${id}@${st}`);
-      assert(!detail.includes('q:t:'), `detail leaks turn-in for ${id}@${st}`);
+    for (const status of ['available', 'active', 'turnIn', 'done'] as const) {
+      player.quests[id] = { status, counts: [] };
+      const list = JSON.stringify(renderQuests(player));
+      const detail = JSON.stringify(renderQuestDetail(player, id));
+      assert(!list.includes('q:a:'), `list leaks accept for ${id}@${status}`);
+      assert(!list.includes('q:t:'), `list leaks turn-in for ${id}@${status}`);
+      assert(!detail.includes('q:a:'), `detail leaks accept for ${id}@${status}`);
+      assert(!detail.includes('q:t:'), `detail leaks turn-in for ${id}@${status}`);
     }
   }
 });
 
 Deno.test('the journal names the physical contact at every lifecycle stage (#65)', () => {
-  const p = createPlayer(946, 'T', 'warrior');
-  p.level = 5;
-  p.quests['m1_embers'] = { status: 'done', counts: [] };
-  syncAvailability(p);
+  const player = createPlayer(946, 'T', 'warrior');
+  player.level = 5;
+  player.quests['m1_embers'] = { status: 'done', counts: [] };
+  syncAvailability(player);
 
   // Available: delivery quests need both contacts, since they differ (#194).
-  const avail = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
+  const avail = JSON.stringify(renderQuestDetail(player, 'm2_letter'));
   assert(avail.includes('Start with Elder Maren — Emberdawn Village.'));
   const destination = 'Blacksmith Bram — Emberdawn Village.';
   assert(avail.includes(`Finish with ${destination}`));
   assertEquals(avail.split(destination).length - 1, 1);
 
   // Active: objectives stay visible, and the finisher is named for the trip.
-  p.quests['m2_letter'] = { status: 'active', counts: [1, 0] };
-  grantItem(p, 'q_sealed_letter', 1);
-  const active = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
+  player.quests['m2_letter'] = { status: 'active', counts: [1, 0] };
+  grantItem(player, 'q_sealed_letter', 1);
+  const active = JSON.stringify(renderQuestDetail(player, 'm2_letter'));
   assert(active.includes(`Finish with ${destination}`));
   assertEquals(active.split(destination).length - 1, 1, 'one active completion contact');
 
   // Ready: names the FINISHER and their zone; the list label stays neutral.
-  p.quests['m2_letter'] = { status: 'turnIn', counts: [1, 1] };
-  const ready = JSON.stringify(renderQuestDetail(p, 'm2_letter'));
+  player.quests['m2_letter'] = { status: 'turnIn', counts: [1, 1] };
+  const ready = JSON.stringify(renderQuestDetail(player, 'm2_letter'));
   assert(ready.includes(`Finish with ${destination}`));
   assertEquals(ready.split(destination).length - 1, 1, 'one ready completion contact');
-  const list = JSON.stringify(renderQuests(p));
+  const list = JSON.stringify(renderQuests(player));
   assert(list.includes('Ready — view details'), 'neutral ready label');
   // The status line may describe STATE ("Ready to turn in" — at the NPC);
   // what must never return is a button promising the log does it.

@@ -24,7 +24,7 @@ function zeroRng(): () => number {
 /** A forced victory: the enemy is dropped to 0 HP and resolution runs
  * through the engine's one victory authority. */
 function wonBattle(
-  p: PlayerState,
+  player: PlayerState,
   origin: BattleOrigin,
   resolveRng: () => number,
   draws?: { n: number },
@@ -36,28 +36,28 @@ function wonBattle(
       return resolveRng();
     };
   }
-  const battle = startBattle('e_rat', origin, { player: p, rng: seeded(7) })!.battle;
+  const battle = startBattle('e_rat', origin, { player, rng: seeded(7) })!.battle;
   battle.enemy.hp = 0;
-  return { battle, lines: resolveVictory(p, battle, rng) };
+  return { battle, lines: resolveVictory(player, battle, rng) };
 }
 
 const fields = dropTable('dt_ember_fields')!;
 
 Deno.test('zone loot: an explore victory in a table zone rolls the authored table in addition', () => {
-  const p = createPlayer(1650, 'T', 'warrior');
-  p.tutorial = 'done';
+  const player = createPlayer(1650, 'T', 'warrior');
+  player.tutorial = 'done';
   // An all-zero rng makes every authored entry hit, so the expected grant
   // is the full table, in authored order.
-  const { battle, lines } = wonBattle(p, { kind: 'explore', zoneId: 'outskirts' }, zeroRng());
+  const { battle, lines } = wonBattle(player, { kind: 'explore', zoneId: 'outskirts' }, zeroRng());
   assertEquals(
     battle.rewards!.contextual,
-    fields.entries.map((e) => ({ item: e.item, qty: e.qty ?? 1 })),
+    fields.entries.map((drop) => ({ item: drop.item, qty: drop.qty ?? 1 })),
     'the zone table rolled in addition to the enemy rewards',
   );
-  for (const e of fields.entries) {
+  for (const drop of fields.entries) {
     assert(
-      lines.some((l) => l.includes(itemName(e.item))),
-      `the resolution announces the contextual grant: ${e.item}`,
+      lines.some((line) => line.includes(itemName(drop.item))),
+      `the resolution announces the contextual grant: ${drop.item}`,
     );
   }
   // Exactly the zone table's qty lands on top of the ordinary enemy salvage.
@@ -68,20 +68,20 @@ Deno.test('zone loot: an explore victory in a table zone rolls the authored tabl
     { kind: 'dungeon', zoneId: 'outskirts', dungeonId: 'd_none', floor: 1, boss: false },
     zeroRng(),
   );
-  for (const e of fields.entries) {
+  for (const drop of fields.entries) {
     assertEquals(
-      countOf(p, e.item),
-      countOf(baseline, e.item) + (e.qty ?? 1),
-      `${e.item}: enemy rewards + the zone table, nothing more`,
+      countOf(player, drop.item),
+      countOf(baseline, drop.item) + (drop.qty ?? 1),
+      `${drop.item}: enemy rewards + the zone table, nothing more`,
     );
   }
 });
 
 Deno.test('zone loot: travel battles roll the road origin zone table', () => {
-  const p = createPlayer(1651, 'T', 'warrior');
-  p.tutorial = 'done';
+  const player = createPlayer(1651, 'T', 'warrior');
+  player.tutorial = 'done';
   const { battle } = wonBattle(
-    p,
+    player,
     { kind: 'travel', zoneId: 'outskirts', edgeId: 'e_outskirts_whisperwood', eventIndex: 0 },
     zeroRng(),
   );
@@ -89,37 +89,37 @@ Deno.test('zone loot: travel battles roll the road origin zone table', () => {
 });
 
 Deno.test('zone loot: dungeon victories do not roll the zone table (documented policy)', () => {
-  const p = createPlayer(1652, 'T', 'warrior');
-  p.tutorial = 'done';
+  const player = createPlayer(1652, 'T', 'warrior');
+  player.tutorial = 'done';
   const { battle, lines } = wonBattle(
-    p,
+    player,
     { kind: 'dungeon', zoneId: 'outskirts', dungeonId: 'd_none', floor: 1, boss: false },
     zeroRng(),
   );
   assertEquals(battle.rewards!.contextual, undefined, 'dungeons grant their own caches instead');
-  assert(!lines.some((l) => l.includes('Found:')), 'no contextual line without the roll');
+  assert(!lines.some((line) => line.includes('Found:')), 'no contextual line without the roll');
   // The bag holds only what the enemy itself dropped — no table grant.
   const fresh = createPlayer(1661, 'T', 'warrior');
   assertEquals(
-    countOf(p, 'm_rat_tail'),
+    countOf(player, 'm_rat_tail'),
     countOf(fresh, 'm_rat_tail') + 1,
     'only the enemy drop',
   );
-  for (const e of fields.entries) {
+  for (const drop of fields.entries) {
     assertEquals(
-      countOf(p, e.item),
-      countOf(fresh, e.item),
-      `${e.item}: never the zone table`,
+      countOf(player, drop.item),
+      countOf(fresh, drop.item),
+      `${drop.item}: never the zone table`,
     );
   }
 });
 
 Deno.test('zone loot: a zone without a table and a table that misses both grant nothing', () => {
-  const p = createPlayer(1653, 'T', 'warrior');
-  p.tutorial = 'done';
+  const player = createPlayer(1653, 'T', 'warrior');
+  player.tutorial = 'done';
   // Emberdawn Village authors no lootTable.
   assertEquals(zone('emberdawn')!.lootTable, undefined);
-  const { battle } = wonBattle(p, { kind: 'explore', zoneId: 'emberdawn' }, zeroRng());
+  const { battle } = wonBattle(player, { kind: 'explore', zoneId: 'emberdawn' }, zeroRng());
   assertEquals(battle.rewards!.contextual, undefined);
 
   // An all-high rng misses every chance entry (0.25/0.08): nothing is
@@ -140,8 +140,12 @@ Deno.test('zone loot: a zone without a table and a table that misses both grant 
   assertEquals(tableDraws.n - baseDraws.n, fields.entries.length, 'one draw per entry, once');
   assertEquals(withTable.battle.rewards!.contextual, undefined);
   const fresh = createPlayer(1662, 'T', 'warrior');
-  for (const e of fields.entries) {
-    assertEquals(countOf(p3, e.item), countOf(fresh, e.item), `${e.item}: nothing rolled in`);
+  for (const drop of fields.entries) {
+    assertEquals(
+      countOf(p3, drop.item),
+      countOf(fresh, drop.item),
+      `${drop.item}: nothing rolled in`,
+    );
   }
 });
 
@@ -162,7 +166,10 @@ Deno.test('zone loot: relevance filter gates quest-kind contextual drops at the 
   const out = grantContextualDrops(needs, [{ item: 'q_toxin_sample', qty: 1 }]);
   assertEquals(countOf(needs, 'q_toxin_sample'), 4, 'granted while an open quest needs it');
   assertEquals(out.granted, ['q_toxin_sample'], 'the structured grant names the item');
-  assert(out.lines.some((l) => l.includes('ready to turn in')), 'the completing grant readies m6');
+  assert(
+    out.lines.some((line) => line.includes('ready to turn in')),
+    'the completing grant readies m6',
+  );
 
   const capped = createPlayer(1657, 'T', 'warrior');
   capped.quests['m6_toxin'] = { status: 'active', counts: [0] };
@@ -174,16 +181,16 @@ Deno.test('zone loot: relevance filter gates quest-kind contextual drops at the 
 });
 
 Deno.test('zone loot: the shipped Outskirts path exercises contextual loot end to end', () => {
-  const p = createPlayer(1658, 'T', 'warrior');
-  p.tutorial = 'done';
-  p.level = 2;
-  p.currentZone = 'outskirts';
+  const player = createPlayer(1658, 'T', 'warrior');
+  player.tutorial = 'done';
+  player.level = 2;
+  player.currentZone = 'outskirts';
   // The real explore table (rng 0 picks the weighted-first battle) and the
   // real victory routing — the authored dt_ember_fields rolls inside it.
-  const out = explore(p, seeded(9));
+  const out = explore(player, seeded(9));
   assert(out.kind === 'battle', 'the roll lands on an outskirts battle');
   out.battle.enemy.hp = 0;
-  resolveVictory(p, out.battle, zeroRng());
+  resolveVictory(player, out.battle, zeroRng());
   assert(
     (out.battle.rewards!.contextual?.length ?? 0) > 0,
     'a shipped explore victory grants its zone table',

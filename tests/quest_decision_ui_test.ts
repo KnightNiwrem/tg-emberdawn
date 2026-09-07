@@ -22,21 +22,21 @@ function visible(value: unknown): string {
     return 'summary' in value ? visible(value.summary) : '';
   }
   return Object.entries(value)
-    .filter(([k]) => ['text', 'blocks', 'buttons', 'items'].includes(k))
-    .map(([, v]) => visible(v)).join('\n');
+    .filter(([key]) => ['text', 'blocks', 'buttons', 'items'].includes(key))
+    .map(([, value]) => visible(value)).join('\n');
 }
 
 function rows(blocks: InputRichBlock[]) {
-  return blocks.filter((b) => b.type === 'buttons');
+  return blocks.filter((block) => block.type === 'buttons');
 }
 
 Deno.test('quest decision UI: first offer highlights work and rewards and pairs Accept with Not now', () => {
-  const p = createPlayer(1920, 'Reader', 'mage');
-  p.scene = { view: 'dialogue', arg: 'dlg_m1_embers_offer', arg2: 'oa' };
-  const before = JSON.stringify(p);
-  const blocks = renderDialogue(p).blocks!;
+  const player = createPlayer(1920, 'Reader', 'mage');
+  player.scene = { view: 'dialogue', arg: 'dlg_m1_embers_offer', arg2: 'oa' };
+  const before = JSON.stringify(player);
+  const blocks = renderDialogue(player).blocks!;
   assertEquals(
-    blocks.filter((b) => b.type === 'heading').map((b) => [b.text, b.size]),
+    blocks.filter((block) => block.type === 'heading').map((block) => [block.text, block.size]),
     [
       ['🗣️ Elder Maren', 4],
       ['📜 Sparks of Trouble', 3],
@@ -45,7 +45,7 @@ Deno.test('quest decision UI: first offer highlights work and rewards and pairs 
       ['🎁 Rewards on completion', 4],
     ],
   );
-  const lists = blocks.filter((b) => b.type === 'list');
+  const lists = blocks.filter((block) => block.type === 'list');
   assertEquals(lists.length, 2);
   assertEquals(lists[0].items.length, 1);
   assert(visible(lists[0].items[0]).includes('Defeat Ember Rat ×4'));
@@ -64,27 +64,27 @@ Deno.test('quest decision UI: first offer highlights work and rewards and pairs 
     ]
   ) assert(text.includes(fact), `${fact} stays expanded`);
   assert(!text.includes(quest('m1_embers')!.summary), 'only repeated narrative is collapsed');
-  const context = blocks.filter((b) => b.type === 'details');
+  const context = blocks.filter((block) => block.type === 'details');
   assertEquals(context.length, 1);
   assertEquals(context[0].blocks, [{ type: 'paragraph', text: quest('m1_embers')!.summary }]);
   const [row] = rows(blocks);
   assertEquals(rows(blocks).length, 1);
   assertEquals(row.align, 'left');
-  assertEquals(row.buttons.map((b) => b.text), ['🤝 Accept', '✋ Not now']);
-  assertEquals(row.buttons.map((b) => b.style), ['primary', undefined]);
+  assertEquals(row.buttons.map((button) => button.text), ['🤝 Accept', '✋ Not now']);
+  assertEquals(row.buttons.map((button) => button.style), ['primary', undefined]);
   assertEquals(
-    row.buttons.map((b) => decodeCb('callback_data' in b ? b.callback_data! : '')),
+    row.buttons.map((button) => decodeCb('callback_data' in button ? button.callback_data! : '')),
     [{ v: 'dlg', a: 'ch', arg: 'accept' }, { v: 'dlg', a: 'bk' }],
   );
   assertEquals(blocks.at(-1), row, 'the paired actions follow all decision facts');
-  assertEquals(JSON.stringify(p), before);
+  assertEquals(JSON.stringify(player), before);
 });
 
 Deno.test('quest decision UI: collection costs, progress, and reward timing stay expanded', () => {
-  const p = createPlayer(1921, 'Reader', 'rogue');
-  const q = quest('m2_letter')!;
+  const player = createPlayer(1921, 'Reader', 'rogue');
+  const questDef = quest('m2_letter')!;
   for (const mode of ['offer', 'progress', 'turnIn'] as const) {
-    const blocks = questBriefBlocks(p, q, mode);
+    const blocks = questBriefBlocks(player, questDef, mode);
     const text = visible(blocks);
     assert(text.includes('Sealed Letter ×1'));
     assert(text.includes('Finish with Blacksmith Bram — Emberdawn Village.'));
@@ -92,19 +92,20 @@ Deno.test('quest decision UI: collection costs, progress, and reward timing stay
     assert(text.includes(mode === 'turnIn' ? '🎁 Rewards now' : '🎁 Rewards on completion'));
     if (mode !== 'offer') assert(text.includes('Hear Bram read the letter — 0/1'));
     assert(
-      blocks.some((b) =>
-        b.type === 'paragraph' && typeof b.text === 'object' && !Array.isArray(b.text) &&
-        b.text.type === 'bold' && visible(b).includes('Sealed Letter ×1')
+      blocks.some((block) =>
+        block.type === 'paragraph' && typeof block.text === 'object' &&
+        !Array.isArray(block.text) &&
+        block.text.type === 'bold' && visible(block).includes('Sealed Letter ×1')
       ),
     );
   }
 });
 
 Deno.test('quest decision UI: Six Fewer Rats puts each Explore location on its own line', () => {
-  const p = createPlayer(1926, 'Reader', 'mage');
-  p.scene = { view: 'dialogue', arg: 'dlg_sq_rats_offer', arg2: 'oa' };
-  const blocks = renderDialogue(p).blocks!;
-  const objectives = blocks.find((b) => b.type === 'list');
+  const player = createPlayer(1926, 'Reader', 'mage');
+  player.scene = { view: 'dialogue', arg: 'dlg_sq_rats_offer', arg2: 'oa' };
+  const blocks = renderDialogue(player).blocks!;
+  const objectives = blocks.find((block) => block.type === 'list');
   assert(objectives?.type === 'list');
   assertEquals(objectives.items.length, 1, 'locations are alternatives for one objective');
   const objective = objectives.items[0].blocks[0];
@@ -116,13 +117,15 @@ Deno.test('quest decision UI: Six Fewer Rats puts each Explore location on its o
 });
 
 Deno.test('quest decision UI: two Explore and three dungeon sources retain all five activity lines', () => {
-  const q = quest('sq_rats')!;
+  const questDef = quest('sq_rats')!;
   const dungeons = ['whisperwood', 'hollowmere', 'sunspire'].map((id) => zone(id)!.dungeon!);
-  const originalEnemies = dungeons.map((d) => d.floors[0].enemies);
+  const originalEnemies = dungeons.map((dungeon) => dungeon.floors[0].enemies);
   try {
     // Model the requested mixed-source case without changing shipped content.
-    for (const d of dungeons) d.floors[0].enemies = [...d.floors[0].enemies, 'e_rat'];
-    assertEquals(objectiveSource(q, q.objectives[0]).split('\n'), [
+    for (const dungeon of dungeons) {
+      dungeon.floors[0].enemies = [...dungeon.floors[0].enemies, 'e_rat'];
+    }
+    assertEquals(objectiveSource(questDef, questDef.objectives[0]).split('\n'), [
       '🧭 Emberdawn Outskirts (Explore)',
       '🧭 Whisperwood (Explore)',
       '🕸️ Rootbound Hollow — Whisperwood (Dungeon)',
@@ -130,7 +133,7 @@ Deno.test('quest decision UI: two Explore and three dungeon sources retain all f
       '⏳ Vault of Hours — Sunspire Ruins (Dungeon)',
     ]);
   } finally {
-    for (const [i, d] of dungeons.entries()) d.floors[0].enemies = originalEnemies[i];
+    for (const [i, dungeon] of dungeons.entries()) dungeon.floors[0].enemies = originalEnemies[i];
   }
 });
 
@@ -154,31 +157,31 @@ Deno.test('quest decision UI: collection directions keep each source activity an
 });
 
 Deno.test('quest decision UI: each branch owns its warning and button, without a preferred route', () => {
-  const p = ferryHero(1922);
-  p.scene = { view: 'dialogue', arg: 'dlg_ferry_promise', arg2: 'n3' };
-  const blocks = renderDialogue(p).blocks!;
+  const player = ferryHero(1922);
+  player.scene = { view: 'dialogue', arg: 'dlg_ferry_promise', arg2: 'n3' };
+  const blocks = renderDialogue(player).blocks!;
   const actionRows = rows(blocks);
   assertEquals(actionRows.length, 3, 'two visible routes and one deferral');
   let start = 0;
-  for (const [i, row] of actionRows.slice(0, 2).entries()) {
+  for (const [rowIndex, row] of actionRows.slice(0, 2).entries()) {
     assertEquals(row.align, 'left');
     assertEquals(row.buttons.length, 1);
     assertEquals(row.buttons[0].style, undefined, 'neither route is preferred');
     const end = blocks.indexOf(row);
     const section = blocks.slice(start, end);
     const text = visible(section);
-    const warning = section.find((b) =>
-      b.type === 'blockquote' && visible(b).includes('⚠️ Consequences')
+    const warning = section.find((block) =>
+      block.type === 'blockquote' && visible(block).includes('⚠️ Consequences')
     );
     assert(warning, 'consequences precede their own action');
     assert(visible(warning).includes('Once confirmed, this decision cannot be changed.'));
     assert(
       visible(warning).includes(
-        `Permanently closes: ${i === 0 ? 'The Water Intake' : "The Shrine's Beacon"}.`,
+        `Permanently closes: ${rowIndex === 0 ? 'The Water Intake' : "The Shrine's Beacon"}.`,
       ),
     );
-    assert(text.includes(i === 0 ? 'Defeat Marsh Wisp ×4' : 'Defeat Marsh Leech ×4'));
-    assert(!text.includes(i === 0 ? 'Defeat Marsh Leech ×4' : 'Defeat Marsh Wisp ×4'));
+    assert(text.includes(rowIndex === 0 ? 'Defeat Marsh Wisp ×4' : 'Defeat Marsh Leech ×4'));
+    assert(!text.includes(rowIndex === 0 ? 'Defeat Marsh Leech ×4' : 'Defeat Marsh Wisp ×4'));
     start = end + 1;
   }
   assertEquals(actionRows[2].align, 'left');
@@ -187,19 +190,19 @@ Deno.test('quest decision UI: each branch owns its warning and button, without a
 });
 
 Deno.test('quest decision UI: lock and failure distinguish lost active progress from unopened branches', () => {
-  const p = ferryHero(1923);
+  const player = ferryHero(1923);
   for (const kind of ['lockQuest', 'failQuest'] as const) {
     for (const status of ['unavailable', 'available', 'active', 'turnIn'] as const) {
-      p.quests.sq_ledger_debt = { status, counts: [3] };
-      const c: DialogueChoice = {
+      player.quests.sq_ledger_debt = { status, counts: [3] };
+      const choice: DialogueChoice = {
         id: 'test',
         label: 'Choose the beacon',
         irreversible: true,
         effects: [{ kind, questId: 'sq_ledger_debt' }],
       };
-      const before = JSON.stringify(p);
-      const blocks = choiceQuestBlocks(p, c);
-      const warning = blocks.find((b) => b.type === 'blockquote');
+      const before = JSON.stringify(player);
+      const blocks = choiceQuestBlocks(player, choice);
+      const warning = blocks.find((block) => block.type === 'blockquote');
       assert(warning);
       const text = visible(warning);
       if (status === 'active' || status === 'turnIn') {
@@ -215,30 +218,30 @@ Deno.test('quest decision UI: lock and failure distinguish lost active progress 
         );
         assert(!text.includes('Cancels'), 'no active work is lost');
       }
-      assertEquals(JSON.stringify(p), before, 'preview does not cancel the quest');
+      assertEquals(JSON.stringify(player), before, 'preview does not cancel the quest');
     }
   }
 });
 
 Deno.test('quest decision UI: confirmation separates the keepsake from exact forfeited rewards', () => {
-  const p = ferryHero(1924);
-  p.scene = {
+  const player = ferryHero(1924);
+  player.scene = {
     view: 'dialogue',
     arg: 'dlg_sq_shrine_pact_turnin',
     arg2: 'ta',
     arg3: 'confirm:keep',
   };
-  const q = quest('sq_shrine_pact')!;
-  const before = JSON.stringify(p);
-  const blocks = renderDialogue(p).blocks!;
+  const questDef = quest('sq_shrine_pact')!;
+  const before = JSON.stringify(player);
+  const blocks = renderDialogue(player).blocks!;
   assert(visible(blocks).includes('Receive: Wisp Lantern ×1.'));
   assert(!visible(blocks).includes('🎁 Rewards now'), 'normal payment is not advertised as a gain');
   assert(
     !visible(blocks).includes('Return the light to the shrine'),
     'only the selected response renders',
   );
-  const warning = blocks.find((b) =>
-    b.type === 'blockquote' && visible(b).includes('⚠️ Consequences')
+  const warning = blocks.find((block) =>
+    block.type === 'blockquote' && visible(block).includes('⚠️ Consequences')
   );
   assert(warning);
   const text = visible(warning);
@@ -246,27 +249,29 @@ Deno.test('quest decision UI: confirmation separates the keepsake from exact for
     const fact of [
       'without its normal rewards',
       'Forgo:',
-      xpRewardLabel(p.level, q.rewards.xp),
-      `${q.rewards.gold} gold`,
+      xpRewardLabel(player.level, questDef.rewards.xp),
+      `${questDef.rewards.gold} gold`,
       'no combat effect',
       'The beacon remains unlit',
-      ...Object.entries(q.rewards.items ?? {}).map(([id, n]) => `${itemName(id)} ×${n}`),
+      ...Object.entries(questDef.rewards.items ?? {}).map(([id, quantity]) =>
+        `${itemName(id)} ×${quantity}`
+      ),
     ]
   ) assert(text.includes(fact), fact);
   const [row] = rows(blocks);
   assertEquals(rows(blocks).length, 1);
   assertEquals(row.align, 'left');
-  assertEquals(row.buttons.map((b) => b.text), ['✅ Confirm choice', '✋ Go back']);
-  assertEquals(row.buttons.map((b) => b.style), ['danger', undefined]);
-  assertEquals(JSON.stringify(p), before);
-  dialogueAction(p, { v: 'dlg', a: 'cc' });
-  assertEquals(p.scene.arg3, undefined, 'Go back still only cancels staging');
+  assertEquals(row.buttons.map((button) => button.text), ['✅ Confirm choice', '✋ Go back']);
+  assertEquals(row.buttons.map((button) => button.style), ['danger', undefined]);
+  assertEquals(JSON.stringify(player), before);
+  dialogueAction(player, { v: 'dlg', a: 'cc' });
+  assertEquals(player.scene.arg3, undefined, 'Go back still only cancels staging');
 });
 
 Deno.test('quest decision UI: direct grants, travel unlocks, and item costs disclose their timing', () => {
-  const p = createPlayer(1925, 'Reader', 'cleric');
-  p.unlockedZones = ['emberdawn'];
-  const c: DialogueChoice = {
+  const player = createPlayer(1925, 'Reader', 'cleric');
+  player.unlockedZones = ['emberdawn'];
+  const choice: DialogueChoice = {
     id: 'test',
     label: 'Trade',
     effects: [
@@ -275,22 +280,26 @@ Deno.test('quest decision UI: direct grants, travel unlocks, and item costs disc
       { kind: 'removeItem', itemId: 'q_sealed_letter' },
     ],
   };
-  const text = visible(choiceQuestBlocks(p, c));
+  const text = visible(choiceQuestBlocks(player, choice));
   assert(text.includes('🎁 Receive now'));
   assert(text.includes('Receive: Wisp Lantern ×1.'));
   assert(text.includes('Opens travel to: Whisperwood.'));
   assert(text.includes('Hand over now: Sealed Letter ×1.'));
-  p.unlockedZones.push('whisperwood');
-  assert(!visible(choiceQuestBlocks(p, c)).includes('Opens travel to:'));
-  p.level = 45;
-  const q = quest('m12_chronolich')!;
-  assert(visible(questBriefBlocks(p, q)).includes(xpRewardLabel(45, q.rewards.xp)));
+  player.unlockedZones.push('whisperwood');
+  assert(!visible(choiceQuestBlocks(player, choice)).includes('Opens travel to:'));
+  player.level = 45;
+  const questDef = quest('m12_chronolich')!;
+  assert(
+    visible(questBriefBlocks(player, questDef)).includes(xpRewardLabel(45, questDef.rewards.xp)),
+  );
   // With the parent no longer active, no response can be chosen; the exit still aligns.
-  p.currentZone = 'hollowmere';
-  const d = dialogue('dlg_ferry_promise')!;
-  p.scene = { view: 'dialogue', arg: d.id, arg2: 'n3' };
+  player.currentZone = 'hollowmere';
+  const dialogueDef = dialogue('dlg_ferry_promise')!;
+  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: 'n3' };
   assertEquals(
-    rows(renderDialogue(p).blocks!).map((r) => [r.align, r.buttons.map((b) => b.text)]),
+    rows(renderDialogue(player).blocks!).map((
+      block,
+    ) => [block.align, block.buttons.map((button) => button.text)]),
     [
       ['left', ['✋ Not now']],
     ],

@@ -30,23 +30,23 @@ export interface WebhookHandlerOptions {
 
 /** The platform request handler for webhook mode. */
 export function createWebhookHandler(
-  opts: WebhookHandlerOptions,
+  options: WebhookHandlerOptions,
 ): (req: Request) => Promise<Response> {
   return async (req: Request) => {
     const url = new URL(req.url);
     if (req.method === 'POST' && url.pathname === '/webhook') {
-      if (!secretMatches(req.headers.get(SECRET_HEADER), opts.secretToken)) {
+      if (!secretMatches(req.headers.get(SECRET_HEADER), options.secretToken)) {
         return new Response('forbidden', { status: 401 });
       }
       try {
-        return await opts.handleUpdate(req);
+        return await options.handleUpdate(req);
       } catch (err) {
         console.error('webhook error', err);
         return new Response('internal error', { status: 500 });
       }
     }
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/healthz')) {
-      return new Response(opts.health ?? 'emberdawn bot: ok');
+      return new Response(options.health ?? 'emberdawn bot: ok');
     }
     return new Response('not found', { status: 404 });
   };

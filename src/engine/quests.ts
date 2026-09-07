@@ -173,8 +173,8 @@ function questComplete(player: PlayerState, id: string): boolean {
   const questDef = quest(id);
   const questProgress = player.quests[id];
   if (!questDef || !questProgress || questProgress.status !== 'active') return false;
-  return questDef.objectives.every((obj, idx) =>
-    objectiveProgress(player, questProgress, obj, idx) >= (obj.count ?? 1)
+  return questDef.objectives.every((obj, objectiveIndex) =>
+    objectiveProgress(player, questProgress, obj, objectiveIndex) >= (obj.count ?? 1)
   );
 }
 
@@ -286,7 +286,7 @@ function objectiveLine(
       break;
     case 'dungeon':
       label = `Clear ${
-        ZONES.find((z) => z.dungeon?.id === obj.target)?.dungeon?.name ?? obj.target
+        ZONES.find((zoneDef) => zoneDef.dungeon?.id === obj.target)?.dungeon?.name ?? obj.target
       }`;
       break;
   }

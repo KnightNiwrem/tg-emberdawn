@@ -85,10 +85,10 @@ export function materialSources(id: string): string[] {
       sources.push(`Shop: ${shop.name}\n${place.name} · Local stock requirements apply`);
     }
   }
-  for (const recipe of RECIPES.filter((r) => r.output.id === id)) {
+  for (const recipe of RECIPES.filter((recipe) => recipe.output.id === id)) {
     for (const zoneId of recipe.zones) sources.push(`${recipe.name}: ${zone(zoneId)!.name}`);
   }
-  for (const questDef of QUESTS.filter((q) => q.rewards.items?.[id])) {
+  for (const questDef of QUESTS.filter((questDef) => questDef.rewards.items?.[id])) {
     sources.push(`Quest reward: ${questDef.name}`);
   }
   return sources;

@@ -11,7 +11,7 @@
 import type { EffectSpec, SkillDef } from './types.ts';
 import type { ClassId } from '../engine/types.ts';
 
-const S = (skill: SkillDef): SkillDef => skill;
+const defineSkill = (skill: SkillDef): SkillDef => skill;
 
 /** Damage — the overwhelmingly common shape. */
 const dmg = (attack: 'phys' | 'mag', power: number): EffectSpec => ({
@@ -51,7 +51,7 @@ const mend = (power: number): EffectSpec => ({
 });
 export const SKILLS: readonly SkillDef[] = [
   // ── Warrior ─────────────────────────────────────────────────────────
-  S({
+  defineSkill({
     id: 'sk_cleave',
     name: 'Cleave',
     classId: 'warrior',
@@ -62,7 +62,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.35)],
     flavor: 'A heavy diagonal cut.',
   }),
-  S({
+  defineSkill({
     id: 'sk_shield_bash',
     name: 'Shield Bash',
     classId: 'warrior',
@@ -73,7 +73,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.0), stun(0.35)],
     flavor: 'A battering ram of a blow.',
   }),
-  S({
+  defineSkill({
     id: 'sk_bulwark',
     name: 'Bulwark',
     classId: 'warrior',
@@ -86,7 +86,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [{ kind: 'shield', defPower: 0.9, amount: 10, duration: 3, timing: 'immediate' }],
     flavor: 'Steel planted between you and the dark.',
   }),
-  S({
+  defineSkill({
     id: 'sk_war_cry',
     name: 'War Cry',
     classId: 'warrior',
@@ -97,7 +97,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('atk', 0.35, 3)],
     flavor: 'A shout that stiffens the arm.',
   }),
-  S({
+  defineSkill({
     id: 'sk_whirlwind',
     name: 'Whirlwind',
     classId: 'warrior',
@@ -108,7 +108,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.75)],
     flavor: 'A spinning strike.',
   }),
-  S({
+  defineSkill({
     id: 'sk_iron_wall',
     name: 'Iron Wall',
     classId: 'warrior',
@@ -119,7 +119,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('def', 0.6, 3)],
     flavor: 'Feet planted, shoulders set.',
   }),
-  S({
+  defineSkill({
     id: 'sk_sunder_armor',
     name: 'Sunder Armor',
     classId: 'warrior',
@@ -142,7 +142,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'A blow that finds the seams in plate.',
   }),
-  S({
+  defineSkill({
     id: 'sk_executioner',
     name: 'Executioner',
     classId: 'warrior',
@@ -160,7 +160,7 @@ export const SKILLS: readonly SkillDef[] = [
     }],
     flavor: 'A killing stroke.',
   }),
-  S({
+  defineSkill({
     id: 'sk_riposte',
     name: 'Riposte',
     classId: 'warrior',
@@ -172,7 +172,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.2), buff('def', 0.4, 2)],
     flavor: 'Answer the blade, then brace.',
   }),
-  S({
+  defineSkill({
     id: 'sk_adrenaline',
     name: 'Adrenaline Surge',
     classId: 'warrior',
@@ -193,7 +193,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'Pain becomes fuel.',
   }),
-  S({
+  defineSkill({
     id: 'sk_titans_fall',
     name: "Titan's Fall",
     classId: 'warrior',
@@ -218,7 +218,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'Bring the sky down.',
   }),
-  S({
+  defineSkill({
     id: 'sk_unbroken',
     name: 'Unbroken',
     classId: 'warrior',
@@ -242,7 +242,7 @@ export const SKILLS: readonly SkillDef[] = [
   }),
 
   // ── Mage ────────────────────────────────────────────────────────────
-  S({
+  defineSkill({
     id: 'sk_firebolt',
     name: 'Firebolt',
     classId: 'mage',
@@ -253,7 +253,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 1.4)],
     flavor: 'A dart of flame.',
   }),
-  S({
+  defineSkill({
     id: 'sk_frost_lance',
     name: 'Frost Lance',
     classId: 'mage',
@@ -278,7 +278,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'Winter, aimed.',
   }),
-  S({
+  defineSkill({
     id: 'sk_scorch',
     name: 'Scorch',
     classId: 'mage',
@@ -300,7 +300,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'The ember that stays.',
   }),
-  S({
+  defineSkill({
     id: 'sk_barrier',
     // #81: renamed — Barrier/Shield terminology is reserved for real
     // absorbable capacity (#79); this stays a DEF/RES stance.
@@ -313,7 +313,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('def', 0.5, 3), buff('res', 0.5, 3)],
     flavor: 'Layers of quiet force.',
   }),
-  S({
+  defineSkill({
     id: 'sk_arcane_surge',
     name: 'Arcane Surge',
     classId: 'mage',
@@ -324,7 +324,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 2.1)],
     flavor: 'Magic, uncorked.',
   }),
-  S({
+  defineSkill({
     id: 'sk_drain_life',
     name: 'Drain Life',
     classId: 'mage',
@@ -337,7 +337,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 1.5), { kind: 'lifesteal', pct: 0.5 }],
     flavor: 'What you take becomes yours.',
   }),
-  S({
+  defineSkill({
     id: 'sk_mana_shell',
     name: 'Mana Shell',
     classId: 'mage',
@@ -348,7 +348,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [{ kind: 'shield', magPower: 1.0, amount: 25, duration: 3, timing: 'immediate' }],
     flavor: 'Power folded into a shell.',
   }),
-  S({
+  defineSkill({
     id: 'sk_meteor',
     name: 'Meteor',
     classId: 'mage',
@@ -359,7 +359,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 3.0)],
     flavor: 'A falling star with your name on it.',
   }),
-  S({
+  defineSkill({
     id: 'sk_spellbreak',
     name: 'Spellbreak',
     classId: 'mage',
@@ -373,7 +373,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'A counter-word that unravels spells.',
   }),
-  S({
+  defineSkill({
     id: 'sk_time_warp',
     name: 'Time Warp',
     classId: 'mage',
@@ -386,7 +386,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('mag', 0.4, 3), buff('spd', 0.4, 3)],
     flavor: 'Borrowed seconds, spent loudly.',
   }),
-  S({
+  defineSkill({
     id: 'sk_null_ray',
     name: 'Null Ray',
     classId: 'mage',
@@ -398,7 +398,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [{ kind: 'damage', attack: 'mag', power: 2.6, bypassShield: true }],
     flavor: 'Light that passes through wards like fog.',
   }),
-  S({
+  defineSkill({
     id: 'sk_cataclysm',
     name: 'Cataclysm',
     classId: 'mage',
@@ -411,7 +411,7 @@ export const SKILLS: readonly SkillDef[] = [
   }),
 
   // ── Rogue ───────────────────────────────────────────────────────────
-  S({
+  defineSkill({
     id: 'sk_quick_slash',
     name: 'Quick Slash',
     classId: 'rogue',
@@ -422,7 +422,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.25)],
     flavor: 'Fast cut.',
   }),
-  S({
+  defineSkill({
     id: 'sk_backstab',
     name: 'Backstab',
     classId: 'rogue',
@@ -433,7 +433,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 1.8)],
     flavor: "Where the light doesn't reach.",
   }),
-  S({
+  defineSkill({
     id: 'sk_crippling_cut',
     name: 'Crippling Cut',
     classId: 'rogue',
@@ -456,7 +456,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'A cut across the stride.',
   }),
-  S({
+  defineSkill({
     id: 'sk_smoke_step',
     name: 'Smoke Step',
     classId: 'rogue',
@@ -467,7 +467,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('spd', 0.45, 3)],
     flavor: 'Between one step and the next, you are elsewhere.',
   }),
-  S({
+  defineSkill({
     id: 'sk_expose_weakness',
     name: 'Expose Weakness',
     classId: 'rogue',
@@ -490,7 +490,7 @@ export const SKILLS: readonly SkillDef[] = [
     }],
     flavor: "You read the foe's stance.",
   }),
-  S({
+  defineSkill({
     id: 'sk_twin_strike',
     name: 'Twin Strike',
     classId: 'rogue',
@@ -501,7 +501,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 2.0)],
     flavor: 'Two blades, one breath.',
   }),
-  S({
+  defineSkill({
     id: 'sk_venom_cut',
     name: 'Venom Cut',
     classId: 'rogue',
@@ -527,7 +527,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'The edge is only the introduction.',
   }),
-  S({
+  defineSkill({
     id: 'sk_shadow_dance',
     name: 'Shadow Dance',
     classId: 'rogue',
@@ -538,7 +538,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 2.6)],
     flavor: 'Delivered from three directions.',
   }),
-  S({
+  defineSkill({
     id: 'sk_piercing_throw',
     name: 'Piercing Throw',
     classId: 'rogue',
@@ -551,7 +551,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [{ kind: 'damage', attack: 'phys', power: 2.0, bypassShield: true }],
     flavor: 'Thrown where wards cannot follow.',
   }),
-  S({
+  defineSkill({
     id: 'sk_assassinate',
     name: 'Assassinate',
     classId: 'rogue',
@@ -562,7 +562,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('phys', 3.2)],
     flavor: 'One target. One ending.',
   }),
-  S({
+  defineSkill({
     id: 'sk_ambush',
     name: 'Ambush',
     classId: 'rogue',
@@ -587,7 +587,7 @@ export const SKILLS: readonly SkillDef[] = [
     }],
     flavor: 'The first the foe knows of you is the sting.',
   }),
-  S({
+  defineSkill({
     id: 'sk_death_mark',
     name: 'Death Mark',
     classId: 'rogue',
@@ -619,7 +619,7 @@ export const SKILLS: readonly SkillDef[] = [
   }),
 
   // ── Cleric ──────────────────────────────────────────────────────────
-  S({
+  defineSkill({
     id: 'sk_smite',
     name: 'Smite',
     classId: 'cleric',
@@ -630,7 +630,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 1.3)],
     flavor: 'Holy light as a weapon.',
   }),
-  S({
+  defineSkill({
     id: 'sk_mend',
     name: 'Mend Wounds',
     classId: 'cleric',
@@ -641,7 +641,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [mend(1.1)],
     flavor: 'Light knits what is torn.',
   }),
-  S({
+  defineSkill({
     id: 'sk_renew',
     name: 'Renew',
     classId: 'cleric',
@@ -661,7 +661,7 @@ export const SKILLS: readonly SkillDef[] = [
     }],
     flavor: 'Light, remembered slowly.',
   }),
-  S({
+  defineSkill({
     id: 'sk_blessing',
     name: 'Blessing',
     classId: 'cleric',
@@ -673,7 +673,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('mag', 0.3, 3), buff('def', 0.3, 3)],
     flavor: 'A word of favor, carried into battle.',
   }),
-  S({
+  defineSkill({
     id: 'sk_radiant_burst',
     name: 'Radiant Burst',
     classId: 'cleric',
@@ -684,7 +684,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 1.85)],
     flavor: 'A burst of gathered light.',
   }),
-  S({
+  defineSkill({
     id: 'sk_aegis',
     name: 'Aegis of Dawn',
     classId: 'cleric',
@@ -696,7 +696,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [{ kind: 'shield', magPower: 1.2, amount: 20, duration: 3, timing: 'immediate' }],
     flavor: 'A dawn ward between you and the dark.',
   }),
-  S({
+  defineSkill({
     id: 'sk_holy_ward',
     name: 'Holy Ward',
     classId: 'cleric',
@@ -707,7 +707,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [buff('res', 0.55, 3)],
     flavor: 'Quiet consecration.',
   }),
-  S({
+  defineSkill({
     id: 'sk_divine_mending',
     name: 'Divine Mending',
     classId: 'cleric',
@@ -718,7 +718,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [mend(1.9)],
     flavor: 'Prayer, answered thoroughly.',
   }),
-  S({
+  defineSkill({
     id: 'sk_purify',
     name: 'Purify',
     classId: 'cleric',
@@ -734,7 +734,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'Clean light scours.',
   }),
-  S({
+  defineSkill({
     id: 'sk_judgment',
     name: 'Judgment',
     classId: 'cleric',
@@ -745,7 +745,7 @@ export const SKILLS: readonly SkillDef[] = [
     effects: [dmg('mag', 2.9), stun(0.15)],
     flavor: 'Verdict, rendered.',
   }),
-  S({
+  defineSkill({
     id: 'sk_condemn',
     name: 'Condemn',
     classId: 'cleric',
@@ -770,7 +770,7 @@ export const SKILLS: readonly SkillDef[] = [
     ],
     flavor: 'Holy censure that cracks composure.',
   }),
-  S({
+  defineSkill({
     id: 'sk_miracle',
     name: 'Miracle',
     classId: 'cleric',
@@ -792,7 +792,7 @@ export const SKILLS: readonly SkillDef[] = [
   }),
 ];
 
-const SKILL_INDEX = new Map(SKILLS.map((s) => [s.id, s]));
+const SKILL_INDEX = new Map(SKILLS.map((skillDef) => [skillDef.id, skillDef]));
 
 export function skill(id: string): SkillDef | undefined {
   return SKILL_INDEX.get(id);
@@ -804,7 +804,7 @@ export function skillsForClass(classId: ClassId, upToLevel: number): SkillDef[] 
   // keep their authored order — Smite before Mend Wounds at level 1.
   return SKILLS
     .filter((skill) => skill.classId === classId && skill.learnLevel <= upToLevel)
-    .sort((a, b) => a.learnLevel - b.learnLevel);
+    .sort((leftSkillDef, rightSkillDef) => leftSkillDef.learnLevel - rightSkillDef.learnLevel);
 }
 
 /** Skills that become newly available exactly at `level`. */

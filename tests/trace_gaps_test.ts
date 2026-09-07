@@ -15,30 +15,30 @@ import { injectMod, seeded } from './helpers.ts';
 const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
 
 function hero(id: number): PlayerState {
-  const p = createPlayer(id, 'T', 'warrior');
-  p.level = 5;
-  return p;
+  const player = createPlayer(id, 'T', 'warrior');
+  player.level = 5;
+  return player;
 }
 
-function paddedRat(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function paddedRat(player: PlayerState, seed: number): BattleState {
+  const battle = startBattle('e_rat', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 const findTrace = <K extends CombatTraceEntry['kind']>(
   trace: CombatTraceEntry[],
   kind: K,
 ): Extract<CombatTraceEntry, { kind: K }>[] =>
-  trace.filter((e): e is Extract<CombatTraceEntry, { kind: K }> => e.kind === kind);
+  trace.filter((event): event is Extract<CombatTraceEntry, { kind: K }> => event.kind === kind);
 
 Deno.test('#105: a periodic tick that exhausts the ward emits exactly one shieldBreak, in causal order', () => {
-  const p = hero(1);
-  p.hp = 99999; // survive the round so the tick adjudication is not the point
-  const b = paddedRat(p, 21);
-  grantShield(b, 'player', {
+  const player = hero(1);
+  player.hp = 99999; // survive the round so the tick adjudication is not the point
+  const battle = paddedRat(player, 21);
+  grantShield(battle, 'player', {
     defId: 'test:ward',
     name: 'Test Ward',
     kind: 'shield',
@@ -52,7 +52,7 @@ Deno.test('#105: a periodic tick that exhausts the ward emits exactly one shield
     removable: true,
   });
   // A ward-eating DoT (no bypass): the tick absorbs the whole pool first.
-  b.effectInstances.push({
+  battle.effectInstances.push({
     iid: 'dot1',
     defId: 'test:dot',
     name: 'Doom Venom',
@@ -63,59 +63,66 @@ Deno.test('#105: a periodic tick that exhausts the ward emits exactly one shield
     tickPhase: 'roundEnd',
     tags: ['harmful', 'periodic', 'poison'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 3,
     removable: true,
-    expiresRound: b.round + 2,
+    expiresRound: battle.round + 2,
   });
-  const res = performAction(p, b, { kind: 'attack' }, seeded(21));
+  const res = performAction(player, battle, { kind: 'attack' }, seeded(21));
   const breaks = findTrace(res.trace, 'shieldBreak');
   assertEquals(breaks.length, 1, 'exactly one shieldBreak for the exhausted pool');
   assertEquals(breaks[0]!.side, 'player');
-  assertEquals(b.shield.player, 0);
+  assertEquals(battle.shield.player, 0);
   // Causal order: the break precedes the damaging tick and its hpDamaged.
-  const idx = (e: CombatTraceEntry) => res.trace.indexOf(e);
-  const tick = findTrace(res.trace, 'periodicTick').find((t) => t.applied < 0);
-  const damaged = findTrace(res.trace, 'hpDamaged').find((d) => d.cause === 'periodic');
+  const traceIndex = (event: CombatTraceEntry) => res.trace.indexOf(event);
+  const tick = findTrace(res.trace, 'periodicTick').find((event) => event.applied < 0);
+  const damaged = findTrace(res.trace, 'hpDamaged').find((event) => event.cause === 'periodic');
   assertExists(tick);
   assertExists(damaged);
-  assertEquals(idx(breaks[0]!) < idx(tick) && idx(tick) < idx(damaged), true);
+  assertEquals(
+    traceIndex(breaks[0]!) < traceIndex(tick) && traceIndex(tick) < traceIndex(damaged),
+    true,
+  );
 });
 
 Deno.test('#105: a cleansing consumable emits one effectRemoved per effect, with the real round', () => {
-  const p = hero(2);
-  const b = paddedRat(p, 22);
-  addItem(p, 'c_antidote', 1);
+  const player = hero(2);
+  const battle = paddedRat(player, 22);
+  addItem(player, 'c_antidote', 1);
   // Round 1 resolves (throwaway) so the cleanse acts at round 2.
-  performAction(p, b, { kind: 'guard' }, seeded(22));
-  assertEquals(b.round, 2);
+  performAction(player, battle, { kind: 'guard' }, seeded(22));
+  assertEquals(battle.round, 2);
   // Two removable harmful instances — the tonic removes both.
-  injectMod(b, 'player', 'outgoing', -0.2, { defId: 'sap-a', name: 'Sap A' });
-  injectMod(b, 'player', 'atk', -0.1, { defId: 'sap-b', name: 'Sap B' });
-  const res = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(23));
-  const removed = findTrace(res.trace, 'effectRemoved').filter((e) => e.cause === 'cleansed');
+  injectMod(battle, 'player', 'outgoing', -0.2, { defId: 'sap-a', name: 'Sap A' });
+  injectMod(battle, 'player', 'atk', -0.1, { defId: 'sap-b', name: 'Sap B' });
+  const res = performAction(player, battle, { kind: 'item', itemId: 'c_antidote' }, seeded(23));
+  const removed = findTrace(res.trace, 'effectRemoved').filter((event) =>
+    event.cause === 'cleansed'
+  );
   assertEquals(removed.length, 2, 'one effectRemoved per removed instance');
   assertEquals(
-    removed.map((e) => e.defId).sort(),
+    removed.map((event) => event.defId).sort(),
     ['sap-a', 'sap-b'],
   );
   assertEquals(
-    removed.every((e) => e.round === 2),
+    removed.every((event) => event.round === 2),
     true,
     'the removal entries carry the real action round',
   );
   // #105: every removal names its initiator by stable content id — the
   // Cleansing Tonic, not the effect's own application source.
   assertEquals(
-    removed.every((e) =>
-      e.removedBy?.kind === 'item' && e.removedBy.id === 'c_antidote' &&
-      e.removedBy.name === 'Cleansing Tonic'
+    removed.every((event) =>
+      event.removedBy?.kind === 'item' && event.removedBy.id === 'c_antidote' &&
+      event.removedBy.name === 'Cleansing Tonic'
     ),
     true,
     'every removal attributes the cleanse to the Cleansing Tonic',
   );
   assertEquals(
-    b.effectInstances.some((i) => i.defId === 'sap-a' || i.defId === 'sap-b'),
+    battle.effectInstances.some((instance) =>
+      instance.defId === 'sap-a' || instance.defId === 'sap-b'
+    ),
     false,
     'the instances really left the arena',
   );
@@ -127,19 +134,23 @@ Deno.test('#105: skill and item cleanses share the cause but stay distinguishabl
   // A cleric learns Purify (heal + cleanse); the Tonic and the skill both
   // remove harmful effects with cause 'cleansed' — only removedBy tells
   // them apart.
-  const p = createPlayer(4, 'T', 'cleric');
-  p.level = 30;
-  p.hp = 99999;
-  p.mp = 999;
-  p.skills.push('sk_purify');
-  const b = paddedRat(p, 31);
-  addItem(p, 'c_antidote', 1);
-  injectMod(b, 'player', 'outgoing', -0.2, { defId: 'sap-item', name: 'Sap Item' });
-  const r1 = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(31));
-  injectMod(b, 'player', 'atk', -0.1, { defId: 'sap-skill', name: 'Sap Skill' });
-  const r2 = performAction(p, b, { kind: 'skill', skillId: 'sk_purify' }, seeded(32));
-  const itemRemovals = findTrace(r1.trace, 'effectRemoved').filter((e) => e.cause === 'cleansed');
-  const skillRemovals = findTrace(r2.trace, 'effectRemoved').filter((e) => e.cause === 'cleansed');
+  const player = createPlayer(4, 'T', 'cleric');
+  player.level = 30;
+  player.hp = 99999;
+  player.mp = 999;
+  player.skills.push('sk_purify');
+  const battle = paddedRat(player, 31);
+  addItem(player, 'c_antidote', 1);
+  injectMod(battle, 'player', 'outgoing', -0.2, { defId: 'sap-item', name: 'Sap Item' });
+  const r1 = performAction(player, battle, { kind: 'item', itemId: 'c_antidote' }, seeded(31));
+  injectMod(battle, 'player', 'atk', -0.1, { defId: 'sap-skill', name: 'Sap Skill' });
+  const r2 = performAction(player, battle, { kind: 'skill', skillId: 'sk_purify' }, seeded(32));
+  const itemRemovals = findTrace(r1.trace, 'effectRemoved').filter((event) =>
+    event.cause === 'cleansed'
+  );
+  const skillRemovals = findTrace(r2.trace, 'effectRemoved').filter((event) =>
+    event.cause === 'cleansed'
+  );
   assertEquals(itemRemovals.length, 1);
   assertEquals(skillRemovals.length, 1);
   assertEquals(itemRemovals[0]!.removedBy, {
@@ -161,20 +172,20 @@ Deno.test('#105: a same-round item cleanse and enemy dispel each name their remo
   // Silence — damage plus a one-benefit dispel. Seeding enemy.turn = 2
   // makes the first enemy action the third, so the special fires in the
   // same round the player cleanses with the Tonic.
-  const p = hero(5);
-  p.hp = 999999;
-  const b = startBattle('e_warden', ORIGIN, { player: p, rng: seeded(41) })!.battle;
-  b.enemy.hp = 999999;
-  b.enemy.maxHp = 999999;
-  p.battle = b;
-  b.enemy.turn = 2;
-  addItem(p, 'c_antidote', 1);
-  injectMod(b, 'player', 'atk', -0.1, { defId: 'test:curse', name: 'Test Curse' });
-  injectMod(b, 'player', 'def', 0.2, { defId: 'test:bless', name: 'Test Bless' });
-  const res = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(42));
+  const player = hero(5);
+  player.hp = 999999;
+  const battle = startBattle('e_warden', ORIGIN, { player, rng: seeded(41) })!.battle;
+  battle.enemy.hp = 999999;
+  battle.enemy.maxHp = 999999;
+  player.battle = battle;
+  battle.enemy.turn = 2;
+  addItem(player, 'c_antidote', 1);
+  injectMod(battle, 'player', 'atk', -0.1, { defId: 'test:curse', name: 'Test Curse' });
+  injectMod(battle, 'player', 'def', 0.2, { defId: 'test:bless', name: 'Test Bless' });
+  const res = performAction(player, battle, { kind: 'item', itemId: 'c_antidote' }, seeded(42));
   const removed = findTrace(res.trace, 'effectRemoved');
-  const cleansed = removed.filter((e) => e.cause === 'cleansed');
-  const dispelled = removed.filter((e) => e.cause === 'dispelled');
+  const cleansed = removed.filter((event) => event.cause === 'cleansed');
+  const dispelled = removed.filter((event) => event.cause === 'dispelled');
   assertEquals(cleansed.length, 1, 'the Tonic cleansed the harmful curse');
   assertEquals(cleansed[0]!.defId, 'test:curse');
   assertEquals(cleansed[0]!.removedBy, {
@@ -190,35 +201,35 @@ Deno.test('#105: a same-round item cleanse and enemy dispel each name their remo
     name: 'Final Silence',
   });
   assertEquals(
-    removed.every((e) => e.round === 1),
+    removed.every((event) => event.round === 1),
     true,
     'both removals happened in round 1 — removedBy is the only thing telling them apart',
   );
 });
 
 Deno.test('#105: the trace is caller-owned plain data — never persisted on the battle', () => {
-  const p = hero(3);
-  const b = paddedRat(p, 24);
-  addItem(p, 'c_minor_potion', 2);
-  const res = performAction(p, b, { kind: 'item', itemId: 'c_minor_potion' }, seeded(24));
+  const player = hero(3);
+  const battle = paddedRat(player, 24);
+  addItem(player, 'c_minor_potion', 2);
+  const res = performAction(player, battle, { kind: 'item', itemId: 'c_minor_potion' }, seeded(24));
   assertExists(res.trace);
-  assertEquals('trace' in b, false, 'BattleState carries no trace field');
+  assertEquals('trace' in battle, false, 'BattleState carries no trace field');
   assertEquals(
-    JSON.stringify(b).includes('"kind":"hpRestored"'),
+    JSON.stringify(battle).includes('"kind":"hpRestored"'),
     false,
     'no trace entry survives battle persistence',
   );
   // Removal provenance is trace-only too: a cleanse names its source in the
   // returned trace, and that provenance never lands in the saved shape.
-  addItem(p, 'c_antidote', 1);
-  injectMod(b, 'player', 'atk', -0.1, { defId: 'test:sap', name: 'Test Sap' });
-  const res2 = performAction(p, b, { kind: 'item', itemId: 'c_antidote' }, seeded(25));
+  addItem(player, 'c_antidote', 1);
+  injectMod(battle, 'player', 'atk', -0.1, { defId: 'test:sap', name: 'Test Sap' });
+  const res2 = performAction(player, battle, { kind: 'item', itemId: 'c_antidote' }, seeded(25));
   assertEquals(
     findTrace(res2.trace, 'effectRemoved')[0]?.removedBy?.id,
     'c_antidote',
     'the removal entry carries its source',
   );
-  const saved = JSON.stringify(b);
+  const saved = JSON.stringify(battle);
   assertEquals(saved.includes('"effectRemoved"'), false, 'no removal entry survives persistence');
   assertEquals(saved.includes('"removedBy"'), false, 'removal provenance never persists');
 });

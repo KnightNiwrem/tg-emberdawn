@@ -48,10 +48,10 @@ const GONE = 'gone_404'; // matches no catalog id and no move/event name
 
 /** First authored choice node + choice, for receipt/decision fixtures. */
 function someChoice() {
-  for (const d of DIALOGUES) {
-    for (const n of d.nodes) {
-      if (n.kind === 'choice' && n.choices.length > 0) {
-        return { dialogueId: d.id, nodeId: n.id, choiceId: n.choices[0].id };
+  for (const dialogueDef of DIALOGUES) {
+    for (const node of dialogueDef.nodes) {
+      if (node.kind === 'choice' && node.choices.length > 0) {
+        return { dialogueId: dialogueDef.id, nodeId: node.id, choiceId: node.choices[0].id };
       }
     }
   }
@@ -61,13 +61,18 @@ function someChoice() {
 /** First authored recordDecision provenance tuple (#150): the exact
  * (decision, dialogue, node, choice) application current content produces. */
 function someDecision() {
-  for (const d of DIALOGUES) {
-    for (const n of d.nodes) {
-      if (n.kind !== 'choice') continue;
-      for (const c of n.choices) {
-        for (const e of c.effects ?? []) {
-          if (e.kind === 'recordDecision') {
-            return { decisionId: e.id, dialogueId: d.id, nodeId: n.id, choiceId: c.id };
+  for (const dialogueDef of DIALOGUES) {
+    for (const node of dialogueDef.nodes) {
+      if (node.kind !== 'choice') continue;
+      for (const choice of node.choices) {
+        for (const effect of choice.effects ?? []) {
+          if (effect.kind === 'recordDecision') {
+            return {
+              decisionId: effect.id,
+              dialogueId: dialogueDef.id,
+              nodeId: node.id,
+              choiceId: choice.id,
+            };
           }
         }
       }
@@ -78,9 +83,9 @@ function someDecision() {
 
 /** First authored line node, for line-receipt fixtures. */
 function someLine() {
-  for (const d of DIALOGUES) {
-    for (const n of d.nodes) {
-      if (n.kind === 'line') return { dialogueId: d.id, nodeId: n.id };
+  for (const dialogueDef of DIALOGUES) {
+    for (const node of dialogueDef.nodes) {
+      if (node.kind === 'line') return { dialogueId: dialogueDef.id, nodeId: node.id };
     }
   }
   throw new Error('no authored line node found');
@@ -88,56 +93,56 @@ function someLine() {
 
 /** First story-event name current content emits or consumes. */
 function someStoryEvent(): string {
-  for (const q of QUESTS) {
-    for (const o of q.objectives) {
-      if (o.kind === 'storyEvent') return o.target;
+  for (const questDef of QUESTS) {
+    for (const objective of questDef.objectives) {
+      if (objective.kind === 'storyEvent') return objective.target;
     }
   }
   throw new Error('no authored story event found');
 }
 
-function expectProblems(p: PlayerState, family: string): void {
-  const problems = findUnresolvedPersistedIds(p);
+function expectProblems(player: PlayerState, family: string): void {
+  const problems = findUnresolvedPersistedIds(player);
   assert(
     problems.some((pr) => pr.family === family),
     `expected a '${family}' problem, got: ${JSON.stringify(problems)}`,
   );
   assertThrows(
-    () => assertResolvablePersistedIds(p),
+    () => assertResolvablePersistedIds(player),
     SaveUnresolvableError,
     'no longer resolves',
   );
 }
 
 Deno.test('identity gate: a fully valid current save passes byte-for-byte (#141)', () => {
-  const p = createPlayer(960, 'T', 'warrior');
+  const player = createPlayer(960, 'T', 'warrior');
   // Exercise every family with REAL content ids so the valid case is rich:
   const { dialogueId, nodeId, choiceId } = someChoice();
   const line = someLine();
   const decision = someDecision();
-  p.quests[QUESTS[0].id] = { status: 'active', counts: [0] };
-  p.questOutcomes[QUESTS[1].id] = { kind: 'locked', at: 1 };
-  p.flags['forge_i_w_warrior_1'] = 2;
-  p.storyReceipts.push(`choice:${dialogueId}:${nodeId}:${choiceId}`);
-  p.storyReceipts.push(`line:${line.dialogueId}:${line.nodeId}`);
-  p.decisions[decision.decisionId] = {
+  player.quests[QUESTS[0].id] = { status: 'active', counts: [0] };
+  player.questOutcomes[QUESTS[1].id] = { kind: 'locked', at: 1 };
+  player.flags['forge_i_w_warrior_1'] = 2;
+  player.storyReceipts.push(`choice:${dialogueId}:${nodeId}:${choiceId}`);
+  player.storyReceipts.push(`line:${line.dialogueId}:${line.nodeId}`);
+  player.decisions[decision.decisionId] = {
     choiceId: decision.choiceId,
     dialogueId: decision.dialogueId,
     nodeId: decision.nodeId,
     chosenAt: 1,
   };
-  p.storyEvents.push(someStoryEvent());
-  p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+  player.storyEvents.push(someStoryEvent());
+  player.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player,
     rng: seeded(1),
   })!.battle;
-  p.battle.rewards = { xp: 1, gold: 1, drops: ['c_minor_potion'] };
-  p.battle.procs = { 'w_warrior_1:0': { count: 1, round: 1 } };
-  const before = JSON.stringify(p);
+  player.battle.rewards = { xp: 1, gold: 1, drops: ['c_minor_potion'] };
+  player.battle.procs = { 'w_warrior_1:0': { count: 1, round: 1 } };
+  const before = JSON.stringify(player);
 
-  assertEquals(findUnresolvedPersistedIds(p), []);
-  assertResolvablePersistedIds(p); // must not throw
-  assertEquals(JSON.stringify(p), before, 'validation never mutates the save');
+  assertEquals(findUnresolvedPersistedIds(player), []);
+  assertResolvablePersistedIds(player); // must not throw
+  assertEquals(JSON.stringify(player), before, 'validation never mutates the save');
 });
 
 Deno.test('identity gate: zone families (#141)', () => {
@@ -264,49 +269,49 @@ Deno.test('identity gate: scene identity arguments (#141)', () => {
 });
 
 Deno.test('identity gate: shop selection is an item ID; sell pagination is not (#187)', () => {
-  const p = createPlayer(1871, 'Shopper', 'warrior');
-  p.scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' };
-  assertResolvablePersistedIds(p);
-  p.scene.arg2 = GONE;
-  expectProblems(p, 'scene.arg2');
-  p.scene = { view: 'shop', arg: 'sell', arg2: '1' };
-  assertResolvablePersistedIds(p);
-  p.scene = { view: 'shop', arg: '1' };
-  assertResolvablePersistedIds(p);
+  const player = createPlayer(1871, 'Shopper', 'warrior');
+  player.scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' };
+  assertResolvablePersistedIds(player);
+  player.scene.arg2 = GONE;
+  expectProblems(player, 'scene.arg2');
+  player.scene = { view: 'shop', arg: 'sell', arg2: '1' };
+  assertResolvablePersistedIds(player);
+  player.scene = { view: 'shop', arg: '1' };
+  assertResolvablePersistedIds(player);
 });
 
 Deno.test('identity gate: an unresolved shop selection refuses /start without rewriting (#187)', async () => {
-  const p = createPlayer(1872, 'Shopper', 'warrior');
-  p.scene = { view: 'shop', arg: '0', arg2: GONE };
+  const player = createPlayer(1872, 'Shopper', 'warrior');
+  player.scene = { view: 'shop', arg: '0', arg2: GONE };
   const store = new MemoryStore();
-  await store.set(p.userId, p);
-  const before = structuredClone(p);
-  const capture = fakeCtxCapture(p.userId);
-  await store.withLock(p.userId, () => handleStart(capture.ctx, store));
-  assertEquals(await store.get(p.userId), before);
+  await store.set(player.userId, player);
+  const before = structuredClone(player);
+  const capture = fakeCtxCapture(player.userId);
+  await store.withLock(player.userId, () => handleStart(capture.ctx, store));
+  assertEquals(await store.get(player.userId), before);
   assertEquals(capture.sends.length, 0);
   assertEquals(capture.replies, [UNRESOLVABLE_SAVE_REPLY]);
 });
 
 Deno.test('identity gate: battle identities (#141)', () => {
-  function withBattle(mutate: (p: PlayerState) => void): PlayerState {
-    const p = createPlayer(981, 'T', 'warrior');
-    p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-      player: p,
+  function withBattle(mutate: (player: PlayerState) => void): PlayerState {
+    const player = createPlayer(981, 'T', 'warrior');
+    player.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+      player,
       rng: seeded(2),
     })!.battle;
-    mutate(p);
-    return p;
+    mutate(player);
+    return player;
   }
 
-  expectProblems(withBattle((p) => p.battle!.enemy.id = GONE), 'battle.enemy');
+  expectProblems(withBattle((player) => player.battle!.enemy.id = GONE), 'battle.enemy');
   expectProblems(
-    withBattle((p) => p.battle!.origin = { kind: 'explore', zoneId: GONE }),
+    withBattle((player) => player.battle!.origin = { kind: 'explore', zoneId: GONE }),
     'battle.origin',
   );
   expectProblems(
-    withBattle((p) =>
-      p.battle!.origin = {
+    withBattle((player) =>
+      player.battle!.origin = {
         kind: 'dungeon',
         zoneId: 'whisperwood',
         dungeonId: GONE,
@@ -317,8 +322,8 @@ Deno.test('identity gate: battle identities (#141)', () => {
     'battle.origin',
   );
   expectProblems(
-    withBattle((p) =>
-      p.battle!.origin = {
+    withBattle((player) =>
+      player.battle!.origin = {
         kind: 'dungeon',
         zoneId: 'whisperwood',
         dungeonId: 'd_rootbound',
@@ -328,10 +333,10 @@ Deno.test('identity gate: battle identities (#141)', () => {
     ),
     'battle.origin',
   );
-  expectProblems(withBattle((p) => p.battle!.cooldowns[GONE] = 2), 'battle.cooldowns');
+  expectProblems(withBattle((player) => player.battle!.cooldowns[GONE] = 2), 'battle.cooldowns');
   expectProblems(
-    withBattle((p) =>
-      p.battle!.effectInstances.push({
+    withBattle((player) =>
+      player.battle!.effectInstances.push({
         iid: 'x1',
         defId: GONE,
         name: 'X',
@@ -349,11 +354,11 @@ Deno.test('identity gate: battle identities (#141)', () => {
     'battle.effectSources',
   );
   expectProblems(
-    withBattle((p) => p.battle!.procs = { [`${GONE}:0`]: { count: 1, round: 1 } }),
+    withBattle((player) => player.battle!.procs = { [`${GONE}:0`]: { count: 1, round: 1 } }),
     'battle.procs',
   );
   expectProblems(
-    withBattle((p) => p.battle!.rewards = { xp: 1, gold: 1, drops: [GONE] }),
+    withBattle((player) => player.battle!.rewards = { xp: 1, gold: 1, drops: [GONE] }),
     'battle.rewards',
   );
 });
@@ -425,12 +430,12 @@ Deno.test('identity gate: a named outcome on a failed/locked record is refused (
 });
 
 Deno.test('conditions: an outcome query matches resolved records only (#150)', () => {
-  const p = createPlayer(999, 'T', 'warrior');
+  const player = createPlayer(999, 'T', 'warrior');
   // The legitimate resolution matches — with or without an explicit kind.
-  p.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'kept', at: 1 };
-  assert(evalCondition(p, { questOutcome: { questId: 'sq_shrine_pact', outcome: 'kept' } }));
+  player.questOutcomes['sq_shrine_pact'] = { kind: 'resolved', outcome: 'kept', at: 1 };
+  assert(evalCondition(player, { questOutcome: { questId: 'sq_shrine_pact', outcome: 'kept' } }));
   assert(
-    evalCondition(p, {
+    evalCondition(player, {
       questOutcome: { questId: 'sq_shrine_pact', kind: 'resolved', outcome: 'kept' },
     }),
   );
@@ -438,7 +443,7 @@ Deno.test('conditions: an outcome query matches resolved records only (#150)', (
   // Finding 1 (#150): a malformed locked record posing as "kept" satisfies
   // no outcome query — the resolution never happened.
   const locked = JSON.parse(
-    JSON.stringify(p),
+    JSON.stringify(player),
   ) as PlayerState;
   locked.questOutcomes['sq_shrine_pact'] = {
     kind: 'locked',
@@ -460,26 +465,29 @@ Deno.test('conditions: an outcome query matches resolved records only (#150)', (
 
 Deno.test('identity gate: handlers refuse before mutation, render, or save (#141)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(982, 'T', 'warrior');
-  p.gold = 555;
-  p.messageId = 700;
-  p.uiRev = 1;
-  p.currentZone = GONE; // same-version save with a dangling identity
-  await store.set(982, p);
-  assertSupportedSaveVersion(p); // the schema gate alone would PASS this save
+  const player = createPlayer(982, 'T', 'warrior');
+  player.gold = 555;
+  player.messageId = 700;
+  player.uiRev = 1;
+  player.currentZone = GONE; // same-version save with a dangling identity
+  await store.set(982, player);
+  assertSupportedSaveVersion(player); // the schema gate alone would PASS this save
   const storedBefore = JSON.stringify(await store.get(982));
 
   // /start explains the /reset path and never renders or rewrites.
   const start = fakeCtxCapture(982);
   await handleStart(start.ctx, store);
   assertEquals(start.sends.length + start.edits.length, 0, '/start renders nothing');
-  assert(start.replies.some((r) => r === UNRESOLVABLE_SAVE_REPLY), '/start points at /reset');
+  assert(
+    start.replies.some((reply) => reply === UNRESOLVABLE_SAVE_REPLY),
+    '/start points at /reset',
+  );
 
   // A gameplay callback is refused the same way: no mutation, no render, no
   // save — and no fallback/replacement content is introduced.
   const tap = fakeCtxCapture(982, 700, withRev(1, 'z:sh'));
   await handleCallback(tap.ctx, store);
-  assert(tap.replies.some((r) => r === UNRESOLVABLE_SAVE_REPLY));
+  assert(tap.replies.some((reply) => reply === UNRESOLVABLE_SAVE_REPLY));
   assertEquals(tap.edits.length + tap.sends.length, 0, 'no game render is committed');
   const after = await store.get(982);
   assertEquals(JSON.stringify(after), storedBefore, 'the stored save is untouched');
@@ -490,9 +498,9 @@ Deno.test('identity gate: handlers refuse before mutation, render, or save (#141
 
 Deno.test('identity gate: explicit /reset clears an unresolvable save; newer saves stay protected (#141)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(983, 'T', 'warrior');
-  p.currentZone = GONE;
-  await store.set(983, p);
+  const player = createPlayer(983, 'T', 'warrior');
+  player.currentZone = GONE;
+  await store.set(983, player);
 
   // The unloadable save cannot stage a confirmation, so explicit /reset
   // deletes it and offers the picker — the documented pre-launch escape.
@@ -513,7 +521,7 @@ Deno.test('identity gate: explicit /reset clears an unresolvable save; newer sav
   const resetNewer = fakeCtxCapture(984);
   await handleReset(resetNewer.ctx, store);
   assert(
-    resetNewer.replies.some((r) => String(r).includes('newer version')),
+    resetNewer.replies.some((reply) => String(reply).includes('newer version')),
     'the newer-save refusal is delivered',
   );
   assertEquals((await store.get(984))?.stateVersion, CURRENT_STATE_VERSION + 1, 'not deleted');
@@ -536,19 +544,19 @@ Deno.test('identity gate: the three refusal classes stay distinct (#141)', () =>
 });
 
 Deno.test('identity gate: fresh saves of every class always resolve (#141)', () => {
-  for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
-    assertEquals(findUnresolvedPersistedIds(createPlayer(985, 'T', cls)), []);
+  for (const classId of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+    assertEquals(findUnresolvedPersistedIds(createPlayer(985, 'T', classId)), []);
   }
 });
 
 Deno.test('identity gate: gathering zone counters reject unresolved identities without repair', () => {
-  const p = createPlayer(2030, 'Gatherer', 'warrior');
-  p.flags.gather_emberdawn = 3;
-  p.flags.gatherReset_emberdawn = 123456;
-  assertResolvablePersistedIds(p);
-  p.flags.gather_gone_404 = 1;
-  p.flags.gatherReset_gone_404 = 123456;
-  const before = JSON.stringify(p);
-  expectProblems(p, 'flags');
-  assertEquals(JSON.stringify(p), before);
+  const player = createPlayer(2030, 'Gatherer', 'warrior');
+  player.flags.gather_emberdawn = 3;
+  player.flags.gatherReset_emberdawn = 123456;
+  assertResolvablePersistedIds(player);
+  player.flags.gather_gone_404 = 1;
+  player.flags.gatherReset_gone_404 = 123456;
+  const before = JSON.stringify(player);
+  expectProblems(player, 'flags');
+  assertEquals(JSON.stringify(player), before);
 });

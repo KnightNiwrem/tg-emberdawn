@@ -15,17 +15,17 @@ import { route } from '../src/content/routes.ts';
 import type { TravelEvent } from '../src/content/types.ts';
 
 function stub(...values: number[]): () => number {
-  let i = 0;
-  return () => values[Math.min(i++, values.length - 1)]!;
+  let drawIndex = 0;
+  return () => values[Math.min(drawIndex++, values.length - 1)]!;
 }
 
 function walker(id: number, at: string, to: string) {
-  const p = createPlayer(id, 'Walker', 'warrior');
-  p.tutorial = 'done';
-  p.level = 30;
-  p.currentZone = at;
-  p.unlockedZones.push(to);
-  return p;
+  const player = createPlayer(id, 'Walker', 'warrior');
+  player.tutorial = 'done';
+  player.level = 30;
+  player.currentZone = at;
+  player.unlockedZones.push(to);
+  return player;
 }
 
 /** Drives one full crossing through the real coordinator, collecting its
@@ -37,18 +37,18 @@ function cross(
   to: string,
   rng: () => number,
 ): { records: JourneyEventRecord[] } {
-  const p = walker(id, from, to);
+  const player = walker(id, from, to);
   const records: JourneyEventRecord[] = [];
-  const sink = (e: JourneyEventRecord): void => void records.push(e);
-  const res = startJourney(p, `w_${from}_${to}`, rng, sink);
+  const sink = (event: JourneyEventRecord): void => void records.push(event);
+  const res = startJourney(player, `w_${from}_${to}`, rng, sink);
   assert(res.ok, 'the crossing starts');
   let step = res.step;
   let guard = 0;
   while (step.kind === 'battle' && guard++ < 20) {
-    p.battle!.enemy.hp = 0;
-    battleAction(p, { v: 'battle', a: 'atk' }); // victory completes the event
-    p.battle = undefined; // the won fight drops, like the live Continue
-    const next = advanceJourney(p, rng, sink);
+    player.battle!.enemy.hp = 0;
+    battleAction(player, { v: 'battle', a: 'atk' }); // victory completes the event
+    player.battle = undefined; // the won fight drops, like the live Continue
+    const next = advanceJourney(player, rng, sink);
     if (next.kind === 'arrived') return { records };
     assert(next.kind === 'battle', 'the crossing continues into its next roll');
     step = next;
@@ -72,21 +72,21 @@ Deno.test('telemetry: every resolved road event emits exactly one structured rec
 Deno.test('telemetry: contextual grants ride the record, measured from the structured grant', () => {
   // Patch the Landing Trail's treasure event to also roll a contextual
   // table, run the crossing, and read the granted ids off the record.
-  const r = route('w_whisperwood_mirefoot')!;
-  const ev = r.events![4] as Extract<TravelEvent, { kind: 'treasure' }>;
-  const original = ev.dropTable;
-  ev.dropTable = 'dt_ember_fields';
+  const routeDef = route('w_whisperwood_mirefoot')!;
+  const treasureEvent = routeDef.events![4] as Extract<TravelEvent, { kind: 'treasure' }>;
+  const original = treasureEvent.dropTable;
+  treasureEvent.dropTable = 'dt_ember_fields';
   try {
-    const p = walker(1691, 'whisperwood', 'mirefoot');
+    const player = walker(1691, 'whisperwood', 'mirefoot');
     const records: JourneyEventRecord[] = [];
     const res = startJourney(
-      p,
+      player,
       'w_whisperwood_mirefoot',
       stub(0.95, 0.26),
-      (e) => void records.push(e),
+      (event) => void records.push(event),
     );
     assert(res.ok && res.step.kind === 'arrived', 'the treasure roll lands and arrives');
-    const treasure = records.find((e) => e.kind === 'treasure');
+    const treasure = records.find((event) => event.kind === 'treasure');
     assert(treasure, 'the treasure event emitted a record');
     // The stable roll straddles authored chances: some finds grant and others miss.
     const entries = dropTable('dt_ember_fields')!.entries;
@@ -102,24 +102,24 @@ Deno.test('telemetry: contextual grants ride the record, measured from the struc
     );
     for (const entry of entries) {
       assertEquals(
-        countInBag(p, entry.item),
+        countInBag(player, entry.item),
         entry.chance > 0.26 ? entry.qty ?? 1 : 0,
         `${entry.item}: only successful grants enter the bag`,
       );
     }
   } finally {
-    if (original === undefined) delete ev.dropTable;
-    else ev.dropTable = original;
+    if (original === undefined) delete treasureEvent.dropTable;
+    else treasureEvent.dropTable = original;
   }
 });
 
-function countInBag(p: ReturnType<typeof createPlayer>, id: string): number {
-  return p.inventory.find((e) => e.id === id)?.qty ?? 0;
+function countInBag(player: ReturnType<typeof createPlayer>, id: string): number {
+  return player.inventory.find((entry) => entry.id === id)?.qty ?? 0;
 }
 
 Deno.test('telemetry: changing narrative text cannot change telemetry', () => {
-  const r = route('w_sunspire_frostpeak')!;
-  const flavor = r.events![3] as Extract<TravelEvent, { kind: 'flavor' }>;
+  const routeDef = route('w_sunspire_frostpeak')!;
+  const flavor = routeDef.events![3] as Extract<TravelEvent, { kind: 'flavor' }>;
   const original = flavor.text;
   const run = (): JourneyEventRecord[] =>
     cross(1692, 'sunspire', 'frostpeak', stub(0.7, 0.7)).records;
@@ -132,49 +132,52 @@ Deno.test('telemetry: changing narrative text cannot change telemetry', () => {
 
 Deno.test('campaign: totals are derived sums and can never undershoot road battles', () => {
   const report = simulateCampaign('warrior', 20260905);
-  const t = report.travel;
-  const sum = Object.values(t.eventOutcomes).reduce((a, n) => a + n, 0);
-  assertEquals(t.totalRoadEvents, sum, 'totalRoadEvents IS the structured sum');
-  const byEdgeSum = Object.values(t.eventOutcomesByEdge)
+  const metrics = report.travel;
+  const sum = Object.values(metrics.eventOutcomes).reduce(
+    (totalCount, count) => totalCount + count,
+    0,
+  );
+  assertEquals(metrics.totalRoadEvents, sum, 'totalRoadEvents IS the structured sum');
+  const byEdgeSum = Object.values(metrics.eventOutcomesByEdge)
     .flatMap((kinds) => Object.values(kinds))
-    .reduce((a, n) => a + n, 0);
+    .reduce((totalCount, count) => totalCount + count, 0);
   assertEquals(byEdgeSum, sum, 'the per-edge breakdown mirrors the global one');
   assert(
-    t.totalRoadEvents >= t.travelBattles,
-    `events ${t.totalRoadEvents} >= road battles ${t.travelBattles}`,
+    metrics.totalRoadEvents >= metrics.travelBattles,
+    `events ${metrics.totalRoadEvents} >= road battles ${metrics.travelBattles}`,
   );
   assertEquals(
-    t.eventOutcomes.battle ?? 0,
-    t.travelBattles,
+    metrics.eventOutcomes.battle ?? 0,
+    metrics.travelBattles,
     'every road fight corresponds to exactly one battle record',
   );
-  assert(t.travelBattles > 0, 'the campaign actually fought road battles');
+  assert(metrics.travelBattles > 0, 'the campaign actually fought road battles');
 });
 
 Deno.test('campaign: arrival means are pre-arrival, documented, and in range', () => {
   const report = simulateCampaign('warrior', 20260905);
-  const t = report.travel;
-  assert(t.arrivalSamples > 0, 'the campaign arrived somewhere');
-  for (const mean of [t.hpPctOnArrival, t.mpPctOnArrival]) {
+  const metrics = report.travel;
+  assert(metrics.arrivalSamples > 0, 'the campaign arrived somewhere');
+  for (const mean of [metrics.hpPctOnArrival, metrics.mpPctOnArrival]) {
     assert(mean >= 0 && mean <= 1, `mean in [0,1]: ${mean}`);
   }
   // The means are real means: the sum fields divide exactly by the
   // sample count.
   assertEquals(
-    t.hpPctOnArrival,
-    t.hpArrivalSumPct / t.arrivalSamples,
+    metrics.hpPctOnArrival,
+    metrics.hpArrivalSumPct / metrics.arrivalSamples,
   );
   assertEquals(
-    t.mpPctOnArrival,
-    t.mpArrivalSumPct / t.arrivalSamples,
+    metrics.mpPctOnArrival,
+    metrics.mpArrivalSumPct / metrics.arrivalSamples,
   );
   // PRE-arrival semantics: the road's condition, before any safe-haven
   // full heal. A campaign hero takes road damage, so the mean HP on
   // arrival is strictly below one — the old post-heal sum (1000+ over
   // ~1000 samples) could never satisfy this.
   assert(
-    t.hpPctOnArrival < 1,
-    `pre-heal arrival condition is sampled: ${t.hpPctOnArrival}`,
+    metrics.hpPctOnArrival < 1,
+    `pre-heal arrival condition is sampled: ${metrics.hpPctOnArrival}`,
   );
 });
 
@@ -190,7 +193,7 @@ Deno.test('campaign: contextual grants arrive from structured grants only', () =
 });
 
 Deno.test('telemetry: the seeded harness is deterministic across runs', () => {
-  const a = simulateCampaign('warrior', 424242).travel;
-  const b = simulateCampaign('warrior', 424242).travel;
-  assertEquals(b, a, 'same seed, same telemetry');
+  const firstMetrics = simulateCampaign('warrior', 424242).travel;
+  const secondMetrics = simulateCampaign('warrior', 424242).travel;
+  assertEquals(secondMetrics, firstMetrics, 'same seed, same telemetry');
 });

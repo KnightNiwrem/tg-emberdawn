@@ -259,8 +259,8 @@ export function renderBattle(player: PlayerState): InputRichMessage {
     blocks.push(...effectsBlocks(battle, 'enemy'));
     blocks.push({ type: 'divider' });
     // YOU section — never visually continuous with the enemy's bars (#67).
-    const cls = CLASSES[player.classId];
-    blocks.push(para(bold(`YOU · ${cls.emoji} ${cls.name} Lv ${player.level}`)));
+    const classDef = CLASSES[player.classId];
+    blocks.push(para(bold(`YOU · ${classDef.emoji} ${classDef.name} Lv ${player.level}`)));
     blocks.push(para(`❤️ ${player.hp}/${stats.maxHp}`));
     blocks.push(para(bar(player.hp, stats.maxHp)));
     blocks.push(para(`💧 ${player.mp}/${stats.maxMp}`));
@@ -281,7 +281,7 @@ export function renderBattle(player: PlayerState): InputRichMessage {
     blocks.push(...earlierHistoryBlocks(battle));
     blocks.push(buttonsRow([
       cbBtn(
-        `${cls.basicAction.icon} ${cls.basicAction.name}`,
+        `${classDef.basicAction.icon} ${classDef.basicAction.name}`,
         encodeCb({ v: 'battle', a: 'atk' }),
         'primary',
       ),
@@ -378,19 +378,19 @@ export function renderItemMenu(player: PlayerState): InputRichMessage {
   const battle = player.battle!;
   // Auto-trigger items (Phoenix Cinder) are never manually usable.
   const manual = (id: string): boolean => {
-    const eff = item(id)?.effect;
-    if (!eff) return true;
-    return Boolean(eff.healHp || eff.healMp || eff.cureStatus || eff.flee);
+    const effect = item(id)?.effect;
+    if (!effect) return true;
+    return Boolean(effect.healHp || effect.healMp || effect.cureStatus || effect.flee);
   };
   // Context checks (#35): a button that cannot do anything renders
   // disabled instead of promising an action the engine must refuse.
   const applicable = (id: string): boolean => {
-    const eff = item(id)?.effect;
-    if (!eff) return true;
-    if (eff.flee) return !battle.enemy.isBoss; // Smoke Bomb never touches bosses
+    const effect = item(id)?.effect;
+    if (!effect) return true;
+    if (effect.flee) return !battle.enemy.isBoss; // Smoke Bomb never touches bosses
     // Real tagged cleanse (#78): usable when any removable harmful effect
     // is live (today: the sapped-strength family).
-    if (eff.cureStatus && !eff.healHp && !eff.healMp) {
+    if (effect.cureStatus && !effect.healHp && !effect.healMp) {
       return hasRemovableTagged(battle, 'player', ['harmful']);
     }
     return true;

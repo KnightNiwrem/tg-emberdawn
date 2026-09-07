@@ -296,8 +296,8 @@ export const FORGES: readonly ForgeDef[] = [
   },
 ];
 
-const SHOP_INDEX = new Map(SHOPS.map((s) => [s.id, s]));
-const FORGE_INDEX = new Map(FORGES.map((f) => [f.id, f]));
+const SHOP_INDEX = new Map(SHOPS.map((shopDef) => [shopDef.id, shopDef]));
+const FORGE_INDEX = new Map(FORGES.map((forgeDef) => [forgeDef.id, forgeDef]));
 
 export function shop(id: string): ShopDef | undefined {
   return SHOP_INDEX.get(id);
@@ -309,14 +309,14 @@ export function forge(id: string): ForgeDef | undefined {
 
 /** The shop AUTHORED in this zone — presence, not authorization. */
 export function shopInZone(zoneId: string): ShopDef | undefined {
-  const z = ZONE_SERVICES_LOOKUP.get(zoneId);
-  return z?.shop ? shop(z.shop) : undefined;
+  const services = ZONE_SERVICES_LOOKUP.get(zoneId);
+  return services?.shop ? shop(services.shop) : undefined;
 }
 
 /** The forge AUTHORED in this zone — presence, not authorization. */
 export function forgeInZone(zoneId: string): ForgeDef | undefined {
-  const z = ZONE_SERVICES_LOOKUP.get(zoneId);
-  return z?.forge ? forge(z.forge) : undefined;
+  const services = ZONE_SERVICES_LOOKUP.get(zoneId);
+  return services?.forge ? forge(services.forge) : undefined;
 }
 
-const ZONE_SERVICES_LOOKUP = new Map(ZONES.map((z) => [z.id, z.services ?? {}]));
+const ZONE_SERVICES_LOOKUP = new Map(ZONES.map((zoneDef) => [zoneDef.id, zoneDef.services ?? {}]));

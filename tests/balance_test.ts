@@ -97,29 +97,38 @@ Deno.test('balance: the opening normals do not require consumables (#74)', () =>
 });
 
 Deno.test('balance: boss gates and readiness metadata resolve to real content (#74)', () => {
-  for (const z of ZONES) {
-    const d = z.dungeon;
-    if (!d) continue;
-    assert(enemyDef(d.boss), `${z.id}: boss ${d.boss} does not exist`);
-    d.floors.forEach((f, i) => {
-      for (const eid of f.enemies) {
-        assert(enemyDef(eid), `${z.id} floor ${i + 1}: enemy ${eid} does not exist`);
+  for (const zoneDef of ZONES) {
+    const dungeon = zoneDef.dungeon;
+    if (!dungeon) continue;
+    assert(enemyDef(dungeon.boss), `${zoneDef.id}: boss ${dungeon.boss} does not exist`);
+    dungeon.floors.forEach((floor, floorIndex) => {
+      for (const eid of floor.enemies) {
+        assert(enemyDef(eid), `${zoneDef.id} floor ${floorIndex + 1}: enemy ${eid} does not exist`);
       }
-      if (f.treasure?.item) {
+      if (floor.treasure?.item) {
         assert(
-          item(f.treasure.item),
-          `${z.id} floor ${i + 1}: treasure ${f.treasure.item} missing`,
+          item(floor.treasure.item),
+          `${zoneDef.id} floor ${floorIndex + 1}: treasure ${floor.treasure.item} missing`,
         );
       }
     });
-    if (d.bossGate) {
-      assert(quest(d.bossGate.quest), `${z.id}: gate quest ${d.bossGate.quest} does not exist`);
-      if (d.bossGate.item) {
-        assert(item(d.bossGate.item), `${z.id}: gate key ${d.bossGate.item} does not exist`);
+    if (dungeon.bossGate) {
+      assert(
+        quest(dungeon.bossGate.quest),
+        `${zoneDef.id}: gate quest ${dungeon.bossGate.quest} does not exist`,
+      );
+      if (dungeon.bossGate.item) {
+        assert(
+          item(dungeon.bossGate.item),
+          `${zoneDef.id}: gate key ${dungeon.bossGate.item} does not exist`,
+        );
       }
     }
-    if (d.firstClear?.item) {
-      assert(item(d.firstClear.item), `${z.id}: first-clear item ${d.firstClear.item} missing`);
+    if (dungeon.firstClear?.item) {
+      assert(
+        item(dungeon.firstClear.item),
+        `${zoneDef.id}: first-clear item ${dungeon.firstClear.item} missing`,
+      );
     }
   }
 });
@@ -128,19 +137,19 @@ Deno.test('balance: tutorial encounters cannot fell a correctly acting hero (#74
   // Vacuously green until #69 flags its controlled enemy; the invariant is
   // wired so the guaranteed tutorial is covered the moment it exists.
   const tutors = tutorialEnemies();
-  for (const t of tutors) {
+  for (const enemyDef of tutors) {
     for (const cid of CLASS_IDS) {
       const cell = runCell({
         classId: cid,
         level: 1,
         gear: 'starting',
         policy: POLICIES.rotation,
-        pool: `tutorial:${t.id}`,
-        sources: solo(t.id, 'emberdawn'),
+        pool: `tutorial:${enemyDef.id}`,
+        sources: solo(enemyDef.id, 'emberdawn'),
         fights: 200,
         seed: 1301,
       });
-      assertEquals(cell.lossRate, 0, `${cid} lost to tutorial enemy ${t.id}`);
+      assertEquals(cell.lossRate, 0, `${cid} lost to tutorial enemy ${enemyDef.id}`);
     }
   }
 });
@@ -258,9 +267,11 @@ Deno.test('spd curve: the rogue slips measurably more without flipping identitie
   // level. Every class fights the SAME pool with the SAME seed per level —
   // a paired comparison, so rng noise can't fake the gap.
   const zoneFor = (level: number): string => {
-    const z = hostileZones().find((h) => level >= h.levels[0] - 2 && level <= h.levels[1] + 2);
-    assert(z, `a hostile zone covers level ${level}`);
-    return z!.id;
+    const zoneDef = hostileZones().find((zoneDef) =>
+      level >= zoneDef.levels[0] - 2 && level <= zoneDef.levels[1] + 2
+    );
+    assert(zoneDef, `a hostile zone covers level ${level}`);
+    return zoneDef!.id;
   };
   const cells = new Map<string, CellStat>();
   for (const level of [1, 7, 16, 31, 45]) {
@@ -312,11 +323,16 @@ Deno.test('spd curve: the rogue slips measurably more without flipping identitie
 Deno.test('balance: harness fidelity — shared eligibility, real tutorial start, sane counters (#74)', () => {
   // ONE eligibility rule everywhere: every pool source the harness builds
   // is an encounter live explore() could actually roll at that level.
-  for (const z of ZONES) {
+  for (const zoneDef of ZONES) {
     for (let level = 1; level <= 45; level++) {
-      for (const src of zoneNormalPool(z.id, level)) {
-        const ev = z.explore.find((x) => x.kind === 'battle' && x.enemy === src.enemyId);
-        assert(ev && encounterEligible(ev, level), `${z.id}@${level}: ${src.enemyId} ineligible`);
+      for (const src of zoneNormalPool(zoneDef.id, level)) {
+        const event = zoneDef.explore.find((event) =>
+          event.kind === 'battle' && event.enemy === src.enemyId
+        );
+        assert(
+          event && encounterEligible(event, level),
+          `${zoneDef.id}@${level}: ${src.enemyId} ineligible`,
+        );
       }
     }
   }
@@ -340,9 +356,12 @@ Deno.test('balance: harness fidelity — shared eligibility, real tutorial start
       `${cid}: ${rep.totalObjectiveFights} objective fights (unbounded?)`,
     );
     let prev = 0;
-    for (const b of rep.beats) {
-      assert(b.fights - prev <= 150, `${cid}: ${b.questId} jumped ${b.fights - prev} fights`);
-      prev = b.fights;
+    for (const beat of rep.beats) {
+      assert(
+        beat.fights - prev <= 150,
+        `${cid}: ${beat.questId} jumped ${beat.fights - prev} fights`,
+      );
+      prev = beat.fights;
     }
   }
 });
@@ -351,16 +370,16 @@ Deno.test('balance: the reviewed opening band follows the authored bands (#74)',
   const snap = buildSnapshot();
   for (const cid of CLASS_IDS) {
     for (const level of [1, 2]) {
-      const cell = snap.cells.find((c) =>
-        c.classId === cid && c.level === level && c.policy === POLICIES.rotation.name &&
-        c.gear === 'best'
+      const cell = snap.cells.find((cell) =>
+        cell.classId === cid && cell.level === level && cell.policy === POLICIES.rotation.name &&
+        cell.gear === 'best'
       );
       assertEquals(cell?.pool, 'outskirts', `${cid}@${level}`);
     }
     for (const level of [4, 7, 9]) {
-      const cell = snap.cells.find((c) =>
-        c.classId === cid && c.level === level && c.policy === POLICIES.rotation.name &&
-        c.gear === 'best'
+      const cell = snap.cells.find((cell) =>
+        cell.classId === cid && cell.level === level && cell.policy === POLICIES.rotation.name &&
+        cell.gear === 'best'
       );
       assertEquals(cell?.pool, 'whisperwood', `${cid}@${level}`);
     }
@@ -398,32 +417,38 @@ Deno.test('balance: the collection planner sees explore AND dungeon-floor source
     exploreDropZonesFor('m_iron_chunk', ['emberdawn', 'outskirts', 'whisperwood'], 6),
     [],
   );
-  const d = dungeonOf(zoneDef('whisperwood')!);
-  assert(d, 'the Whisperwood authors a dungeon');
-  assert(dungeonFloorsYield('m_iron_chunk', d, 1), '#73 caches on floors 1-2');
-  assert(dungeonFloorsYield('m_iron_chunk', d, 3), 'Mycelids still roam floor 3');
-  assert(!dungeonFloorsYield('m_iron_chunk', d, d.floors.length + 1), 'no normal floors remain');
+  const dungeon = dungeonOf(zoneDef('whisperwood')!);
+  assert(dungeon, 'the Whisperwood authors a dungeon');
+  assert(dungeonFloorsYield('m_iron_chunk', dungeon, 1), '#73 caches on floors 1-2');
+  assert(dungeonFloorsYield('m_iron_chunk', dungeon, 3), 'Mycelids still roam floor 3');
+  assert(
+    !dungeonFloorsYield('m_iron_chunk', dungeon, dungeon.floors.length + 1),
+    'no normal floors remain',
+  );
   // Wild drops still resolve through eligibility: rats drop ember shards.
   assert(exploreDropZonesFor('m_ember_shard', ['outskirts'], 1).includes('outskirts'));
 });
 
 Deno.test('balance: broad progression envelope holds across seeds (#74)', () => {
   for (const cid of CLASS_IDS) {
-    for (let s = 0; s < 25; s++) {
-      const rep = simulateChapterOne(cid, 21000 + s * 37);
-      assert(rep.chapter1Done, `${cid}@${s}: chapter one completes`);
-      assertEquals(rep.startLevel, 2, `${cid}@${s}: canonical start`);
-      assert(rep.totalItemsUsed >= 0, `${cid}@${s}: item use nonnegative`);
-      assert(rep.aranyaGearTier >= 2, `${cid}@${s}: tier-2 steel before Aranya`);
-      assert(rep.totalFights <= 140, `${cid}@${s}: ${rep.totalFights} fights (unbounded?)`);
+    for (let seed = 0; seed < 25; seed++) {
+      const rep = simulateChapterOne(cid, 21000 + seed * 37);
+      assert(rep.chapter1Done, `${cid}@${seed}: chapter one completes`);
+      assertEquals(rep.startLevel, 2, `${cid}@${seed}: canonical start`);
+      assert(rep.totalItemsUsed >= 0, `${cid}@${seed}: item use nonnegative`);
+      assert(rep.aranyaGearTier >= 2, `${cid}@${seed}: tier-2 steel before Aranya`);
+      assert(rep.totalFights <= 140, `${cid}@${seed}: ${rep.totalFights} fights (unbounded?)`);
       assert(
         rep.totalEncounterAttempts <= 500,
-        `${cid}@${s}: ${rep.totalEncounterAttempts} explores (no-op loops?)`,
+        `${cid}@${seed}: ${rep.totalEncounterAttempts} explores (no-op loops?)`,
       );
       let prev = 0;
-      for (const b of rep.beats) {
-        assert(b.fights - prev <= 80, `${cid}@${s}: ${b.questId} jumped ${b.fights - prev}`);
-        prev = b.fights;
+      for (const beat of rep.beats) {
+        assert(
+          beat.fights - prev <= 80,
+          `${cid}@${seed}: ${beat.questId} jumped ${beat.fights - prev}`,
+        );
+        prev = beat.fights;
       }
     }
   }
@@ -457,7 +482,7 @@ Deno.test('balance: the tactical policy is effect-aware and always legal (#84)',
   // stag pressure, and SOME scenario exercises buffs/DoTs/debuffs.
   assert(clericStag.avgShieldCasts > 0, `cleric never shielded (${clericStag.avgShieldCasts})`);
   assert(
-    cells.some((c) => c.avgBuffCasts > 0 || c.avgDotCasts > 0 || c.avgDebuffCasts > 0),
+    cells.some((cell) => cell.avgBuffCasts > 0 || cell.avgDotCasts > 0 || cell.avgDebuffCasts > 0),
     'no scenario exercised buffs/DoTs/debuffs',
   );
 
@@ -479,10 +504,10 @@ Deno.test('balance: unique equipment effects have a deterministic trigger scenar
   // equipBest never picks the Wardstone Pendant (its stat weight loses to
   // stat trinkets), so its trigger scenario is TARGETED: the hero equips
   // it explicitly and every fight opens with the battle-lifetime ward.
-  const p = makeHero('rogue', 20, 'best');
-  p.equipment.trinket = 't_wardstone';
+  const player = makeHero('rogue', 20, 'best');
+  player.equipment.trinket = 't_wardstone';
   const res = runFight(
-    p,
+    player,
     'e_wolf',
     POLICIES.tactical,
     seededRng(9001),
@@ -499,7 +524,10 @@ Deno.test('balance: unique equipment effects have a deterministic trigger scenar
 // ── #88: effect-aware harness coverage & metrics ───────────────────────────
 
 Deno.test('balance: the level matrix covers every authored unlock (#88)', () => {
-  const unlocks = [...new Set(SKILLS.map((s) => s.learnLevel))].sort((a, b) => a - b);
+  const unlocks = [...new Set(SKILLS.map((skillDef) => skillDef.learnLevel))].sort((
+    leftValue,
+    rightValue,
+  ) => leftValue - rightValue);
   for (const lv of unlocks) {
     assert(MATRIX_LEVELS.includes(lv), `unlock level ${lv} missing from the matrix`);
   }
@@ -513,7 +541,7 @@ Deno.test('balance: the level matrix covers every authored unlock (#88)', () => 
 Deno.test('balance: CLI matrix preserves eligible policy and boss comparisons (#214)', () => {
   const matrix = runMatrix(1, 9100);
   assertEquals(matrix, runMatrix(1, 9100), 'the same seed reproduces the full report');
-  assertEquals(new Set(matrix.map((c) => c.classId)), new Set(CLASS_IDS));
+  assertEquals(new Set(matrix.map((cell) => cell.classId)), new Set(CLASS_IDS));
 
   // Explicit representative contracts, independent of the builder's loops:
   // starter combat, both sides of the free-action cutoff, and Aranya's
@@ -536,25 +564,29 @@ Deno.test('balance: CLI matrix preserves eligible policy and boss comparisons (#
   for (const classId of CLASS_IDS) {
     for (const [level, pool, policy] of expected) {
       assertEquals(
-        matrix.filter((c) =>
-          c.classId === classId && c.level === level && c.pool === pool && c.policy === policy
+        matrix.filter((cell) =>
+          cell.classId === classId && cell.level === level && cell.pool === pool &&
+          cell.policy === policy
         ).length,
         1,
         `${classId} Lv${level} ${pool} ${policy} must occur exactly once`,
       );
     }
   }
-  assert(!matrix.some((c) => c.pool.startsWith('emberdawn')), 'safe havens have no fight cells');
   assert(
-    !matrix.some((c) => c.pool.startsWith('whisperwood') && c.level < 3),
+    !matrix.some((cell) => cell.pool.startsWith('emberdawn')),
+    'safe havens have no fight cells',
+  );
+  assert(
+    !matrix.some((cell) => cell.pool.startsWith('whisperwood') && cell.level < 3),
     'protected low levels have no Whisperwood hostiles',
   );
   assert(
-    !matrix.some((c) => c.policy === 'free' && c.level > 9),
+    !matrix.some((cell) => cell.policy === 'free' && cell.level > 9),
     'the free-action comparison stops at level 9',
   );
   assert(
-    !matrix.some((c) => c.pool.startsWith('outskirts') && c.level > 5),
+    !matrix.some((cell) => cell.pool.startsWith('outskirts') && cell.level > 5),
     'matrix sampling stops two levels beyond the zone band',
   );
   for (const cell of matrix) {
@@ -569,48 +601,61 @@ Deno.test('balance: CLI matrix preserves eligible policy and boss comparisons (#
 });
 
 Deno.test('engine: structured telemetry emits typed combat events (#88)', () => {
-  const dot = SKILLS.find((sk) =>
-    sk.effects.some((e) => e.kind === 'periodic' && (e.perRound ?? 0) < 0)
+  const dot = SKILLS.find((skillDef) =>
+    skillDef.effects.some((effect) => effect.kind === 'periodic' && (effect.perRound ?? 0) < 0)
   )!;
   assert(dot, 'content has a harmful periodic skill');
   // A same-band normal survives long enough to eat a DoT, and normals
   // carry no statusResist — the cast lands deterministically (#88).
-  const foeZone = hostileZones().find((z) => zoneNormalPool(z.id, dot.learnLevel).length > 0)!;
+  const foeZone = hostileZones().find((zoneDef) =>
+    zoneNormalPool(zoneDef.id, dot.learnLevel).length > 0
+  )!;
   const foe = zoneNormalPool(foeZone.id, dot.learnLevel)[0]!;
   const events: CombatTraceEntry[] = [];
   {
     // #101: each resolution returns its own trace — the fight's entries
     // are collected explicitly, with no global installation.
-    const p = makeHero(dot.classId, dot.learnLevel, 'best');
-    p.hp = 99999; // outlive the foe — this test drives EVENTS, not balance
-    const started = startBattle(foe.enemyId, foe.origin, { player: p, rng: seededRng(11) })!;
-    const b = started.battle;
+    const player = makeHero(dot.classId, dot.learnLevel, 'best');
+    player.hp = 99999; // outlive the foe — this test drives EVENTS, not balance
+    const started = startBattle(foe.enemyId, foe.origin, { player, rng: seededRng(11) })!;
+    const battle = started.battle;
     events.push(...started.trace);
-    p.battle = b;
+    player.battle = battle;
     // A one-shot foe dies before the DoT spec's turn in the spec list —
     // pad the pool so the fight lasts and the application lands (#88).
-    b.enemy.maxHp *= 5;
-    b.enemy.hp = b.enemy.maxHp;
+    battle.enemy.maxHp *= 5;
+    battle.enemy.hp = battle.enemy.maxHp;
     let guard = 0;
-    while (b.phase === 'active' && guard++ < 60) {
+    while (battle.phase === 'active' && guard++ < 60) {
       // Cast the DoT on cooldown; fall back to the basic attack when the
       // cast is refused (MP/cooldown) so the fight always reaches a
       // terminal state (#88).
-      let res = performAction(p, b, { kind: 'skill', skillId: dot.id }, seededRng(90 + guard));
+      let res = performAction(
+        player,
+        battle,
+        { kind: 'skill', skillId: dot.id },
+        seededRng(90 + guard),
+      );
       events.push(...res.trace);
-      if (!res.consumedTurn && b.phase === 'active') {
-        res = performAction(p, b, { kind: 'attack' }, seededRng(190 + guard));
+      if (!res.consumedTurn && battle.phase === 'active') {
+        res = performAction(player, battle, { kind: 'attack' }, seededRng(190 + guard));
         events.push(...res.trace);
       }
       if (res.outcome === 'victory' || res.outcome === 'defeat') break;
     }
   }
-  assert(events.some((e) => e.kind === 'effectApplied'), 'no effect application was ever emitted');
   assert(
-    events.some((e) => e.kind === 'effectApplied' && e.side === 'enemy'),
+    events.some((event) => event.kind === 'effectApplied'),
+    'no effect application was ever emitted',
+  );
+  assert(
+    events.some((event) => event.kind === 'effectApplied' && event.side === 'enemy'),
     'the player-side DoT application was never emitted',
   );
-  assert(events.some((e) => e.kind === 'terminal'), 'the terminal outcome was never emitted');
+  assert(
+    events.some((event) => event.kind === 'terminal'),
+    'the terminal outcome was never emitted',
+  );
 });
 
 /** #110: a synthetic effect whose application emits a trace entry carrying
@@ -637,7 +682,7 @@ function isoSeed(defId: string, side: 'player' | 'enemy'): InstanceSeed {
 /** Unique trace identities present in one fight's trace. */
 function isoIds(trace: CombatTraceEntry[]): Set<string> {
   return new Set(
-    trace.flatMap((e) => (e.kind === 'effectApplied' ? [e.defId, e.source] : [])),
+    trace.flatMap((event) => (event.kind === 'effectApplied' ? [event.defId, event.source] : [])),
   );
 }
 
@@ -665,31 +710,36 @@ function buildIsoFight(
   isoId: string,
   isoSide: 'player' | 'enemy',
 ): { p: PlayerState; b: BattleState; trace: CombatTraceEntry[] } {
-  const p = makeHero(classId, level, 'best');
+  const player = makeHero(classId, level, 'best');
   const started = startBattle(enemyId, { kind: 'explore', zoneId }, {
-    player: p,
+    player,
     rng: seededRng(startSeed),
   })!;
-  const b = started.battle;
-  p.battle = b;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
+  const battle = started.battle;
+  player.battle = battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
   const trace: CombatTraceEntry[] = [...started.trace];
   // The unique synthetic application emits its effectApplied entry — with
   // the fight's unique defId AND source — into THIS fight's trace only.
-  applyInstance(b, isoSeed(isoId, isoSide), trace);
-  return { p, b, trace };
+  applyInstance(battle, isoSeed(isoId, isoSide), trace);
+  return { p: player, b: battle, trace };
 }
 
 /** `rounds` basic attacks at fixed action seeds, appended to the trace. */
 function runIsoActions(
-  f: { p: PlayerState; b: BattleState; trace: CombatTraceEntry[] },
+  fixture: { p: PlayerState; b: BattleState; trace: CombatTraceEntry[] },
   actionSeedBase: number,
   rounds: number,
 ): void {
-  for (let r = 0; r < rounds; r++) {
-    const res = performAction(f.p, f.b, { kind: 'attack' }, seededRng(actionSeedBase + r));
-    f.trace.push(...res.trace);
+  for (let roundIndex = 0; roundIndex < rounds; roundIndex++) {
+    const res = performAction(
+      fixture.p,
+      fixture.b,
+      { kind: 'attack' },
+      seededRng(actionSeedBase + roundIndex),
+    );
+    fixture.trace.push(...res.trace);
   }
 }
 
@@ -702,11 +752,11 @@ Deno.test('telemetry: two concurrent fights collect isolated traces (#101, #110)
   // where the old absence-of-names check could pass vacuously.
   const interA = buildIsoFight('warrior', 10, 'e_wolf', 'whisperwood', 21, 'iso-fight-a', 'player');
   const interC = buildIsoFight('mage', 10, 'e_rat', 'outskirts', 22, 'iso-fight-b', 'enemy');
-  for (let r = 0; r < 6; r++) {
+  for (let roundIndex = 0; roundIndex < 6; roundIndex++) {
     // Interleaved: one action of fight A, then one of fight C, per round.
-    const ra = performAction(interA.p, interA.b, { kind: 'attack' }, seededRng(30 + r));
+    const ra = performAction(interA.p, interA.b, { kind: 'attack' }, seededRng(30 + roundIndex));
     interA.trace.push(...ra.trace);
-    const rc = performAction(interC.p, interC.b, { kind: 'attack' }, seededRng(40 + r));
+    const rc = performAction(interC.p, interC.b, { kind: 'attack' }, seededRng(40 + roundIndex));
     interC.trace.push(...rc.trace);
   }
   const soloA = buildIsoFight('warrior', 10, 'e_wolf', 'whisperwood', 21, 'iso-fight-a', 'player');
@@ -742,8 +792,8 @@ Deno.test('telemetry: two concurrent fights collect isolated traces (#101, #110)
 });
 
 Deno.test('balance: runFight metrics include periodic damage and proc accounting (#88)', () => {
-  const dot = SKILLS.find((sk) =>
-    sk.effects.some((e) => e.kind === 'periodic' && (e.perRound ?? 0) < 0)
+  const dot = SKILLS.find((skillDef) =>
+    skillDef.effects.some((effect) => effect.kind === 'periodic' && (effect.perRound ?? 0) < 0)
   )!;
   const hero = makeHero(dot.classId, dot.learnLevel, 'best');
   const boss = dungeonBossSource('whisperwood')!;
@@ -754,16 +804,22 @@ Deno.test('balance: runFight metrics include periodic damage and proc accounting
   let taken = 0;
   let attempts = 0;
   let hits = 0;
-  for (let i = 0; i < 40; i++) {
-    const r = runFight(hero, boss.enemyId, POLICIES.tactical, seededRng(500 + i), boss.origin);
-    dotCasts += r.dotCasts;
-    dotDealt += r.dotDealt;
-    dealt += r.dealt;
-    dotTaken += r.dotTaken;
-    taken += r.taken;
-    attempts += r.procAttempts;
-    hits += r.procHits;
-    assertEquals(r.invalidActions, 0, 'tactical policy selected an unusable skill');
+  for (let seedOffset = 0; seedOffset < 40; seedOffset++) {
+    const fightResult = runFight(
+      hero,
+      boss.enemyId,
+      POLICIES.tactical,
+      seededRng(500 + seedOffset),
+      boss.origin,
+    );
+    dotCasts += fightResult.dotCasts;
+    dotDealt += fightResult.dotDealt;
+    dealt += fightResult.dealt;
+    dotTaken += fightResult.dotTaken;
+    taken += fightResult.taken;
+    attempts += fightResult.procAttempts;
+    hits += fightResult.procHits;
+    assertEquals(fightResult.invalidActions, 0, 'tactical policy selected an unusable skill');
   }
   assert(dotCasts > 0, 'the tactical policy never cast the DoT');
   assert(dotDealt > 0, 'DoT ticks never reached HP (or were never counted)');
@@ -792,77 +848,81 @@ Deno.test('balance: cell percentiles expose the fight tails (#88)', () => {
 });
 
 Deno.test('balance: tactical policy pierces wards, finishes wounds, breaks the matched stat (#88)', () => {
-  const piercer = SKILLS.find((sk) =>
-    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'damage' && e.bypassShield === true)
+  const piercer = SKILLS.find((skillDef) =>
+    isDamageSkill(skillDef) &&
+    skillDef.effects.some((effect) => effect.kind === 'damage' && effect.bypassShield === true)
   )!;
-  const finisher = SKILLS.find((sk) =>
-    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'damage' && e.execute !== undefined)
+  const finisher = SKILLS.find((skillDef) =>
+    isDamageSkill(skillDef) &&
+    skillDef.effects.some((effect) => effect.kind === 'damage' && effect.execute !== undefined)
   )!;
   // Breaks are DAMAGE skills with statmod riders (#84 offense family) —
   // found by rider, not by the pure-debuff predicate.
-  const defBreak = SKILLS.find((sk) =>
-    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'statmod' && e.stat === 'def')
+  const defBreak = SKILLS.find((skillDef) =>
+    isDamageSkill(skillDef) &&
+    skillDef.effects.some((effect) => effect.kind === 'statmod' && effect.stat === 'def')
   )!;
-  const resBreak = SKILLS.find((sk) =>
-    isDamageSkill(sk) && sk.effects.some((e) => e.kind === 'statmod' && e.stat === 'res')
+  const resBreak = SKILLS.find((skillDef) =>
+    isDamageSkill(skillDef) &&
+    skillDef.effects.some((effect) => effect.kind === 'statmod' && effect.stat === 'res')
   )!;
   assert(piercer && finisher && defBreak && resBreak, 'content authors all four tactical tools');
 
   const battle = (cid: ClassId, level: number, seed: number) => {
-    const p = makeHero(cid, level, 'best');
-    const b = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
-      player: p,
+    const player = makeHero(cid, level, 'best');
+    const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+      player,
       rng: seededRng(seed),
     })!.battle;
-    p.battle = b;
-    return { p, b };
+    player.battle = battle;
+    return { p: player, b: battle };
   };
 
   // (a) A live enemy ward routes the offense pick to the ward-ignoring
   //     skill — ordinary damage would pool INTO the ward (#88).
   {
-    const { p, b } = battle(piercer.classId, piercer.learnLevel, 21);
-    p.skills = [piercer.id];
-    b.shield.enemy = 40;
-    const act = chooseAction(p, b, POLICIES.tactical, false);
+    const { p: player, b: piercingBattle } = battle(piercer.classId, piercer.learnLevel, 21);
+    player.skills = [piercer.id];
+    piercingBattle.shield.enemy = 40;
+    const act = chooseAction(player, piercingBattle, POLICIES.tactical, false);
     assertEquals(act, { kind: 'skill', skillId: piercer.id });
   }
   // (b) Inside the execute threshold the finisher outranks the plain
   //     strike that sorts first (#88).
   {
-    const plain = SKILLS.find((sk) =>
-      sk.classId === finisher.classId && isDamageSkill(sk) &&
-      !sk.effects.some((e) => e.kind === 'damage' && e.execute !== undefined)
+    const plain = SKILLS.find((skillDef) =>
+      skillDef.classId === finisher.classId && isDamageSkill(skillDef) &&
+      !skillDef.effects.some((effect) => effect.kind === 'damage' && effect.execute !== undefined)
     )!;
     assert(plain, 'the finisher class has a second damage skill');
-    const { p, b } = battle(finisher.classId, finisher.learnLevel, 22);
-    p.skills = [plain.id, finisher.id];
-    b.enemy.hp = Math.max(1, Math.floor(b.enemy.maxHp * 0.2));
-    const act = chooseAction(p, b, POLICIES.tactical, false);
+    const { p: player, b: finishingBattle } = battle(finisher.classId, finisher.learnLevel, 22);
+    player.skills = [plain.id, finisher.id];
+    finishingBattle.enemy.hp = Math.max(1, Math.floor(finishingBattle.enemy.maxHp * 0.2));
+    const act = chooseAction(player, finishingBattle, POLICIES.tactical, false);
     assertEquals(act, { kind: 'skill', skillId: finisher.id });
   }
   // (c) A phys hero holding both breaks leads with the DEF break while
   //     the fight has length — its own strikes can exploit it (#88).
   {
-    const { p, b } = battle(
+    const { p: player, b: vulnerableBattle } = battle(
       defBreak.classId,
       Math.max(defBreak.learnLevel, resBreak.learnLevel),
       23,
     );
-    p.skills = [resBreak.id, defBreak.id];
-    const act = chooseAction(p, b, POLICIES.tactical, false);
+    player.skills = [resBreak.id, defBreak.id];
+    const act = chooseAction(player, vulnerableBattle, POLICIES.tactical, false);
     assertEquals(act, { kind: 'skill', skillId: defBreak.id });
   }
   // (d) The same pair on a MAG hero flips the pick to the RES break —
   //     matching follows the hero's damage type, not skill order (#88).
   {
-    const { p, b } = battle(
+    const { p: player, b: guardedBattle } = battle(
       resBreak.classId,
       Math.max(defBreak.learnLevel, resBreak.learnLevel),
       24,
     );
-    p.skills = [defBreak.id, resBreak.id];
-    const act = chooseAction(p, b, POLICIES.tactical, false);
+    player.skills = [defBreak.id, resBreak.id];
+    const act = chooseAction(player, guardedBattle, POLICIES.tactical, false);
     assertEquals(act, { kind: 'skill', skillId: resBreak.id });
   }
 });
@@ -931,61 +991,77 @@ Deno.test('progression: a forced stall reports actionable, accurate diagnostics 
   const rep = run();
   assert(rep.stuck !== undefined, 'the forced stall reports a stuck line');
   assertExists(rep.stall, 'the stall carries STRUCTURED diagnostics');
-  const s = rep.stall!;
+  const diagnostic = rep.stall!;
   // Identity and gate context (class/seed live on the report itself).
   assertEquals(rep.classId, 'warrior');
   assertEquals(rep.seed, 20260902);
-  assertEquals(s.quests.length, 1, 'the tracked quest list is complete');
-  assertEquals(s.quests[0]!.id, 'm1_embers');
+  assertEquals(diagnostic.quests.length, 1, 'the tracked quest list is complete');
+  assertEquals(diagnostic.quests[0]!.id, 'm1_embers');
   assert(
-    s.quests[0]!.status === 'done' || s.quests[0]!.status === 'active',
-    `the tracked quest shows its real gate status (${s.quests[0]!.status})`,
+    diagnostic.quests[0]!.status === 'done' || diagnostic.quests[0]!.status === 'active',
+    `the tracked quest shows its real gate status (${diagnostic.quests[0]!.status})`,
   );
-  if (s.quests[0]!.status === 'active') {
-    assertExists(s.quests[0]!.objectives, 'the active quest carries objective progress');
+  if (diagnostic.quests[0]!.status === 'active') {
+    assertExists(diagnostic.quests[0]!.objectives, 'the active quest carries objective progress');
   }
   // Progression context, accurate against the report.
-  assertEquals(s.level, rep.endLevel);
-  assert(ZONES.some((z) => z.id === s.zone), 'the stall names a real zone');
-  assert(s.unlockedZones.includes(s.zone), 'the current zone is among the unlocked ones');
+  assertEquals(diagnostic.level, rep.endLevel);
+  assert(ZONES.some((zoneDef) => zoneDef.id === diagnostic.zone), 'the stall names a real zone');
+  assert(
+    diagnostic.unlockedZones.includes(diagnostic.zone),
+    'the current zone is among the unlocked ones',
+  );
   // Loadout: real ids, consistent tiers, trigger disclosure present.
   for (const slot of ['weapon', 'armor', 'trinket'] as const) {
-    const id = s.equipment[slot];
+    const id = diagnostic.equipment[slot];
     assert(id === '' || item(id) !== undefined, `${slot} names a real item or is empty`);
-    assertEquals(s.gearTiers[slot], id ? item(id)!.tier : 0, `${slot} tier matches the item`);
+    assertEquals(
+      diagnostic.gearTiers[slot],
+      id ? item(id)!.tier : 0,
+      `${slot} tier matches the item`,
+    );
   }
   assert(
-    s.gearTriggers.every((name) => typeof name === 'string' && name.length > 0),
+    diagnostic.gearTriggers.every((name) => typeof name === 'string' && name.length > 0),
     'equipment trigger names are disclosed',
   );
   // Resources are bounded and sane.
-  assert(s.hp > 0 && s.hp <= s.maxHp, `hp within bounds (${s.hp}/${s.maxHp})`);
-  assert(s.mp >= 0 && s.mp <= s.maxMp, `mp within bounds (${s.mp}/${s.maxMp})`);
-  assert(s.gold >= 0);
-  assert(s.consumables.every((c) => c.qty > 0), 'consumable quantities are positive');
-  // The final attempt is real and complete.
-  assertExists(s.lastAttempt, 'the final attempted fight is recorded');
-  assert(s.lastAttempt!.enemy.startsWith('e_'), 'the last attempt names an enemy id');
   assert(
-    ['win', 'death', 'retreat'].includes(s.lastAttempt!.outcome),
+    diagnostic.hp > 0 && diagnostic.hp <= diagnostic.maxHp,
+    `hp within bounds (${diagnostic.hp}/${diagnostic.maxHp})`,
+  );
+  assert(
+    diagnostic.mp >= 0 && diagnostic.mp <= diagnostic.maxMp,
+    `mp within bounds (${diagnostic.mp}/${diagnostic.maxMp})`,
+  );
+  assert(diagnostic.gold >= 0);
+  assert(
+    diagnostic.consumables.every((consumable) => consumable.qty > 0),
+    'consumable quantities are positive',
+  );
+  // The final attempt is real and complete.
+  assertExists(diagnostic.lastAttempt, 'the final attempted fight is recorded');
+  assert(diagnostic.lastAttempt!.enemy.startsWith('e_'), 'the last attempt names an enemy id');
+  assert(
+    ['win', 'death', 'retreat'].includes(diagnostic.lastAttempt!.outcome),
     'the attempt outcome is one of the three real outcomes',
   );
-  assert(s.lastAttempt!.rounds >= 1 && s.lastAttempt!.rounds <= 200);
+  assert(diagnostic.lastAttempt!.rounds >= 1 && diagnostic.lastAttempt!.rounds <= 200);
   assert(
-    /^(explore|elite|dungeon)@/.test(s.lastAttempt!.origin),
-    `the origin names the encounter provenance (${s.lastAttempt!.origin})`,
+    /^(explore|elite|dungeon)@/.test(diagnostic.lastAttempt!.origin),
+    `the origin names the encounter provenance (${diagnostic.lastAttempt!.origin})`,
   );
   // Retry context: a non-winning final attempt implies a live streak, and
   // the aggregate failure map is consistent.
-  if (s.lastAttempt!.outcome !== 'win') assert(s.failureStreak >= 1);
-  for (const count of Object.values(s.failures)) assert(count >= 1);
+  if (diagnostic.lastAttempt!.outcome !== 'win') assert(diagnostic.failureStreak >= 1);
+  for (const count of Object.values(diagnostic.failures)) assert(count >= 1);
   // The stuck string is formatted FROM the structured object — spot-check
   // the key rendered fields.
-  assert(rep.stuck!.includes(`level=${s.level}`));
-  assert(rep.stuck!.includes(`zone=${s.zone}`));
-  assert(rep.stuck!.includes(`last=${s.lastAttempt!.enemy}`));
-  assert(rep.stuck!.includes(`streak=${s.failureStreak}`));
-  assert(rep.stuck!.includes(s.equipment.weapon));
+  assert(rep.stuck!.includes(`level=${diagnostic.level}`));
+  assert(rep.stuck!.includes(`zone=${diagnostic.zone}`));
+  assert(rep.stuck!.includes(`last=${diagnostic.lastAttempt!.enemy}`));
+  assert(rep.stuck!.includes(`streak=${diagnostic.failureStreak}`));
+  assert(rep.stuck!.includes(diagnostic.equipment.weapon));
   // Determinism: the same seed replays the identical diagnostic —
   // collection neither drifts nor perturbs the run.
   const again = run();
@@ -996,23 +1072,25 @@ Deno.test('progression: a forced stall reports actionable, accurate diagnostics 
 // ── #95: typed damage/heal telemetry — metrics never parse copy ──────────
 
 Deno.test('telemetry: the restore event reports attempted vs applied (#95)', () => {
-  const mend = SKILLS.find((s) => s.id === 'sk_mend')!;
+  const mend = SKILLS.find((skillDef) => skillDef.id === 'sk_mend')!;
   assert(mend, 'the cleric starting heal exists');
-  const p = makeHero(mend.classId, mend.learnLevel, 'best');
-  p.skills.push(mend.id);
-  p.mp = 999;
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
-    player: p,
+  const player = makeHero(mend.classId, mend.learnLevel, 'best');
+  player.skills.push(mend.id);
+  player.mp = 999;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player,
     rng: seededRng(11),
   })!.battle;
-  p.battle = b;
-  b.enemy.hp = 99999; // outlive the probe — this drives EVENTS, not balance
-  b.enemy.maxHp = 99999;
-  p.hp = statsOf(p).maxHp - 1; // THE probe: 1 missing HP
-  const res = performAction(p, b, { kind: 'skill', skillId: mend.id }, seededRng(12));
-  const line = res.lines.find((l) => l.includes('restores')) ?? '';
-  const restored = res.trace.filter((e): e is Extract<CombatTraceEntry, { kind: 'hpRestored' }> =>
-    e.kind === 'hpRestored' && e.side === 'player'
+  player.battle = battle;
+  battle.enemy.hp = 99999; // outlive the probe — this drives EVENTS, not balance
+  battle.enemy.maxHp = 99999;
+  player.hp = statsOf(player).maxHp - 1; // THE probe: 1 missing HP
+  const res = performAction(player, battle, { kind: 'skill', skillId: mend.id }, seededRng(12));
+  const line = res.lines.find((line) => line.includes('restores')) ?? '';
+  const restored = res.trace.filter((
+    event,
+  ): event is Extract<CombatTraceEntry, { kind: 'hpRestored' }> =>
+    event.kind === 'hpRestored' && event.side === 'player'
   );
   assert(restored.length >= 1, 'the cast emitted a typed restore event');
   const last = restored[restored.length - 1]!;
@@ -1034,12 +1112,18 @@ Deno.test('telemetry: gross damage survives a same-round heal (#95)', () => {
     origin: { kind: 'elite', zoneId: 'whisperwood' } as BattleOrigin,
   };
   let sawDamage = false;
-  for (let i = 0; i < 40 && !sawDamage; i++) {
-    const r = runFight(hero, stag.enemyId, POLICIES.rotation, seededRng(300 + i), stag.origin);
+  for (let seedOffset = 0; seedOffset < 40 && !sawDamage; seedOffset++) {
+    const fightResult = runFight(
+      hero,
+      stag.enemyId,
+      POLICIES.rotation,
+      seededRng(300 + seedOffset),
+      stag.origin,
+    );
     // taken is a sum of typed hpDamaged events: structurally nonnegative,
     // and any damage taken this fight stays counted despite later heals.
-    assert(r.taken >= 0, `taken went negative (${r.taken})`);
-    if (r.taken > 0) sawDamage = true;
+    assert(fightResult.taken >= 0, `taken went negative (${fightResult.taken})`);
+    if (fightResult.taken > 0) sawDamage = true;
   }
   assert(sawDamage, 'the scenario actually took damage');
 });
@@ -1050,16 +1134,16 @@ Deno.test('telemetry: enemy healing never subtracts from gross damage (#95)', ()
   // sums never do.
   const hero = makeHero('warrior', 8, 'best');
   let drained = false;
-  for (let i = 0; i < 30 && !drained; i++) {
-    const r = runFight(
+  for (let seedOffset = 0; seedOffset < 30 && !drained; seedOffset++) {
+    const fightResult = runFight(
       hero,
       'e_leech',
       POLICIES.rotation,
-      seededRng(400 + i),
+      seededRng(400 + seedOffset),
       { kind: 'explore', zoneId: 'hollowmere' },
     );
-    assert(r.dealt >= 0, `dealt went negative (${r.dealt})`);
-    if (r.hpPct > 1 && r.outcome === 'win') drained = true; // leech healed past its own hits
+    assert(fightResult.dealt >= 0, `dealt went negative (${fightResult.dealt})`);
+    if (fightResult.hpPct > 1 && fightResult.outcome === 'win') drained = true; // leech healed past its own hits
   }
   // The invariant holds whether or not a drain was observed: dealt is a
   // sum of hpDamaged events and can never go negative.
@@ -1075,20 +1159,20 @@ Deno.test('telemetry: fights need no finally — a throwing fight leaves no glob
   );
   // A normal fight afterwards is unaffected — there is no ambient
   // collector anywhere to leak, restore or cross-contaminate.
-  const r = runFight(hero, 'e_rat', POLICIES.free, seededRng(2));
-  assertEquals(r.outcome, 'win');
+  const fightResult = runFight(hero, 'e_rat', POLICIES.free, seededRng(2));
+  assertEquals(fightResult.outcome, 'win');
 });
 
 // ── #101: the explicit synchronous trace replaces the module-global sink ──
 
 Deno.test('trace: opening entries, proc nesting and terminal land in resolution order (#101)', () => {
-  const p = makeHero('rogue', 20, 'best');
-  p.equipment.trinket = 't_wardstone'; // battleStart ward — an opening proc
+  const player = makeHero('rogue', 20, 'best');
+  player.equipment.trinket = 't_wardstone'; // battleStart ward — an opening proc
   const res = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
-    player: p,
+    player,
     rng: seededRng(31),
   })!;
-  const kinds = res.trace.map((e) => e.kind);
+  const kinds = res.trace.map((event) => event.kind);
   assert(kinds.includes('procAttempt'), 'the battleStart trigger recorded its attempt');
   assertEquals(res.outcome, 'ongoing', 'no authored content opens lethally here');
   assert(!kinds.includes('terminal'), 'an ongoing opening records no terminal entry');
@@ -1102,7 +1186,7 @@ Deno.test('trace: opening entries, proc nesting and terminal land in resolution 
   // Multi-hit ordering: each ordered HP-loss event appends its hpDamaged
   // entry, and the reactive proc's own entries nest BETWEEN them, in
   // exact execution order, before the outer call returns.
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   const originalMoves = rat.moves;
   const charm = item('t_19')!;
   const originalTriggers = charm.triggers;
@@ -1131,37 +1215,41 @@ Deno.test('trace: opening entries, proc nesting and terminal land in resolution 
     // A seed where the strike does NOT slip the double bite (starting-kit
     // SPD keeps the dodge baseline low; 'best' gear slips too often).
     let hero: PlayerState | undefined;
-    let r: ReturnType<typeof startBattle> | undefined;
+    let startResult: ReturnType<typeof startBattle> | undefined;
     let round: ReturnType<typeof performAction> | undefined;
     for (let seed = 1; seed <= 60 && !round; seed++) {
       hero = makeHero('warrior', 5, 'starting');
       hero.equipment.trinket = 't_19';
-      r = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+      startResult = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
         player: hero,
         rng: seededRng(32),
       })!;
-      hero.battle = r.battle;
-      r.battle.enemy.hp = 99999;
-      r.battle.enemy.maxHp = 99999;
-      round = performAction(hero, r.battle, { kind: 'attack' }, seededRng(33 + seed));
-      if (round.trace.filter((e) => e.kind === 'hpDamaged' && e.target === 'player').length < 2) {
+      hero.battle = startResult.battle;
+      startResult.battle.enemy.hp = 99999;
+      startResult.battle.enemy.maxHp = 99999;
+      round = performAction(hero, startResult.battle, { kind: 'attack' }, seededRng(33 + seed));
+      if (
+        round.trace.filter((event) => event.kind === 'hpDamaged' && event.target === 'player')
+          .length < 2
+      ) {
         round = undefined; // a slip — try the next seed
       }
     }
-    assert(hero && r && round, 'a non-dodged double-bite seed exists');
+    assert(hero && startResult && round, 'a non-dodged double-bite seed exists');
     const hits = round.trace.filter(
-      (e): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
-        e.kind === 'hpDamaged' && e.target === 'player',
+      (event): event is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
+        event.kind === 'hpDamaged' && event.target === 'player',
     );
     assertEquals(hits.length, 2, 'both HP-loss events are on the trace');
     const procs = round.trace.filter(
-      (e): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt',
+      (event): event is Extract<CombatTraceEntry, { kind: 'procAttempt' }> =>
+        event.kind === 'procAttempt',
     );
     assertEquals(procs.length, 2, 'each event dispatched its own proc');
     // Nesting: proc 1's attempt sits between the two player-target hits.
-    const idx = (e: CombatTraceEntry): number => round.trace.indexOf(e);
+    const traceIndex = (event: CombatTraceEntry): number => round.trace.indexOf(event);
     assert(
-      idx(hits[0]!) < idx(procs[0]!) && idx(procs[0]!) < idx(hits[1]!),
+      traceIndex(hits[0]!) < traceIndex(procs[0]!) && traceIndex(procs[0]!) < traceIndex(hits[1]!),
       'the first proc resolved synchronously between the two hits',
     );
   } finally {
@@ -1171,8 +1259,8 @@ Deno.test('trace: opening entries, proc nesting and terminal land in resolution 
 });
 
 Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', () => {
-  const poison = (b: import('../src/engine/types.ts').BattleState): void => {
-    b.effectInstances.push({
+  const poison = (battle: import('../src/engine/types.ts').BattleState): void => {
+    battle.effectInstances.push({
       iid: 't1',
       defId: 'poison',
       name: 'Poison',
@@ -1183,10 +1271,10 @@ Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', (
       tickPhase: 'roundEnd',
       tags: ['harmful', 'periodic', 'poison'],
       stacking: 'replace',
-      appliedRound: b.round,
+      appliedRound: battle.round,
       remaining: 3,
       removable: true,
-      expiresRound: b.round + 2,
+      expiresRound: battle.round + 2,
     });
   };
   // Ticks: a padded foe survives both slots, so round-end ticks run.
@@ -1200,7 +1288,7 @@ Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', (
   b1.enemy.maxHp = 99999;
   poison(b1);
   const ticked = performAction(p1, b1, { kind: 'attack' }, seededRng(42));
-  const ticks = ticked.trace.filter((e) => e.kind === 'periodicTick');
+  const ticks = ticked.trace.filter((event) => event.kind === 'periodicTick');
   assertEquals(ticks.length, 1, 'the DoT tick is on the trace');
 
   // Terminal: an unpadded fight resolves, and the terminal entry is that
@@ -1212,11 +1300,11 @@ Deno.test('trace: periodic ticks and terminal resolution are recorded (#101)', (
   })!.battle;
   p2.battle = b2;
   let last: import('../src/engine/combat.ts').ActionResult | undefined;
-  for (let i = 0; i < 20 && b2.phase === 'active'; i++) {
-    last = performAction(p2, b2, { kind: 'attack' }, seededRng(42 + i));
+  for (let roundIndex = 0; roundIndex < 20 && b2.phase === 'active'; roundIndex++) {
+    last = performAction(p2, b2, { kind: 'attack' }, seededRng(42 + roundIndex));
   }
   assert(last, 'the fight resolved');
-  const terminal = last!.trace.filter((e) => e.kind === 'terminal');
+  const terminal = last!.trace.filter((event) => event.kind === 'terminal');
   assertEquals(terminal.length, 1, 'exactly one terminal adjudication');
   assertEquals(
     last!.trace.indexOf(terminal[0]!),
@@ -1249,30 +1337,34 @@ Deno.test('trace: ignoring the returned trace changes nothing — full state and
   // draws. Trace collection is caller-owned and never persisted, so the
   // snapshots exclude the trace itself.
   const run = (consume: boolean, leaky = false) => {
-    const p = makeHero('cleric', 12, 'best');
+    const player = makeHero('cleric', 12, 'best');
     const counter = countingRng(1051);
-    const r = startBattle('e_stag', { kind: 'elite', zoneId: 'whisperwood' }, {
-      player: p,
+    const startResult = startBattle('e_stag', { kind: 'elite', zoneId: 'whisperwood' }, {
+      player,
       rng: counter.rng,
     })!;
-    p.battle = r.battle;
-    void (consume ? r.trace : undefined);
+    player.battle = startResult.battle;
+    void (consume ? startResult.trace : undefined);
     let res;
-    for (let i = 0; i < 200 && r.battle.phase === 'active'; i++) {
-      res = performAction(p, r.battle, { kind: 'attack' }, counter.rng);
+    for (
+      let roundIndex = 0;
+      roundIndex < 200 && startResult.battle.phase === 'active';
+      roundIndex++
+    ) {
+      res = performAction(player, startResult.battle, { kind: 'attack' }, counter.rng);
       void (consume ? res.trace : undefined);
       if (leaky) counter.rng(); // #110 counterfactual: one EXTRA draw per action
     }
     const snapshot = JSON.stringify({
       // battle is a live back-reference, excluded from the player's shape
       player: {
-        ...p,
+        ...player,
         battle: undefined,
         // wall-clock creation stamps differ between runs by construction —
         // normalize them; every GAMEPLAY stat stays in the comparison.
-        stats: { ...p.stats, createdAt: 0, lastPlayed: 0 },
+        stats: { ...player.stats, createdAt: 0, lastPlayed: 0 },
       },
-      battle: r.battle,
+      battle: startResult.battle,
     });
     return {
       snapshot,
@@ -1331,19 +1423,21 @@ Deno.test('balance cells keep combat samples stable when reward tables consume e
     seed: 91234,
   };
   const before = runCell(spec);
-  const enemies = [...new Set(spec.sources.map((s) => s.enemyId))].map((id) => enemyDef(id)!);
-  const originals = enemies.map((e) => e.drops);
+  const enemies = [...new Set(spec.sources.map((source) => source.enemyId))].map((id) =>
+    enemyDef(id)!
+  );
+  const originals = enemies.map((enemyDef) => enemyDef.drops);
   try {
     // Real, irrelevant materials add reward RNG draws only after victory.
     // A shared cross-fight stream would now select different opponents and
     // damage/dodge rolls even though no combat rule or starting hero changed.
-    for (const e of enemies) {
-      e.drops = { ...e.drops, m_copper_ore: 0.5, m_salt: 0.5, m_quartz: 0.5 };
+    for (const enemyDef of enemies) {
+      enemyDef.drops = { ...enemyDef.drops, m_copper_ore: 0.5, m_salt: 0.5, m_quartz: 0.5 };
     }
     assertEquals(runCell(spec), before);
   } finally {
-    enemies.forEach((e, i) => {
-      e.drops = originals[i];
+    enemies.forEach((enemyDef, i) => {
+      enemyDef.drops = originals[i];
     });
   }
 });
@@ -1352,50 +1446,56 @@ Deno.test('balance: every class can finish a prepared uninterrupted dungeon run'
   // Reviewed preparation lane: ordinary best equippable gear, +3 weapon/armor,
   // ten region-appropriate potions and four ethers. No inherited floor progress,
   // boss trophies, infinite inventory, or healing trip between fights.
-  for (const z of ZONES) {
-    const d = z.dungeon;
-    if (!d) continue;
-    assertExists(d.recommendedLevel);
+  for (const zoneDef of ZONES) {
+    const dungeon = zoneDef.dungeon;
+    if (!dungeon) continue;
+    assertExists(dungeon.recommendedLevel);
     for (const cid of CLASS_IDS) {
       let wins = 0;
       for (let seed = 0; seed < 30; seed++) {
-        const p = makeHero(cid, d.recommendedLevel, 'best');
-        p.currentZone = z.id;
+        const player = makeHero(cid, dungeon.recommendedLevel, 'best');
+        player.currentZone = zoneDef.id;
         for (const slot of ['weapon', 'armor'] as const) {
-          p.flags[`forge_i_${p.equipment[slot]}`] = 3;
+          player.flags[`forge_i_${player.equipment[slot]}`] = 3;
         }
-        const stats = statsOf(p);
-        p.hp = stats.maxHp;
-        p.mp = stats.maxMp;
-        const potion = d.recommendedLevel < 10
+        const stats = statsOf(player);
+        player.hp = stats.maxHp;
+        player.mp = stats.maxMp;
+        const potion = dungeon.recommendedLevel < 10
           ? 'c_minor_potion'
-          : d.recommendedLevel < 20
+          : dungeon.recommendedLevel < 20
           ? 'c_potion'
-          : d.recommendedLevel < 30
+          : dungeon.recommendedLevel < 30
           ? 'c_greater_potion'
           : 'c_super_potion';
-        p.inventory = [{ id: potion, qty: 10 }, { id: 'c_ether', qty: 4 }];
-        if (d.bossGate) {
-          p.quests[d.bossGate.quest] = { status: 'active', counts: [] };
-          if (d.bossGate.item) p.inventory.push({ id: d.bossGate.item, qty: 1 });
+        player.inventory = [{ id: potion, qty: 10 }, { id: 'c_ether', qty: 4 }];
+        if (dungeon.bossGate) {
+          player.quests[dungeon.bossGate.quest] = { status: 'active', counts: [] };
+          if (dungeon.bossGate.item) player.inventory.push({ id: dungeon.bossGate.item, qty: 1 });
         }
-        const original = structuredClone(p);
-        const result = runDungeon(p, d, seededRng(7300 + seed));
-        assertEquals(p, original, 'the run harness must not mutate its fixture');
+        const original = structuredClone(player);
+        const result = runDungeon(player, dungeon, seededRng(7300 + seed));
+        assertEquals(player, original, 'the run harness must not mutate its fixture');
         assertEquals(result.floors[0]?.floor, 1, 'every independent run starts at one');
         if (result.outcome === 'win') {
           wins++;
-          assertEquals(result.floors.length, d.floors.length + 1);
+          assertEquals(result.floors.length, dungeon.floors.length + 1);
           assertEquals(
-            result.floors.map((f) => f.floor),
-            Array.from({ length: d.floors.length + 1 }, (_, i) => i + 1),
+            result.floors.map((floorResult) => floorResult.floor),
+            Array.from({ length: dungeon.floors.length + 1 }, (_, i) => i + 1),
           );
-          assert(result.floors.some((f) => !f.battle), 'runs include authored discoveries');
+          assert(
+            result.floors.some((floorResult) => !floorResult.battle),
+            'runs include authored discoveries',
+          );
         }
       }
       // Mage remains vulnerable to an unlucky burst under a simple rotation;
       // success is attainable, not guaranteed by the recommendation.
-      assert(wins >= (cid === 'mage' ? 21 : 27), `${z.id}/${cid}: ${wins}/30 prepared runs won`);
+      assert(
+        wins >= (cid === 'mage' ? 21 : 27),
+        `${zoneDef.id}/${cid}: ${wins}/30 prepared runs won`,
+      );
     }
   }
 });

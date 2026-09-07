@@ -97,10 +97,10 @@ function callbackUpdate(updateId: number, data: string): Record<string, unknown>
 }
 
 async function seededPlayer(store: MemoryStore): Promise<ReturnType<typeof createPlayer>> {
-  const p = createPlayer(4242, 'Tester', 'warrior');
-  p.messageId = 77; // the tapped copy IS the live game message
-  await store.set(4242, p);
-  return p;
+  const player = createPlayer(4242, 'Tester', 'warrior');
+  player.messageId = 77; // the tapped copy IS the live game message
+  await store.set(4242, player);
+  return player;
 }
 
 Deno.test('webhook (#75): an expired callback acknowledgment answers 2xx and the action still lands', async () => {
@@ -119,9 +119,9 @@ Deno.test('webhook (#75): an expired callback acknowledgment answers 2xx and the
       return prev(method, payload);
     });
   });
-  const p = await seededPlayer(store);
+  const player = await seededPlayer(store);
 
-  const res = await handler(postUpdate(callbackUpdate(1, withRev(p.uiRev, 'z:tv'))));
+  const res = await handler(postUpdate(callbackUpdate(1, withRev(player.uiRev, 'z:tv'))));
 
   assertEquals(res.status, 200, 'no 5xx: Telegram must not redeliver this update');
   assertEquals(
@@ -148,9 +148,9 @@ Deno.test('webhook (#75): a genuine game-message failure still returns 5xx', asy
       return prev(method, payload);
     });
   });
-  const p = await seededPlayer(store);
+  const player = await seededPlayer(store);
 
-  const res = await handler(postUpdate(callbackUpdate(1, withRev(p.uiRev, 'z:tv'))));
+  const res = await handler(postUpdate(callbackUpdate(1, withRev(player.uiRev, 'z:tv'))));
 
   assertEquals(
     res.status,

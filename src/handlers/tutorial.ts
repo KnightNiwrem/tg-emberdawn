@@ -27,13 +27,13 @@ export const TUTORIAL_ENEMY = 'e_cinder_mite';
 /** Maren's brief: the ember, the threat outside, the send-off. */
 export function tutorialIntro(player: PlayerState): string[] {
   const enemy = enemyDef(TUTORIAL_ENEMY);
-  const cls = CLASSES[player.classId];
+  const classDef = CLASSES[player.classId];
   return [
     `🔥 The ember in your pocket flares. Just past the hearth-light, a ${enemy?.name} skitters out of the ash.`,
     `📏 Enemy level matters: it reads Lv ${
       enemy?.level ?? 1
     } — the higher it sits above yours, the harder it bites.`,
-    `${cls.basicAction.icon} ${cls.basicAction.name} is free and always ready — press it to strike.`,
+    `${classDef.basicAction.icon} ${classDef.basicAction.name} is free and always ready — press it to strike.`,
   ];
 }
 

@@ -34,69 +34,71 @@ import { seeded, travelDirect } from './helpers.ts';
 
 const BOSS_SPAWN = new Map<string, { zoneId: string; dungeonId: string }>();
 const WILDS_ZONES = new Map<string, string[]>();
-for (const z of ZONES) {
-  if (z.dungeon) BOSS_SPAWN.set(z.dungeon.boss, { zoneId: z.id, dungeonId: z.dungeon.id });
-  for (const ev of z.explore) {
-    if (ev.kind === 'battle' || ev.kind === 'elite') {
-      const list = WILDS_ZONES.get(ev.enemy) ?? [];
-      if (!list.includes(z.id)) list.push(z.id);
-      WILDS_ZONES.set(ev.enemy, list);
+for (const zoneDef of ZONES) {
+  if (zoneDef.dungeon) {
+    BOSS_SPAWN.set(zoneDef.dungeon.boss, { zoneId: zoneDef.id, dungeonId: zoneDef.dungeon.id });
+  }
+  for (const event of zoneDef.explore) {
+    if (event.kind === 'battle' || event.kind === 'elite') {
+      const list = WILDS_ZONES.get(event.enemy) ?? [];
+      if (!list.includes(zoneDef.id)) list.push(zoneDef.id);
+      WILDS_ZONES.set(event.enemy, list);
     }
   }
 }
 
-function goto(p: PlayerState, zoneId: string): void {
-  if (p.currentZone === zoneId) return;
-  if (p.dungeonRun) assert(abandonDungeon(p).ok);
-  assert(travelDirect(p, zoneId).ok, `travel to ${zoneId} blocked`);
+function goto(player: PlayerState, zoneId: string): void {
+  if (player.currentZone === zoneId) return;
+  if (player.dungeonRun) assert(abandonDungeon(player).ok);
+  assert(travelDirect(player, zoneId).ok, `travel to ${zoneId} blocked`);
 }
 
 /** Defeats a battle through the engine's real victory routing. */
-function winBattle(p: PlayerState, b: BattleState, rng: () => number): void {
-  b.enemy.hp = 0;
-  resolveVictory(p, b, rng);
-  p.battle = undefined; // the real flow clears the battle on Continue
+function winBattle(player: PlayerState, battle: BattleState, rng: () => number): void {
+  battle.enemy.hp = 0;
+  resolveVictory(player, battle, rng);
+  player.battle = undefined; // the real flow clears the battle on Continue
 }
 
 /** Dives until the dungeon boss is fought and won (real routing). */
-function diveUntilBoss(p: PlayerState, d: DungeonDef, rng: () => number): void {
+function diveUntilBoss(player: PlayerState, dungeon: DungeonDef, rng: () => number): void {
   for (;;) {
-    const res = diveDungeon(p, d, rng);
+    const res = diveDungeon(player, dungeon, rng);
     assert(res.ok, `dive blocked: ${res.lines[0]}`);
     if (!res.battle) continue;
     const bossHit = res.battle!.origin.kind === 'dungeon' && res.battle!.origin.boss;
-    winBattle(p, res.battle!, rng);
+    winBattle(player, res.battle!, rng);
     if (bossHit) break;
   }
 }
 
 /** Kills one instance of `enemyId` wherever it legitimately spawns. */
-function killEnemy(p: PlayerState, enemyId: string, rng: () => number): void {
+function killEnemy(player: PlayerState, enemyId: string, rng: () => number): void {
   const boss = BOSS_SPAWN.get(enemyId);
   if (boss) {
-    goto(p, boss.zoneId);
-    const d = dungeonOf(zone(boss.zoneId)!)!;
-    for (let i = 0; i < 24; i++) {
-      const res = diveDungeon(p, d, rng);
+    goto(player, boss.zoneId);
+    const dungeon = dungeonOf(zone(boss.zoneId)!)!;
+    for (let floorAttempt = 0; floorAttempt < 24; floorAttempt++) {
+      const res = diveDungeon(player, dungeon, rng);
       assert(res.ok, `dive blocked: ${res.lines[0]}`);
       if (!res.battle) continue;
       const origin = res.battle!.origin;
       const isBoss = origin.kind === 'dungeon' && origin.boss;
-      winBattle(p, res.battle!, rng);
+      winBattle(player, res.battle!, rng);
       if (isBoss) return;
     }
-    throw new Error(`never reached boss ${enemyId} in ${d.id}`);
+    throw new Error(`never reached boss ${enemyId} in ${dungeon.id}`);
   }
   const zones = WILDS_ZONES.get(enemyId);
   assert(zones && zones.length > 0, `no wilds spawn defined for ${enemyId}`);
-  const zid = zones.find((z) => p.unlockedZones.includes(z));
+  const zid = zones.find((zoneId) => player.unlockedZones.includes(zoneId));
   assert(zid, `${enemyId} only spawns in zones the player cannot unlock`);
-  goto(p, zid);
-  for (let i = 0; i < 500; i++) {
-    const out = explore(p, rng);
+  goto(player, zid);
+  for (let exploreAttempt = 0; exploreAttempt < 500; exploreAttempt++) {
+    const out = explore(player, rng);
     if (out.kind === 'battle') {
       const match = out.battle.enemy.id === enemyId;
-      winBattle(p, out.battle, rng);
+      winBattle(player, out.battle, rng);
       if (match) return;
     }
   }
@@ -107,104 +109,108 @@ function killEnemy(p: PlayerState, enemyId: string, rng: () => number): void {
 
 Deno.test('campaign: quest graph m1→m25 is traversable (levels/pacing out of scope)', () => {
   const rng = seeded(2026);
-  const p = createPlayer(77, 'Dawncaller', 'warrior');
-  p.level = 45; // stat pacing is out of scope — the QUEST GRAPH is the subject
-  const mains = QUESTS.filter((q) => q.main).map((q) => q.id);
+  const player = createPlayer(77, 'Dawncaller', 'warrior');
+  player.level = 45; // stat pacing is out of scope — the QUEST GRAPH is the subject
+  const mains = QUESTS.filter((questDef) => questDef.main).map((questDef) => questDef.id);
   assert(mains.length >= 20, 'main questline must exist');
   assert(mains.includes('m25_silence'), 'the story reaches m25');
-  syncAvailability(p); // fresh players have no quest entries until this runs
+  syncAvailability(player); // fresh players have no quest entries until this runs
 
   let guard = 0;
-  while (mains.some((id) => p.quests[id]?.status !== 'done')) {
+  while (mains.some((id) => player.quests[id]?.status !== 'done')) {
     if (++guard > 400) {
       throw new Error(
-        'stuck: ' + mains.map((id) => `${id}=${p.quests[id]?.status ?? 'none'}`).join(' '),
+        'stuck: ' + mains.map((id) => `${id}=${player.quests[id]?.status ?? 'none'}`).join(' '),
       );
     }
     // Turn in everything ready first — instantly-complete collect quests
     // (goods already owned on accept) land straight in 'turnIn'. Physical
     // lifecycle (#64): travel to the FINISHER and complete on-site.
     for (const id of mains) {
-      if (p.quests[id]?.status === 'turnIn') {
-        const q = quest(id)!;
-        goto(p, zoneOfNpc(q.finishNpc)!.id);
-        assert(turnInQuest(p, id, q.finishNpc).ok, `turn in ${id}`);
+      if (player.quests[id]?.status === 'turnIn') {
+        const questDef = quest(id)!;
+        goto(player, zoneOfNpc(questDef.finishNpc)!.id);
+        assert(turnInQuest(player, id, questDef.finishNpc).ok, `turn in ${id}`);
       }
     }
-    syncAvailability(p); // completions open the next chapter's quests
+    syncAvailability(player); // completions open the next chapter's quests
     for (const id of mains) {
-      if (p.quests[id]?.status === 'available') {
+      if (player.quests[id]?.status === 'available') {
         // Physical lifecycle (#64): travel to the STARTER and accept on-site.
-        const q = quest(id)!;
-        goto(p, zoneOfNpc(q.startNpc)!.id);
-        assert(acceptQuest(p, id, q.startNpc).ok, `accept ${id}`);
+        const questDef = quest(id)!;
+        goto(player, zoneOfNpc(questDef.startNpc)!.id);
+        assert(acceptQuest(player, id, questDef.startNpc).ok, `accept ${id}`);
       }
     }
-    const active = QUESTS.find((q) => q.main && p.quests[q.id]?.status === 'active');
+    const active = QUESTS.find((questDef) =>
+      questDef.main && player.quests[questDef.id]?.status === 'active'
+    );
     if (!active) {
-      if (mains.every((id) => p.quests[id]?.status === 'done')) break; // story complete
+      if (mains.every((id) => player.quests[id]?.status === 'done')) break; // story complete
       // A freshly accepted quest may have flipped straight to turnIn.
-      if (mains.some((id) => p.quests[id]?.status === 'turnIn')) continue;
+      if (mains.some((id) => player.quests[id]?.status === 'turnIn')) continue;
       throw new Error(
         'no active main: ' +
-          mains.map((id) => `${id}=${p.quests[id]?.status ?? 'none'}`).join(' '),
+          mains.map((id) => `${id}=${player.quests[id]?.status ?? 'none'}`).join(' '),
       );
     }
-    const qp = p.quests[active.id]!;
-    for (let i = 0; i < active.objectives.length; i++) {
-      const obj = active.objectives[i]!;
-      const have = obj.kind === 'collect' ? countOf(p, obj.target) : (qp.counts[i] ?? 0);
+    const questProgress = player.quests[active.id]!;
+    for (let objectiveIndex = 0; objectiveIndex < active.objectives.length; objectiveIndex++) {
+      const obj = active.objectives[objectiveIndex]!;
+      const have = obj.kind === 'collect'
+        ? countOf(player, obj.target)
+        : (questProgress.counts[objectiveIndex] ?? 0);
       if (have >= (obj.count ?? 1)) continue;
       switch (obj.kind) {
         case 'storyEvent':
-          onStoryEvent(p, obj.target);
+          onStoryEvent(player, obj.target);
           break;
         case 'reach':
-          goto(p, obj.target); // onZoneEnter progress counts on arrival
+          goto(player, obj.target); // onZoneEnter progress counts on arrival
           break;
         case 'collect':
-          addItem(p, obj.target, (obj.count ?? 1) - countOf(p, obj.target));
-          onItemGain(p);
+          addItem(player, obj.target, (obj.count ?? 1) - countOf(player, obj.target));
+          onItemGain(player);
           break;
         case 'kill':
-          killEnemy(p, obj.target, rng);
+          killEnemy(player, obj.target, rng);
           break;
         case 'dungeon': {
-          const dz = ZONES.find((z) => z.dungeon?.id === obj.target);
+          const dz = ZONES.find((zoneDef) => zoneDef.dungeon?.id === obj.target);
           assert(dz, `dungeon ${obj.target} not found`);
-          goto(p, dz.id);
-          diveUntilBoss(p, dz.dungeon!, rng);
+          goto(player, dz.id);
+          diveUntilBoss(player, dz.dungeon!, rng);
           break;
         }
         default:
           throw new Error(`unhandled objective kind: ${obj.kind} in ${active.id}`);
       }
     }
-    syncAvailability(p);
+    syncAvailability(player);
   }
-  for (const id of mains) assertEquals(p.quests[id]?.status, 'done', id);
+  for (const id of mains) assertEquals(player.quests[id]?.status, 'done', id);
 });
 
 // ── encounter capacity (P0-1 / P0-2 regression) ───────────────────────────
 
 Deno.test('campaign: every kill objective is obtainable (encounter capacity)', () => {
-  for (const q of QUESTS) {
-    for (const obj of q.objectives) {
+  for (const questDef of QUESTS) {
+    for (const obj of questDef.objectives) {
       if (obj.kind !== 'kill') continue;
       const need = obj.count ?? 1;
       const wilds = (WILDS_ZONES.get(obj.target)?.length ?? 0) > 0;
       const boss = BOSS_SPAWN.has(obj.target);
       let floorSlots = 0;
-      for (const z of ZONES) {
-        if (!z.dungeon) continue;
-        for (const f of z.dungeon.floors) {
-          floorSlots += f.enemies.filter((e) => e === obj.target).length;
+      for (const zoneDef of ZONES) {
+        if (!zoneDef.dungeon) continue;
+        for (const floor of zoneDef.dungeon.floors) {
+          floorSlots += floor.enemies.filter((enemyId) => enemyId === obj.target).length;
         }
       }
       const cap = wilds ? Number.POSITIVE_INFINITY : boss ? (need === 1 ? 1 : 0) : floorSlots;
       assert(
         cap >= need,
-        `${q.id} needs ${obj.target} ×${need}; capacity ${cap} (wilds=${wilds} boss=${boss} floorSlots=${floorSlots})`,
+        `${questDef.id} needs ${obj.target} ×${need}; capacity ${cap} (wilds=${wilds} boss=${boss} floorSlots=${floorSlots})`,
       );
     }
   }
@@ -214,15 +220,15 @@ Deno.test('campaign: every kill objective is obtainable (encounter capacity)', (
 
 Deno.test('#98: Smoke Bomb is a pure escape — harmful effects survive the smoke', () => {
   const rng = seeded(9);
-  const p = createPlayer(79, 'T', 'rogue');
-  addItem(p, 'c_smoke_bomb', 1);
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+  const player = createPlayer(79, 'T', 'rogue');
+  addItem(player, 'c_smoke_bomb', 1);
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player,
     rng,
   })!.battle;
-  p.battle = b;
+  player.battle = battle;
   // A live removable sap (the shared `sap` slot, as an enemy Howl leaves).
-  applyInstance(b, {
+  applyInstance(battle, {
     defId: 'sap',
     name: 'Sapped',
     kind: 'statmod',
@@ -236,30 +242,30 @@ Deno.test('#98: Smoke Bomb is a pure escape — harmful effects survive the smok
     timing: 'immediate',
     removable: true,
   });
-  const res = performAction(p, b, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
-  assertEquals(b.phase, 'fled', 'the bomb still escapes');
+  const res = performAction(player, battle, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
+  assertEquals(battle.phase, 'fled', 'the bomb still escapes');
   assertEquals(
-    b.effectInstances.some((i) => i.defId === 'sap'),
+    battle.effectInstances.some((instance) => instance.defId === 'sap'),
     true,
     'a pure-escape Smoke Bomb leaves harmful effects unchanged (#98)',
   );
-  assert(!res.lines.some((l) => l.includes('cleanses')), 'no cleanse is reported either');
+  assert(!res.lines.some((line) => line.includes('cleanses')), 'no cleanse is reported either');
 });
 
 Deno.test('combat: Smoke Bomb flees non-boss, never bosses, never wasted', () => {
   const rng = seeded(7);
-  const p = createPlayer(78, 'T', 'rogue');
-  addItem(p, 'c_smoke_bomb', 2);
+  const player = createPlayer(78, 'T', 'rogue');
+  addItem(player, 'c_smoke_bomb', 2);
 
   const wild = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+    player,
     rng,
   })!.battle;
-  p.battle = wild;
-  const bombs = countOf(p, 'c_smoke_bomb');
-  performAction(p, wild, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
+  player.battle = wild;
+  const bombs = countOf(player, 'c_smoke_bomb');
+  performAction(player, wild, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
   assertEquals(wild.phase, 'fled', 'smoke bomb escapes normal fights');
-  assertEquals(countOf(p, 'c_smoke_bomb'), bombs - 1);
+  assertEquals(countOf(player, 'c_smoke_bomb'), bombs - 1);
 
   const boss = startBattle('e_vosk', {
     kind: 'dungeon',
@@ -267,43 +273,44 @@ Deno.test('combat: Smoke Bomb flees non-boss, never bosses, never wasted', () =>
     dungeonId: 'd_sunken',
     floor: 4,
     boss: true,
-  }, { player: p, rng })!.battle;
-  p.battle = boss;
-  performAction(p, boss, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
+  }, { player, rng })!.battle;
+  player.battle = boss;
+  performAction(player, boss, { kind: 'item', itemId: 'c_smoke_bomb' }, rng);
   assertEquals(boss.phase, 'active', 'no escape from bosses');
-  assertEquals(countOf(p, 'c_smoke_bomb'), bombs - 1, 'the bomb is not consumed in vain');
+  assertEquals(countOf(player, 'c_smoke_bomb'), bombs - 1, 'the bomb is not consumed in vain');
 });
 
 Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
   const rng = seeded(11);
-  const p = createPlayer(79, 'T', 'rogue');
-  p.level = 45;
-  p.hp = 99999; // #86: survive Jormunis's response — a fallen hero stops the round's bookkeeping
-  p.skills.push('sk_venom_cut');
-  p.mp = 100;
+  const player = createPlayer(79, 'T', 'rogue');
+  player.level = 45;
+  player.hp = 99999; // #86: survive Jormunis's response — a fallen hero stops the round's bookkeeping
+  player.skills.push('sk_venom_cut');
+  player.mp = 100;
   // Tanky boss so the strike does not end the fight before the venom lands.
   // Jormunis: a boss with NO poison of its own — a clean fixture.
-  const b = startBattle('e_jormunis', {
+  const battle = startBattle('e_jormunis', {
     kind: 'dungeon',
     zoneId: 'frostpeak',
     dungeonId: 'd_glacier',
     floor: 4,
     boss: true,
-  }, { player: p, rng })!.battle;
-  b.enemy.hp = 99999; // survive the 125% ATK strike so the venom lands
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  performAction(p, b, { kind: 'skill', skillId: 'sk_venom_cut' }, rng);
+  }, { player, rng })!.battle;
+  battle.enemy.hp = 99999; // survive the 125% ATK strike so the venom lands
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_venom_cut' }, rng);
   // #81: the name finally means venom — a real poison instance on the foe.
-  const venom = b.effectInstances.find((i) =>
-    i.side === 'enemy' && i.kind === 'periodic' && i.defId === 'sk_venom_cut:e1'
+  const venom = battle.effectInstances.find((instance) =>
+    instance.side === 'enemy' && instance.kind === 'periodic' &&
+    instance.defId === 'sk_venom_cut:e1'
   );
   assert(venom, 'the enemy is envenomed');
   assertEquals(venom.perRound, -16);
   assertEquals(venom.remaining, 2); // set for 3; first round-end tick elapsed
   assertEquals(
-    b.effectInstances.some((i) =>
-      i.side === 'player' && i.kind === 'periodic' && (i.perRound ?? 0) < 0
+    battle.effectInstances.some((instance) =>
+      instance.side === 'player' && instance.kind === 'periodic' && (instance.perRound ?? 0) < 0
     ),
     false,
     'the player is NOT poisoned',
@@ -312,65 +319,65 @@ Deno.test('combat: Venom Cut poisons the ENEMY, not the rogue', () => {
 
 Deno.test('combat: invalid skill use costs no turn and no enemy phase', () => {
   const rng = seeded(13);
-  const p = createPlayer(80, 'T', 'warrior'); // knows sk_cleave (4 MP)
-  p.mp = 0;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+  const player = createPlayer(80, 'T', 'warrior'); // knows sk_cleave (4 MP)
+  player.mp = 0;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player,
     rng,
   })!.battle;
-  p.battle = b;
-  const hpBefore = b.enemy.hp;
-  const res = performAction(p, b, { kind: 'skill', skillId: 'sk_cleave' }, rng);
-  assert(res.lines.some((l) => l.includes('MP')));
-  assertEquals(b.enemy.hp, hpBefore, 'enemy never acted on an invalid tap');
-  assertEquals(b.round, 1, 'no turn consumed');
+  player.battle = battle;
+  const hpBefore = battle.enemy.hp;
+  const res = performAction(player, battle, { kind: 'skill', skillId: 'sk_cleave' }, rng);
+  assert(res.lines.some((line) => line.includes('MP')));
+  assertEquals(battle.enemy.hp, hpBefore, 'enemy never acted on an invalid tap');
+  assertEquals(battle.round, 1, 'no turn consumed');
 
-  p.mp = 100;
-  b.cooldowns['sk_cleave'] = 2;
-  const res2 = performAction(p, b, { kind: 'skill', skillId: 'sk_cleave' }, rng);
-  assert(res2.lines.some((l) => l.includes('cooldown')));
-  assertEquals(b.round, 1);
-  assertEquals(b.enemy.hp, hpBefore);
+  player.mp = 100;
+  battle.cooldowns['sk_cleave'] = 2;
+  const res2 = performAction(player, battle, { kind: 'skill', skillId: 'sk_cleave' }, rng);
+  assert(res2.lines.some((line) => line.includes('cooldown')));
+  assertEquals(battle.round, 1);
+  assertEquals(battle.enemy.hp, hpBefore);
 });
 
 Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand', () => {
-  const p = createPlayer(81, 'T', 'warrior');
-  addItem(p, 'c_phoenix_feather', 3);
-  const b = startBattle('e_aldric', {
+  const player = createPlayer(81, 'T', 'warrior');
+  addItem(player, 'c_phoenix_feather', 3);
+  const battle = startBattle('e_aldric', {
     kind: 'dungeon',
     zoneId: 'umbra',
     dungeonId: 'd_throne',
     floor: 4,
     boss: true,
-  }, { player: p, rng: seeded(80) })!.battle;
-  p.battle = b;
+  }, { player, rng: seeded(80) })!.battle;
+  player.battle = battle;
 
-  p.hp = 0;
-  const lines = onLethalHit(p, b);
+  player.hp = 0;
+  const lines = onLethalHit(player, battle);
   assert(lines[0]!.includes('Phoenix'));
-  assertEquals(b.phoenixUsed, true);
-  assertEquals(countOf(p, 'c_phoenix_feather'), 2);
-  assertEquals(p.hp, Math.floor(statsOf(p).maxHp * 0.5));
+  assertEquals(battle.phoenixUsed, true);
+  assertEquals(countOf(player, 'c_phoenix_feather'), 2);
+  assertEquals(player.hp, Math.floor(statsOf(player).maxHp * 0.5));
 
-  p.hp = 0;
-  assertEquals(onLethalHit(p, b), [], 'second lethal hit is simply defeat');
-  assertEquals(countOf(p, 'c_phoenix_feather'), 2);
+  player.hp = 0;
+  assertEquals(onLethalHit(player, battle), [], 'second lethal hit is simply defeat');
+  assertEquals(countOf(player, 'c_phoenix_feather'), 2);
 
   // Manual use is refused: no consumption, no turn. (HP restored first —
   // #96 resolves a pre-existing terminal state before validation.)
-  p.hp = 10;
+  player.hp = 10;
   const rng = seeded(17);
-  const before = countOf(p, 'c_phoenix_feather');
-  const res = performAction(p, b, { kind: 'item', itemId: 'c_phoenix_feather' }, rng);
-  assert(res.lines.some((l) => l.includes('Cinder')));
-  assertEquals(countOf(p, 'c_phoenix_feather'), before);
-  assertEquals(b.round, 1);
+  const before = countOf(player, 'c_phoenix_feather');
+  const res = performAction(player, battle, { kind: 'item', itemId: 'c_phoenix_feather' }, rng);
+  assert(res.lines.some((line) => line.includes('Cinder')));
+  assertEquals(countOf(player, 'c_phoenix_feather'), before);
+  assertEquals(battle.round, 1);
 
   // The battle items menu no longer offers the Cinder by hand (P1-9 UI),
   // and vs a boss the Smoke Bomb renders disabled (#35) instead of
   // promising an escape the handler refuses.
-  addItem(p, 'c_smoke_bomb', 1);
-  const menu = JSON.stringify(renderItemMenu(p));
+  addItem(player, 'c_smoke_bomb', 1);
+  const menu = JSON.stringify(renderItemMenu(player));
   assert(!menu.includes('Use Phoenix Cinder'));
   assert(!menu.includes('Use Smoke Bomb'), 'Smoke Bomb is disabled vs a boss');
   assert(menu.includes('no use here'), 'inapplicable items render disabled');
@@ -378,43 +385,43 @@ Deno.test('combat: Phoenix Cinder revives exactly once per battle, never by hand
 
 Deno.test('campaign: m25 demands the Endless Seam itself, not an overworld echo', () => {
   const rng = seeded(23);
-  const p = createPlayer(82, 'T', 'warrior');
-  p.level = 45;
-  p.unlockedZones.push('abyss');
-  travelDirect(p, 'abyss');
-  p.quests['m24_below'] = { status: 'done', counts: [] };
-  syncAvailability(p);
-  assert(acceptQuest(p, 'm25_silence', 'npc_echo').ok); // the Echo stands in the Abyss
-  for (let i = 0; i < 2000; i++) {
-    const out = explore(p, rng);
+  const player = createPlayer(82, 'T', 'warrior');
+  player.level = 45;
+  player.unlockedZones.push('abyss');
+  travelDirect(player, 'abyss');
+  player.quests['m24_below'] = { status: 'done', counts: [] };
+  syncAvailability(player);
+  assert(acceptQuest(player, 'm25_silence', 'npc_echo').ok); // the Echo stands in the Abyss
+  for (let exploreAttempt = 0; exploreAttempt < 2000; exploreAttempt++) {
+    const out = explore(player, rng);
     if (out.kind === 'battle') {
       const hit = out.battle.enemy.id === 'e_warden';
-      winBattle(p, out.battle, rng);
+      winBattle(player, out.battle, rng);
       if (hit) break;
     }
   }
-  const qp = p.quests['m25_silence']!;
-  assertEquals(qp.counts[0], 0, 'an overworld echo must NOT count toward m25');
+  const questProgress = player.quests['m25_silence']!;
+  assertEquals(questProgress.counts[0], 0, 'an overworld echo must NOT count toward m25');
   const seam = dungeonOf(zone('abyss')!)!;
-  assertEquals(dungeonCleared(p, seam), false, 'overworld elite must NOT clear the dungeon');
+  assertEquals(dungeonCleared(player, seam), false, 'overworld elite must NOT clear the dungeon');
   // The real fight: clearing the Endless Seam itself readies the finale.
-  diveUntilBoss(p, seam, rng);
-  assertEquals(p.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
-  assertEquals(dungeonCleared(p, seam), true);
+  diveUntilBoss(player, seam, rng);
+  assertEquals(player.quests['m25_silence'].status, 'turnIn', 'seam clear readies m25');
+  assertEquals(dungeonCleared(player, seam), true);
 });
 
 // ── authored encounter eligibility (#73) ─────────────────────────────
 
 Deno.test('encounters: authored eligibility protects low-level players (#73)', () => {
   const rng = seeded(303);
-  const p = createPlayer(50, 'T', 'warrior');
+  const player = createPlayer(50, 'T', 'warrior');
 
   // A level-1 player finds NO hostiles in the Whisperwood — and never the
   // level-7 stag: the protection is authored content, not an engine guess.
-  p.level = 1;
-  assert(travelDirect(p, 'whisperwood').ok);
-  for (let i = 0; i < 400; i++) {
-    const out = explore(p, rng);
+  player.level = 1;
+  assert(travelDirect(player, 'whisperwood').ok);
+  for (let exploreAttempt = 0; exploreAttempt < 400; exploreAttempt++) {
+    const out = explore(player, rng);
     assert(
       out.kind !== 'battle',
       `level-1 rolled a Whisperwood hostile: ${out.kind === 'battle' ? out.battle.enemy.id : ''}`,
@@ -422,9 +429,9 @@ Deno.test('encounters: authored eligibility protects low-level players (#73)', (
   }
 
   // At level 4 the ordinary pool is live but the elite is still locked.
-  p.level = 4;
-  for (let i = 0; i < 600; i++) {
-    const out = explore(p, rng);
+  player.level = 4;
+  for (let exploreAttempt = 0; exploreAttempt < 600; exploreAttempt++) {
+    const out = explore(player, rng);
     assert(
       !(out.kind === 'battle' && out.battle.origin.kind === 'elite'),
       'a level-4 player must not roll the elite',
@@ -432,11 +439,11 @@ Deno.test('encounters: authored eligibility protects low-level players (#73)', (
   }
 
   // The Outskirts give level-1 heroes a real, level-appropriate pool.
-  p.level = 1;
-  assert(travelDirect(p, 'outskirts').ok);
+  player.level = 1;
+  assert(travelDirect(player, 'outskirts').ok);
   let fights = 0;
-  for (let i = 0; i < 300 && fights < 8; i++) {
-    const out = explore(p, rng);
+  for (let exploreAttempt = 0; exploreAttempt < 300 && fights < 8; exploreAttempt++) {
+    const out = explore(player, rng);
     if (out.kind === 'battle') {
       fights++;
       assert(
@@ -449,15 +456,15 @@ Deno.test('encounters: authored eligibility protects low-level players (#73)', (
 
   // The bands themselves are authored, sane, and backwards-safe: no max on
   // ordinary enemies (old areas stay farmable end-game), elites opt-in.
-  for (const z of ZONES) {
-    for (const ev of z.explore) {
-      if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
-      const min = ev.minPlayerLevel ?? 1;
-      assert(min >= 1, `${z.id}: bad band on ${ev.enemy}`);
-      if (ev.maxPlayerLevel !== undefined) assert(ev.maxPlayerLevel >= min, z.id);
+  for (const zoneDef of ZONES) {
+    for (const event of zoneDef.explore) {
+      if (event.kind !== 'battle' && event.kind !== 'elite') continue;
+      const min = event.minPlayerLevel ?? 1;
+      assert(min >= 1, `${zoneDef.id}: bad band on ${event.enemy}`);
+      if (event.maxPlayerLevel !== undefined) assert(event.maxPlayerLevel >= min, zoneDef.id);
     }
   }
-  const stag = zone('whisperwood')!.explore.find((e) => e.kind === 'elite');
+  const stag = zone('whisperwood')!.explore.find((event) => event.kind === 'elite');
   assertEquals(stag?.minPlayerLevel, 5);
 });
 
@@ -472,53 +479,53 @@ Deno.test('campaign: every collect objective has a reachable source (#9)', () =>
   const farmableDrops = new Set<string>();
   const wilds = new Set<string>();
   const floors = new Set<string>();
-  for (const z of ZONES) {
-    for (const ev of z.explore) {
-      if (ev.kind === 'battle' || ev.kind === 'elite') wilds.add(ev.enemy);
-      if (ev.kind === 'treasure' && ev.item) farmableDrops.add(ev.item);
+  for (const zoneDef of ZONES) {
+    for (const event of zoneDef.explore) {
+      if (event.kind === 'battle' || event.kind === 'elite') wilds.add(event.enemy);
+      if (event.kind === 'treasure' && event.item) farmableDrops.add(event.item);
     }
-    const d = z.dungeon;
-    if (!d) continue;
-    floors.add(d.boss); // bosses are always rematchable in their own dungeon
-    for (const f of d.floors) for (const e of f.enemies) floors.add(e);
+    const dungeon = zoneDef.dungeon;
+    if (!dungeon) continue;
+    floors.add(dungeon.boss); // bosses are always rematchable in their own dungeon
+    for (const floor of dungeon.floors) for (const enemyId of floor.enemies) floors.add(enemyId);
   }
-  for (const e of ENEMIES) {
-    if (!wilds.has(e.id) && !floors.has(e.id)) continue;
-    for (const id of Object.keys(e.drops ?? {})) farmableDrops.add(id);
+  for (const enemyDef of ENEMIES) {
+    if (!wilds.has(enemyDef.id) && !floors.has(enemyDef.id)) continue;
+    for (const id of Object.keys(enemyDef.drops ?? {})) farmableDrops.add(id);
   }
   const shopItems = new Set<string>();
   // Authored facility stock (#161): every rule of every shop is a
   // reachable source — conditions gate WHEN, never WHETHER.
-  for (const s of SHOPS) {
-    for (const rule of s.stock) {
+  for (const shopDef of SHOPS) {
+    for (const rule of shopDef.stock) {
       for (const id of rule.items) shopItems.add(id);
     }
   }
 
   const problems: string[] = [];
-  QUESTS.forEach((q, qi) => {
-    for (const o of q.objectives) {
-      if (o.kind !== 'collect') continue;
-      const need = o.count ?? 1;
-      if (farmableDrops.has(o.target) || shopItems.has(o.target)) continue;
+  QUESTS.forEach((questDef, qi) => {
+    for (const objective of questDef.objectives) {
+      if (objective.kind !== 'collect') continue;
+      const need = objective.count ?? 1;
+      if (farmableDrops.has(objective.target) || shopItems.has(objective.target)) continue;
 
       // Finite guaranteed supply, from strictly earlier content only —
       // a quest can never source its own goods, and later quests or
       // higher-chapter dungeons can't be relied upon.
       let supply = 0;
       for (const pq of QUESTS.slice(0, qi)) {
-        supply += pq.rewards.items?.[o.target] ?? 0;
+        supply += pq.rewards.items?.[objective.target] ?? 0;
       }
-      for (const z of ZONES) {
-        if (z.chapter > q.chapter) continue;
-        if (z.dungeon?.firstClear?.item === o.target) supply += 1;
-        for (const f of z.dungeon?.floors ?? []) {
-          if (f.treasure?.item === o.target) supply += 1;
+      for (const zoneDef of ZONES) {
+        if (zoneDef.chapter > questDef.chapter) continue;
+        if (zoneDef.dungeon?.firstClear?.item === objective.target) supply += 1;
+        for (const floor of zoneDef.dungeon?.floors ?? []) {
+          if (floor.treasure?.item === objective.target) supply += 1;
         }
       }
       if (supply < need) {
         problems.push(
-          `${q.id} needs ${o.target} ×${need} but no reachable source exists (guaranteed supply before it: ${supply})`,
+          `${questDef.id} needs ${objective.target} ×${need} but no reachable source exists (guaranteed supply before it: ${supply})`,
         );
       }
     }

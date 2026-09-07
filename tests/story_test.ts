@@ -41,15 +41,15 @@ function hero(id: number): PlayerState {
 // ── condition language ───────────────────────────────────────────────────
 
 Deno.test('conditions: all/any/not compose arbitrarily and evaluate pure', () => {
-  const p = hero(1300);
-  p.level = 5;
-  p.flags['ember_lit'] = true;
-  p.flags['bells'] = 3;
-  addItem(p, 'm_ember_shard', 2);
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  p.currentZone = 'whisperwood';
+  const player = hero(1300);
+  player.level = 5;
+  player.flags['ember_lit'] = true;
+  player.flags['bells'] = 3;
+  addItem(player, 'm_ember_shard', 2);
+  player.quests['m1_embers'] = { status: 'done', counts: [4] };
+  player.currentZone = 'whisperwood';
 
-  const c: Condition = {
+  const condition: Condition = {
     all: [
       { levelAtLeast: 5 },
       { flag: { id: 'ember_lit' } },
@@ -65,31 +65,31 @@ Deno.test('conditions: all/any/not compose arbitrarily and evaluate pure', () =>
       { not: { questStatus: { questId: 'm2_letter', is: ['active', 'turnIn'] } } },
     ],
   };
-  assert(evalCondition(p, c));
-  const before = JSON.stringify(p);
-  assert(evalCondition(p, c));
-  assertEquals(JSON.stringify(p), before, 'evaluation never mutates');
+  assert(evalCondition(player, condition));
+  const before = JSON.stringify(player);
+  assert(evalCondition(player, condition));
+  assertEquals(JSON.stringify(player), before, 'evaluation never mutates');
   // Complement checks.
-  assert(!evalCondition(p, { levelAtLeast: 6 }));
-  assert(!evalCondition(p, { flag: { id: 'bells', equals: 4 } }));
-  assert(!evalCondition(p, { ownsItem: { itemId: 'm_ember_shard', count: 3 } }));
-  assert(!evalCondition(p, { inZone: 'abyss' }));
-  assert(!evalCondition(p, { questStatus: { questId: 'm1_embers', is: 'active' } }));
-  assert(evalCondition(p, { questStatus: { questId: 'm1_embers', is: ['done', 'turnIn'] } }));
-  assert(!evalCondition(p, { decision: { id: 'never_made' } }));
-  assert(evalCondition(p, { not: { flag: { id: 'missing' } } }));
+  assert(!evalCondition(player, { levelAtLeast: 6 }));
+  assert(!evalCondition(player, { flag: { id: 'bells', equals: 4 } }));
+  assert(!evalCondition(player, { ownsItem: { itemId: 'm_ember_shard', count: 3 } }));
+  assert(!evalCondition(player, { inZone: 'abyss' }));
+  assert(!evalCondition(player, { questStatus: { questId: 'm1_embers', is: 'active' } }));
+  assert(evalCondition(player, { questStatus: { questId: 'm1_embers', is: ['done', 'turnIn'] } }));
+  assert(!evalCondition(player, { decision: { id: 'never_made' } }));
+  assert(evalCondition(player, { not: { flag: { id: 'missing' } } }));
 });
 
 // ── decision ledger ──────────────────────────────────────────────────────
 
 Deno.test('decisions: recorded with provenance, idempotent, conflicting choice refused', () => {
-  const p = hero(1301);
-  const result = applyStoryEffects(p, [
+  const player = hero(1301);
+  const result = applyStoryEffects(player, [
     { kind: 'recordDecision', id: 'shrine_allegiance', choiceId: 'ferryman' },
     { kind: 'recordDecision', id: 'shrine_allegiance', choiceId: 'ferryman' }, // replay
   ], ctx);
   assertEquals(result.decisions, ['shrine_allegiance'], 'replay records nothing new');
-  assertEquals(p.decisions['shrine_allegiance'], {
+  assertEquals(player.decisions['shrine_allegiance'], {
     choiceId: 'ferryman',
     dialogueId: 'dlg_test',
     nodeId: 'n1',
@@ -99,36 +99,36 @@ Deno.test('decisions: recorded with provenance, idempotent, conflicting choice r
   // a FRESH application identity (this one is receipted now, and a
   // receipted identity validates as a replay no-op, #137).
   assert(
-    validateStoryBundle(p, [
+    validateStoryBundle(player, [
       { kind: 'recordDecision', id: 'shrine_allegiance', choiceId: 'curator' },
     ], { ...ctx, nodeId: 'n2' }) !== undefined,
     'overwriting a decision is refused',
   );
-  assert(evalCondition(p, { decision: { id: 'shrine_allegiance', choiceId: 'ferryman' } }));
-  assert(!evalCondition(p, { decision: { id: 'shrine_allegiance', choiceId: 'curator' } }));
+  assert(evalCondition(player, { decision: { id: 'shrine_allegiance', choiceId: 'ferryman' } }));
+  assert(!evalCondition(player, { decision: { id: 'shrine_allegiance', choiceId: 'curator' } }));
 });
 
 // ── outcomes and permanent exclusion ─────────────────────────────────────
 
 Deno.test('outcomes: a locked quest never resurrects through availability sync', () => {
-  const p = hero(1302);
-  p.level = 45;
+  const player = hero(1302);
+  player.level = 45;
   // m25_silence becomes available at 45 with m24 done; lock it mid-flow.
-  p.quests['m24_below'] = { status: 'done', counts: [1] };
-  p.quests['m25_silence'] = { status: 'active', counts: [0] };
-  applyStoryEffects(p, [
+  player.quests['m24_below'] = { status: 'done', counts: [1] };
+  player.quests['m25_silence'] = { status: 'active', counts: [0] };
+  applyStoryEffects(player, [
     { kind: 'lockQuest', questId: 'm25_silence', reason: 'seam_closed' },
   ], ctx);
-  assertEquals(p.questOutcomes['m25_silence']?.kind, 'locked');
-  assertEquals(p.quests['m25_silence']?.status, 'unavailable');
+  assertEquals(player.questOutcomes['m25_silence']?.kind, 'locked');
+  assertEquals(player.quests['m25_silence']?.status, 'unavailable');
   // Ordinary prerequisites still hold — but the lockout wins.
-  syncAvailability(p);
-  assertEquals(p.quests['m25_silence']?.status, 'unavailable', 'no resurrection');
-  assert(questExcluded(p, 'm25_silence'));
+  syncAvailability(player);
+  assertEquals(player.quests['m25_silence']?.status, 'unavailable', 'no resurrection');
+  assert(questExcluded(player, 'm25_silence'));
   // Re-locking is idempotent (no double record churn).
-  const before = JSON.stringify(p.questOutcomes['m25_silence']);
-  applyStoryEffects(p, [{ kind: 'lockQuest', questId: 'm25_silence' }], ctx);
-  assertEquals(JSON.stringify(p.questOutcomes['m25_silence']), before);
+  const before = JSON.stringify(player.questOutcomes['m25_silence']);
+  applyStoryEffects(player, [{ kind: 'lockQuest', questId: 'm25_silence' }], ctx);
+  assertEquals(JSON.stringify(player.questOutcomes['m25_silence']), before);
 });
 
 Deno.test('outcomes: named resolutions require their quest to declare them (#146)', () => {
@@ -212,27 +212,31 @@ Deno.test('outcomes: named resolutions require their quest to declare them (#146
 });
 
 Deno.test('outcomes: a failed quest is likewise permanent', () => {
-  const p = hero(1305);
-  p.quests['sq_ore'] = { status: 'active', counts: [1] };
-  applyStoryEffects(p, [{ kind: 'failQuest', questId: 'sq_ore', reason: 'forge_cold' }], ctx);
-  assertEquals(p.questOutcomes['sq_ore']?.kind, 'failed');
-  syncAvailability(p);
-  assertEquals(p.quests['sq_ore']?.status, 'unavailable', 'failure is not retried into existence');
+  const player = hero(1305);
+  player.quests['sq_ore'] = { status: 'active', counts: [1] };
+  applyStoryEffects(player, [{ kind: 'failQuest', questId: 'sq_ore', reason: 'forge_cold' }], ctx);
+  assertEquals(player.questOutcomes['sq_ore']?.kind, 'failed');
+  syncAvailability(player);
+  assertEquals(
+    player.quests['sq_ore']?.status,
+    'unavailable',
+    'failure is not retried into existence',
+  );
 });
 
 // ── story effects ────────────────────────────────────────────────────────
 
 Deno.test('story: bundles are atomic — a failing precondition mutates nothing', () => {
-  const p = hero(1306);
-  const before = JSON.stringify(p);
+  const player = hero(1306);
+  const before = JSON.stringify(player);
   const bundle = [
     { kind: 'setFlag', id: 'will_apply' },
     { kind: 'removeItem', itemId: 'm_iron_chunk', qty: 1 }, // hero has none
     { kind: 'setFlag', id: 'never_reached' },
   ] as const;
-  assert(validateStoryBundle(p, [...bundle], ctx) !== undefined);
-  assertThrowsWrapper(() => applyStoryEffects(p, [...bundle], ctx));
-  assertEquals(JSON.stringify(p), before, 'all-or-nothing');
+  assert(validateStoryBundle(player, [...bundle], ctx) !== undefined);
+  assertThrowsWrapper(() => applyStoryEffects(player, [...bundle], ctx));
+  assertEquals(JSON.stringify(player), before, 'all-or-nothing');
 });
 
 function assertThrowsWrapper(fn: () => void): void {
@@ -246,21 +250,22 @@ function assertThrowsWrapper(fn: () => void): void {
 }
 
 Deno.test('story: startQuest honors on-site starter authority (#63/#64)', () => {
-  const p = hero(1307);
-  p.level = 2;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  syncAvailability(p); // m2 available, started by Maren
-  assertEquals(p.quests['m2_letter']?.status, 'available');
+  const player = hero(1307);
+  player.level = 2;
+  player.quests['m1_embers'] = { status: 'done', counts: [4] };
+  syncAvailability(player); // m2 available, started by Maren
+  assertEquals(player.quests['m2_letter']?.status, 'available');
   // Bram's dialogue cannot puppet Maren's quest even on-site.
   const bramCtx: StoryContext = { ...ctx, npcId: 'npc_bram' };
   assert(
-    validateStoryBundle(p, [{ kind: 'startQuest', questId: 'm2_letter' }], bramCtx) !== undefined,
+    validateStoryBundle(player, [{ kind: 'startQuest', questId: 'm2_letter' }], bramCtx) !==
+      undefined,
     'wrong starter refused',
   );
   // Maren on-site starts it.
-  const r = applyStoryEffects(p, [{ kind: 'startQuest', questId: 'm2_letter' }], ctx);
-  assertEquals(r.startedQuests, ['m2_letter']);
-  assertEquals(p.quests['m2_letter']?.status, 'active');
+  const result = applyStoryEffects(player, [{ kind: 'startQuest', questId: 'm2_letter' }], ctx);
+  assertEquals(result.startedQuests, ['m2_letter']);
+  assertEquals(player.quests['m2_letter']?.status, 'active');
   // Off-site Maren cannot.
   const p2 = hero(1308);
   p2.level = 2;
@@ -274,9 +279,9 @@ Deno.test('story: startQuest honors on-site starter authority (#63/#64)', () => 
 });
 
 Deno.test('story: grants, removals, unlocks and events apply in authored order', () => {
-  const p = hero(1309);
-  const base = p.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
-  const r = applyStoryEffects(p, [
+  const player = hero(1309);
+  const base = player.inventory.find((entry) => entry.id === 'c_minor_potion')?.qty ?? 0;
+  const result = applyStoryEffects(player, [
     { kind: 'storyEvent', event: 'shrine_allegiance_chosen' },
     { kind: 'grantItem', itemId: 'c_minor_potion', qty: 2 },
     { kind: 'grantItem', itemId: 'c_minor_potion', qty: 1 },
@@ -284,76 +289,76 @@ Deno.test('story: grants, removals, unlocks and events apply in authored order',
     { kind: 'unlockZone', zoneId: 'hollowmere' },
     { kind: 'setFlag', id: 'swarm_blessed', value: 'yes' },
   ], ctx);
-  assertEquals(r.events, ['shrine_allegiance_chosen']);
-  assertEquals(p.inventory.find((e) => e.id === 'c_minor_potion')?.qty, base + 2);
-  assert(p.unlockedZones.includes('hollowmere'));
-  assertEquals(p.flags['swarm_blessed'], 'yes');
-  assertEquals(p.storyEvents, ['shrine_allegiance_chosen']);
+  assertEquals(result.events, ['shrine_allegiance_chosen']);
+  assertEquals(player.inventory.find((entry) => entry.id === 'c_minor_potion')?.qty, base + 2);
+  assert(player.unlockedZones.includes('hollowmere'));
+  assertEquals(player.flags['swarm_blessed'], 'yes');
+  assertEquals(player.storyEvents, ['shrine_allegiance_chosen']);
   // Duplicate events dedupe.
-  applyStoryEffects(p, [{ kind: 'storyEvent', event: 'shrine_allegiance_chosen' }], ctx);
-  assertEquals(p.storyEvents, ['shrine_allegiance_chosen']);
+  applyStoryEffects(player, [{ kind: 'storyEvent', event: 'shrine_allegiance_chosen' }], ctx);
+  assertEquals(player.storyEvents, ['shrine_allegiance_chosen']);
 });
 
 Deno.test('story: granted items tick collect quests through the shared authority (#119)', () => {
-  const p = hero(1310);
-  p.level = 12;
-  p.quests['m5_fen'] = { status: 'done', counts: [1] };
-  p.unlockedZones.push('hollowmere');
-  p.currentZone = 'hollowmere';
-  syncAvailability(p);
-  assert(acceptQuest(p, 'm6_toxin', 'npc_ferryman').ok);
-  const r = applyStoryEffects(p, [
+  const player = hero(1310);
+  player.level = 12;
+  player.quests['m5_fen'] = { status: 'done', counts: [1] };
+  player.unlockedZones.push('hollowmere');
+  player.currentZone = 'hollowmere';
+  syncAvailability(player);
+  assert(acceptQuest(player, 'm6_toxin', 'npc_ferryman').ok);
+  const result = applyStoryEffects(player, [
     { kind: 'grantItem', itemId: 'q_toxin_sample', qty: 4 },
   ], { ...ctx, npcId: 'npc_ferryman' });
-  assert(r.readyQuests.includes('m6_toxin'), 'readiness announced once');
-  assertEquals(p.quests['m6_toxin']?.status, 'turnIn');
-  const lines = storyNoticeLines(r);
-  assertEquals(lines.filter((l) => l.includes('ready to turn in')).length, 1);
+  assert(result.readyQuests.includes('m6_toxin'), 'readiness announced once');
+  assertEquals(player.quests['m6_toxin']?.status, 'turnIn');
+  const lines = storyNoticeLines(result);
+  assertEquals(lines.filter((line) => line.includes('ready to turn in')).length, 1);
 });
 
 Deno.test('story: mutually exclusive quests — one choice locks the other route', () => {
   // A fixture pair from real content: starting m2 for Maren and locking
   // sq_ore (also Bram's) simulates exclusive routes without new content.
-  const p = hero(1311);
-  p.level = 2;
-  p.flags['zone_whisperwood'] = true;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  syncAvailability(p);
-  applyStoryEffects(p, [
+  const player = hero(1311);
+  player.level = 2;
+  player.flags['zone_whisperwood'] = true;
+  player.quests['m1_embers'] = { status: 'done', counts: [4] };
+  syncAvailability(player);
+  applyStoryEffects(player, [
     { kind: 'startQuest', questId: 'm2_letter' },
     { kind: 'recordDecision', id: 'm2_route', choiceId: 'deliver' },
     { kind: 'lockQuest', questId: 'sq_ore', reason: 'm2_route' },
   ], ctx);
-  assertEquals(p.quests['m2_letter']?.status, 'active');
-  assertEquals(p.quests['sq_ore']?.status, 'unavailable');
-  syncAvailability(p);
-  assertEquals(p.quests['sq_ore']?.status, 'unavailable', 'locked route stays shut');
+  assertEquals(player.quests['m2_letter']?.status, 'active');
+  assertEquals(player.quests['sq_ore']?.status, 'unavailable');
+  syncAvailability(player);
+  assertEquals(player.quests['sq_ore']?.status, 'unavailable', 'locked route stays shut');
   // A later dialogue can identify the actual choice.
-  assert(evalCondition(p, { decision: { id: 'm2_route', choiceId: 'deliver' } }));
+  assert(evalCondition(player, { decision: { id: 'm2_route', choiceId: 'deliver' } }));
 });
 
 Deno.test('topics: authored availability conditions gate lore topics (#125)', () => {
-  const p = hero(1312);
-  p.level = 1;
+  const player = hero(1312);
+  player.level = 1;
   // No content topic carries a `when` yet — the resolver just filters.
-  const topics = npcTopics(p, 'npc_maren');
-  assert(topics.every((t) => t.kind === 'lore' || t.kind.startsWith('quest')));
+  const topics = npcTopics(player, 'npc_maren');
+  assert(topics.every((topic) => topic.kind === 'lore' || topic.kind.startsWith('quest')));
 });
 
 Deno.test('quests: declarative prereq conditions gate availability (#125)', () => {
-  const p = hero(1313);
-  p.level = 45;
-  syncAvailability(p);
-  assertEquals(p.quests['m25_silence'], undefined);
-  p.quests['m24_below'] = { status: 'done', counts: [1] };
-  syncAvailability(p);
-  assertEquals(p.quests['m25_silence']?.status, 'available');
+  const player = hero(1313);
+  player.level = 45;
+  syncAvailability(player);
+  assertEquals(player.quests['m25_silence'], undefined);
+  player.quests['m24_below'] = { status: 'done', counts: [1] };
+  syncAvailability(player);
+  assertEquals(player.quests['m25_silence']?.status, 'available');
 });
 
 Deno.test('quests: level guidance shares nested story conditions and exclusions (#174)', () => {
-  const q = quest('m2_letter')!;
-  const original = q.prereq;
-  q.prereq = {
+  const questDef = quest('m2_letter')!;
+  const original = questDef.prereq;
+  questDef.prereq = {
     all: [
       original!,
       { any: [{ flag: { id: 'offer_open' } }, { flag: { id: 'alternate_offer' } }] },
@@ -361,49 +366,49 @@ Deno.test('quests: level guidance shares nested story conditions and exclusions 
     ],
   };
   try {
-    const p = hero(1740);
-    p.quests['m1_embers'] = { status: 'done', counts: [4] };
-    syncAvailability(p);
-    assertEquals(p.quests[q.id], undefined);
-    assertEquals(levelLockedMain(p), undefined, 'unmet story conditions hide the level hint');
+    const player = hero(1740);
+    player.quests['m1_embers'] = { status: 'done', counts: [4] };
+    syncAvailability(player);
+    assertEquals(player.quests[questDef.id], undefined);
+    assertEquals(levelLockedMain(player), undefined, 'unmet story conditions hide the level hint');
 
-    p.flags['offer_open'] = false; // existence, not truthiness
-    syncAvailability(p);
-    assertEquals(p.quests[q.id], undefined, 'level still gates acceptance');
-    assertEquals(levelLockedMain(p)?.id, q.id);
-    delete p.flags['offer_open'];
-    p.flags['alternate_offer'] = 0;
-    assertEquals(levelLockedMain(p)?.id, q.id, 'either defined flag satisfies any');
+    player.flags['offer_open'] = false; // existence, not truthiness
+    syncAvailability(player);
+    assertEquals(player.quests[questDef.id], undefined, 'level still gates acceptance');
+    assertEquals(levelLockedMain(player)?.id, questDef.id);
+    delete player.flags['offer_open'];
+    player.flags['alternate_offer'] = 0;
+    assertEquals(levelLockedMain(player)?.id, questDef.id, 'either defined flag satisfies any');
 
-    p.flags['offer_blocked'] = true;
-    assertEquals(levelLockedMain(p), undefined, 'negated conditions also hide the hint');
-    delete p.flags['offer_blocked'];
-    p.level = q.level;
-    syncAvailability(p);
-    assertEquals(p.quests[q.id]?.status, 'available');
-    assertEquals(levelLockedMain(p), undefined, 'no hint once the level is sufficient');
+    player.flags['offer_blocked'] = true;
+    assertEquals(levelLockedMain(player), undefined, 'negated conditions also hide the hint');
+    delete player.flags['offer_blocked'];
+    player.level = questDef.level;
+    syncAvailability(player);
+    assertEquals(player.quests[questDef.id]?.status, 'available');
+    assertEquals(levelLockedMain(player), undefined, 'no hint once the level is sufficient');
 
     for (const kind of ['locked', 'failed'] as const) {
       const excluded = hero(1741);
       excluded.quests['m1_embers'] = { status: 'done', counts: [4] };
       excluded.flags['offer_open'] = true;
-      excluded.questOutcomes[q.id] = { kind, at: 0 };
+      excluded.questOutcomes[questDef.id] = { kind, at: 0 };
       assertEquals(levelLockedMain(excluded), undefined, `${kind} quests never get a level hint`);
-      excluded.level = q.level;
+      excluded.level = questDef.level;
       syncAvailability(excluded);
-      assertEquals(excluded.quests[q.id], undefined, `${kind} quests stay unavailable`);
+      assertEquals(excluded.quests[questDef.id], undefined, `${kind} quests stay unavailable`);
     }
   } finally {
-    q.prereq = original;
+    questDef.prereq = original;
   }
 });
 
 Deno.test('quests: authored flag prerequisites preserve existence semantics (#174)', () => {
   for (const value of [undefined, false, 0, 'visited'] as const) {
-    const p = hero(1742);
-    p.level = 2;
-    if (value !== undefined) p.flags['zone_whisperwood'] = value;
-    syncAvailability(p);
-    assertEquals(p.quests['sq_ore']?.status, value === undefined ? undefined : 'available');
+    const player = hero(1742);
+    player.level = 2;
+    if (value !== undefined) player.flags['zone_whisperwood'] = value;
+    syncAvailability(player);
+    assertEquals(player.quests['sq_ore']?.status, value === undefined ? undefined : 'available');
   }
 });

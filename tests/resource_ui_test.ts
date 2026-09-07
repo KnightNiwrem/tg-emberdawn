@@ -18,32 +18,32 @@ import { itemFactBlocks } from '../src/render/menus.ts';
 import { fakeCtxCapture } from './helpers.ts';
 
 function controls(view: InputRichMessage): string[] {
-  return (view.blocks ?? []).flatMap((b) =>
-    b.type === 'buttons'
-      ? b.buttons.flatMap((btn) => 'callback_data' in btn ? btn.callback_data : [])
+  return (view.blocks ?? []).flatMap((block) =>
+    block.type === 'buttons'
+      ? block.buttons.flatMap((btn) => 'callback_data' in btn ? btn.callback_data : [])
       : []
   );
 }
 
 function player() {
-  const p = createPlayer(2031, 'Gatherer', 'warrior');
-  p.tutorial = 'done';
-  p.messageId = 203;
-  p.uiRev = 12;
-  return p;
+  const player = createPlayer(2031, 'Gatherer', 'warrior');
+  player.tutorial = 'done';
+  player.messageId = 203;
+  player.uiRev = 12;
+  return player;
 }
 
 Deno.test('resources UI: local menus expose complete facts and valid bounded callbacks without mutation', () => {
-  const p = player();
-  p.level = 45;
-  for (const z of ZONES) {
-    p.currentZone = z.id;
+  const crafter = player();
+  crafter.level = 45;
+  for (const zoneDef of ZONES) {
+    crafter.currentZone = zoneDef.id;
     for (const scene of ['gather', 'craft']) {
       for (let page = 0; page < 6; page++) {
-        p.scene = { view: 'zone', arg: scene, arg2: String(page) };
-        const before = JSON.stringify(p);
-        const view = renderZone(p);
-        assertEquals(JSON.stringify(p), before, 'render is a pure projection');
+        crafter.scene = { view: 'zone', arg: scene, arg2: String(page) };
+        const before = JSON.stringify(crafter);
+        const view = renderZone(crafter);
+        assertEquals(JSON.stringify(crafter), before, 'render is a pure projection');
         for (const wire of controls(view)) {
           const stamped = withRev(9999, wire);
           assert(new TextEncoder().encode(stamped).length <= 64);
@@ -52,33 +52,35 @@ Deno.test('resources UI: local menus expose complete facts and valid bounded cal
       }
     }
   }
-  p.currentZone = 'whisperwood';
-  const fish = JSON.stringify(renderGathering(p));
+  crafter.currentZone = 'whisperwood';
+  const fish = JSON.stringify(renderGathering(crafter));
   for (const fact of ['Fishing Rod', 'Worm Bait', 'Grub Bait', '70%', '90%', 'reusable']) {
     assert(fish.includes(fact), fact);
   }
-  p.currentZone = 'emberdawn';
-  p.scene = { view: 'zone', arg: 'craft', arg2: '0' };
+  crafter.currentZone = 'emberdawn';
+  crafter.scene = { view: 'zone', arg: 'craft', arg2: '0' };
   const recipe = RECIPES[0];
-  const view = JSON.stringify(renderCrafting(p));
+  const view = JSON.stringify(renderCrafting(crafter));
   for (const input of recipe.inputs) assert(view.includes(item(input.id)!.name));
   assert(view.includes(item(recipe.output.id)!.name));
   assert(view.includes(`Fee: ${recipe.gold}g`));
   assert(
-    !controls(renderCrafting(p)).some((wire) => decodeCb(wire)?.a === 'cr'),
+    !controls(renderCrafting(crafter)).some((wire) => decodeCb(wire)?.a === 'cr'),
     'unaffordable craft disabled',
   );
 });
 
 Deno.test('resources UI: material facts explain uses and real acquisition sources', () => {
-  assert(materialUses('m_pickaxe').some((s) => s.includes('Reusable')));
-  assert(materialUses('m_worm_bait').some((s) => s.includes('one is consumed')));
-  assert(materialUses('m_iron_ingot').some((s) => s.includes('Tempering')));
-  assert(materialUses('m_rat_tail').some((s) => s.includes('Trade good')));
-  assert(materialSources('m_iron_ingot').some((s) => s.includes('Smelt iron')));
+  assert(materialUses('m_pickaxe').some((description) => description.includes('Reusable')));
+  assert(
+    materialUses('m_worm_bait').some((description) => description.includes('one is consumed')),
+  );
+  assert(materialUses('m_iron_ingot').some((description) => description.includes('Tempering')));
+  assert(materialUses('m_rat_tail').some((description) => description.includes('Trade good')));
+  assert(materialSources('m_iron_ingot').some((description) => description.includes('Smelt iron')));
   for (const site of GATHERING_SITES) {
-    for (const y of [...site.yields, ...Object.values(site.baitTables ?? {}).flat()]) {
-      assert(materialSources(y.item).length > 0, y.item);
+    for (const gatheringYield of [...site.yields, ...Object.values(site.baitTables ?? {}).flat()]) {
+      assert(materialSources(gatheringYield.item).length > 0, gatheringYield.item);
     }
   }
   const text = JSON.stringify(itemFactBlocks(item('c_wild_berry')!));
@@ -87,8 +89,8 @@ Deno.test('resources UI: material facts explain uses and real acquisition source
 });
 
 Deno.test('resources UI: forged remote and battle controls do not consume anything or navigate', () => {
-  const p = player();
-  p.currentZone = 'abyss';
+  const crafter = player();
+  crafter.currentZone = 'abyss';
   for (
     const cb of [
       { v: 'zone', a: 'cr', arg: 'minor_potion' },
@@ -96,14 +98,16 @@ Deno.test('resources UI: forged remote and battle controls do not consume anythi
       { v: 'zone', a: 'ga', arg: 'unknown' },
     ] as const
   ) {
-    const before = JSON.stringify(p);
-    assert(zoneAction(p, cb).toast);
-    assertEquals(JSON.stringify(p), before);
+    const before = JSON.stringify(crafter);
+    assert(zoneAction(crafter, cb).toast);
+    assertEquals(JSON.stringify(crafter), before);
   }
-  p.currentZone = 'emberdawn';
-  p.battle =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, { player: p, rng: () => 0.5 })!
-      .battle;
+  crafter.currentZone = 'emberdawn';
+  crafter.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
+    player: crafter,
+    rng: () => 0.5,
+  })!
+    .battle;
   for (
     const cb of [
       { v: 'zone', a: 'gp' },
@@ -112,26 +116,28 @@ Deno.test('resources UI: forged remote and battle controls do not consume anythi
       { v: 'zone', a: 'ga', arg: 'forage' },
     ] as const
   ) {
-    const before = JSON.stringify(p);
-    assert(zoneAction(p, cb).toast);
-    assertEquals(JSON.stringify(p), before);
+    const before = JSON.stringify(crafter);
+    assert(zoneAction(crafter, cb).toast);
+    assertEquals(JSON.stringify(crafter), before);
   }
 });
 
 Deno.test('resources UI: stale craft replay grants only one batch on the live message', async () => {
-  const p = player();
-  const r = RECIPES.find((r) => r.id === 'minor_potion')!;
-  p.gold = 100;
-  for (const m of r.inputs) p.inventory.push({ id: m.id, qty: m.qty * 2 });
-  p.scene = { view: 'zone', arg: 'craft', arg2: '0' };
-  const before = countOf(p, r.output.id);
+  const crafter = player();
+  const recipe = RECIPES.find((recipe) => recipe.id === 'minor_potion')!;
+  crafter.gold = 100;
+  for (const materialCost of recipe.inputs) {
+    crafter.inventory.push({ id: materialCost.id, qty: materialCost.qty * 2 });
+  }
+  crafter.scene = { view: 'zone', arg: 'craft', arg2: '0' };
+  const before = countOf(crafter, recipe.output.id);
   const store = new MemoryStore();
-  await store.set(p.userId, p);
-  const wire = withRev(p.uiRev, encodeCb({ v: 'zone', a: 'cr', arg: r.id }));
-  await handleCallback(fakeCtxCapture(p.userId, p.messageId, wire).ctx, store);
-  const after = await store.get(p.userId);
-  assertEquals(countOf(after!, r.output.id), before + r.output.qty);
+  await store.set(crafter.userId, crafter);
+  const wire = withRev(crafter.uiRev, encodeCb({ v: 'zone', a: 'cr', arg: recipe.id }));
+  await handleCallback(fakeCtxCapture(crafter.userId, crafter.messageId, wire).ctx, store);
+  const after = await store.get(crafter.userId);
+  assertEquals(countOf(after!, recipe.output.id), before + recipe.output.qty);
   const snapshot = JSON.stringify(after);
-  await handleCallback(fakeCtxCapture(p.userId, p.messageId, wire).ctx, store);
-  assertEquals(JSON.stringify(await store.get(p.userId)), snapshot);
+  await handleCallback(fakeCtxCapture(crafter.userId, crafter.messageId, wire).ctx, store);
+  assertEquals(JSON.stringify(await store.get(crafter.userId)), snapshot);
 });

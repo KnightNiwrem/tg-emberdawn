@@ -119,10 +119,13 @@ const WEAPONS: Record<ClassId, TierNames> = {
 };
 
 const WEAPON_GEAR: Record<ClassId, (tier: number) => ItemStats> = {
-  warrior: (t) => ({ atk: WEAPON_ATK(t) }),
-  mage: (t) => ({ mag: WEAPON_ATK(t) }),
-  rogue: (t) => ({ atk: Math.round(WEAPON_ATK(t) * 0.85), spd: t }),
-  cleric: (t) => ({ mag: Math.round(WEAPON_ATK(t) * 0.8), hp: Math.round(ARMOR_HP(t) * 0.4) }),
+  warrior: (tier) => ({ atk: WEAPON_ATK(tier) }),
+  mage: (tier) => ({ mag: WEAPON_ATK(tier) }),
+  rogue: (tier) => ({ atk: Math.round(WEAPON_ATK(tier) * 0.85), spd: tier }),
+  cleric: (tier) => ({
+    mag: Math.round(WEAPON_ATK(tier) * 0.8),
+    hp: Math.round(ARMOR_HP(tier) * 0.4),
+  }),
 };
 
 const ARMORS: Record<ClassId, TierNames> = {
@@ -221,21 +224,21 @@ const ARMORS: Record<ClassId, TierNames> = {
 };
 
 const ARMOR_GEAR: Record<ClassId, (tier: number) => ItemStats> = {
-  warrior: (t) => ({ def: ARMOR_DEF(t), hp: ARMOR_HP(t), res: ARMOR_RES(t) }),
-  mage: (t) => ({
-    def: Math.round(ARMOR_DEF(t) * 0.4),
-    res: Math.round(ARMOR_RES(t) * 1.6),
-    mp: 12 * t,
+  warrior: (tier) => ({ def: ARMOR_DEF(tier), hp: ARMOR_HP(tier), res: ARMOR_RES(tier) }),
+  mage: (tier) => ({
+    def: Math.round(ARMOR_DEF(tier) * 0.4),
+    res: Math.round(ARMOR_RES(tier) * 1.6),
+    mp: 12 * tier,
   }),
-  rogue: (t) => ({
-    def: Math.round(ARMOR_DEF(t) * 0.7),
-    spd: t,
-    res: Math.round(ARMOR_RES(t) * 0.6),
+  rogue: (tier) => ({
+    def: Math.round(ARMOR_DEF(tier) * 0.7),
+    spd: tier,
+    res: Math.round(ARMOR_RES(tier) * 0.6),
   }),
-  cleric: (t) => ({
-    def: Math.round(ARMOR_DEF(t) * 0.7),
-    res: Math.round(ARMOR_RES(t) * 1.2),
-    hp: Math.round(ARMOR_HP(t) * 0.7),
+  cleric: (tier) => ({
+    def: Math.round(ARMOR_DEF(tier) * 0.7),
+    res: Math.round(ARMOR_RES(tier) * 1.2),
+    hp: Math.round(ARMOR_HP(tier) * 0.7),
   }),
 };
 
@@ -843,50 +846,52 @@ const QUEST_ITEMS: { id: string; name: string; desc: string }[] = [
 function buildItems(): ItemDef[] {
   const out: ItemDef[] = [];
   const tiers = [1, 2, 3, 4, 5, 6, 7, 8];
-  const tierLevel = (t: number): number => 1 + (t - 1) * 6;
-  const price = (t: number): number => Math.round(38 * Math.pow(t, 2.2));
-  for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as ClassId[]) {
-    tiers.forEach((t, i) => {
-      const names = WEAPONS[cls].names;
+  const tierLevel = (tier: number): number => 1 + (tier - 1) * 6;
+  const price = (tier: number): number => Math.round(38 * Math.pow(tier, 2.2));
+  for (const classId of ['warrior', 'mage', 'rogue', 'cleric'] as ClassId[]) {
+    tiers.forEach((tier, tierIndex) => {
+      const names = WEAPONS[classId].names;
       out.push({
-        id: `w_${cls}_${t}`,
-        name: names[i] ?? names[0]!,
+        id: `w_${classId}_${tier}`,
+        name: names[tierIndex] ?? names[0]!,
         kind: 'weapon',
-        classes: [cls],
-        level: tierLevel(t),
-        price: price(t),
-        tier: t,
-        stats: WEAPON_GEAR[cls](t),
-        desc: WEAPONS[cls].descByTier?.[t] ?? WEAPONS[cls].desc,
+        classes: [classId],
+        level: tierLevel(tier),
+        price: price(tier),
+        tier,
+        stats: WEAPON_GEAR[classId](tier),
+        desc: WEAPONS[classId].descByTier?.[tier] ?? WEAPONS[classId].desc,
       });
     });
-    tiers.forEach((t, i) => {
-      const names = ARMORS[cls].names;
+    tiers.forEach((tier, tierIndex) => {
+      const names = ARMORS[classId].names;
       out.push({
-        id: `a_${cls}_${t}`,
-        name: names[i] ?? names[0]!,
+        id: `a_${classId}_${tier}`,
+        name: names[tierIndex] ?? names[0]!,
         kind: 'armor',
-        classes: [cls],
-        level: tierLevel(t),
-        price: price(t),
-        tier: t,
-        stats: ARMOR_GEAR[cls](t),
-        desc: ARMORS[cls].descByTier?.[t] ?? ARMORS[cls].desc,
+        classes: [classId],
+        level: tierLevel(tier),
+        price: price(tier),
+        tier,
+        stats: ARMOR_GEAR[classId](tier),
+        desc: ARMORS[classId].descByTier?.[tier] ?? ARMORS[classId].desc,
       });
     });
   }
-  TRINKET_TIERS.forEach((tk, i) => {
+  TRINKET_TIERS.forEach((tk, trinketIndex) => {
     out.push({
-      id: `t_${i + 1}`,
+      id: `t_${trinketIndex + 1}`,
       name: tk.name,
       kind: 'trinket',
       level: tk.lvl,
       price: Math.round(price(Math.max(1, tk.lvl / 6))),
-      tier: i + 1,
+      tier: trinketIndex + 1,
       stats: tk.stats,
       desc: tk.desc,
       // #82: declared triggers ride along; undefined stays absent.
-      ...(TRINKET_TRIGGERS[`t_${i + 1}`] ? { triggers: TRINKET_TRIGGERS[`t_${i + 1}`] } : {}),
+      ...(TRINKET_TRIGGERS[`t_${trinketIndex + 1}`]
+        ? { triggers: TRINKET_TRIGGERS[`t_${trinketIndex + 1}`] }
+        : {}),
     });
   });
   // Standalone effect trinket (#80, migrated to the #82 trigger model):
@@ -915,39 +920,39 @@ function buildItems(): ItemDef[] {
       }],
     }],
   });
-  for (const c of CONSUMABLES) {
+  for (const consumable of CONSUMABLES) {
     out.push({
-      id: c.id,
-      name: c.name,
+      id: consumable.id,
+      name: consumable.name,
       kind: 'consumable',
-      level: c.lvl,
-      price: c.price,
+      level: consumable.lvl,
+      price: consumable.price,
       tier: 0,
-      effect: c.effect,
-      desc: c.desc,
+      effect: consumable.effect,
+      desc: consumable.desc,
     });
   }
-  for (const m of MATERIALS) {
+  for (const material of MATERIALS) {
     out.push({
-      id: m.id,
-      name: m.name,
+      id: material.id,
+      name: material.name,
       kind: 'material',
-      level: m.lvl,
-      price: m.price,
+      level: material.lvl,
+      price: material.price,
       tier: 0,
-      desc: m.desc,
+      desc: material.desc,
     });
   }
-  for (const q of QUEST_ITEMS) {
+  for (const questItem of QUEST_ITEMS) {
     out.push({
-      id: q.id,
-      name: q.name,
+      id: questItem.id,
+      name: questItem.name,
       kind: 'quest',
       level: 1,
       price: 0,
       tier: 0,
       unique: true,
-      desc: q.desc,
+      desc: questItem.desc,
     });
   }
   // Boss first-clear trinkets: unique victory loot, never stocked (they are
@@ -1179,7 +1184,7 @@ function buildItems(): ItemDef[] {
 
 export const ITEMS: readonly ItemDef[] = buildItems();
 
-const ITEM_INDEX = new Map(ITEMS.map((i) => [i.id, i]));
+const ITEM_INDEX = new Map(ITEMS.map((itemDef) => [itemDef.id, itemDef]));
 
 export function item(id: string): ItemDef | undefined {
   return ITEM_INDEX.get(id);

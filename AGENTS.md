@@ -70,8 +70,11 @@ These apply to every change:
 10. **Secrets.** Never commit `.env`, tokens, or local database files.
 11. **Descriptive naming.** Variable names must be descriptive and reveal intent; avoid
     single-letter domain variables (e.g. use `player`, `battle`, `questDef`, `itemDef`, `stats`).
-    Wire keys in `callback_data` and idiomatic short loop indices (`i`, `j`) are the only exceptions
-    (#217).
+    Compact `callback_data` keys and values and idiomatic short loop indices (`i`, `j`) are the only
+    exceptions. Local variables holding callback data still need descriptive names, including inside
+    `src/codec.ts`; their names do not consume wire bytes. Apply this to content builders, scripts,
+    tests, destructuring, and array callbacks too. Name semantic counters for their role (e.g.
+    `candidateSeed`, `floorNumber`, `tierIndex`), even in loops (#217, #220, #221).
 
 ## Story-authority invariant
 

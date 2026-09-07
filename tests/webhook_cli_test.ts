@@ -56,15 +56,15 @@ Deno.test('webhook CLI: successful set/info/delete preserve the API request cont
     { args: ['info'], method: 'getWebhookInfo', body: {} },
     { args: ['delete'], method: 'deleteWebhook', body: {} },
   ];
-  for (const c of cases) {
-    const out = await runCli(c.args);
-    assertEquals(out.code, 0, `${c.method}: ${out.stderr}`);
+  for (const testCase of cases) {
+    const out = await runCli(testCase.args);
+    assertEquals(out.code, 0, `${testCase.method}: ${out.stderr}`);
     const [request, ...response] = out.stdout.trim().split('\n');
     assertEquals(JSON.parse(request), {
-      url: `https://api.telegram.org/bot${token}/${c.method}`,
+      url: `https://api.telegram.org/bot${token}/${testCase.method}`,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: c.body,
+      body: testCase.body,
     });
     assertEquals(JSON.parse(response.join('\n')), { ok: true, result: true });
   }
@@ -79,11 +79,18 @@ Deno.test('webhook CLI: HTTP and API failures exit nonzero and retain the respon
     { status: 200, response: { ok: false, description: 'Registration refused' } },
     { status: 200, response: { result: true } },
   ];
-  for (const c of cases) {
-    const out = await runCli(['set', webhookUrl], c.status, c.response);
-    assert(out.code !== 0, `HTTP ${c.status} / ${JSON.stringify(c.response)} exited 0`);
+  for (const testCase of cases) {
+    const out = await runCli(['set', webhookUrl], testCase.status, testCase.response);
+    assert(
+      out.code !== 0,
+      `HTTP ${testCase.status} / ${JSON.stringify(testCase.response)} exited 0`,
+    );
     const [, ...response] = out.stdout.trim().split('\n');
-    assertEquals(JSON.parse(response.join('\n')), c.response, 'API diagnostics remain visible');
+    assertEquals(
+      JSON.parse(response.join('\n')),
+      testCase.response,
+      'API diagnostics remain visible',
+    );
   }
 });
 

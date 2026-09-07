@@ -14,8 +14,8 @@ export interface BotOptions {
   store: PlayerStore;
 }
 
-export function createBot(opts: BotOptions): Bot<Context> {
-  const bot = new Bot<Context>(opts.token);
+export function createBot(options: BotOptions): Bot<Context> {
+  const bot = new Bot<Context>(options.token);
 
   // Layer 1 (in-process): serialize per user so each load/mutate/save cycle
   // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a
@@ -33,7 +33,7 @@ export function createBot(opts: BotOptions): Bot<Context> {
     // The current run's own rejection still propagates to grammY's error path.
     const runPromise = prevPromise
       .catch(() => undefined)
-      .then(() => (userId === undefined ? next() : opts.store.withLock(userId, next)));
+      .then(() => (userId === undefined ? next() : options.store.withLock(userId, next)));
     chains.set(userId ?? 0, runPromise);
     try {
       await runPromise;
@@ -42,11 +42,11 @@ export function createBot(opts: BotOptions): Bot<Context> {
     }
   });
 
-  bot.command('start', (ctx) => handleStart(ctx, opts.store));
+  bot.command('start', (ctx) => handleStart(ctx, options.store));
   bot.command('help', (ctx) => handleHelp(ctx));
-  bot.command('reset', (ctx) => handleReset(ctx, opts.store));
+  bot.command('reset', (ctx) => handleReset(ctx, options.store));
 
-  bot.on('callback_query:data', (ctx) => handleCallback(ctx, opts.store));
+  bot.on('callback_query:data', (ctx) => handleCallback(ctx, options.store));
 
   bot.catch((errorCtx) => console.error('bot error', errorCtx.error));
   return bot;

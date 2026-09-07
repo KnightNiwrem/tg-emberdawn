@@ -21,25 +21,25 @@ import { seeded, withOverridden } from './helpers.ts';
 const ORIGIN = { kind: 'explore', zoneId: 'outskirts' } as const;
 
 function hero(id: number, classId: ClassId, level: number): PlayerState {
-  const p = createPlayer(id, 'T', classId);
-  p.level = level;
-  return p;
+  const player = createPlayer(id, 'T', classId);
+  player.level = level;
+  return player;
 }
 
 /** Padded rat so only the authored lethality decides the fight. */
-function tankyRat(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function tankyRat(player: PlayerState, seed: number): BattleState {
+  const battle = startBattle('e_rat', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 /** Pads the hero behind an unbreakable ward: earlier enemy swings stay
  * shield-only (no HP loss, no proc), so the bypass-shield lethal tick is
  * the round's ONLY player HP loss. */
-function warded(p: PlayerState): void {
-  grantShield(p.battle!, 'player', {
+function warded(player: PlayerState): void {
+  grantShield(player.battle!, 'player', {
     defId: 'test:ward',
     name: 'Test Ward',
     kind: 'shield',
@@ -55,8 +55,8 @@ function warded(p: PlayerState): void {
 }
 
 /** One lethal enemy strike through the DIRECT damage family. */
-function withDeathBite(run: (p: PlayerState) => void): void {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+function withDeathBite(run: (player: PlayerState) => void): void {
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Death Bite',
     weight: 1,
@@ -66,8 +66,8 @@ function withDeathBite(run: (p: PlayerState) => void): void {
 
 /** A lethal round-end DoT through the PERIODIC family (not dodgeable, not
  * routed through the resolver's damage branch). */
-function lethalDoT(b: BattleState): EffectInstance {
-  b.effectInstances.push({
+function lethalDoT(battle: BattleState): EffectInstance {
+  battle.effectInstances.push({
     iid: 'dot1',
     defId: 'test:lethal',
     name: 'Doom Venom',
@@ -79,17 +79,17 @@ function lethalDoT(b: BattleState): EffectInstance {
     tickPhase: 'roundEnd',
     tags: ['harmful', 'periodic', 'poison'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 3,
     removable: true,
-    expiresRound: b.round + 2,
+    expiresRound: battle.round + 2,
   });
-  return b.effectInstances[b.effectInstances.length - 1]!;
+  return battle.effectInstances[battle.effectInstances.length - 1]!;
 }
 
 /** The Grudge Charm's broad onHpDamage trigger, deterministic: always procs,
  * unlimited, no cooldown (fixture from #97's suite). */
-function ungatedGrudge(run: (p: PlayerState) => void): void {
+function ungatedGrudge(run: (player: PlayerState) => void): void {
   const charm = item('t_19')!;
   const original = charm.triggers;
   charm.triggers = [{
@@ -106,27 +106,27 @@ function ungatedGrudge(run: (p: PlayerState) => void): void {
     }],
   }];
   try {
-    const p = hero(2, 'warrior', 5);
-    p.equipment.trinket = 't_19';
-    run(p);
+    const player = hero(2, 'warrior', 5);
+    player.equipment.trinket = 't_19';
+    run(player);
   } finally {
     charm.triggers = original;
   }
 }
 
-const procCount = (b: BattleState): number => b.procs?.['t_19:0']?.count ?? 0;
+const procCount = (battle: BattleState): number => battle.procs?.['t_19:0']?.count ?? 0;
 
 const findTrace = <K extends CombatTraceEntry['kind']>(
   trace: CombatTraceEntry[],
   kind: K,
 ): Extract<CombatTraceEntry, { kind: K }>[] =>
-  trace.filter((e): e is Extract<CombatTraceEntry, { kind: K }> => e.kind === kind);
+  trace.filter((event): event is Extract<CombatTraceEntry, { kind: K }> => event.kind === kind);
 
 /** Runs one full round against the padded rat with a counting RNG wrapper
  * (same underlying seed per run, so draw streams stay aligned). */
 function countedRound(
-  p: PlayerState,
-  b: BattleState,
+  player: PlayerState,
+  battle: BattleState,
   seed: number,
   draws: { n: number },
 ): ReturnType<typeof performAction> {
@@ -135,22 +135,22 @@ function countedRound(
     draws.n++;
     return base();
   };
-  return performAction(p, b, { kind: 'attack' }, counting);
+  return performAction(player, battle, { kind: 'attack' }, counting);
 }
 
 // ── Without the Cinder: both families are terminal at 0 HP ───────────────
 
 Deno.test('#104: direct lethal hit — terminal immediately, no reactions, hpDamaged closes the trace', () => {
-  withDeathBite((p) => {
+  withDeathBite((player) => {
     ungatedGrudge((grudged) => {
       void grudged;
-      const b = tankyRat(p, 11);
-      p.equipment.trinket = 't_19';
-      const res = performAction(p, b, { kind: 'attack' }, seeded(11));
+      const battle = tankyRat(player, 11);
+      player.equipment.trinket = 't_19';
+      const res = performAction(player, battle, { kind: 'attack' }, seeded(11));
       assertEquals(res.outcome, 'defeat');
-      assertEquals(p.hp, 0, 'no revival exists — defeat stands');
-      assertEquals(b.phoenixUsed, false);
-      assertEquals(procCount(b), 0, 'a fallen wearer procs nothing');
+      assertEquals(player.hp, 0, 'no revival exists — defeat stands');
+      assertEquals(battle.phoenixUsed, false);
+      assertEquals(procCount(battle), 0, 'a fallen wearer procs nothing');
       // Trace order: the hpDamaged entry is the LAST event before the
       // terminal adjudication — nothing resolved after 0 HP.
       const damaged = findTrace(res.trace, 'hpDamaged');
@@ -188,22 +188,22 @@ Deno.test('#104: periodic lethal tick — same terminal contract as a direct hit
     }],
   }];
   try {
-    const p = hero(3, 'warrior', 5);
-    p.equipment.trinket = 't_19';
-    p.hp = 99999; // the rat's reply must not decide this fight — the DoT does
-    const b = tankyRat(p, 12);
-    warded(p); // the reply stays shield-only; the bypass tick is the only loss
-    lethalDoT(b);
-    const res = performAction(p, b, { kind: 'attack' }, seeded(12));
+    const player = hero(3, 'warrior', 5);
+    player.equipment.trinket = 't_19';
+    player.hp = 99999; // the rat's reply must not decide this fight — the DoT does
+    const battle = tankyRat(player, 12);
+    warded(player); // the reply stays shield-only; the bypass tick is the only loss
+    lethalDoT(battle);
+    const res = performAction(player, battle, { kind: 'attack' }, seeded(12));
     assertEquals(res.outcome, 'defeat', 'a lethal tick ends the round');
-    assertEquals(p.hp, 0);
-    assertEquals(b.phoenixUsed, false);
-    assertEquals(procCount(b), 0, 'a fallen wearer procs nothing — periodic parity');
+    assertEquals(player.hp, 0);
+    assertEquals(battle.phoenixUsed, false);
+    assertEquals(procCount(battle), 0, 'a fallen wearer procs nothing — periodic parity');
     const ticks = findTrace(res.trace, 'periodicTick');
     const damaged = findTrace(res.trace, 'hpDamaged');
     const terminal = findTrace(res.trace, 'terminal');
-    assert(ticks.some((t) => t.applied < 0), 'the lethal tick is on the trace');
-    assert(damaged.some((d) => d.cause === 'periodic' && d.target === 'player'));
+    assert(ticks.some((event) => event.applied < 0), 'the lethal tick is on the trace');
+    assert(damaged.some((event) => event.cause === 'periodic' && event.target === 'player'));
     assertEquals(
       res.trace.indexOf(terminal[0]!),
       res.trace.length - 1,
@@ -220,12 +220,12 @@ Deno.test('#104: periodic lethal tick — same terminal contract as a direct hit
 });
 
 Deno.test('#104: unrevived end-of-round work never runs after the lethal tick', () => {
-  const p = hero(4, 'warrior', 5);
-  p.hp = 99999;
-  const b = tankyRat(p, 13);
+  const player = hero(4, 'warrior', 5);
+  player.hp = 99999;
+  const battle = tankyRat(player, 13);
   // Regen tick AFTER the lethal one in insertion order.
-  lethalDoT(b);
-  b.effectInstances.push({
+  lethalDoT(battle);
+  battle.effectInstances.push({
     iid: 'hot1',
     defId: 'test:regen',
     name: 'Test Regen',
@@ -236,48 +236,50 @@ Deno.test('#104: unrevived end-of-round work never runs after the lethal tick', 
     tickPhase: 'roundEnd',
     tags: ['beneficial', 'periodic', 'regen'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 5,
     removable: true,
-    expiresRound: b.round + 4,
+    expiresRound: battle.round + 4,
   });
-  const res = performAction(p, b, { kind: 'attack' }, seeded(13));
+  const res = performAction(player, battle, { kind: 'attack' }, seeded(13));
   assertEquals(res.outcome, 'defeat');
-  const regens = findTrace(res.trace, 'periodicTick').filter((t) => t.amount > 0);
+  const regens = findTrace(res.trace, 'periodicTick').filter((event) => event.amount > 0);
   assertEquals(regens.length, 0, 'regeneration never resolved after 0 HP');
-  assertEquals(p.hp, 0);
+  assertEquals(player.hp, 0);
 });
 
 // ── With the Cinder: revival precedes reactions in BOTH families ─────────
 
 Deno.test('#104: direct lethal with the Cinder — revival, then the broad trigger answers', () => {
-  withDeathBite((p) => {
-    addItem(p, 'c_phoenix_feather', 1);
+  withDeathBite((player) => {
+    addItem(player, 'c_phoenix_feather', 1);
     ungatedGrudge((grudged) => {
       void grudged;
-      p.equipment.trinket = 't_19';
-      const b = tankyRat(p, 14);
-      const res = performAction(p, b, { kind: 'attack' }, seeded(14));
-      const max = statsOf(p).maxHp;
-      assertEquals(p.hp, Math.floor(max * 0.5), 'revived at half health');
-      assertEquals(b.phoenixUsed, true);
+      player.equipment.trinket = 't_19';
+      const battle = tankyRat(player, 14);
+      const res = performAction(player, battle, { kind: 'attack' }, seeded(14));
+      const max = statsOf(player).maxHp;
+      assertEquals(player.hp, Math.floor(max * 0.5), 'revived at half health');
+      assertEquals(battle.phoenixUsed, true);
       assertEquals(
-        procCount(b),
+        procCount(battle),
         1,
         'the revived survivor answers the lethal event (direct family)',
       );
       assertEquals(res.outcome, 'ongoing', 'the synchronous revival prevents defeat');
       // Trace order: hpDamaged → revived → procAttempt.
-      const damaged = findTrace(res.trace, 'hpDamaged').filter((d) => d.target === 'player');
+      const damaged = findTrace(res.trace, 'hpDamaged').filter((event) =>
+        event.target === 'player'
+      );
       const revived = findTrace(res.trace, 'revived');
-      const procs = findTrace(res.trace, 'procAttempt').filter((a) => a.success);
+      const procs = findTrace(res.trace, 'procAttempt').filter((event) => event.success);
       assert(damaged.length > 0);
       assertEquals(revived.length, 1, 'the revival is recorded');
       assertEquals(procs.length, 1);
-      const idx = (e: CombatTraceEntry) => res.trace.indexOf(e);
+      const traceIndex = (event: CombatTraceEntry) => res.trace.indexOf(event);
       assert(
-        idx(damaged[damaged.length - 1]!) < idx(revived[0]!) &&
-          idx(revived[0]!) < idx(procs[0]!),
+        traceIndex(damaged[damaged.length - 1]!) < traceIndex(revived[0]!) &&
+          traceIndex(revived[0]!) < traceIndex(procs[0]!),
         'the revival resolves between the lethal loss and the reaction scan',
       );
       assertEquals(revived[0]!.source, 'item:Phoenix Cinder');
@@ -287,9 +289,9 @@ Deno.test('#104: direct lethal with the Cinder — revival, then the broad trigg
 });
 
 Deno.test('#104: periodic lethal with the Cinder — direct/periodic parity', () => {
-  const p = hero(5, 'warrior', 5);
-  p.hp = 99999;
-  p.equipment.trinket = 't_19';
+  const player = hero(5, 'warrior', 5);
+  player.hp = 99999;
+  player.equipment.trinket = 't_19';
   const charm = item('t_19')!;
   const original = charm.triggers;
   charm.triggers = [{
@@ -306,31 +308,32 @@ Deno.test('#104: periodic lethal with the Cinder — direct/periodic parity', ()
     }],
   }];
   try {
-    addItem(p, 'c_phoenix_feather', 1);
-    const b = tankyRat(p, 15);
-    warded(p);
-    lethalDoT(b);
-    const res = performAction(p, b, { kind: 'attack' }, seeded(15));
-    const max = statsOf(p).maxHp;
-    assertEquals(p.hp, Math.floor(max * 0.5), 'revived at half health — periodic parity');
-    assertEquals(b.phoenixUsed, true);
+    addItem(player, 'c_phoenix_feather', 1);
+    const battle = tankyRat(player, 15);
+    warded(player);
+    lethalDoT(battle);
+    const res = performAction(player, battle, { kind: 'attack' }, seeded(15));
+    const max = statsOf(player).maxHp;
+    assertEquals(player.hp, Math.floor(max * 0.5), 'revived at half health — periodic parity');
+    assertEquals(battle.phoenixUsed, true);
     assertEquals(
-      procCount(b),
+      procCount(battle),
       1,
       'the revived survivor answers the lethal tick (periodic family)',
     );
     assertEquals(res.outcome, 'ongoing');
-    const damaged = findTrace(res.trace, 'hpDamaged').filter((d) =>
-      d.target === 'player' && d.cause === 'periodic'
+    const damaged = findTrace(res.trace, 'hpDamaged').filter((event) =>
+      event.target === 'player' && event.cause === 'periodic'
     );
     const revived = findTrace(res.trace, 'revived');
-    const procs = findTrace(res.trace, 'procAttempt').filter((a) => a.success);
+    const procs = findTrace(res.trace, 'procAttempt').filter((event) => event.success);
     assertEquals(damaged.length, 1, 'the lethal tick is provenance-tagged');
     assertEquals(revived.length, 1);
     assertEquals(procs.length, 1);
-    const idx = (e: CombatTraceEntry) => res.trace.indexOf(e);
+    const traceIndex = (event: CombatTraceEntry) => res.trace.indexOf(event);
     assert(
-      idx(damaged[0]!) < idx(revived[0]!) && idx(revived[0]!) < idx(procs[0]!),
+      traceIndex(damaged[0]!) < traceIndex(revived[0]!) &&
+        traceIndex(revived[0]!) < traceIndex(procs[0]!),
       'tick → revival → reaction — identical order to a direct lethal hit',
     );
   } finally {
@@ -358,13 +361,13 @@ Deno.test('#104: RNG parity — an unrevived lethal event draws nothing further'
     }],
   }];
   const run = (trinket: string | undefined, seed: number) => {
-    const p = hero(6, 'warrior', 5);
-    if (trinket) p.equipment.trinket = trinket;
-    const b = tankyRat(p, seed);
-    warded(p);
-    lethalDoT(b);
+    const player = hero(6, 'warrior', 5);
+    if (trinket) player.equipment.trinket = trinket;
+    const battle = tankyRat(player, seed);
+    warded(player);
+    lethalDoT(battle);
     const draws = { n: 0 };
-    const res = countedRound(p, b, seed, draws);
+    const res = countedRound(player, battle, seed, draws);
     return { draws: draws.n, res };
   };
   try {
@@ -373,9 +376,9 @@ Deno.test('#104: RNG parity — an unrevived lethal event draws nothing further'
     let seed = 1;
     let lethal: ReturnType<typeof run> | undefined;
     while (seed <= 60) {
-      const r = run('t_19', seed);
-      if (r.res.outcome === 'defeat') {
-        lethal = r;
+      const fixture = run('t_19', seed);
+      if (fixture.res.outcome === 'defeat') {
+        lethal = fixture;
         break;
       }
       seed++;
@@ -412,24 +415,24 @@ Deno.test('#104: RNG parity — a revived survivor draws the reaction scan (peri
     }],
   }];
   const run = (trinket: string | undefined, seed: number) => {
-    const p = hero(7, 'warrior', 5);
-    if (trinket) p.equipment.trinket = trinket;
-    addItem(p, 'c_phoenix_feather', 1);
-    const b = tankyRat(p, seed);
-    warded(p);
-    lethalDoT(b);
+    const player = hero(7, 'warrior', 5);
+    if (trinket) player.equipment.trinket = trinket;
+    addItem(player, 'c_phoenix_feather', 1);
+    const battle = tankyRat(player, seed);
+    warded(player);
+    lethalDoT(battle);
     const draws = { n: 0 };
-    const res = countedRound(p, b, seed, draws);
-    return { draws: draws.n, res, hp: p.hp };
+    const res = countedRound(player, battle, seed, draws);
+    return { draws: draws.n, res, hp: player.hp };
   };
   try {
     charm.triggers = gated;
     let seed = 1;
     let revived: ReturnType<typeof run> | undefined;
     while (seed <= 60) {
-      const r = run('t_19', seed);
-      if (r.res.outcome === 'ongoing' && r.hp > 0) {
-        revived = r;
+      const fixture = run('t_19', seed);
+      if (fixture.res.outcome === 'ongoing' && fixture.hp > 0) {
+        revived = fixture;
         break;
       }
       seed++;
@@ -442,7 +445,7 @@ Deno.test('#104: RNG parity — a revived survivor draws the reaction scan (peri
       control.draws + 1,
       'the revived survivor’s scan drew exactly its one chance roll',
     );
-    const successes = findTrace(revived.res.trace, 'procAttempt').filter((a) => a.success);
+    const successes = findTrace(revived.res.trace, 'procAttempt').filter((event) => event.success);
     assertEquals(successes.length, 1);
   } finally {
     charm.triggers = original;

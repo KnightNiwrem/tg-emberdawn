@@ -21,10 +21,10 @@ Deno.test('balance metrics: Aldric opening grants include both sides despite dif
     player: structuredClone(hero),
     rng: seededRng(19),
   })!;
-  const grants = started.trace.filter((e) => e.kind === 'shieldGrant');
-  assert(grants.some((e) => e.side === 'enemy' && e.applied === 250));
-  assert(grants.some((e) => e.side === 'player' && e.applied > 0));
-  const total = grants.reduce((sum, e) => sum + e.applied + e.wasted, 0);
+  const grants = started.trace.filter((event) => event.kind === 'shieldGrant');
+  assert(grants.some((event) => event.side === 'enemy' && event.applied === 250));
+  assert(grants.some((event) => event.side === 'player' && event.applied > 0));
+  const total = grants.reduce((sum, event) => sum + event.applied + event.wasted, 0);
   const result = runFight(hero, source.enemyId, POLICIES.free, seededRng(19), source.origin);
   assertEquals(
     result.shieldGranted,

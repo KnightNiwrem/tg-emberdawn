@@ -37,7 +37,9 @@ export interface ResolvedRoute {
 /** First-match variant selection in AUTHORED order; the base plan is
  * always the fallback. Pure and deterministic. */
 export function resolveRoute(player: PlayerState, route: RouteDef): ResolvedRoute {
-  const variant = (route.variants ?? []).find((v) => !v.when || evalCondition(player, v.when));
+  const variant = (route.variants ?? []).find((variant) =>
+    !variant.when || evalCondition(player, variant.when)
+  );
   if (!variant) {
     return {
       edgeId: route.id,

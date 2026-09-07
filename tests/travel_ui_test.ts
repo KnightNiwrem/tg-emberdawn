@@ -19,11 +19,11 @@ import { handleCallback } from '../src/handlers/callbacks.ts';
 import { MemoryStore } from '../src/persistence/store.ts';
 
 function walker(id: number, at: string, unlocked: string[]): ReturnType<typeof createPlayer> {
-  const p = createPlayer(id, 'Walker', 'warrior');
-  p.tutorial = 'done';
-  p.currentZone = at;
-  p.unlockedZones = [...unlocked];
-  return p;
+  const player = createPlayer(id, 'Walker', 'warrior');
+  player.tutorial = 'done';
+  player.currentZone = at;
+  player.unlockedZones = [...unlocked];
+  return player;
 }
 
 /** Pin only synchronous handler work; no random override survives the call. */
@@ -40,8 +40,8 @@ function withFixedRandom<T>(value: number, run: () => T): T {
 // ── the travel view ──────────────────────────────────────────────────────
 
 Deno.test('travel lists only adjacent authorized edges, never every unlocked zone', () => {
-  const p = walker(1700, 'outskirts', ['emberdawn', 'outskirts', 'whisperwood', 'hollowmere']);
-  const view = JSON.stringify(renderTravel(p));
+  const player = walker(1700, 'outskirts', ['emberdawn', 'outskirts', 'whisperwood', 'hollowmere']);
+  const view = JSON.stringify(renderTravel(player));
   // Adjacent roads render with departure buttons.
   assert(view.includes('w_emberdawn_outskirts') === false, 'the wire id never leaks');
   assert(view.includes('Take the road to Emberdawn Village'));
@@ -61,8 +61,13 @@ Deno.test('travel lists only adjacent authorized edges, never every unlocked zon
 });
 
 Deno.test('each route shows its roll count as events, never as battles', () => {
-  const p = walker(1702, 'whisperwood', ['whisperwood', 'hollowmere', 'mirefoot', 'outskirts']);
-  const view = JSON.stringify(renderTravel(p));
+  const player = walker(1702, 'whisperwood', [
+    'whisperwood',
+    'hollowmere',
+    'mirefoot',
+    'outskirts',
+  ]);
+  const view = JSON.stringify(renderTravel(player));
   assert(view.includes('2 road events'), 'the exact roll count renders');
   assert(!view.includes('2 battles'), 'counts are never described as battles');
   assert(
@@ -76,10 +81,10 @@ Deno.test('each route shows its roll count as events, never as battles', () => {
 });
 
 Deno.test('the secured variant and destination services render where relevant', () => {
-  const p = walker(1703, 'whisperwood', ['whisperwood', 'hollowmere', 'mirefoot']);
+  const player = walker(1703, 'whisperwood', ['whisperwood', 'hollowmere', 'mirefoot']);
   // m7 done → the causeway shows its quieted state.
-  p.quests['m7_tyrant'] = { status: 'done', counts: [1] };
-  const view = JSON.stringify(renderTravel(p));
+  player.quests['m7_tyrant'] = { status: 'done', counts: [1] };
+  const view = JSON.stringify(renderTravel(player));
   assert(view.includes('quieted'), 'the active variant is named');
   assert(view.includes('mild'), 'the variant risk override renders');
   // The landing advertises its forge and full rest; hollowmere its shop.
@@ -89,25 +94,29 @@ Deno.test('the secured variant and destination services render where relevant', 
 });
 
 Deno.test('perilous departures stage an explicit confirmation; starter roads stay immediate', () => {
-  const p = walker(1704, 'umbra', ['umbra', 'abyss']);
+  const player = walker(1704, 'umbra', ['umbra', 'abyss']);
   // First tap on the Descent stages the panel.
-  const staged = travelAction(p, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
-  assertEquals(p.scene.view, 'travel');
-  assertEquals(p.scene.arg, 'go:w_umbra_abyss');
+  const staged = travelAction(player, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
+  assertEquals(player.scene.view, 'travel');
+  assertEquals(player.scene.arg, 'go:w_umbra_abyss');
   assert(staged.toast?.includes('confirm'), 'the staging names the hazard');
-  assertEquals(p.currentZone, 'umbra', 'nothing moved');
-  assertEquals(p.journey, undefined);
+  assertEquals(player.currentZone, 'umbra', 'nothing moved');
+  assertEquals(player.journey, undefined);
   // The staged view renders the warning panel.
-  const panel = JSON.stringify(renderTravel(p));
+  const panel = JSON.stringify(renderTravel(player));
   assert(panel.includes('Depart for The Abyss'));
   assert(panel.includes('3 road events'));
   assert(panel.includes('perilous'));
   assert(panel.includes('Fleeing or retreating returns you to your departure point.'));
   // Confirming departs.
-  const go = travelAction(p, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
-  assertEquals(p.currentZone !== 'umbra' || p.journey !== undefined, true, 'the crossing began');
+  const go = travelAction(player, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
+  assertEquals(
+    player.currentZone !== 'umbra' || player.journey !== undefined,
+    true,
+    'the crossing began',
+  );
   void go;
-  retreatFromJourney(p);
+  retreatFromJourney(player);
   // A two-event road never stages: it departs on the first tap.
   // Both a battle and an all-quiet crossing depart immediately (#186).
   for (const roll of [0.1, 0.8]) {
@@ -147,18 +156,18 @@ Deno.test('safe and dangerous zone hubs are visibly and functionally distinct', 
 });
 
 Deno.test('the hub preserves a live crossing; back never resets to the zone hub', () => {
-  const p = walker(1709, 'whisperwood', ['whisperwood', 'hollowmere']);
-  const res = startJourney(p, 'w_whisperwood_hollowmere', () => 0.1);
+  const player = walker(1709, 'whisperwood', ['whisperwood', 'hollowmere']);
+  const res = startJourney(player, 'w_whisperwood_hollowmere', () => 0.1);
   assert(res.ok && res.step.kind === 'battle');
-  p.battle!.enemy.hp = 0;
+  player.battle!.enemy.hp = 0;
   // win + continue to the intermission happens in battle tests; here drive
   // the intermission directly.
-  p.scene = { view: 'journey' };
+  player.scene = { view: 'journey' };
   // The zone hub "home" control returns to the crossing, not the hub.
-  zoneAction(p, { v: 'zone', a: 'hm' });
-  assertEquals(p.scene.view, 'journey', 'the journey is the player\u2019s current place');
-  assertEquals(p.journey !== undefined, true);
-  retreatFromJourney(p);
+  zoneAction(player, { v: 'zone', a: 'hm' });
+  assertEquals(player.scene.view, 'journey', 'the journey is the player\u2019s current place');
+  assertEquals(player.journey !== undefined, true);
+  retreatFromJourney(player);
   // Same for the inventory's bag-back (callbacks.ts routing).
   const p2 = walker(1710, 'whisperwood', ['whisperwood', 'hollowmere']);
   const res2 = startJourney(p2, 'w_whisperwood_hollowmere', () => 0.1);
@@ -169,15 +178,15 @@ Deno.test('the hub preserves a live crossing; back never resets to the zone hub'
 });
 
 Deno.test('the boss readiness panel keeps levels and one unambiguous escape restriction (#200)', () => {
-  const p = walker(2000, 'whisperwood', ['whisperwood']);
-  const d = zone('whisperwood')!.dungeon!;
-  const boss = enemy(d.boss)!;
-  p.level = d.recommendedLevel! - 1;
-  p.scene = { view: 'zone', arg: 'bossok' };
-  const before = JSON.stringify(p);
-  const view = JSON.stringify(renderZone(p));
+  const player = walker(2000, 'whisperwood', ['whisperwood']);
+  const dungeon = zone('whisperwood')!.dungeon!;
+  const boss = enemy(dungeon.boss)!;
+  player.level = dungeon.recommendedLevel! - 1;
+  player.scene = { view: 'zone', arg: 'bossok' };
+  const before = JSON.stringify(player);
+  const view = JSON.stringify(renderZone(player));
   assert(view.includes(`${boss.name} · Lv ${boss.level}`));
-  assert(view.includes(`Recommended Lv ${d.recommendedLevel} · Your level: ${p.level}`));
+  assert(view.includes(`Recommended Lv ${dungeon.recommendedLevel} · Your level: ${player.level}`));
   assert(view.includes('The boss cannot be fled, even with a Smoke Bomb.'));
   assert(
     !view.includes('flee is always an option'),
@@ -185,7 +194,7 @@ Deno.test('the boss readiness panel keeps levels and one unambiguous escape rest
   );
   assert(view.includes(encodeCb({ v: 'zone', a: 'dgb' })), 'explicit boss entry remains');
   assert(view.includes(encodeCb({ v: 'zone', a: 'hm' })), 'return without entry remains');
-  assertEquals(JSON.stringify(p), before, 'the warning cannot start the fight');
+  assertEquals(JSON.stringify(player), before, 'the warning cannot start the fight');
 });
 
 // ── copy accuracy ────────────────────────────────────────────────────────
@@ -228,19 +237,19 @@ Deno.test('every travel/journey callback stays within Telegram\u2019s 64-byte bu
 
 Deno.test('/start re-centers a live crossing through the persisted scene', async () => {
   const store = new MemoryStore();
-  const p = walker(1711, 'whisperwood', ['whisperwood', 'hollowmere']);
-  p.messageId = 900;
-  await store.set(p.userId, p);
-  const res = startJourney(p, 'w_whisperwood_hollowmere', () => 0.1);
+  const player = walker(1711, 'whisperwood', ['whisperwood', 'hollowmere']);
+  player.messageId = 900;
+  await store.set(player.userId, player);
+  const res = startJourney(player, 'w_whisperwood_hollowmere', () => 0.1);
   assert(res.ok && res.step.kind === 'battle');
-  await store.set(p.userId, p);
-  const cur = (await store.get(p.userId))!;
+  await store.set(player.userId, player);
+  const cur = (await store.get(player.userId))!;
   assertEquals(cur.battle !== undefined, true);
   assertEquals(cur.journey !== undefined, true);
   // A stale tap on the OLD intermission render is refused untouched.
-  const tapped = fakeCtxCapture(p.userId, 900, withRev(cur.uiRev, 'j:go'));
+  const tapped = fakeCtxCapture(player.userId, 900, withRev(cur.uiRev, 'j:go'));
   await handleCallback(tapped.ctx, store);
-  const after = (await store.get(p.userId))!;
+  const after = (await store.get(player.userId))!;
   assertEquals(after.journey !== undefined, true, 'stale taps never consume rolls');
 });
 
@@ -248,28 +257,28 @@ Deno.test('/start re-centers a battle-free crossing through the real handler (#1
   const store = new MemoryStore();
   // Reach a legitimate battle-free intermission: one travel battle won,
   // Continued — the crossing stands with no battle attached.
-  const p = walker(1712, 'sunspire', ['sunspire', 'frostpeak']);
-  const res = startJourney(p, 'w_sunspire_frostpeak', () => 0.1);
+  const player = walker(1712, 'sunspire', ['sunspire', 'frostpeak']);
+  const res = startJourney(player, 'w_sunspire_frostpeak', () => 0.1);
   assert(res.ok && res.step.kind === 'battle');
-  p.battle!.enemy.hp = 0;
-  battleAction(p, { v: 'battle', a: 'atk' });
-  battleAction(p, { v: 'battle', a: 'go' }); // Continue → the intermission
-  assertEquals(p.scene.view, 'journey');
-  assert(p.journey && !p.battle);
+  player.battle!.enemy.hp = 0;
+  battleAction(player, { v: 'battle', a: 'atk' });
+  battleAction(player, { v: 'battle', a: 'go' }); // Continue → the intermission
+  assertEquals(player.scene.view, 'journey');
+  assert(player.journey && !player.battle);
   // The player wanders off into help/inventory views (#170 repro).
-  p.scene = { view: 'help' };
+  player.scene = { view: 'help' };
   const snapshot = JSON.stringify({
-    journey: p.journey,
-    hp: p.hp,
-    mp: p.mp,
-    inv: p.inventory,
-    gold: p.gold,
+    journey: player.journey,
+    hp: player.hp,
+    mp: player.mp,
+    inv: player.inventory,
+    gold: player.gold,
   });
-  await store.set(p.userId, p);
+  await store.set(player.userId, player);
 
   // The REAL handler re-centers the fresh live message on the crossing —
   // with a store and a fake Telegram context, never a manual render.
-  const tap = fakeCtxCapture(p.userId, 900);
+  const tap = fakeCtxCapture(player.userId, 900);
   await handleStart(tap.ctx, store);
   assertEquals(tap.sends.length, 1, 'a fresh message is delivered');
   const sent = JSON.stringify(tap.sends[0]);
@@ -277,7 +286,7 @@ Deno.test('/start re-centers a battle-free crossing through the real handler (#1
   assert(sent.includes('Retreat'), 'the intermission controls render');
   // Nothing about the crossing moved: edge, snapshot, progress, report,
   // HP, MP, gold, inventory — byte for byte.
-  const recentered = (await store.get(p.userId))!;
+  const recentered = (await store.get(player.userId))!;
   assertEquals(recentered.scene.view, 'journey', 'the scene persists as the crossing');
   assertEquals(
     JSON.stringify({

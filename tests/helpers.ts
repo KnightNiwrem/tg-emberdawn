@@ -7,19 +7,22 @@ import { zone } from '../src/content/zones.ts';
 
 /** Arrange a test arrival through the real arrival authority, without
  * route events. Gameplay and campaign simulation use the journey engine. */
-export function travelDirect(p: PlayerState, zoneId: string): { ok: boolean; lines: string[] } {
-  const z = zone(zoneId);
-  if (!z) return { ok: false, lines: ["You can't find a road to there."] };
-  if (!p.unlockedZones.includes(zoneId) || p.currentZone === zoneId) {
+export function travelDirect(
+  player: PlayerState,
+  zoneId: string,
+): { ok: boolean; lines: string[] } {
+  const zoneDef = zone(zoneId);
+  if (!zoneDef) return { ok: false, lines: ["You can't find a road to there."] };
+  if (!player.unlockedZones.includes(zoneId) || player.currentZone === zoneId) {
     return { ok: false, lines: ['🚫 That path is still closed to you.'] };
   }
-  return { ok: true, lines: arriveAt(p, zoneId) };
+  return { ok: true, lines: arriveAt(player, zoneId) };
 }
 
 /** A resolved record's named outcome (#150): undefined for anything that is
  * not a resolution — `outcome` is a resolved-only field on QuestOutcome. */
-export function namedOutcome(o: QuestOutcome | undefined): string | undefined {
-  return o?.kind === 'resolved' ? o.outcome : undefined;
+export function namedOutcome(outcome: QuestOutcome | undefined): string | undefined {
+  return outcome?.kind === 'resolved' ? outcome.outcome : undefined;
 }
 
 /** Structural slice for effect fixtures (#99): a live battle or the
@@ -28,13 +31,13 @@ type FixtureArena = Pick<EffectArena, 'round' | 'effectInstances' | 'effectSeq'>
 
 /** Deterministic RNG (mulberry32) — shared by the engine test suites. */
 export function seeded(seed: number): () => number {
-  let a = seed >>> 0;
+  let state = seed >>> 0;
   return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -59,11 +62,11 @@ export function withOverridden<T, K extends keyof T>(
 /** Injects a live statmod instance — the test-fixture replacement for the
  * old direct CombatBuffs slot pokes. */
 export function injectMod(
-  b: FixtureArena,
+  arena: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
   pct: number,
-  opts: {
+  options: {
     remaining?: number;
     defer?: boolean;
     defId?: string;
@@ -71,12 +74,12 @@ export function injectMod(
     removable?: boolean;
   } = {},
 ): EffectInstance {
-  b.effectSeq++;
-  const remaining = opts.remaining ?? 9;
+  arena.effectSeq++;
+  const remaining = options.remaining ?? 9;
   const inst: EffectInstance = {
-    iid: `test${b.effectSeq}`,
-    defId: opts.defId ?? `test:${stat}`,
-    name: opts.name ?? `Test ${stat.toUpperCase()}`,
+    iid: `test${arena.effectSeq}`,
+    defId: options.defId ?? `test:${stat}`,
+    name: options.name ?? `Test ${stat.toUpperCase()}`,
     side,
     source: { kind: 'skill', id: 'test', name: 'test fixture' },
     kind: 'statmod',
@@ -86,26 +89,26 @@ export function injectMod(
     // damage taken is harmful to the bearer.
     tags: (stat === 'incoming' ? pct > 0 : pct < 0) ? ['harmful'] : ['beneficial'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: arena.round,
     remaining,
-    deferFirstTick: opts.defer ?? false,
-    removable: opts.removable ?? true,
-    expiresRound: b.round + remaining - (opts.defer ? 0 : 1),
+    deferFirstTick: options.defer ?? false,
+    removable: options.removable ?? true,
+    expiresRound: arena.round + remaining - (options.defer ? 0 : 1),
   };
-  b.effectInstances.push(inst);
+  arena.effectInstances.push(inst);
   return inst;
 }
 
 /** Max remaining rounds among live statmods of one stat on one side. */
 export function modRemaining(
-  b: FixtureArena,
+  arena: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
 ): number {
   let max = 0;
-  for (const i of b.effectInstances) {
-    if (i.side === side && i.kind === 'statmod' && i.stat === stat) {
-      max = Math.max(max, i.remaining);
+  for (const instance of arena.effectInstances) {
+    if (instance.side === side && instance.kind === 'statmod' && instance.stat === stat) {
+      max = Math.max(max, instance.remaining);
     }
   }
   return max;
@@ -113,22 +116,24 @@ export function modRemaining(
 
 /** First live statmod instance of one stat on one side (undefined if none). */
 export function modInstance(
-  b: FixtureArena,
+  arena: FixtureArena,
   side: 'player' | 'enemy',
   stat: StatKey,
 ): EffectInstance | undefined {
-  return b.effectInstances.find((i) => i.side === side && i.kind === 'statmod' && i.stat === stat);
+  return arena.effectInstances.find((instance) =>
+    instance.side === side && instance.kind === 'statmod' && instance.stat === stat
+  );
 }
 
 /** A skill's statmod effect for one stat (undefined when it has none) —
  * lets tests pin content durations through the effect contract (#78). */
 export function statmodSpec(
-  sk: SkillDef,
+  skillDef: SkillDef,
   stat: StatKey,
 ): { pct: number; duration: number; timing: 'defer' | 'immediate' } | undefined {
-  for (const e of sk.effects) {
-    if (e.kind === 'statmod' && e.stat === stat) {
-      return { pct: e.pct, duration: e.duration, timing: e.timing };
+  for (const effect of skillDef.effects) {
+    if (effect.kind === 'statmod' && effect.stat === stat) {
+      return { pct: effect.pct, duration: effect.duration, timing: effect.timing };
     }
   }
   return undefined;

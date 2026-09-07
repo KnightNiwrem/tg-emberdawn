@@ -47,9 +47,16 @@ manifest.
   the implementation under test.
 - **Descriptive domain naming.** Variable names must be descriptive and reveal intent; avoid
   single-letter domain variables (`p`, `b`, `q`, etc.) across engine, handlers, renderers, and tests
-  in favor of descriptive identifiers (`player`, `battle`, `questDef`). Telegram `callback_data`
-  wire keys and compact 1–3 line loop counters remain exempt. See
-  [#217](https://github.com/KnightNiwrem/tg-emberdawn/issues/217).
+  in favor of descriptive identifiers (`player`, `battle`, `questDef`). This includes content
+  builders, scripts, destructuring, and array callback/comparator parameters. Telegram
+  `callback_data` keys and values remain compact; local variables holding them still need
+  descriptive names, even inside `src/codec.ts`, because variable names consume no wire bytes.
+  Compact 1–3 line index-only loops remain exempt; semantic counters use role names such as
+  `candidateSeed`, `floorNumber`, and `tierIndex`. When renaming shorthand bindings, preserve
+  existing object keys and check for collisions with other variables in scope. See
+  [#217](https://github.com/KnightNiwrem/tg-emberdawn/issues/217) and the follow-ups
+  [#220](https://github.com/KnightNiwrem/tg-emberdawn/issues/220) and
+  [#221](https://github.com/KnightNiwrem/tg-emberdawn/issues/221).
 
 Fallow's `static_estimated` coverage describes dependency paths, not executed branches or meaningful
 assertions. Use Deno coverage and inspect the tests before proposing coverage work. For example,

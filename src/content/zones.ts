@@ -849,7 +849,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
 ];
 
-const ZONE_INDEX = new Map(ZONES.map((z) => [z.id, z]));
+const ZONE_INDEX = new Map(ZONES.map((zoneDef) => [zoneDef.id, zoneDef]));
 
 export function zone(id: string): ZoneDef | undefined {
   return ZONE_INDEX.get(id);

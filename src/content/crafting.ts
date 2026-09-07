@@ -176,5 +176,5 @@ export const RECIPES: readonly RecipeDef[] = [
 ];
 
 export function recipe(id: string): RecipeDef | undefined {
-  return RECIPES.find((r) => r.id === id);
+  return RECIPES.find((recipe) => recipe.id === id);
 }

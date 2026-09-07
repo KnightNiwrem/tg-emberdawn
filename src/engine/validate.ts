@@ -373,7 +373,7 @@ function validateReceipt(receipt: string, bad: Report): void {
     if (!dlg) return bad('storyReceipts', receipt, 'unknown dialogue id');
     const node = dialogueNode(dlg, nodeId);
     if (!node) return bad('storyReceipts', receipt, 'unknown dialogue node');
-    if (node.kind !== 'choice' || !node.choices.some((c) => c.id === choiceId)) {
+    if (node.kind !== 'choice' || !node.choices.some((choice) => choice.id === choiceId)) {
       bad('storyReceipts', receipt, 'unknown choice id');
     }
     return;

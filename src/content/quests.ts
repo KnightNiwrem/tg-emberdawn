@@ -5,11 +5,11 @@
 
 import type { NpcDef, QuestDef } from './types.ts';
 
-const Q = (q: QuestDef): QuestDef => q;
+const defineQuest = (questDef: QuestDef): QuestDef => questDef;
 
 export const QUESTS: readonly QuestDef[] = [
   // ══ Chapter 1 — The Last Ember ══════════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm1_embers',
     offerDialogue: 'dlg_m1_embers_offer',
     turnInDialogue: 'dlg_m1_embers_turnin',
@@ -24,7 +24,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_maren',
     finishNpc: 'npc_maren',
   }),
-  Q({
+  defineQuest({
     id: 'm2_letter',
     offerDialogue: 'dlg_m2_letter_offer',
     turnInDialogue: 'dlg_m2_letter_turnin',
@@ -45,7 +45,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_maren',
     finishNpc: 'npc_bram',
   }),
-  Q({
+  defineQuest({
     id: 'm3_wolves',
     offerDialogue: 'dlg_m3_wolves_offer',
     turnInDialogue: 'dlg_m3_wolves_turnin',
@@ -61,7 +61,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_maren',
     finishNpc: 'npc_maren',
   }),
-  Q({
+  defineQuest({
     id: 'm4_floors',
     offerDialogue: 'dlg_m4_floors_offer',
     turnInDialogue: 'dlg_m4_floors_turnin',
@@ -80,7 +80,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_warden_tom',
     finishNpc: 'npc_warden_tom',
   }),
-  Q({
+  defineQuest({
     id: 'm5_arms',
     offerDialogue: 'dlg_m5_arms_offer',
     turnInDialogue: 'dlg_m5_arms_turnin',
@@ -96,7 +96,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_bram',
     finishNpc: 'npc_bram',
   }),
-  Q({
+  defineQuest({
     id: 'm3_roots',
     offerDialogue: 'dlg_m3_roots_offer',
     turnInDialogue: 'dlg_m3_roots_turnin',
@@ -112,7 +112,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_aranya', count: 1 }],
     rewards: { xp: 400, gold: 250, items: { m_iron_chunk: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'm4_blessing',
     offerDialogue: 'dlg_m4_blessing_offer',
     turnInDialogue: 'dlg_m4_blessing_turnin',
@@ -136,7 +136,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Chapter 2 — The Drowned Lowland ══════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm5_fen',
     offerDialogue: 'dlg_m5_fen_offer',
     turnInDialogue: 'dlg_m5_fen_turnin',
@@ -154,7 +154,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'hollowmere' }],
     rewards: { xp: 300, gold: 150 },
   }),
-  Q({
+  defineQuest({
     id: 'm6_toxin',
     offerDialogue: 'dlg_m6_toxin_offer',
     turnInDialogue: 'dlg_m6_toxin_turnin',
@@ -170,7 +170,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'collect', target: 'q_toxin_sample', count: 4 }],
     rewards: { xp: 900, gold: 400, items: { c_antidote: 2 } },
   }),
-  Q({
+  defineQuest({
     id: 'm7_tyrant',
     offerDialogue: 'dlg_m7_tyrant_offer',
     turnInDialogue: 'dlg_m7_tyrant_turnin',
@@ -186,7 +186,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_vosk', count: 1 }],
     rewards: { xp: 1400, gold: 700, flags: ['chapter2Done'] },
   }),
-  Q({
+  defineQuest({
     id: 'm8_passage',
     offerDialogue: 'dlg_m8_passage_offer',
     turnInDialogue: 'dlg_m8_passage_turnin',
@@ -207,7 +207,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Chapter 3 — The City of Gears ════════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm9_spire',
     offerDialogue: 'dlg_m9_spire_offer',
     turnInDialogue: 'dlg_m9_spire_turnin',
@@ -225,7 +225,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'sunspire' }],
     rewards: { xp: 400, gold: 200 },
   }),
-  Q({
+  defineQuest({
     id: 'm10_cult',
     offerDialogue: 'dlg_m10_cult_offer',
     turnInDialogue: 'dlg_m10_cult_turnin',
@@ -241,7 +241,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_cultist', count: 8 }],
     rewards: { xp: 1200, gold: 600, items: { c_ether: 2 } },
   }),
-  Q({
+  defineQuest({
     id: 'm11_toll',
     offerDialogue: 'dlg_m11_toll_offer',
     turnInDialogue: 'dlg_m11_toll_turnin',
@@ -257,7 +257,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_automaton', count: 4 }],
     rewards: { xp: 1500, gold: 700, items: { q_sunspire_key: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'm12_chronolich',
     offerDialogue: 'dlg_m12_chronolich_offer',
     turnInDialogue: 'dlg_m12_chronolich_turnin',
@@ -275,7 +275,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Chapter 4 — The Frozen Twin ══════════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm13_pass',
     offerDialogue: 'dlg_m13_pass_offer',
     turnInDialogue: 'dlg_m13_pass_turnin',
@@ -293,7 +293,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'frostpeak' }],
     rewards: { xp: 600, gold: 300 },
   }),
-  Q({
+  defineQuest({
     id: 'm14_emblem',
     offerDialogue: 'dlg_m14_emblem_offer',
     turnInDialogue: 'dlg_m14_emblem_turnin',
@@ -309,7 +309,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'collect', target: 'q_frost_emblem', count: 3 }],
     rewards: { xp: 2400, gold: 900, items: { c_greater_potion: 2 } },
   }),
-  Q({
+  defineQuest({
     id: 'm15_wyrm',
     offerDialogue: 'dlg_m15_wyrm_offer',
     turnInDialogue: 'dlg_m15_wyrm_turnin',
@@ -327,7 +327,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Chapter 5 — The Starving Flame ══════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm16_ashes',
     offerDialogue: 'dlg_m16_ashes_offer',
     turnInDialogue: 'dlg_m16_ashes_turnin',
@@ -345,7 +345,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'cinder' }],
     rewards: { xp: 900, gold: 450 },
   }),
-  Q({
+  defineQuest({
     id: 'm17_plea',
     offerDialogue: 'dlg_m17_plea_offer',
     turnInDialogue: 'dlg_m17_plea_turnin',
@@ -361,7 +361,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'storyEvent', target: 'heard_sorrels_plea', label: "Hear Sorrel's plea" }],
     rewards: { xp: 1500, gold: 700, items: { c_super_potion: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'm18_sigil',
     offerDialogue: 'dlg_m18_sigil_offer',
     turnInDialogue: 'dlg_m18_sigil_turnin',
@@ -377,7 +377,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'collect', target: 'q_cinder_sigil', count: 3 }],
     rewards: { xp: 4000, gold: 1500, items: { c_phoenix_feather: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'm19_ignivar',
     offerDialogue: 'dlg_m19_ignivar_offer',
     turnInDialogue: 'dlg_m19_ignivar_turnin',
@@ -395,7 +395,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Chapter 6 — The Dawncaller ══════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm20_seam',
     offerDialogue: 'dlg_m20_seam_offer',
     turnInDialogue: 'dlg_m20_seam_turnin',
@@ -413,7 +413,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'umbra' }],
     rewards: { xp: 1500, gold: 700 },
   }),
-  Q({
+  defineQuest({
     id: 'm21_loyalty',
     offerDialogue: 'dlg_m21_loyalty_offer',
     turnInDialogue: 'dlg_m21_loyalty_turnin',
@@ -429,7 +429,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_crownsworn', count: 10 }],
     rewards: { xp: 9000, gold: 3000 },
   }),
-  Q({
+  defineQuest({
     id: 'm22_umbral_key',
     offerDialogue: 'dlg_m22_umbral_key_offer',
     turnInDialogue: 'dlg_m22_umbral_key_turnin',
@@ -449,7 +449,7 @@ export const QUESTS: readonly QuestDef[] = [
     }],
     rewards: { xp: 10000, gold: 3500, items: { c_elixir: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'm23_aldric',
     offerDialogue: 'dlg_m23_aldric_offer',
     turnInDialogue: 'dlg_m23_aldric_turnin',
@@ -475,7 +475,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Postgame — The Abyss ═════════════════════════════════════════════
-  Q({
+  defineQuest({
     id: 'm24_below',
     offerDialogue: 'dlg_m24_below_offer',
     turnInDialogue: 'dlg_m24_below_turnin',
@@ -493,7 +493,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'reach', target: 'abyss' }],
     rewards: { xp: 20000, gold: 5000 },
   }),
-  Q({
+  defineQuest({
     id: 'm25_silence',
     offerDialogue: 'dlg_m25_silence_offer',
     turnInDialogue: 'dlg_m25_silence_turnin',
@@ -516,7 +516,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 
   // ══ Side quests ══════════════════════════════════════════════════════
-  Q({
+  defineQuest({
     id: 'sq_rats',
     offerDialogue: 'dlg_sq_rats_offer',
     turnInDialogue: 'dlg_sq_rats_turnin',
@@ -531,7 +531,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_lyra',
     finishNpc: 'npc_lyra',
   }),
-  Q({
+  defineQuest({
     id: 'sq_ore',
     offerDialogue: 'dlg_sq_ore_offer',
     turnInDialogue: 'dlg_sq_ore_turnin',
@@ -547,7 +547,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_bram',
     finishNpc: 'npc_bram',
   }),
-  Q({
+  defineQuest({
     id: 'sq_charm',
     offerDialogue: 'dlg_sq_charm_offer',
     turnInDialogue: 'dlg_sq_charm_turnin',
@@ -563,7 +563,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_lyra',
     finishNpc: 'npc_lyra',
   }),
-  Q({
+  defineQuest({
     id: 'sq_locket',
     offerDialogue: 'dlg_sq_locket_offer',
     turnInDialogue: 'dlg_sq_locket_turnin',
@@ -580,7 +580,7 @@ export const QUESTS: readonly QuestDef[] = [
     startNpc: 'npc_pell',
     finishNpc: 'npc_pell',
   }),
-  Q({
+  defineQuest({
     id: 'sq_stag',
     offerDialogue: 'dlg_sq_stag_offer',
     turnInDialogue: 'dlg_sq_stag_turnin',
@@ -596,7 +596,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_stag', count: 1 }],
     rewards: { xp: 500, gold: 300, items: { c_potion: 2 } },
   }),
-  Q({
+  defineQuest({
     id: 'sq_boglins',
     offerDialogue: 'dlg_sq_boglins_offer',
     turnInDialogue: 'dlg_sq_boglins_turnin',
@@ -611,7 +611,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_boglin', count: 10 }],
     rewards: { xp: 800, gold: 350 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_hags',
     offerDialogue: 'dlg_sq_hags_offer',
     turnInDialogue: 'dlg_sq_hags_turnin',
@@ -637,7 +637,7 @@ export const QUESTS: readonly QuestDef[] = [
   // progress. Availability of the route quests is gated by the recorded
   // decision itself — the decision ledger is the single source of truth,
   // not a mirrored flag.
-  Q({
+  defineQuest({
     id: 'sq_shrine_pledge',
     offerDialogue: 'dlg_sq_shrine_pledge_offer',
     turnInDialogue: 'dlg_sq_shrine_pledge_turnin',
@@ -657,7 +657,7 @@ export const QUESTS: readonly QuestDef[] = [
     }],
     rewards: { xp: 500, gold: 250 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_shrine_pact',
     offerDialogue: 'dlg_sq_shrine_pact_offer',
     turnInDialogue: 'dlg_sq_shrine_pact_turnin',
@@ -683,7 +683,7 @@ export const QUESTS: readonly QuestDef[] = [
     // reward) rather than completing it ordinarily.
     outcomes: ['kept'],
   }),
-  Q({
+  defineQuest({
     id: 'sq_ledger_debt',
     offerDialogue: 'dlg_sq_ledger_debt_offer',
     turnInDialogue: 'dlg_sq_ledger_debt_turnin',
@@ -699,7 +699,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_leech', count: 4 }],
     rewards: { xp: 850, gold: 380 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_scarabs',
     offerDialogue: 'dlg_sq_scarabs_offer',
     turnInDialogue: 'dlg_sq_scarabs_turnin',
@@ -715,7 +715,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_scarab', count: 12 }],
     rewards: { xp: 1600, gold: 600 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_lynx',
     offerDialogue: 'dlg_sq_lynx_offer',
     turnInDialogue: 'dlg_sq_lynx_turnin',
@@ -730,7 +730,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_spirelynx', count: 6 }],
     rewards: { xp: 2000, gold: 800, items: { t_2: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'sq_wraiths',
     offerDialogue: 'dlg_sq_wraiths_offer',
     turnInDialogue: 'dlg_sq_wraiths_turnin',
@@ -745,7 +745,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_frostwraith', count: 8 }],
     rewards: { xp: 4000, gold: 1400 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_yetis',
     offerDialogue: 'dlg_sq_yetis_offer',
     turnInDialogue: 'dlg_sq_yetis_turnin',
@@ -761,7 +761,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_yeti', count: 4 }],
     rewards: { xp: 5500, gold: 1800, items: { t_3: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'sq_imps',
     offerDialogue: 'dlg_sq_imps_offer',
     turnInDialogue: 'dlg_sq_imps_turnin',
@@ -777,7 +777,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_emberimp', count: 14 }],
     rewards: { xp: 8000, gold: 2500 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_salamanders',
     offerDialogue: 'dlg_sq_salamanders_offer',
     turnInDialogue: 'dlg_sq_salamanders_turnin',
@@ -793,7 +793,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_salamander', count: 8 }],
     rewards: { xp: 11000, gold: 3200, items: { t_4: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'sq_shades',
     offerDialogue: 'dlg_sq_shades_offer',
     turnInDialogue: 'dlg_sq_shades_turnin',
@@ -809,7 +809,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_shade', count: 15 }],
     rewards: { xp: 18000, gold: 5000 },
   }),
-  Q({
+  defineQuest({
     id: 'sq_echoes',
     offerDialogue: 'dlg_sq_echoes_offer',
     turnInDialogue: 'dlg_sq_echoes_turnin',
@@ -825,7 +825,7 @@ export const QUESTS: readonly QuestDef[] = [
     objectives: [{ kind: 'kill', target: 'e_echo', count: 10 }],
     rewards: { xp: 60000, gold: 15000, items: { t_7: 1 } },
   }),
-  Q({
+  defineQuest({
     id: 'sq_null',
     offerDialogue: 'dlg_sq_null_offer',
     turnInDialogue: 'dlg_sq_null_turnin',
@@ -843,7 +843,7 @@ export const QUESTS: readonly QuestDef[] = [
   }),
 ];
 
-const QUEST_INDEX = new Map(QUESTS.map((q) => [q.id, q]));
+const QUEST_INDEX = new Map(QUESTS.map((questDef) => [questDef.id, questDef]));
 
 export function quest(id: string): QuestDef | undefined {
   return QUEST_INDEX.get(id);
@@ -856,7 +856,7 @@ export function npc(id: string): NpcDef | undefined {
 import { ZONES } from './zones.ts';
 import type { ZoneDef } from './types.ts';
 const NPC_INDEX = new Map<string, NpcDef>(
-  ZONES.flatMap((z) => z.npcs.map((n) => [n.id, n] as const)),
+  ZONES.flatMap((zoneDef) => zoneDef.npcs.map((npcDef) => [npcDef.id, npcDef] as const)),
 );
 
 // ── Quest contact resolution (#63) ──────────────────────────────────────
@@ -867,7 +867,7 @@ const NPC_INDEX = new Map<string, NpcDef>(
 /** The zone where an NPC physically stands — resolution is unambiguous:
  * each NPC id is placed in exactly one zone (content-integrity tested). */
 export function zoneOfNpc(npcId: string): ZoneDef | undefined {
-  return ZONES.find((z) => z.npcs.some((n) => n.id === npcId));
+  return ZONES.find((zoneDef) => zoneDef.npcs.some((npcDef) => npcDef.id === npcId));
 }
 
 export interface QuestContact {
@@ -878,10 +878,10 @@ export interface QuestContact {
 /** Resolve a quest's STARTING contact: the NPC that offers it, and the zone
  * where the player can physically meet them. */
 export function questStarter(questId: string): QuestContact | undefined {
-  const q = QUEST_INDEX.get(questId);
-  if (!q) return undefined;
-  const npcDef = NPC_INDEX.get(q.startNpc);
-  const zone = zoneOfNpc(q.startNpc);
+  const questDef = QUEST_INDEX.get(questId);
+  if (!questDef) return undefined;
+  const npcDef = NPC_INDEX.get(questDef.startNpc);
+  const zone = zoneOfNpc(questDef.startNpc);
   return npcDef && zone ? { npc: npcDef, zone } : undefined;
 }
 
@@ -889,15 +889,15 @@ export function questStarter(questId: string): QuestContact | undefined {
  * and the zone where the player can physically meet them. May differ from
  * the starter (delivery flows, e.g. m2_letter: Maren → Bram). */
 export function questFinisher(questId: string): QuestContact | undefined {
-  const q = QUEST_INDEX.get(questId);
-  if (!q) return undefined;
-  const npcDef = NPC_INDEX.get(q.finishNpc);
-  const zone = zoneOfNpc(q.finishNpc);
+  const questDef = QUEST_INDEX.get(questId);
+  if (!questDef) return undefined;
+  const npcDef = NPC_INDEX.get(questDef.finishNpc);
+  const zone = zoneOfNpc(questDef.finishNpc);
   return npcDef && zone ? { npc: npcDef, zone } : undefined;
 }
 
 /** Look an NPC up by id WITHIN a specific zone — the physical-presence
  * check for on-site quest actions (#64). */
 export function npcInZone(zoneId: string, npcId: string): NpcDef | undefined {
-  return ZONES.find((z) => z.id === zoneId)?.npcs.find((n) => n.id === npcId);
+  return ZONES.find((zoneDef) => zoneDef.id === zoneId)?.npcs.find((npcDef) => npcDef.id === npcId);
 }

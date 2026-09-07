@@ -75,7 +75,7 @@ export const DROP_TABLES: readonly DropTableDef[] = [
   },
 ];
 
-const DROP_INDEX = new Map(DROP_TABLES.map((t) => [t.id, t]));
+const DROP_INDEX = new Map(DROP_TABLES.map((dropTable) => [dropTable.id, dropTable]));
 
 export function dropTable(id: string): DropTableDef | undefined {
   return DROP_INDEX.get(id);

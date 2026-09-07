@@ -47,7 +47,7 @@ function enemyPlaces(id: string): ObjectiveSource[] {
 function objectiveSources(questDef: QuestDef, objective: Objective): ObjectiveSource[] {
   if (objective.kind === 'kill') return enemyPlaces(objective.target);
   if (objective.kind === 'dungeon') {
-    const zoneDef = ZONES.find((z) => z.dungeon?.id === objective.target);
+    const zoneDef = ZONES.find((zoneDef) => zoneDef.dungeon?.id === objective.target);
     return zoneDef
       ? [{
         emoji: zoneDef.dungeon!.emoji,
@@ -98,7 +98,8 @@ function objectiveSources(questDef: QuestDef, objective: Objective): ObjectiveSo
   const drops = ENEMIES.filter((enemyDef) => (enemyDef.drops?.[objective.target] ?? 0) > 0);
   // A later field enemy must not displace an earlier dungeon source:
   // Mycelids supply Bram's iron before Hollowmere's Boglins are reachable.
-  const source = drops.toSorted((a, b) => a.level - b.level)[0];
+  const source =
+    drops.toSorted((leftEnemyDef, rightEnemyDef) => leftEnemyDef.level - rightEnemyDef.level)[0];
   if (source) {
     const place = enemyPlaces(source.id)[0];
     if (place) {

@@ -542,7 +542,7 @@ export const ROUTES: readonly RouteDef[] = [
   },
 ];
 
-const ROUTE_INDEX = new Map(ROUTES.map((r) => [r.id, r]));
+const ROUTE_INDEX = new Map(ROUTES.map((routeDef) => [routeDef.id, routeDef]));
 
 export function route(id: string): RouteDef | undefined {
   return ROUTE_INDEX.get(id);
@@ -551,10 +551,10 @@ export function route(id: string): RouteDef | undefined {
 /** Every authored edge LEAVING the zone — raw adjacency, no availability
  * filtering (engine/routes.ts applies unlock state and conditions). */
 export function routesFrom(zoneId: string): RouteDef[] {
-  return ROUTES.filter((r) => r.from === zoneId);
+  return ROUTES.filter((routeDef) => routeDef.from === zoneId);
 }
 
 /** The authored edge(s) joining two zones in ONE direction. */
 export function routesBetween(from: string, to: string): RouteDef[] {
-  return ROUTES.filter((r) => r.from === from && r.to === to);
+  return ROUTES.filter((routeDef) => routeDef.from === from && routeDef.to === to);
 }

@@ -112,11 +112,11 @@ export function renderZone(player: PlayerState): InputRichMessage {
 
   if (zoneDef.npcs.length) {
     blocks.push(para({ type: 'bold', text: 'Talk' }));
-    for (let i = 0; i < zoneDef.npcs.length; i += 2) {
+    for (let rowStart = 0; rowStart < zoneDef.npcs.length; rowStart += 2) {
       blocks.push(
         buttonsRow(
-          zoneDef.npcs.slice(i, i + 2).map((npcEntry, offset) =>
-            cbBtn(npcEntry.name, encodeCb({ v: 'zone', a: 'tk', arg: i + offset }))
+          zoneDef.npcs.slice(rowStart, rowStart + 2).map((npcEntry, offset) =>
+            cbBtn(npcEntry.name, encodeCb({ v: 'zone', a: 'tk', arg: rowStart + offset }))
           ),
         ),
       );
@@ -1087,7 +1087,9 @@ export function renderDialogue(player: PlayerState): InputRichMessage {
     // permanence, offers the consequence hint, mutates NOTHING — Confirm
     // is the only mutating control, staged through arg3.
     if (player.scene.arg3?.startsWith('confirm:')) {
-      const choice = node.choices.find((c) => c.id === player.scene.arg3!.slice('confirm:'.length));
+      const choice = node.choices.find((choice) =>
+        choice.id === player.scene.arg3!.slice('confirm:'.length)
+      );
       if (choice) {
         blocks.push(quote(`You — “${choice.label}”`));
         blocks.push(...choiceQuestBlocks(player, choice));

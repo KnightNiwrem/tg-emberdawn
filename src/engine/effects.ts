@@ -245,13 +245,13 @@ function applyInstanceRaw(arena: EffectArena, seed: InstanceSeed): ApplyResult {
       `strongest stacking is not defined for periodic effects (flat and %-of-max ticks are different units)`,
     );
   }
-  const idx = arena.effectInstances.findIndex((inst) => sameIdentity(inst, seed));
-  if (idx === -1) {
+  const instanceIndex = arena.effectInstances.findIndex((inst) => sameIdentity(inst, seed));
+  if (instanceIndex === -1) {
     const inst = buildInstance(arena, seed);
     arena.effectInstances.push(inst);
     return { instance: inst, outcome: 'created' };
   }
-  const existing = arena.effectInstances[idx]!;
+  const existing = arena.effectInstances[instanceIndex]!;
   switch (seed.stacking) {
     case 'stack': {
       const inst = buildInstance(arena, seed);
@@ -262,8 +262,8 @@ function applyInstanceRaw(arena: EffectArena, seed: InstanceSeed): ApplyResult {
       // #90 atomic rebuild: the recast is the latest intent — the whole
       // payload and the clock renew together from the fresh application;
       // nothing stale survives. Same iid, same list slot.
-      arena.effectInstances[idx] = buildInstance(arena, seed, existing.iid);
-      return { instance: arena.effectInstances[idx]!, outcome: 'refreshed' };
+      arena.effectInstances[instanceIndex] = buildInstance(arena, seed, existing.iid);
+      return { instance: arena.effectInstances[instanceIndex]!, outcome: 'refreshed' };
     }
     case 'strongest': {
       // #93: kind-aware magnitudes, not raw signed pcts. Saps are stored
@@ -272,8 +272,8 @@ function applyInstanceRaw(arena: EffectArena, seed: InstanceSeed): ApplyResult {
       // controls compare consumed actions.
       if (effectMagnitude(seed) > effectMagnitude(existing)) {
         // Retire the weaker instance and apply the fresh one whole.
-        arena.effectInstances[idx] = buildInstance(arena, seed);
-        return { instance: arena.effectInstances[idx]!, outcome: 'replaced' };
+        arena.effectInstances[instanceIndex] = buildInstance(arena, seed);
+        return { instance: arena.effectInstances[instanceIndex]!, outcome: 'replaced' };
       }
       // Keep the winning payload AND its timing — a weaker recast may not
       // leak its own timing metadata (#90); it may only extend the
@@ -298,8 +298,8 @@ function applyInstanceRaw(arena: EffectArena, seed: InstanceSeed): ApplyResult {
     }
     case 'replace':
     default: {
-      arena.effectInstances[idx] = buildInstance(arena, seed);
-      return { instance: arena.effectInstances[idx]!, outcome: 'replaced' };
+      arena.effectInstances[instanceIndex] = buildInstance(arena, seed);
+      return { instance: arena.effectInstances[instanceIndex]!, outcome: 'replaced' };
     }
   }
 }

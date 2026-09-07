@@ -26,21 +26,21 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
   const store = await PgStore.open(url);
   try {
     // PlayerState is plain JSON → JSONB must round-trip losslessly.
-    const p = createPlayer(424242, 'PgTest', 'warrior');
-    p.flags.gather_whisperwood = 3;
-    p.flags.gatherReset_whisperwood = 1_800_000_000_000;
-    p.inventory.push({ id: 'm_pickaxe', qty: 1 }, { id: 'm_worm_bait', qty: 5 });
-    p.hp = 3;
-    p.gold = 12345;
-    p.notices = ['the dawn you seek is still ahead'];
-    p.quests = { m1_embers: { status: 'done', counts: [3] } };
+    const player = createPlayer(424242, 'PgTest', 'warrior');
+    player.flags.gather_whisperwood = 3;
+    player.flags.gatherReset_whisperwood = 1_800_000_000_000;
+    player.inventory.push({ id: 'm_pickaxe', qty: 1 }, { id: 'm_worm_bait', qty: 5 });
+    player.hp = 3;
+    player.gold = 12345;
+    player.notices = ['the dawn you seek is still ahead'];
+    player.quests = { m1_embers: { status: 'done', counts: [3] } };
 
     // An active journey + its paused travel battle (#159): the whole
     // nested shape — snapshotted plan, progress, provenance — must survive
     // JSONB and re-pass the persisted-identity gate on the way out.
-    p.currentZone = 'whisperwood';
-    p.unlockedZones.push('hollowmere');
-    p.journey = {
+    player.currentZone = 'whisperwood';
+    player.unlockedZones.push('hollowmere');
+    player.journey = {
       edgeId: 'w_whisperwood_hollowmere',
       variantId: 'base',
       fromZone: 'whisperwood',
@@ -50,16 +50,16 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
       plan: route('w_whisperwood_hollowmere')!.events!,
       report: ['Flat water, still air.'],
     };
-    p.battle = startBattle('e_boglin', {
+    player.battle = startBattle('e_boglin', {
       kind: 'travel',
       zoneId: 'whisperwood',
       edgeId: 'w_whisperwood_hollowmere',
       eventIndex: 1,
-    }, { player: p, rng: () => 0.5 })!.battle;
+    }, { player, rng: () => 0.5 })!.battle;
 
-    await store.set(p.userId, p);
-    assertEquals(await store.get(p.userId), p);
-    assertResolvablePersistedIds((await store.get(p.userId))!);
+    await store.set(player.userId, player);
+    assertEquals(await store.get(player.userId), player);
+    assertResolvablePersistedIds((await store.get(player.userId))!);
 
     // An active uninterrupted dungeon run survives JSONB and its identity gate.
     const delver = createPlayer(2070, 'Delver', 'warrior');
@@ -79,14 +79,14 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     await store.delete(delver.userId);
 
     // upsert overwrites
-    p.gold = 1;
-    await store.set(p.userId, p);
-    assertEquals((await store.get(p.userId))?.gold, 1);
+    player.gold = 1;
+    await store.set(player.userId, player);
+    assertEquals((await store.get(player.userId))?.gold, 1);
 
     // miss + delete paths
     assertEquals(await store.get(-1), undefined);
-    await store.delete(p.userId);
-    assertEquals(await store.get(p.userId), undefined);
+    await store.delete(player.userId);
+    assertEquals(await store.get(player.userId), undefined);
 
     // #187: an inspected shop item and its return page survive JSONB;
     // the optional selection must re-pass the persisted-identity gate.
@@ -138,7 +138,7 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     const earn = (delta: number, tag: string) => async () => {
       events.push(`${tag}:load`);
       const cur = (await store.get(424243))!;
-      await new Promise((r) => setTimeout(r, 20)); // widen the race window
+      await new Promise((resolve) => setTimeout(resolve, 20)); // widen the race window
       cur.gold += delta;
       await store.set(424243, cur);
       events.push(`${tag}:save`);
@@ -167,28 +167,28 @@ Deno.test(
     // pre-#37 code deadlocked exactly here: each holder pinned a client and
     // then waited for `pool.query` on a pool with zero free clients.
     const MAX = 2;
-    const N = 6; // more sections than clients — queued ones must also finish
+    const sectionCount = 6; // more sections than clients — queued ones must also finish
     const store = await PgStore.open(url, { max: MAX });
     try {
-      const users = Array.from({ length: N }, (_, i) => 5000 + i);
-      for (const u of users) {
-        const p = createPlayer(u, `U${u}`, 'warrior');
-        p.gold = 0;
-        await store.set(u, p);
+      const users = Array.from({ length: sectionCount }, (_, i) => 5000 + i);
+      for (const userId of users) {
+        const player = createPlayer(userId, `U${userId}`, 'warrior');
+        player.gold = 0;
+        await store.set(userId, player);
       }
       let entered = 0;
       let release!: () => void;
-      const barrier = new Promise<void>((r) => (release = r));
-      const work = (u: number) =>
-        store.withLock(u, async () => {
+      const barrier = new Promise<void>((resolve) => (release = resolve));
+      const work = (userId: number) =>
+        store.withLock(userId, async () => {
           entered++;
           if (entered === MAX) release(); // all runnable holders are in
           await barrier;
           // With every runnable holder pinned to a client, this get/set
           // MUST run on that same client — never on a starved pool.
-          const p = (await store.get(u))!;
-          p.gold += 1;
-          await store.set(u, p);
+          const player = (await store.get(userId))!;
+          player.gold += 1;
+          await store.set(userId, player);
         });
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -204,7 +204,9 @@ Deno.test(
       } finally {
         clearTimeout(timer);
       }
-      for (const u of users) assertEquals((await store.get(u))?.gold, 1, `user ${u} updated`);
+      for (const userId of users) {
+        assertEquals((await store.get(userId))?.gold, 1, `user ${userId} updated`);
+      }
     } finally {
       await store.close();
     }
@@ -215,24 +217,24 @@ Deno.test(
   'PgStore: same-user sections serialize across two store instances, no lost writes (#18, #37)',
   { ignore: !url },
   async () => {
-    const a = await PgStore.open(url);
-    const b = await PgStore.open(url);
+    const firstStore = await PgStore.open(url);
+    const secondStore = await PgStore.open(url);
     try {
       const seed = createPlayer(7000, 'X', 'warrior');
       seed.gold = 20;
-      await a.set(7000, seed);
+      await firstStore.set(7000, seed);
       const earn = (store: PgStore, delta: number) =>
         store.withLock(7000, async () => {
           const cur = (await store.get(7000))!;
-          await new Promise((r) => setTimeout(r, 20)); // widen the race window
+          await new Promise((resolve) => setTimeout(resolve, 20)); // widen the race window
           cur.gold += delta;
           await store.set(7000, cur);
         });
-      await Promise.all([earn(a, 10), earn(b, 20)]);
-      assertEquals((await a.get(7000))?.gold, 50, 'both cross-instance updates survive');
+      await Promise.all([earn(firstStore, 10), earn(secondStore, 20)]);
+      assertEquals((await firstStore.get(7000))?.gold, 50, 'both cross-instance updates survive');
     } finally {
-      await a.close();
-      await b.close();
+      await firstStore.close();
+      await secondStore.close();
     }
   },
 );
@@ -243,9 +245,9 @@ Deno.test(
   async () => {
     const store = await PgStore.open(url);
     try {
-      const p = createPlayer(6000, 'Err', 'warrior');
-      p.gold = 0;
-      await store.set(6000, p);
+      const player = createPlayer(6000, 'Err', 'warrior');
+      player.gold = 0;
+      await store.set(6000, player);
       // fn throws AFTER its save: the transaction must undo the write and
       // end without the lock — nothing half-applied, nothing leaked.
       await assertRejects(() =>

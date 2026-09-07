@@ -151,7 +151,7 @@ export interface StartBattleOpts {
 export function startBattle(
   enemyId: string,
   origin: BattleOrigin,
-  opts: StartBattleOpts,
+  options: StartBattleOpts,
 ): StartBattleResult | undefined {
   const def = enemyDef(enemyId);
   if (!def) return undefined;
@@ -185,7 +185,7 @@ export function startBattle(
     origin,
     // Tutorial provenance lands AT construction (#80): the guided prologue
     // controls its battle before any opening could ever resolve.
-    ...(opts.tutorial ? { tutorial: true, tutorialStep: 'basic' as TutorialBeat } : {}),
+    ...(options.tutorial ? { tutorial: true, tutorialStep: 'basic' as TutorialBeat } : {}),
   };
   // Battle-opening phase (#80): resolved exactly ONCE, in explicit stable
   // order — (1) encounter boss ward, (2) enemy-global opening move,
@@ -206,12 +206,12 @@ export function startBattle(
   // minimum HP (the tutorial's teaching floor is the ONLY floor, and it
   // lives in the damage resolver).
   let outcome: BattleOutcome = 'ongoing';
-  if (!opts.tutorial) {
-    const opRng = opts.rng;
-    const p = opts.player;
-    const terminalNow = (): boolean => terminalHp(p, battle);
+  if (!options.tutorial) {
+    const openingRng = options.rng;
+    const player = options.player;
+    const terminalNow = (): boolean => terminalHp(player, battle);
     const adjudicate = (): BattleOutcome =>
-      battle.enemy.hp <= 0 ? 'victory' : p.hp <= 0 ? 'defeat' : 'ongoing';
+      battle.enemy.hp <= 0 ? 'victory' : player.hp <= 0 ? 'defeat' : 'ongoing';
     // 1. Pre-emptive boss ward (#79): ONLY on boss-provenance encounters —
     // the same enemy id faced outside the boss floor never opens with it.
     // One-time capacity, no regeneration, not dispellable.
@@ -240,8 +240,8 @@ export function startBattle(
       opening.push(`🌀 ${def.name} opens with ${def.opening.name}!`);
       opening.push(...runOpening(
         battle,
-        p,
-        opRng,
+        player,
+        openingRng,
         'enemy',
         { kind: 'enemyMove', id: def.id, name: def.opening.name },
         def.opening.name,
@@ -262,13 +262,13 @@ export function startBattle(
     // draw — nothing after the first 0-HP resolves.
     for (const slot of ['weapon', 'armor', 'trinket'] as const) {
       if (terminalNow()) break;
-      const itemId = p.equipment[slot];
+      const itemId = player.equipment[slot];
       const it = itemId ? itemDefLookup(itemId) : undefined;
       if (!it?.triggers?.length) continue;
       for (const [ti, tg] of it.triggers.entries()) {
         if (terminalNow()) break;
         if (tg.trigger !== 'battleStart') continue;
-        if (tg.chance !== undefined && !chance(opRng, tg.chance)) {
+        if (tg.chance !== undefined && !chance(openingRng, tg.chance)) {
           recordCombatEvent(trace, {
             kind: 'procAttempt',
             round: battle.round,
@@ -294,8 +294,8 @@ export function startBattle(
         });
         opening.push(...runOpening(
           battle,
-          p,
-          opRng,
+          player,
+          openingRng,
           'player',
           { kind: 'item', id: it.id, name: it.name },
           tg.name,
@@ -311,16 +311,18 @@ export function startBattle(
     }
     // 4. Learned pre-emptive skills (#80): stable `p.skills` order. No MP
     // or cooldown cost — the opening never charges resources.
-    for (const id of p.skills) {
+    for (const id of player.skills) {
       if (terminalNow()) break;
-      const sk = skill(id);
-      if (!sk?.preEmptive) continue;
-      opening.push(...applySkill(p, battle, sk, opRng, 'opening', false, false, trace));
+      const skillDef = skill(id);
+      if (!skillDef?.preEmptive) continue;
+      opening.push(
+        ...applySkill(player, battle, skillDef, openingRng, 'opening', false, false, trace),
+      );
     }
     // #96: explicit opening adjudication — a lethal strike in either
     // direction ends the fight before round 1 exists.
     outcome = adjudicate();
-    if (outcome === 'defeat') delete p.dungeonRun;
+    if (outcome === 'defeat') delete player.dungeonRun;
     if (outcome === 'victory' || outcome === 'defeat') {
       recordCombatEvent(trace, { kind: 'terminal', round: battle.round, outcome });
     }
@@ -584,10 +586,10 @@ function enemyChooseMove(def: EnemyDef, battle: BattleState, rng: Rng): EnemyMov
   // skipped; the special cadence is preserved — a wasted special falls
   // through to the legal ordinary moves and retries next window.
   if (due && !wastedMove(due, battle)) return due;
-  const pool = def.moves.filter((m) => !wastedMove(m, battle));
+  const pool = def.moves.filter((move) => !wastedMove(move, battle));
   const list = pool.length > 0 ? pool : def.moves;
-  const idx = pickWeighted(list.map((m) => m.weight), rng);
-  return list[idx] ?? list[0]!;
+  const moveIndex = pickWeighted(list.map((move) => move.weight), rng);
+  return list[moveIndex] ?? list[0]!;
 }
 
 /** A move is WASTED when every effect it would apply is already satisfied —

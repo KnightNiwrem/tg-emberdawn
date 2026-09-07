@@ -134,9 +134,9 @@ export function advanceJourney(
   const report: string[] = [...journey.report];
   while (journey.completedEvents < journey.totalEvents) {
     const index = journey.completedEvents;
-    const ev = rollEvent(journey.plan, player.level, rng);
-    if (ev.kind === 'battle') {
-      const started = startBattle(ev.enemy, {
+    const event = rollEvent(journey.plan, player.level, rng);
+    if (event.kind === 'battle') {
+      const started = startBattle(event.enemy, {
         kind: 'travel',
         zoneId: journey.fromZone,
         edgeId: journey.edgeId,
@@ -153,7 +153,7 @@ export function advanceJourney(
           edgeId: journey.edgeId,
           index,
           kind: 'battle',
-          enemy: ev.enemy,
+          enemy: event.enemy,
         });
         // A battle event consumes its roll only at its completion point —
         // victory (or an opening-terminal adjudication) marks it below;
@@ -163,8 +163,8 @@ export function advanceJourney(
           kind: 'battle',
           battle: started.battle,
           outcome: started.outcome,
-          line: `${enemyDef(ev.enemy)?.emoji ?? '❔'} On the road: a ${
-            enemyDef(ev.enemy)?.name ?? ev.enemy
+          line: `${enemyDef(event.enemy)?.emoji ?? '❔'} On the road: a ${
+            enemyDef(event.enemy)?.name ?? event.enemy
           } bars the way!`,
         };
       }
@@ -175,12 +175,12 @@ export function advanceJourney(
       journey.completedEvents = index + 1;
       continue;
     }
-    const resolved = applyQuietEvent(player, ev, rng);
+    const resolved = applyQuietEvent(player, event, rng);
     report.push(...resolved.lines);
     telemetry?.({
       edgeId: journey.edgeId,
       index,
-      kind: ev.kind,
+      kind: event.kind,
       ...(resolved.granted.length > 0 ? { granted: resolved.granted } : {}),
     });
     journey.completedEvents = index + 1;

@@ -921,7 +921,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   }),
 ];
 
-const ENEMY_INDEX = new Map(ENEMIES.map((e) => [e.id, e]));
+const ENEMY_INDEX = new Map(ENEMIES.map((enemyDef) => [enemyDef.id, enemyDef]));
 
 export function enemy(id: string): EnemyDef | undefined {
   return ENEMY_INDEX.get(id);

@@ -536,7 +536,7 @@ export function dialogueAction(player: PlayerState, cb: Cb & { v: 'dlg' }): Muta
   if (!node || node.kind !== 'choice') {
     return { toast: 'That conversation has moved on.' };
   }
-  const choice = node.choices.find((c) => c.id === cb.arg);
+  const choice = node.choices.find((choice) => choice.id === cb.arg);
   if (!choice) return { toast: 'That response is not on the table.' };
   if (cb.a === 'cf') {
     // Confirm is valid only from the matching confirmation panel (#136):

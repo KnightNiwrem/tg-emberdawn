@@ -280,28 +280,28 @@ export function explore(
     }
   }
   const weights = pool.map((event) => event.weight);
-  const idx = weightedIndex(rng, weights);
-  const ev = pool[idx];
-  if (!ev) {
+  const eventIndex = weightedIndex(rng, weights);
+  const event = pool[eventIndex];
+  if (!event) {
     return {
       kind: 'result',
       lines: ['🧺 Picked clean for now — the hearth still welcomes you.'],
     };
   }
-  return applyExploreEvent(player, currentZoneDef, ev, rng);
+  return applyExploreEvent(player, currentZoneDef, event, rng);
 }
 
 function applyExploreEvent(
   player: PlayerState,
   zoneDef: ZoneDef,
-  ev: ExploreEvent,
+  event: ExploreEvent,
   rng: Rng,
 ): ExploreOutcome {
-  switch (ev.kind) {
+  switch (event.kind) {
     case 'battle':
     case 'elite': {
-      const started = startBattle(ev.enemy, {
-        kind: ev.kind === 'elite' ? 'elite' : 'explore',
+      const started = startBattle(event.enemy, {
+        kind: event.kind === 'elite' ? 'elite' : 'explore',
         zoneId: zoneDef.id,
       }, { player, rng });
       if (!started) return { kind: 'result', lines: ['Nothing stirs.'] };
@@ -310,17 +310,17 @@ function applyExploreEvent(
         battle: started.battle,
         outcome: started.outcome,
         buffsNeeded: true,
-        line: ev.kind === 'elite'
-          ? ev.text
-          : `${enemyDef(ev.enemy)?.emoji ?? '❔'} A wild ${
-            enemyDef(ev.enemy)?.name ?? ev.enemy
+        line: event.kind === 'elite'
+          ? event.text
+          : `${enemyDef(event.enemy)?.emoji ?? '❔'} A wild ${
+            enemyDef(event.enemy)?.name ?? event.enemy
           } appears!`,
       };
     }
     case 'treasure':
     case 'rest':
     case 'flavor':
-      return { kind: 'result', lines: applyQuietEvent(player, ev, rng).lines };
+      return { kind: 'result', lines: applyQuietEvent(player, event, rng).lines };
   }
 }
 

@@ -14,73 +14,80 @@ const unlockNotices = (lines: string[]): string[] =>
   lines.filter((line) => line.startsWith('🗺️ New area unlocked:'));
 
 Deno.test('quest rewards: zone arrays preserve order and suppress existing/duplicate grants', () => {
-  const q = quest('m4_blessing')!;
-  const original = q.rewards.unlockZones;
+  const questDef = quest('m4_blessing')!;
+  const original = questDef.rewards.unlockZones;
   assert(original);
   assertEquals(
     original,
     ['hollowmere', 'mirefoot'],
     'the regional reward includes both destinations',
   );
-  q.rewards.unlockZones = [...original, 'hollowmere', 'emberdawn'];
+  questDef.rewards.unlockZones = [...original, 'hollowmere', 'emberdawn'];
   try {
     for (const alreadyVisited of [false, true]) {
-      const p = createPlayer(1750, 'Traveler', 'warrior');
-      p.level = q.level;
-      p.quests['m3_roots'] = { status: 'done', counts: [1] };
-      if (alreadyVisited) p.unlockedZones.push('hollowmere');
-      const before = [...p.unlockedZones];
-      addItem(p, 'm_ember_shard', 6);
-      syncAvailability(p);
-      assert(acceptQuest(p, q.id, q.startNpc).ok);
-      const result = turnInQuest(p, q.id, q.finishNpc);
+      const player = createPlayer(1750, 'Traveler', 'warrior');
+      player.level = questDef.level;
+      player.quests['m3_roots'] = { status: 'done', counts: [1] };
+      if (alreadyVisited) player.unlockedZones.push('hollowmere');
+      const before = [...player.unlockedZones];
+      addItem(player, 'm_ember_shard', 6);
+      syncAvailability(player);
+      assert(acceptQuest(player, questDef.id, questDef.startNpc).ok);
+      const result = turnInQuest(player, questDef.id, questDef.finishNpc);
       assert(result.ok);
       const granted = alreadyVisited ? ['mirefoot'] : ['hollowmere', 'mirefoot'];
-      assertEquals(p.unlockedZones, [...before, ...granted]);
+      assertEquals(player.unlockedZones, [...before, ...granted]);
       assertEquals(
         unlockNotices(result.lines),
         granted.map((id) => `🗺️ New area unlocked: ${zone(id)!.name}`),
       );
-      assert(!turnInQuest(p, q.id, q.finishNpc).ok, 'completed quests do not grant again');
-      assertEquals(p.unlockedZones, [...before, ...granted]);
+      assert(
+        !turnInQuest(player, questDef.id, questDef.finishNpc).ok,
+        'completed quests do not grant again',
+      );
+      assertEquals(player.unlockedZones, [...before, ...granted]);
     }
   } finally {
-    q.rewards.unlockZones = original;
+    questDef.rewards.unlockZones = original;
   }
 });
 
 Deno.test('dungeon first-clear rewards: all zone entries resolve once in authored order', () => {
-  const d = zone('whisperwood')!.dungeon!;
-  const original = d.firstClear;
-  d.firstClear = {
+  const dungeon = zone('whisperwood')!.dungeon!;
+  const original = dungeon.firstClear;
+  dungeon.firstClear = {
     ...original!,
     unlockZones: ['hollowmere', 'mirefoot', 'hollowmere', 'emberdawn'],
   };
   try {
-    const p = createPlayer(1751, 'Traveler', 'warrior');
-    p.level = 45;
-    const before = [...p.unlockedZones];
+    const player = createPlayer(1751, 'Traveler', 'warrior');
+    player.level = 45;
+    const before = [...player.unlockedZones];
     const win = (): string[] => {
-      p.currentZone = 'whisperwood';
-      p.dungeonRun = { zoneId: p.currentZone, dungeonId: d.id, nextFloor: d.floors.length + 1 };
-      const b = startBattle(d.boss, {
+      player.currentZone = 'whisperwood';
+      player.dungeonRun = {
+        zoneId: player.currentZone,
+        dungeonId: dungeon.id,
+        nextFloor: dungeon.floors.length + 1,
+      };
+      const battle = startBattle(dungeon.boss, {
         kind: 'dungeon',
         zoneId: 'whisperwood',
-        dungeonId: d.id,
-        floor: d.floors.length + 1,
+        dungeonId: dungeon.id,
+        floor: dungeon.floors.length + 1,
         boss: true,
-      }, { player: p, rng: seeded(1751) })!.battle;
-      b.enemy.hp = 0;
-      return resolveVictory(p, b, seeded(1752));
+      }, { player, rng: seeded(1751) })!.battle;
+      battle.enemy.hp = 0;
+      return resolveVictory(player, battle, seeded(1752));
     };
     assertEquals(
       unlockNotices(win()),
       ['hollowmere', 'mirefoot'].map((id) => `🗺️ New area unlocked: ${zone(id)!.name}`),
     );
-    assertEquals(p.unlockedZones, [...before, 'hollowmere', 'mirefoot']);
+    assertEquals(player.unlockedZones, [...before, 'hollowmere', 'mirefoot']);
     assertEquals(unlockNotices(win()), [], 'a boss rematch does not repeat first-clear unlocks');
-    assertEquals(p.unlockedZones, [...before, 'hollowmere', 'mirefoot']);
+    assertEquals(player.unlockedZones, [...before, 'hollowmere', 'mirefoot']);
   } finally {
-    d.firstClear = original;
+    dungeon.firstClear = original;
   }
 });

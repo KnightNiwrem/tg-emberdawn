@@ -70,7 +70,9 @@ export type GearProfile = 'starting' | 'best';
 export function makeHero(classId: ClassId, level: number, gear: GearProfile): PlayerState {
   const player = createPlayer(0, 'Sim', classId);
   let xp = 0;
-  for (let l = 1; l < level; l++) xp += xpForNextLevel(l);
+  for (let currentLevel = 1; currentLevel < level; currentLevel++) {
+    xp += xpForNextLevel(currentLevel);
+  }
   grantXp(player, xp);
   if (gear === 'best') equipBest(player);
   const derived = statsOf(player);
@@ -93,8 +95,9 @@ function equipBest(player: PlayerState): void {
     const candidates = ITEMS.filter((it) =>
       it.kind === kind && !it.unique && isEquippable(it.id, player.classId, player.level).ok
     );
-    const best = candidates.sort((a, b) =>
-      statWeight(b.id) - statWeight(a.id) || b.level - a.level
+    const best = candidates.sort((leftItemDef, rightItemDef) =>
+      statWeight(rightItemDef.id) - statWeight(leftItemDef.id) ||
+      rightItemDef.level - leftItemDef.level
     )[0];
     if (best && statWeight(best.id) > statWeight(player.equipment[kind] ?? '')) {
       player.equipment[kind] = best.id;
@@ -131,21 +134,21 @@ export const POLICIES = {
 
 /** Self-targeted beneficial statmod (War Cry, Iron Wall, Time Warp…). */
 function isBuffSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) =>
-    e.kind === 'statmod' && e.target !== 'opponent' && (e.pct ?? 0) > 0
+  return skill.effects.some((effect) =>
+    effect.kind === 'statmod' && effect.target !== 'opponent' && (effect.pct ?? 0) > 0
   );
 }
 
 /** A shield-granting skill (Aegis of Dawn…). */
 function isShieldSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) => e.kind === 'shield');
+  return skill.effects.some((effect) => effect.kind === 'shield');
 }
 
 /** Enemy-side damage-over-time (Poison…): negative periodic on the foe. */
 function isDotSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) =>
-    e.kind === 'periodic' && e.target === 'opponent' &&
-    ((e.perRound ?? 0) < 0 || (e.pctOfMaxPerRound ?? 0) < 0)
+  return skill.effects.some((effect) =>
+    effect.kind === 'periodic' && effect.target === 'opponent' &&
+    ((effect.perRound ?? 0) < 0 || (effect.pctOfMaxPerRound ?? 0) < 0)
   );
 }
 
@@ -155,25 +158,25 @@ function isDotSkill(skill: SkillDef): boolean {
  * casts these for value, and the harness counts them (#84). */
 export function isPureDebuffSkill(skill: SkillDef): boolean {
   if (isDamageSkill(skill)) return false;
-  return skill.effects.some((e) =>
-    e.kind === 'statmod' && e.target === 'opponent' && (e.pct ?? 0) < 0
+  return skill.effects.some((effect) =>
+    effect.kind === 'statmod' && effect.target === 'opponent' && (effect.pct ?? 0) < 0
   );
 }
 
 function isCleanseSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) => e.kind === 'cleanse');
+  return skill.effects.some((effect) => effect.kind === 'cleanse');
 }
 
 function isDispelSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) => e.kind === 'dispel');
+  return skill.effects.some((effect) => effect.kind === 'dispel');
 }
 
 /** Self-targeted healing-over-time (#81): positive periodic on the caster
  * (Renew). Direct heals own the emergency lanes; regen owns the long grind. */
 function isRegenSkill(skill: SkillDef): boolean {
-  return skill.effects.some((e) =>
-    e.kind === 'periodic' && e.target !== 'opponent' &&
-    ((e.perRound ?? 0) > 0 || (e.pctOfMaxPerRound ?? 0) > 0)
+  return skill.effects.some((effect) =>
+    effect.kind === 'periodic' && effect.target !== 'opponent' &&
+    ((effect.perRound ?? 0) > 0 || (effect.pctOfMaxPerRound ?? 0) > 0)
   );
 }
 
@@ -182,12 +185,12 @@ function isRegenSkill(skill: SkillDef): boolean {
  * policy wants an order-of-magnitude payoff check, not a prediction). */
 function expectedDotTotal(skill: SkillDef, enemyMaxHp: number): number {
   let total = 0;
-  for (const e of skill.effects) {
-    if (e.kind !== 'periodic') continue;
-    const flat = e.perRound ?? 0;
-    const pctMax = e.pctOfMaxPerRound ?? 0;
+  for (const effect of skill.effects) {
+    if (effect.kind !== 'periodic') continue;
+    const flat = effect.perRound ?? 0;
+    const pctMax = effect.pctOfMaxPerRound ?? 0;
     if (flat >= 0 && pctMax >= 0) continue;
-    total += (Math.abs(flat) + Math.abs(pctMax) * enemyMaxHp) * e.duration;
+    total += (Math.abs(flat) + Math.abs(pctMax) * enemyMaxHp) * effect.duration;
   }
   return total;
 }
@@ -216,10 +219,14 @@ export function chooseAction(
   // #78: policies read public effect shapes, never legacy scalar fields.
   const offense = learned
     .filter(isDamageSkill)
-    .sort((a, b) => skillMaxDamagePower(b) - skillMaxDamagePower(a));
+    .sort((leftSkillDef, rightSkillDef) =>
+      skillMaxDamagePower(rightSkillDef) - skillMaxDamagePower(leftSkillDef)
+    );
   const heals = learned
     .filter(isHealSkill)
-    .sort((a, b) => skillHealPower(b) - skillHealPower(a));
+    .sort((leftSkillDef, rightSkillDef) =>
+      skillHealPower(rightSkillDef) - skillHealPower(leftSkillDef)
+    );
 
   if (policy.name === 'skill') {
     const skill = offense.find(usable);
@@ -242,7 +249,10 @@ export function chooseAction(
   }
   const skill = offense.find(usable);
   if (skill) return { kind: 'skill', skillId: skill.id };
-  const cheapest = offense.map((x) => x.mpCost).sort((a, b) => a - b)[0] ?? 0;
+  const cheapest =
+    offense.map((skillDef) => skillDef.mpCost).sort((leftValue, rightValue) =>
+      leftValue - rightValue
+    )[0] ?? 0;
   if (policy.items && player.mp < cheapest) {
     const ether = MP_ITEMS.find((id) => countOf(player, id) > 0);
     if (ether) return { kind: 'item', itemId: ether };
@@ -372,7 +382,10 @@ function tacticalAction(
     : undefined;
   const skill = breakPick ?? offense.find(usable);
   if (skill) return { kind: 'skill', skillId: skill.id };
-  const cheapest = offense.map((x) => x.mpCost).sort((a, b) => a - b)[0] ?? 0;
+  const cheapest =
+    offense.map((skillDef) => skillDef.mpCost).sort((leftValue, rightValue) =>
+      leftValue - rightValue
+    )[0] ?? 0;
   if (policy.items && player.hp < derived.maxHp * 0.35) {
     const potion = HEAL_ITEMS.find((id) => countOf(player, id) > 0);
     if (potion) return { kind: 'item', itemId: potion };
@@ -517,55 +530,58 @@ function aggregateFightTrace(result: FightResult, events: readonly CombatTraceEn
   // erase or invert damage taken. #106: they sum `hpLost` — the actual
   // HP delta every damage family reports — so overkill (a 157 resolved
   // blow onto a 1-HP target) contributes exactly 1, never the formula.
-  for (const e of events) {
-    switch (e.kind) {
+  for (const event of events) {
+    switch (event.kind) {
       case 'hpDamaged':
-        if (e.target === 'enemy') result.dealt += e.hpLost;
-        else result.taken += e.hpLost;
+        if (event.target === 'enemy') result.dealt += event.hpLost;
+        else result.taken += event.hpLost;
         break;
       case 'hpRestored':
         // Healing done / overheal for the hero (side player). applied is
         // the post-clamp delta; attempted − applied is the overflow the
         // target's full HP trimmed.
-        if (e.side === 'player') {
-          result.healDone += e.applied;
-          result.overheal += Math.max(0, e.attempted - e.applied);
+        if (event.side === 'player') {
+          result.healDone += event.applied;
+          result.overheal += Math.max(0, event.attempted - event.applied);
         }
         break;
       case 'periodicTick':
-        if (e.applied < 0) {
-          if (e.side === 'enemy') result.dotDealt += -e.applied;
-          else result.dotTaken += -e.applied;
-        } else if (e.side === 'player') {
-          result.hotHealing += e.applied;
-          result.wastedPeriodicHealing += Math.max(0, e.amount - e.applied);
+        if (event.applied < 0) {
+          if (event.side === 'enemy') result.dotDealt += -event.applied;
+          else result.dotTaken += -event.applied;
+        } else if (event.side === 'player') {
+          result.hotHealing += event.applied;
+          result.wastedPeriodicHealing += Math.max(0, event.amount - event.applied);
         }
         break;
       case 'effectRemoved':
-        if (e.cause === 'expired') result.expiredRemovals++;
-        else if (e.cause === 'cleansed') result.cleanseRemovals++;
-        else if (e.cause === 'dispelled') result.dispelRemovals++;
+        if (event.cause === 'expired') result.expiredRemovals++;
+        else if (event.cause === 'cleansed') result.cleanseRemovals++;
+        else if (event.cause === 'dispelled') result.dispelRemovals++;
         else result.consumedRemovals++;
         break;
       case 'shieldBreak':
         result.shieldBreaks++;
         break;
       case 'shieldGrant':
-        result.shieldGranted += e.applied + e.wasted;
-        result.shieldWasted += e.wasted;
+        result.shieldGranted += event.applied + event.wasted;
+        result.shieldWasted += event.wasted;
         break;
       case 'procAttempt':
         result.procAttempts++;
-        if (e.success) {
+        if (event.success) {
           result.procHits++;
-          if (e.triggerKind !== 'battleStart') result.equipProcs++;
+          if (event.triggerKind !== 'battleStart') result.equipProcs++;
         }
         break;
       case 'effectApplied':
         // #93: only outcomes that activate a payload count as applications
         // — extended/ignored recasts report the RETAINED instance.
-        if (e.outcome === 'created' || e.outcome === 'replaced' || e.outcome === 'refreshed') {
-          if (e.duration === 1) result.duration1Applied++;
+        if (
+          event.outcome === 'created' || event.outcome === 'replaced' ||
+          event.outcome === 'refreshed'
+        ) {
+          if (event.duration === 1) result.duration1Applied++;
         }
         break;
       default:
@@ -592,16 +608,16 @@ function scanFightLines(result: FightResult, lines: readonly string[]): void {
   }
 }
 
-function sampleFightEffects(result: FightResult, b: BattleState, seenIids: Set<string>): void {
+function sampleFightEffects(result: FightResult, battle: BattleState, seenIids: Set<string>): void {
   // #84: sample live instances BEFORE acting — opening effects surface on
   // round 1, uptime counts observed rounds, applications count new iids.
-  for (const i of b.effectInstances) {
-    const key = `${i.side}:${i.defId}`;
+  for (const instance of battle.effectInstances) {
+    const key = `${instance.side}:${instance.defId}`;
     result.effectRounds[key] = (result.effectRounds[key] ?? 0) + 1;
-    if (!seenIids.has(i.iid)) {
-      seenIids.add(i.iid);
+    if (!seenIids.has(instance.iid)) {
+      seenIids.add(instance.iid);
       result.effectApplications[key] = (result.effectApplications[key] ?? 0) + 1;
-      result.effectSources[key] = `${i.source.kind}:${i.source.name}`;
+      result.effectSources[key] = `${instance.source.kind}:${instance.source.name}`;
     }
   }
 }
@@ -710,9 +726,13 @@ export function zoneNormalPool(zoneId: string, level: number): EncounterSource[]
   const zone = zoneDef(zoneId);
   if (!zone) return [];
   return zone.explore
-    .filter((e) => e.kind === 'battle')
-    .filter((e) => encounterEligible(e, level))
-    .map((e) => ({ enemyId: e.enemy, weight: e.weight, origin: { kind: 'explore', zoneId } }));
+    .filter((event) => event.kind === 'battle')
+    .filter((event) => encounterEligible(event, level))
+    .map((event) => ({
+      enemyId: event.enemy,
+      weight: event.weight,
+      origin: { kind: 'explore', zoneId },
+    }));
 }
 
 /** Battle + elite table, exactly as explore() rolls it at `level`. */
@@ -720,12 +740,12 @@ export function zoneHostilePool(zoneId: string, level: number): EncounterSource[
   const zone = zoneDef(zoneId);
   if (!zone) return [];
   return zone.explore
-    .filter((e) => e.kind === 'battle' || e.kind === 'elite')
-    .filter((e) => encounterEligible(e, level))
-    .map((e) => ({
-      enemyId: e.enemy,
-      weight: e.weight,
-      origin: { kind: e.kind === 'elite' ? 'elite' : 'explore', zoneId } as BattleOrigin,
+    .filter((event) => event.kind === 'battle' || event.kind === 'elite')
+    .filter((event) => encounterEligible(event, level))
+    .map((event) => ({
+      enemyId: event.enemy,
+      weight: event.weight,
+      origin: { kind: event.kind === 'elite' ? 'elite' : 'explore', zoneId } as BattleOrigin,
     }));
 }
 
@@ -734,9 +754,12 @@ export function zoneHostilePool(zoneId: string, level: number): EncounterSource[
  * or when the level has no live hostiles. */
 export function eliteShare(zoneId: string, level: number): number {
   const pool = zoneHostilePool(zoneId, level);
-  const total = pool.reduce((sum, s) => sum + s.weight, 0);
+  const total = pool.reduce((sum, source) => sum + source.weight, 0);
   if (total === 0) return 0;
-  const elite = pool.filter((s) => s.origin.kind === 'elite').reduce((sum, s) => sum + s.weight, 0);
+  const elite = pool.filter((source) => source.origin.kind === 'elite').reduce(
+    (sum, source) => sum + source.weight,
+    0,
+  );
   return elite / total;
 }
 
@@ -747,15 +770,17 @@ export function exploreDropZonesFor(target: string, unlocked: string[], level: n
   for (const zone of ZONES) {
     if (!unlocked.includes(zone.id)) continue;
     let rate = 0;
-    for (const ev of zone.explore) {
-      if (ev.kind !== 'battle' && ev.kind !== 'elite') continue;
-      if (!encounterEligible(ev, level)) continue;
-      const drops = ENEMIES.find((e) => e.id === ev.enemy)?.drops ?? {};
+    for (const event of zone.explore) {
+      if (event.kind !== 'battle' && event.kind !== 'elite') continue;
+      if (!encounterEligible(event, level)) continue;
+      const drops = ENEMIES.find((enemyDef) => enemyDef.id === event.enemy)?.drops ?? {};
       rate = Math.max(rate, drops[target] ?? 0);
     }
     if (rate > 0) zones.push({ id: zone.id, rate });
   }
-  return zones.sort((a, b) => b.rate - a.rate).map((zone) => zone.id);
+  return zones.sort((leftValue, rightValue) => rightValue.rate - leftValue.rate).map((zone) =>
+    zone.id
+  );
 }
 
 /** Pure collection planner (#74): do the dungeon's REMAINING normal floors
@@ -766,43 +791,49 @@ export function dungeonFloorsYield(
   dungeon: DungeonDef,
   fromFloor: number,
 ): boolean {
-  for (let f = Math.max(1, fromFloor); f <= dungeon.floors.length; f++) {
-    const floor = dungeon.floors[f - 1]!;
+  for (
+    let floorNumber = Math.max(1, fromFloor);
+    floorNumber <= dungeon.floors.length;
+    floorNumber++
+  ) {
+    const floor = dungeon.floors[floorNumber - 1]!;
     if (floor.treasure?.item === target) return true;
-    if (floor.enemies.some((id) => ENEMIES.find((e) => e.id === id)?.drops?.[target])) return true;
+    if (
+      floor.enemies.some((id) => ENEMIES.find((enemyDef) => enemyDef.id === id)?.drops?.[target])
+    ) return true;
   }
   return false;
 }
 
 export function dungeonBossSource(zoneId: string): EncounterSource | undefined {
-  const z = zoneDef(zoneId);
-  if (!z?.dungeon) return undefined;
-  const d = z.dungeon;
+  const zone = zoneDef(zoneId);
+  if (!zone?.dungeon) return undefined;
+  const dungeon = zone.dungeon;
   return {
-    enemyId: d.boss,
+    enemyId: dungeon.boss,
     weight: 1,
     origin: {
       kind: 'dungeon',
-      zoneId: z.id,
-      dungeonId: d.id,
-      floor: d.floors.length + 1,
+      zoneId: zone.id,
+      dungeonId: dungeon.id,
+      floor: dungeon.floors.length + 1,
       boss: true,
     },
   };
 }
 
 export function dungeonFloorSources(zoneId: string): EncounterSource[] {
-  const z = zoneDef(zoneId);
-  if (!z?.dungeon) return [];
-  return z.dungeon.floors.flatMap((f) =>
-    f.enemies.map((enemyId) => ({
+  const zone = zoneDef(zoneId);
+  if (!zone?.dungeon) return [];
+  return zone.dungeon.floors.flatMap((floor) =>
+    floor.enemies.map((enemyId) => ({
       enemyId,
       weight: 1,
       origin: {
         kind: 'dungeon',
-        zoneId: z.id,
-        dungeonId: z.dungeon!.id,
-        floor: z.dungeon!.floors.indexOf(f) + 1,
+        zoneId: zone.id,
+        dungeonId: zone.dungeon!.id,
+        floor: zone.dungeon!.floors.indexOf(floor) + 1,
         boss: false,
       } as BattleOrigin,
     }))
@@ -895,21 +926,24 @@ export interface CellStat {
   equipProcsP90: number;
 }
 
-const r4 = (n: number): number => Math.round(n * 10000) / 10000;
-const r2 = (n: number): number => Math.round(n * 100) / 100;
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+const r4 = (value: number): number => Math.round(value * 10000) / 10000;
+const r2 = (value: number): number => Math.round(value * 100) / 100;
+const r3 = (value: number): number => Math.round(value * 1000) / 1000;
 
-/** Nearest-rank percentile (#88): q=0.5 → median, q=0.9 → p90. */
-function percentile(values: number[], q: number): number {
+/** Nearest-rank percentile (#88): quantile=0.5 → median, quantile=0.9 → p90. */
+function percentile(values: number[], quantile: number): number {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1));
-  return r3(sorted[idx]!);
+  const sorted = [...values].sort((leftValue, rightValue) => leftValue - rightValue);
+  const percentileIndex = Math.max(
+    0,
+    Math.min(sorted.length - 1, Math.ceil(quantile * sorted.length) - 1),
+  );
+  return r3(sorted[percentileIndex]!);
 }
 
 /** Sums per-fight observation maps into a cell accumulator (#84). */
 function addInto(dst: Record<string, number>, src: Record<string, number>): void {
-  for (const [k, v] of Object.entries(src)) dst[k] = (dst[k] ?? 0) + v;
+  for (const [key, value] of Object.entries(src)) dst[key] = (dst[key] ?? 0) + value;
 }
 
 /** Per-fight average of an observation map, rounded (#84). */
@@ -921,7 +955,7 @@ function avgMap(counts: Record<string, number>, fightCount: number): Record<stri
 
 export function runCell(spec: CellSpec): CellStat {
   const hero = makeHero(spec.classId, spec.level, spec.gear);
-  const total = spec.sources.reduce((sum, s) => sum + s.weight, 0);
+  const total = spec.sources.reduce((sum, source) => sum + source.weight, 0);
   const acc = {
     wins: 0,
     losses: 0,
@@ -979,18 +1013,18 @@ export function runCell(spec: CellSpec): CellStat {
   // fight gets its own stream so reward catalog edits cannot perturb the next
   // sampled opponent or its combat rolls. Production randomness is unchanged.
   const sampleRng = seededRng(spec.seed);
-  for (let i = 0; i < spec.fights; i++) {
+  for (let fightIndex = 0; fightIndex < spec.fights; fightIndex++) {
     const roll = sampleRng() * total;
     let acc2 = 0;
     let src = spec.sources[0]!;
-    for (const s of spec.sources) {
-      acc2 += s.weight;
+    for (const source of spec.sources) {
+      acc2 += source.weight;
       if (roll < acc2) {
-        src = s;
+        src = source;
         break;
       }
     }
-    const fightRng = seededRng(spec.seed + Math.imul(i + 1, 0x9e3779b9));
+    const fightRng = seededRng(spec.seed + Math.imul(fightIndex + 1, 0x9e3779b9));
     const res = runFight(hero, src.enemyId, spec.policy, fightRng, src.origin);
     if (res.outcome === 'win') acc.wins++;
     else if (res.outcome === 'lose') acc.losses++;
@@ -1023,7 +1057,9 @@ export function runCell(spec: CellSpec): CellStat {
     addInto(acc.skillCasts, res.skillCasts);
     addInto(acc.effectRounds, res.effectRounds);
     addInto(acc.effectApplications, res.effectApplications);
-    for (const [k, v] of Object.entries(res.effectSources)) acc.effectSources[k] = v;
+    for (const [effectKey, effectSource] of Object.entries(res.effectSources)) {
+      acc.effectSources[effectKey] = effectSource;
+    }
     // #88: structured-telemetry sums + percentile samples.
     acc.dotDealt += res.dotDealt;
     acc.dotTaken += res.dotTaken;
@@ -1043,7 +1079,7 @@ export function runCell(spec: CellSpec): CellStat {
     acc.dodgesArr.push(res.dodges);
     acc.procsArr.push(res.equipProcs);
   }
-  const f = spec.fights;
+  const fightCount = spec.fights;
   const wins = acc.wins;
   return {
     classId: spec.classId,
@@ -1052,47 +1088,47 @@ export function runCell(spec: CellSpec): CellStat {
     policy: spec.policy.name,
     items: spec.policy.items,
     pool: spec.pool,
-    fights: f,
-    winRate: r4(wins / f),
-    lossRate: r4(acc.losses / f),
-    timeoutRate: r4(acc.timeouts / f),
+    fights: fightCount,
+    winRate: r4(wins / fightCount),
+    lossRate: r4(acc.losses / fightCount),
+    timeoutRate: r4(acc.timeouts / fightCount),
     avgRoundsWin: wins > 0 ? r2(acc.roundsWin / wins) : 0,
-    avgHpPctEnd: r4(acc.hpPct / f),
-    avgMpPctEnd: r4(acc.mpPct / f),
-    avgDealt: r2(acc.dealt / f),
-    avgTaken: r2(acc.taken / f),
-    avgItems: r3(acc.items / f),
-    guardFreq: r3(acc.guard / f),
-    critsPerFight: r3(acc.crits / f),
-    dodgesPerFight: r3(acc.dodges / f),
-    healPerFight: r2(acc.heals / f),
-    overhealPerFight: r2(acc.overheal / f),
-    avgShieldGranted: r2(acc.shieldGranted / f),
-    avgShieldAbsorbed: r2(acc.shieldAbsorbed / f),
-    avgShieldWasted: r3(acc.shieldWasted / f),
-    avgShieldExpiryLost: r3(acc.shieldExpiryLost / f),
-    avgEquipProcs: r3(acc.equipProcs / f),
-    avgSkippedRounds: r3(acc.skipped / f),
+    avgHpPctEnd: r4(acc.hpPct / fightCount),
+    avgMpPctEnd: r4(acc.mpPct / fightCount),
+    avgDealt: r2(acc.dealt / fightCount),
+    avgTaken: r2(acc.taken / fightCount),
+    avgItems: r3(acc.items / fightCount),
+    guardFreq: r3(acc.guard / fightCount),
+    critsPerFight: r3(acc.crits / fightCount),
+    dodgesPerFight: r3(acc.dodges / fightCount),
+    healPerFight: r2(acc.heals / fightCount),
+    overhealPerFight: r2(acc.overheal / fightCount),
+    avgShieldGranted: r2(acc.shieldGranted / fightCount),
+    avgShieldAbsorbed: r2(acc.shieldAbsorbed / fightCount),
+    avgShieldWasted: r3(acc.shieldWasted / fightCount),
+    avgShieldExpiryLost: r3(acc.shieldExpiryLost / fightCount),
+    avgEquipProcs: r3(acc.equipProcs / fightCount),
+    avgSkippedRounds: r3(acc.skipped / fightCount),
     invalidActions: acc.invalid,
-    avgMpSpent: r2(acc.mpSpent / f),
-    avgBuffCasts: r3(acc.buffCasts / f),
-    avgShieldCasts: r3(acc.shieldCasts / f),
-    avgDotCasts: r3(acc.dotCasts / f),
-    avgDebuffCasts: r3(acc.debuffCasts / f),
-    avgCleanseCasts: r3(acc.cleanseCasts / f),
-    avgDispelCasts: r3(acc.dispelCasts / f),
-    avgDotDealt: r2(acc.dotDealt / f),
-    avgDotTaken: r2(acc.dotTaken / f),
-    avgHotHealing: r2(acc.hotHealing / f),
-    avgWastedPeriodicHealing: r3(acc.wastedPeriodicHealing / f),
-    avgExpiredRemovals: r3(acc.expiredRemovals / f),
-    avgCleanseRemovals: r3(acc.cleanseRemovals / f),
-    avgDispelRemovals: r3(acc.dispelRemovals / f),
-    avgConsumedRemovals: r3(acc.consumedRemovals / f),
-    avgShieldBreaks: r3(acc.shieldBreaks / f),
-    avgProcAttempts: r3(acc.procAttempts / f),
-    avgProcHits: r3(acc.procHits / f),
-    avgDuration1Applied: r3(acc.duration1Applied / f),
+    avgMpSpent: r2(acc.mpSpent / fightCount),
+    avgBuffCasts: r3(acc.buffCasts / fightCount),
+    avgShieldCasts: r3(acc.shieldCasts / fightCount),
+    avgDotCasts: r3(acc.dotCasts / fightCount),
+    avgDebuffCasts: r3(acc.debuffCasts / fightCount),
+    avgCleanseCasts: r3(acc.cleanseCasts / fightCount),
+    avgDispelCasts: r3(acc.dispelCasts / fightCount),
+    avgDotDealt: r2(acc.dotDealt / fightCount),
+    avgDotTaken: r2(acc.dotTaken / fightCount),
+    avgHotHealing: r2(acc.hotHealing / fightCount),
+    avgWastedPeriodicHealing: r3(acc.wastedPeriodicHealing / fightCount),
+    avgExpiredRemovals: r3(acc.expiredRemovals / fightCount),
+    avgCleanseRemovals: r3(acc.cleanseRemovals / fightCount),
+    avgDispelRemovals: r3(acc.dispelRemovals / fightCount),
+    avgConsumedRemovals: r3(acc.consumedRemovals / fightCount),
+    avgShieldBreaks: r3(acc.shieldBreaks / fightCount),
+    avgProcAttempts: r3(acc.procAttempts / fightCount),
+    avgProcHits: r3(acc.procHits / fightCount),
+    avgDuration1Applied: r3(acc.duration1Applied / fightCount),
     roundsP50: percentile(acc.roundsArr, 0.5),
     roundsP90: percentile(acc.roundsArr, 0.9),
     hpPctP50: percentile(acc.hpPctArr, 0.5),
@@ -1103,9 +1139,9 @@ export function runCell(spec: CellSpec): CellStat {
     dodgesP90: percentile(acc.dodgesArr, 0.9),
     equipProcsP50: percentile(acc.procsArr, 0.5),
     equipProcsP90: percentile(acc.procsArr, 0.9),
-    skillCasts: avgMap(acc.skillCasts, f),
-    effectRounds: avgMap(acc.effectRounds, f),
-    effectApplications: avgMap(acc.effectApplications, f),
+    skillCasts: avgMap(acc.skillCasts, fightCount),
+    effectRounds: avgMap(acc.effectRounds, fightCount),
+    effectApplications: avgMap(acc.effectApplications, fightCount),
     effectSources: acc.effectSources,
   };
 }
@@ -1117,8 +1153,8 @@ export function runCell(spec: CellSpec): CellStat {
  * MAX_LEVEL: the endgame cap). A new skill's learnLevel lands in the
  * matrix without hand-editing this list; the matrix-coverage test pins
  * the derivation so the stale-list regression can never recur. */
-const AUTHORED_UNLOCK_LEVELS = [...new Set(SKILLS.map((s) => s.learnLevel))].sort(
-  (a, b) => a - b,
+const AUTHORED_UNLOCK_LEVELS = [...new Set(SKILLS.map((skillDef) => skillDef.learnLevel))].sort(
+  (leftLevel, rightLevel) => leftLevel - rightLevel,
 );
 export const MATRIX_LEVELS: readonly number[] = [
   ...new Set([
@@ -1126,17 +1162,17 @@ export const MATRIX_LEVELS: readonly number[] = [
     2,
     MAX_LEVEL,
   ]),
-].sort((a, b) => a - b);
+].sort((leftValue, rightValue) => leftValue - rightValue);
 export const MATRIX_FIGHTS = 120;
 
 /** Zones whose authored bands admit at least one ordinary battle (#74 —
  * checked across the zone's own level range, the levels its hostiles
  * target). */
 export function hostileZones(): ZoneDef[] {
-  return ZONES.filter((z) => {
-    if (z.safeHaven) return false;
-    for (let level = z.levels[0]; level <= z.levels[1]; level++) {
-      if (zoneNormalPool(z.id, level).length > 0) return true;
+  return ZONES.filter((zoneDef) => {
+    if (zoneDef.safeHaven) return false;
+    for (let level = zoneDef.levels[0]; level <= zoneDef.levels[1]; level++) {
+      if (zoneNormalPool(zoneDef.id, level).length > 0) return true;
     }
     return false;
   });
@@ -1145,16 +1181,16 @@ export function hostileZones(): ZoneDef[] {
 /** The full class/level/zone matrix (script report). */
 export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
   const cells: CellStat[] = [];
-  let i = 0;
+  let seedOffset = 0;
   for (const cid of CLASS_IDS) {
-    for (const z of hostileZones()) {
-      const [lo, hi] = z.levels;
+    for (const zoneDef of hostileZones()) {
+      const [minimumLevel, maximumLevel] = zoneDef.levels;
       for (const level of MATRIX_LEVELS) {
-        if (level < lo - 2 || level > hi + 2) continue;
+        if (level < minimumLevel - 2 || level > maximumLevel + 2) continue;
         // #74: pools follow the live eligibility rule — a level whose band
         // blocks every hostile simply has no cell (never simulate an
         // impossible state).
-        const hostile = zoneHostilePool(z.id, level);
+        const hostile = zoneHostilePool(zoneDef.id, level);
         if (hostile.length === 0) continue;
         cells.push(
           runCell({
@@ -1162,10 +1198,10 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             level,
             gear: 'best',
             policy: POLICIES.rotation,
-            pool: z.id,
+            pool: zoneDef.id,
             sources: hostile,
             fights,
-            seed: seedBase + i++,
+            seed: seedBase + seedOffset++,
           }),
         );
         // #84: the effect-aware policy runs the SAME cells beside the
@@ -1176,14 +1212,14 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             level,
             gear: 'best',
             policy: POLICIES.tactical,
-            pool: `${z.id}:tactical`,
+            pool: `${zoneDef.id}:tactical`,
             sources: hostile,
             fights,
-            seed: seedBase + i++,
+            seed: seedBase + seedOffset++,
           }),
         );
         if (level <= 9) {
-          const normals = zoneNormalPool(z.id, level);
+          const normals = zoneNormalPool(zoneDef.id, level);
           if (normals.length === 0) continue;
           cells.push(
             runCell({
@@ -1191,20 +1227,20 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
               level,
               gear: 'best',
               policy: POLICIES.free,
-              pool: `${z.id}:normal`,
+              pool: `${zoneDef.id}:normal`,
               sources: normals,
               fights,
-              seed: seedBase + i++,
+              seed: seedBase + seedOffset++,
             }),
           );
         }
       }
     }
     // Bosses at their band top and one gear tier later (the +6 cliff).
-    for (const z of ZONES) {
-      const boss = dungeonBossSource(z.id);
+    for (const zoneDef of ZONES) {
+      const boss = dungeonBossSource(zoneDef.id);
       if (!boss) continue;
-      for (const level of [z.levels[1], Math.min(MAX_LEVEL_SIM, z.levels[1] + 6)]) {
+      for (const level of [zoneDef.levels[1], Math.min(MAX_LEVEL_SIM, zoneDef.levels[1] + 6)]) {
         cells.push(
           runCell({
             classId: cid,
@@ -1214,7 +1250,7 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             pool: `boss:${boss.enemyId}`,
             sources: [boss],
             fights,
-            seed: seedBase + i++,
+            seed: seedBase + seedOffset++,
           }),
         );
         cells.push(
@@ -1226,7 +1262,7 @@ export function runMatrix(fights = MATRIX_FIGHTS, seedBase = 9100): CellStat[] {
             pool: `boss:${boss.enemyId}:tactical`,
             sources: [boss],
             fights,
-            seed: seedBase + i++,
+            seed: seedBase + seedOffset++,
           }),
         );
       }
@@ -1254,20 +1290,22 @@ export interface BalanceSnapshot {
  * change must refresh it with an explanation. */
 export function buildSnapshot(): BalanceSnapshot {
   const cells: CellStat[] = [];
-  let i = 0;
-  const nextSeed = (): number => 7100 + i++;
-  const push = (c: Omit<CellSpec, 'seed' | 'fights'> & { fights?: number }): void => {
-    cells.push(runCell({ ...c, fights: c.fights ?? SNAPSHOT_FIGHTS, seed: nextSeed() }));
+  let seedOffset = 0;
+  const nextSeed = (): number => 7100 + seedOffset++;
+  const push = (cellSpec: Omit<CellSpec, 'seed' | 'fights'> & { fights?: number }): void => {
+    cells.push(
+      runCell({ ...cellSpec, fights: cellSpec.fights ?? SNAPSHOT_FIGHTS, seed: nextSeed() }),
+    );
   };
   // 1. Opening band: rotation (no items) across each level's LIVE hostile
   //    table (#74) — the Outskirts for the 1–2 band, the Whisperwood after.
   const bandZoneFor = (level: number): string => {
-    for (const z of hostileZones()) {
+    for (const zoneDef of hostileZones()) {
       // #74: the authored band must CONTAIN the level — ordinary encounters
       // keep no max level, so eligibility alone always matched the
       // Outskirts and the reviewed snapshot never left it.
-      if (level < z.levels[0] || level > z.levels[1]) continue;
-      if (zoneHostilePool(z.id, level).length > 0) return z.id;
+      if (level < zoneDef.levels[0] || level > zoneDef.levels[1]) continue;
+      if (zoneHostilePool(zoneDef.id, level).length > 0) return zoneDef.id;
     }
     return 'outskirts';
   };
@@ -1377,10 +1415,10 @@ export function buildSnapshot(): BalanceSnapshot {
   //    separate: the intended cells answer "can a correctly-progressed
   //    hero of this class win?", the undergeared cell answers "how brutal
   //    is the gear cliff?".
-  for (const z of ZONES) {
-    const boss = dungeonBossSource(z.id);
+  for (const zoneDef of ZONES) {
+    const boss = dungeonBossSource(zoneDef.id);
     if (!boss) continue;
-    const intended = z.levels[1];
+    const intended = zoneDef.levels[1];
     for (const cid of CLASS_IDS) {
       push({
         classId: cid,
@@ -1925,8 +1963,8 @@ export function driveQuests(
     // re-arms, and returns to this exact spot before the next road
     // (#162 — bounded, so a hot stretch aborts instead of thrashing).
     let rePreps = 0;
-    for (let i = 0; i < path.length; i++) {
-      const edgeId = path[i]!;
+    for (let edgeIndex = 0; edgeIndex < path.length; edgeIndex++) {
+      const edgeId = path[edgeIndex]!;
       if (!crossEdge(edgeId)) return false;
       const here = routeDef(edgeId)?.to;
       if (
@@ -2092,7 +2130,7 @@ export function driveQuests(
           statWeight(id) > curW &&
           (itemDef(id)?.price ?? 0) <= player.gold - 30 // keep a potion buffer
         )
-        .sort((a, b) => statWeight(b) - statWeight(a))[0];
+        .sort((leftValue, rightValue) => statWeight(rightValue) - statWeight(leftValue))[0];
       if (better && buy(player, better).ok) {
         equipFromBag(better);
       }
@@ -2103,7 +2141,7 @@ export function driveQuests(
       .filter((id) =>
         itemDef(id)?.kind === 'trinket' && isEquippable(id, player.classId, player.level).ok
       )
-      .sort((a, b) => statWeight(b) - statWeight(a))[0];
+      .sort((leftValue, rightValue) => statWeight(rightValue) - statWeight(leftValue))[0];
     if (trinket && statWeight(trinket) > statWeight(player.equipment.trinket ?? '')) {
       equipFromBag(trinket);
     }
@@ -2169,7 +2207,9 @@ export function driveQuests(
               isEquippable(id, player.classId, player.level).ok &&
               statWeight(id) > curW && offering.price <= player.gold - 30;
           })
-          .sort((a, b) => statWeight(b.itemId) - statWeight(a.itemId))[0];
+          .sort((leftOffering, rightOffering) =>
+            statWeight(rightOffering.itemId) - statWeight(leftOffering.itemId)
+          )[0];
         if (better) gain += statWeight(better.itemId) - curW;
       }
       if (gain <= 0) continue;
@@ -2475,10 +2515,12 @@ export function driveQuests(
     }
     const questDef = quest(active)!;
     let progressed = false;
-    for (let i = 0; i < questDef.objectives.length; i++) {
-      const obj = questDef.objectives[i]!;
+    for (let objectiveIndex = 0; objectiveIndex < questDef.objectives.length; objectiveIndex++) {
+      const obj = questDef.objectives[objectiveIndex]!;
       const need = obj.count ?? 1;
-      const have = obj.kind === 'collect' ? countOf(player, obj.target) : questCount(active, i);
+      const have = obj.kind === 'collect'
+        ? countOf(player, obj.target)
+        : questCount(active, objectiveIndex);
       if (have >= need) continue;
       if (obj.kind === 'kill') {
         // #88: dungeon-sourced kills (chapter bosses, floor mobs) route
@@ -2493,12 +2535,14 @@ export function driveQuests(
             ?.id ??
             ZONES.find((zone) => zone.dungeon && dungeonFloorsYield(obj.target, zone.dungeon, 1))
               ?.id;
-        progressed = diveZone ? clearBoss(diveZone) : farmKills(active, i, obj.target, need);
+        progressed = diveZone
+          ? clearBoss(diveZone)
+          : farmKills(active, objectiveIndex, obj.target, need);
       } else if (obj.kind === 'collect') {
         progressed = farmCollect(obj.target, need);
       } else if (obj.kind === 'storyEvent') {
         onStoryEvent(player, obj.target);
-        progressed = questCount(active, i) >= need;
+        progressed = questCount(active, objectiveIndex) >= need;
       } else if (obj.kind === 'reach') {
         // #162: the reach objective is a REAL journey — the road IS the
         // objective, rolled and fought through the live engine.

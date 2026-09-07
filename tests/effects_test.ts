@@ -27,82 +27,84 @@ import { SKILLS } from '../src/content/skills.ts';
 import { injectMod, modInstance, seeded } from './helpers.ts';
 
 Deno.test('effects: different sources on one stat coexist and fold additively (#78)', () => {
-  const p = createPlayer(501, 'T', 'warrior');
-  p.level = 30;
-  p.skills.push('sk_war_cry');
-  p.mp = 999;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(501, 'T', 'warrior');
+  player.level = 30;
+  player.skills.push('sk_war_cry');
+  player.mp = 999;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(50),
   })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
   // A second ATK source (as Adrenaline would contribute) is injected: under
   // the old fixed slots this would have fused or overwritten.
-  injectMod(b, 'player', 'atk', 0.2, { defId: 'sk_adrenaline', name: 'Adrenaline Surge' });
-  performAction(p, b, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(51));
+  injectMod(battle, 'player', 'atk', 0.2, { defId: 'sk_adrenaline', name: 'Adrenaline Surge' });
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(51));
   assertEquals(
-    b.effectInstances.filter((i) => i.stat === 'atk').length,
+    battle.effectInstances.filter((instance) => instance.stat === 'atk').length,
     2,
     'two independent ATK instances',
   );
   assertEquals(
-    statPct(b, 'player', 'atk'),
+    statPct(battle, 'player', 'atk'),
     0.55,
     '+35% (War Cry) + +20% (second source), additive',
   );
 });
 
 Deno.test('effects: same-source policies are explicit — replace vs stack (#78)', () => {
-  const p = createPlayer(502, 'T', 'warrior');
-  p.level = 40;
-  p.skills.push('sk_war_cry', 'sk_adrenaline');
-  p.mp = 999;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(502, 'T', 'warrior');
+  player.level = 40;
+  player.skills.push('sk_war_cry', 'sk_adrenaline');
+  player.mp = 999;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(51),
   })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
 
   // War Cry: authored 'replace' — recasting retires the prior instance and
   // applies a fresh one (same magnitude, renewed clock).
-  performAction(p, b, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(52));
-  performAction(p, b, { kind: 'attack' }, seeded(53));
-  const firstExpiry = b.effectInstances.find((i) => i.defId === 'sk_war_cry:e0')!.expiresRound;
-  delete b.cooldowns['sk_war_cry'];
-  performAction(p, b, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(54));
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(52));
+  performAction(player, battle, { kind: 'attack' }, seeded(53));
+  const firstExpiry =
+    battle.effectInstances.find((instance) => instance.defId === 'sk_war_cry:e0')!.expiresRound;
+  delete battle.cooldowns['sk_war_cry'];
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_war_cry' }, seeded(54));
   assertEquals(
-    b.effectInstances.filter((i) => i.defId === 'sk_war_cry:e0').length,
+    battle.effectInstances.filter((instance) => instance.defId === 'sk_war_cry:e0').length,
     1,
     'replace retires the prior same-source instance',
   );
   assert(
-    b.effectInstances.find((i) => i.defId === 'sk_war_cry:e0')!.expiresRound > firstExpiry,
+    battle.effectInstances.find((instance) => instance.defId === 'sk_war_cry:e0')!.expiresRound >
+      firstExpiry,
     'recast renews the clock',
   );
 
   // Adrenaline: authored 'stack' — recasting adds an independent +20% ATK.
-  p.hp = 10; // let the heal component land
-  performAction(p, b, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(55));
-  delete b.cooldowns['sk_adrenaline'];
-  p.hp = 10;
-  performAction(p, b, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(56));
+  player.hp = 10; // let the heal component land
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(55));
+  delete battle.cooldowns['sk_adrenaline'];
+  player.hp = 10;
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(56));
   assertEquals(
-    b.effectInstances.filter((i) => i.defId === 'sk_adrenaline:e1').length,
+    battle.effectInstances.filter((instance) => instance.defId === 'sk_adrenaline:e1').length,
     2,
     'stack adds an independent contribution',
   );
-  assertEquals(statPct(b, 'player', 'atk'), 0.75, 'War Cry 0.35 + Adrenaline 0.2 + 0.2');
+  assertEquals(statPct(battle, 'player', 'atk'), 0.75, 'War Cry 0.35 + Adrenaline 0.2 + 0.2');
 });
 
 Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
   // Bare effect-state fixture (#99): an unplayable preview container.
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const sap = (pct: number): void => {
-    applyInstance(b, {
+    applyInstance(preview, {
       defId: 'sap',
       name: 'Sapped',
       kind: 'statmod',
@@ -118,44 +120,48 @@ Deno.test('effects: saps share one slot with strongest-wins (#78)', () => {
     });
   };
   sap(0.15);
-  assertEquals(sapPct(b, 'player'), 0.15);
+  assertEquals(sapPct(preview, 'player'), 0.15);
   sap(0.3);
   assertEquals(
-    b.effectInstances.filter((i) => i.defId === 'sap').length,
+    preview.effectInstances.filter((instance) => instance.defId === 'sap').length,
     1,
     'the stronger sap supersedes, not stacks beside',
   );
-  assertEquals(sapPct(b, 'player'), 0.3);
+  assertEquals(sapPct(preview, 'player'), 0.3);
   sap(0.15);
   assertEquals(
-    b.effectInstances.filter((i) => i.defId === 'sap').length,
+    preview.effectInstances.filter((instance) => instance.defId === 'sap').length,
     1,
     'a weaker recast never downgrades',
   );
-  assertEquals(sapPct(b, 'player'), 0.3);
+  assertEquals(sapPct(preview, 'player'), 0.3);
 });
 
 Deno.test('effects: tagged cleanse removes harmful removable, never encounter conditions (#78)', () => {
-  const p = createPlayer(504, 'T', 'cleric');
-  p.level = 45;
-  p.skills.push('sk_miracle');
-  p.mp = 999;
-  p.hp = 10;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(504, 'T', 'cleric');
+  player.level = 45;
+  player.skills.push('sk_miracle');
+  player.mp = 999;
+  player.hp = 10;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(56),
   })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
   // A removable sap + an unremovable (encounter) condition.
-  injectMod(b, 'player', 'outgoing', -0.2, { defId: 'sap', name: 'Sapped' });
-  injectMod(b, 'player', 'spd', -0.5, { defId: 'encounter:bog', name: 'Bogged', removable: false });
+  injectMod(battle, 'player', 'outgoing', -0.2, { defId: 'sap', name: 'Sapped' });
+  injectMod(battle, 'player', 'spd', -0.5, {
+    defId: 'encounter:bog',
+    name: 'Bogged',
+    removable: false,
+  });
   // The wolf must not reply — a Howl sap landing after the cleanse would
   // muddy the assertions below. Stun it for this round; the enemy phase
   // consumes the control instance like any other.
-  b.effectSeq++;
-  b.effectInstances.push({
+  battle.effectSeq++;
+  battle.effectInstances.push({
     iid: 't3',
     defId: 'test:stun',
     name: 'Stunned',
@@ -166,28 +172,28 @@ Deno.test('effects: tagged cleanse removes harmful removable, never encounter co
     actions: 1,
     tags: ['harmful', 'control'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 1,
     removable: true,
-    expiresRound: b.round,
+    expiresRound: battle.round,
   });
-  performAction(p, b, { kind: 'skill', skillId: 'sk_miracle' }, seeded(57));
-  assertEquals(p.hp, statsOf(p).maxHp, 'Miracle fully restores');
-  assertEquals(sapPct(b, 'player'), 0, 'the removable sap is cleansed');
-  assertEquals(modInstance(b, 'player', 'outgoing'), undefined);
-  assertEquals(statPct(b, 'player', 'spd'), -0.5, 'the unremovable condition survives');
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_miracle' }, seeded(57));
+  assertEquals(player.hp, statsOf(player).maxHp, 'Miracle fully restores');
+  assertEquals(sapPct(battle, 'player'), 0, 'the removable sap is cleansed');
+  assertEquals(modInstance(battle, 'player', 'outgoing'), undefined);
+  assertEquals(statPct(battle, 'player', 'spd'), -0.5, 'the unremovable condition survives');
 });
 
 Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
-  const p = createPlayer(505, 'T', 'warrior');
-  p.level = 20;
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(505, 'T', 'warrior');
+  player.level = 20;
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(57),
   })!.battle;
-  p.battle = b;
+  player.battle = battle;
   // Synthetic Poison (no content ships DoTs yet — vocabulary proof): 5/round.
-  b.effectSeq++;
+  battle.effectSeq++;
   const poison: EffectInstance = {
     iid: 't1',
     defId: 'poison',
@@ -199,30 +205,34 @@ Deno.test('effects: periodic roundEnd effects tick, then expire (#78)', () => {
     tickPhase: 'roundEnd',
     tags: ['harmful', 'periodic', 'poison'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 2,
     removable: true,
-    expiresRound: b.round + 1,
+    expiresRound: battle.round + 1,
   };
-  b.effectInstances.push(poison);
-  const hpBefore = b.enemy.hp;
-  performAction(p, b, { kind: 'guard' }, seeded(58));
-  assertEquals(b.enemy.hp, hpBefore - 5, 'tick 1 at end of round');
-  performAction(p, b, { kind: 'guard' }, seeded(59));
-  assertEquals(b.enemy.hp, hpBefore - 10, 'tick 2 (its last remaining tick still fires)');
-  performAction(p, b, { kind: 'guard' }, seeded(60));
-  assertEquals(b.enemy.hp, hpBefore - 10, 'expired — no further ticks');
-  assertEquals(b.effectInstances.filter((i) => i.defId === 'poison').length, 0, 'instance pruned');
+  battle.effectInstances.push(poison);
+  const hpBefore = battle.enemy.hp;
+  performAction(player, battle, { kind: 'guard' }, seeded(58));
+  assertEquals(battle.enemy.hp, hpBefore - 5, 'tick 1 at end of round');
+  performAction(player, battle, { kind: 'guard' }, seeded(59));
+  assertEquals(battle.enemy.hp, hpBefore - 10, 'tick 2 (its last remaining tick still fires)');
+  performAction(player, battle, { kind: 'guard' }, seeded(60));
+  assertEquals(battle.enemy.hp, hpBefore - 10, 'expired — no further ticks');
+  assertEquals(
+    battle.effectInstances.filter((instance) => instance.defId === 'poison').length,
+    0,
+    'instance pruned',
+  );
 });
 
 Deno.test('effects: control instances consume the target\u2019s actions (#78)', () => {
-  const p = createPlayer(506, 'T', 'warrior');
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(506, 'T', 'warrior');
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(60),
   })!.battle;
-  p.battle = b;
-  b.effectInstances.push({
+  player.battle = battle;
+  battle.effectInstances.push({
     iid: 't2',
     defId: 'test:stun',
     name: 'Stunned',
@@ -233,20 +243,20 @@ Deno.test('effects: control instances consume the target\u2019s actions (#78)', 
     actions: 2,
     tags: ['harmful', 'control'],
     stacking: 'replace',
-    appliedRound: b.round,
+    appliedRound: battle.round,
     remaining: 2,
     removable: true,
-    expiresRound: b.round,
+    expiresRound: battle.round,
   });
-  const r1 = performAction(p, b, { kind: 'attack' }, seeded(61));
+  const r1 = performAction(player, battle, { kind: 'attack' }, seeded(61));
   assertEquals(r1.skipped, true, 'stun consumes action 1');
-  assert(r1.lines.some((l) => l.includes('stunned')));
-  const r2 = performAction(p, b, { kind: 'attack' }, seeded(62));
+  assert(r1.lines.some((line) => line.includes('stunned')));
+  const r2 = performAction(player, battle, { kind: 'attack' }, seeded(62));
   assertEquals(r2.skipped, true, 'stun consumes action 2');
-  const r3 = performAction(p, b, { kind: 'attack' }, seeded(63));
+  const r3 = performAction(player, battle, { kind: 'attack' }, seeded(63));
   assertEquals(r3.skipped, false, 'control exhausted — actions resume');
   assertEquals(
-    b.effectInstances.filter((i) => i.kind === 'control').length,
+    battle.effectInstances.filter((instance) => instance.kind === 'control').length,
     0,
     'consumed and removed',
   );
@@ -288,20 +298,22 @@ Deno.test('#90: content integrity — derived keys never collide within one sour
     triggerIndex: number | undefined,
     specs: readonly EffectSpec[],
   ): void => {
-    for (let i = 0; i < specs.length; i++) {
-      for (let j = i + 1; j < specs.length; j++) {
-        const ki = effectDefId(sourceId, triggerIndex, i, specs[i]!);
-        const kj = effectDefId(sourceId, triggerIndex, j, specs[j]!);
+    for (let leftIndex = 0; leftIndex < specs.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < specs.length; rightIndex++) {
+        const ki = effectDefId(sourceId, triggerIndex, leftIndex, specs[leftIndex]!);
+        const kj = effectDefId(sourceId, triggerIndex, rightIndex, specs[rightIndex]!);
         if (ki === kj) {
           assert(
-            isSapSpec(specs[i]!) && isSapSpec(specs[j]!),
+            isSapSpec(specs[leftIndex]!) && isSapSpec(specs[rightIndex]!),
             `${label}: only saps may share a stacking slot (${ki})`,
           );
         }
       }
     }
   };
-  for (const sk of SKILLS) check(`skill ${sk.id}`, sk.id, undefined, sk.effects);
+  for (const skillDef of SKILLS) {
+    check(`skill ${skillDef.id}`, skillDef.id, undefined, skillDef.effects);
+  }
   for (const it of ITEMS) {
     it.triggers?.forEach((tg, ti) => check(`item ${it.id} trigger ${ti}`, it.id, ti, tg.effects));
   }
@@ -314,7 +326,7 @@ Deno.test('#90: content integrity — derived keys never collide within one sour
 });
 
 Deno.test('#90: refresh is an atomic rebuild — payload and clock renew together', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const base: InstanceSeed = {
     defId: 'test:refresh',
     name: 'Old Brand',
@@ -329,12 +341,12 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
     timing: 'defer',
     removable: true,
   };
-  const first = applyInstance(b, base);
+  const first = applyInstance(preview, base);
   assertEquals(first.instance.name, 'Old Brand');
   assertEquals(first.instance.deferFirstTick, true);
   assertEquals(first.outcome, 'created');
 
-  const recast = applyInstance(b, {
+  const recast = applyInstance(preview, {
     ...base,
     name: 'New Brand',
     pct: 0.2,
@@ -343,8 +355,8 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
   });
   assertEquals(recast.instance.iid, first.instance.iid, 'refresh keeps its identity');
   assertEquals(recast.outcome, 'refreshed');
-  assertEquals(b.effectInstances.length, 1, 'same list slot — no duplicate');
-  const inst = b.effectInstances[0]!;
+  assertEquals(preview.effectInstances.length, 1, 'same list slot — no duplicate');
+  const inst = preview.effectInstances[0]!;
   assertEquals(inst.name, 'New Brand', 'payload wholly renewed');
   assertEquals(inst.pct, 0.2, 'magnitude renewed');
   assertEquals(inst.deferFirstTick, false, 'timing renewed');
@@ -357,7 +369,7 @@ Deno.test('#90: refresh is an atomic rebuild — payload and clock renew togethe
 });
 
 Deno.test('#90: refresh flips finite ↔ battle-lifetime coherently', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const finite: InstanceSeed = {
     defId: 'test:lt',
     name: 'Finite',
@@ -372,20 +384,20 @@ Deno.test('#90: refresh flips finite ↔ battle-lifetime coherently', () => {
     timing: 'immediate',
     removable: true,
   };
-  applyInstance(b, finite);
-  const upgraded = applyInstance(b, { ...finite, name: 'Forever', battleLifetime: true });
+  applyInstance(preview, finite);
+  const upgraded = applyInstance(preview, { ...finite, name: 'Forever', battleLifetime: true });
   assertEquals(upgraded.instance.battleLifetime, true, 'flag set');
   assertEquals(upgraded.instance.expiresRound, Number.MAX_SAFE_INTEGER);
-  for (let i = 0; i < 3; i++) settleEndOfRound(b);
-  assertEquals(b.effectInstances.length, 1, 'battle-lifetime never ages out');
-  const downgraded = applyInstance(b, { ...finite, name: 'Finite Again' });
+  for (let i = 0; i < 3; i++) settleEndOfRound(preview);
+  assertEquals(preview.effectInstances.length, 1, 'battle-lifetime never ages out');
+  const downgraded = applyInstance(preview, { ...finite, name: 'Finite Again' });
   assertEquals(downgraded.instance.battleLifetime, undefined, 'flag cleared');
   assertEquals(downgraded.instance.remaining, 2);
   assertEquals(downgraded.instance.expiresRound, 2, 'finite clock rebuilt from the anchor round');
 });
 
 Deno.test('#90: strongest retains the winner — no timing leak, coherent extension', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const strong: InstanceSeed = {
     defId: 'test:strong',
     name: 'Big',
@@ -400,13 +412,13 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
     timing: 'immediate',
     removable: true,
   };
-  const winner = applyInstance(b, strong);
+  const winner = applyInstance(preview, strong);
   assertEquals(winner.instance.remaining, 2);
   assertEquals(winner.instance.expiresRound, 2);
   assertEquals(winner.outcome, 'created');
 
   // A weaker DEFER-timed recast must not leak its timing into the winner.
-  const retained = applyInstance(b, {
+  const retained = applyInstance(preview, {
     ...strong,
     pct: 0.1,
     duration: 1,
@@ -421,7 +433,7 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
 
   // A longer weaker recast extends coherently: remaining and expiresRound
   // move by the same delta.
-  const longer = applyInstance(b, { ...strong, pct: 0.1, duration: 4, timing: 'defer' });
+  const longer = applyInstance(preview, { ...strong, pct: 0.1, duration: 4, timing: 'defer' });
   assertEquals(longer.instance.expiresRound, 5, 'anchor round 1 + duration 4, deferred');
   assertEquals(longer.instance.remaining, 5, 'extended by the same delta');
   assertEquals(longer.outcome, 'extended');
@@ -433,7 +445,7 @@ Deno.test('#90: strongest retains the winner — no timing leak, coherent extens
 });
 
 Deno.test('#90: strongest battle-lifetime upgrade and incoming-wins are whole', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const strong: InstanceSeed = {
     defId: 'test:strong2',
     name: 'Big',
@@ -448,10 +460,10 @@ Deno.test('#90: strongest battle-lifetime upgrade and incoming-wins are whole', 
     timing: 'immediate',
     removable: true,
   };
-  const winner = applyInstance(b, strong);
+  const winner = applyInstance(preview, strong);
   // A weaker battle-lifetime recast upgrades the winner's lifetime —
   // magnitude and payload still stand.
-  const upgraded = applyInstance(b, {
+  const upgraded = applyInstance(preview, {
     ...strong,
     pct: 0.1,
     battleLifetime: true,
@@ -464,7 +476,7 @@ Deno.test('#90: strongest battle-lifetime upgrade and incoming-wins are whole', 
   assertEquals(upgraded.instance.pct, 0.4, 'winner magnitude stands');
   assertEquals(upgraded.outcome, 'extended', 'weaker battle-lifetime recast only extends');
   // A stronger recast applies WHOLE: fresh identity, fresh payload.
-  const stronger = applyInstance(b, { ...strong, pct: 0.5 });
+  const stronger = applyInstance(preview, { ...strong, pct: 0.5 });
   assert(stronger.instance.iid !== winner.instance.iid, 'a winning recast is a new application');
   assertEquals(stronger.instance.pct, 0.5);
   assertEquals(stronger.instance.battleLifetime, undefined, 'finite again — no stale flag');
@@ -486,12 +498,18 @@ Deno.test('#90: stacking states survive a JSON round-trip and keep matching', ()
     timing: 'immediate',
     removable: true,
   };
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  applyInstance(b, base);
-  applyInstance(b, { ...base, stacking: 'stack', defId: 'test:rt2', name: 'S1' });
-  applyInstance(b, { ...base, stacking: 'refresh', defId: 'test:rt3', name: 'Rf' });
-  applyInstance(b, { ...base, stacking: 'strongest', defId: 'test:rt4', name: 'St', pct: 0.3 });
-  applyInstance(b, {
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  applyInstance(preview, base);
+  applyInstance(preview, { ...base, stacking: 'stack', defId: 'test:rt2', name: 'S1' });
+  applyInstance(preview, { ...base, stacking: 'refresh', defId: 'test:rt3', name: 'Rf' });
+  applyInstance(preview, {
+    ...base,
+    stacking: 'strongest',
+    defId: 'test:rt4',
+    name: 'St',
+    pct: 0.3,
+  });
+  applyInstance(preview, {
     ...base,
     stacking: 'refresh',
     defId: 'test:rt3',
@@ -501,20 +519,23 @@ Deno.test('#90: stacking states survive a JSON round-trip and keep matching', ()
 
   // Save/load round-trip: serialization is stable and the reloaded
   // instances still match their identities for further reapplication.
-  const snapshot = JSON.stringify(b.effectInstances);
+  const snapshot = JSON.stringify(preview.effectInstances);
   assertEquals(JSON.stringify(JSON.parse(snapshot)), snapshot);
   const b2 = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   b2.effectInstances = JSON.parse(snapshot) as EffectInstance[];
-  b2.effectSeq = b.effectSeq;
+  b2.effectSeq = preview.effectSeq;
   const re = applyInstance(b2, { ...base, defId: 'test:rt3', stacking: 'refresh', name: 'Again' });
-  assertEquals(re.instance.iid, b.effectInstances.find((i) => i.defId === 'test:rt3')!.iid);
-  assertEquals(b2.effectInstances.length, b.effectInstances.length, 'no duplicate identity');
+  assertEquals(
+    re.instance.iid,
+    preview.effectInstances.find((instance) => instance.defId === 'test:rt3')!.iid,
+  );
+  assertEquals(b2.effectInstances.length, preview.effectInstances.length, 'no duplicate identity');
 });
 
 // ── #93: kind-aware strongest magnitudes and outcome-true telemetry ─────
 
 Deno.test('#93: strongest shields compare capacity — 200 supersedes 100', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const ward = (amount: number): InstanceSeed => ({
     defId: 'probe:strongest',
     name: `Ward ${amount}`,
@@ -528,15 +549,15 @@ Deno.test('#93: strongest shields compare capacity — 200 supersedes 100', () =
     timing: 'immediate',
     removable: true,
   });
-  const first = applyInstance(b, ward(100));
+  const first = applyInstance(preview, ward(100));
   assertEquals(first.outcome, 'created');
-  const second = applyInstance(b, ward(200));
+  const second = applyInstance(preview, ward(200));
   assertEquals(second.outcome, 'replaced', 'a 200-point ward supersedes the 100-point one');
-  assertEquals(b.effectInstances.length, 1, 'one slot for the identity');
-  assertEquals(b.effectInstances[0]!.shieldAmount, 200, 'the stronger capacity stands');
-  assertEquals(b.effectInstances[0]!.name, 'Ward 200', 'the incoming payload became active');
+  assertEquals(preview.effectInstances.length, 1, 'one slot for the identity');
+  assertEquals(preview.effectInstances[0]!.shieldAmount, 200, 'the stronger capacity stands');
+  assertEquals(preview.effectInstances[0]!.name, 'Ward 200', 'the incoming payload became active');
   // A weaker recast is retained-payload: nothing changes at all.
-  const weaker = applyInstance(b, ward(50));
+  const weaker = applyInstance(preview, ward(50));
   assertEquals(weaker.outcome, 'ignored');
   assertEquals(weaker.instance.shieldAmount, 200, 'the winner still stands');
   assertEquals(weaker.instance.name, 'Ward 200', 'payload untouched');
@@ -555,20 +576,20 @@ Deno.test('#93: strongest shields compare capacity — 200 supersedes 100', () =
     timing: 'immediate',
     removable: true,
   });
-  applyInstance(b, stun(1));
-  const bigger = applyInstance(b, stun(2));
+  applyInstance(preview, stun(1));
+  const bigger = applyInstance(preview, stun(2));
   assertEquals(bigger.outcome, 'replaced', 'a 2-action stun beats a 1-action stun');
-  assertEquals(b.effectInstances.find((i) => i.kind === 'control')!.actions, 2);
-  const smaller = applyInstance(b, stun(1));
+  assertEquals(preview.effectInstances.find((instance) => instance.kind === 'control')!.actions, 2);
+  const smaller = applyInstance(preview, stun(1));
   assertEquals(smaller.outcome, 'ignored');
-  assertEquals(b.effectInstances.find((i) => i.kind === 'control')!.actions, 2);
+  assertEquals(preview.effectInstances.find((instance) => instance.kind === 'control')!.actions, 2);
 });
 
 Deno.test('#93: strongest is rejected for periodic effects', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   assertThrows(
     () =>
-      applyInstance(b, {
+      applyInstance(preview, {
         defId: 'probe:dot',
         name: 'Probe Rot',
         kind: 'periodic',
@@ -597,7 +618,7 @@ Deno.test('#93: content integrity — strongest is only authored on kinds with d
       );
     }
   };
-  for (const sk of SKILLS) check(`skill ${sk.id}`, sk.effects);
+  for (const skillDef of SKILLS) check(`skill ${skillDef.id}`, skillDef.effects);
   for (const it of ITEMS) {
     it.triggers?.forEach((tg, ti) => check(`item ${it.id} trigger ${ti}`, tg.effects));
   }
@@ -608,7 +629,7 @@ Deno.test('#93: content integrity — strongest is only authored on kinds with d
 });
 
 Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   // #101: the trace is a caller-owned plain array — no global sink.
   const events: CombatTraceEntry[] = [];
   const seed = (over: Partial<InstanceSeed>): InstanceSeed => ({
@@ -626,9 +647,9 @@ Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
     removable: true,
     ...over,
   });
-  applyInstance(b, seed({}), events);
-  applyInstance(b, seed({ pct: 0.1, name: 'Small', duration: 1 }), events);
-  applyInstance(b, seed({ pct: 0.1, duration: 6 }), events);
+  applyInstance(preview, seed({}), events);
+  applyInstance(preview, seed({ pct: 0.1, name: 'Small', duration: 1 }), events);
+  applyInstance(preview, seed({ pct: 0.1, duration: 6 }), events);
   assertEquals(events.length, 3, 'all three applications emitted');
   const [created, ignored, extended] = events as Extract<
     CombatTraceEntry,
@@ -646,7 +667,7 @@ Deno.test('#93: telemetry reports the outcome and the RETAINED payload', () => {
 });
 
 Deno.test('#108: cross-source provenance — retained vs attempted source per outcome', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
   const events: CombatTraceEntry[] = [];
   // Shared-identity saps (#90): every application lands on defId 'sap',
   // strongest wins — sources intentionally differ per application.
@@ -665,24 +686,24 @@ Deno.test('#108: cross-source provenance — retained vs attempted source per ou
     removable: true,
     ...over,
   });
-  applyInstance(b, sap({}), events); // strong from A
+  applyInstance(preview, sap({}), events); // strong from A
   applyInstance(
-    b,
+    preview,
     sap({ pct: -0.1, source: { kind: 'enemyMove', id: 'weak', name: 'Weak Sap' } }),
     events,
   ); // weaker from B — ignored
   applyInstance(
-    b,
+    preview,
     sap({ source: { kind: 'skill', id: 'eq', name: 'Equal Sap' } }),
     events,
   ); // equal from C — ignored
   applyInstance(
-    b,
+    preview,
     sap({ pct: -0.1, duration: 9, source: { kind: 'item', id: 'long', name: 'Long Sap' } }),
     events,
   ); // weaker-but-longer from D — extends
   applyInstance(
-    b,
+    preview,
     sap({ pct: -0.5, source: { kind: 'skill', id: 'uber', name: 'Uber Sap' } }),
     events,
   ); // stronger from E — replaces
@@ -723,12 +744,12 @@ Deno.test('#108: cross-source provenance — retained vs attempted source per ou
   );
   assertEquals(replaced.attemptedSource, 'skill:Uber Sap');
   // The live instance itself carries the winner's provenance.
-  assertEquals(b.effectInstances[0]!.source, { kind: 'skill', id: 'uber', name: 'Uber Sap' });
+  assertEquals(preview.effectInstances[0]!.source, { kind: 'skill', id: 'uber', name: 'Uber Sap' });
 });
 
 Deno.test('#108: source provenance survives a JSON round-trip of active effects', () => {
-  const b = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
-  applyInstance(b, {
+  const preview = previewBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' })!;
+  applyInstance(preview, {
     defId: 'sap',
     name: 'Sapped',
     kind: 'statmod',
@@ -746,7 +767,7 @@ Deno.test('#108: source provenance survives a JSON round-trip of active effects'
   // source provenance must survive stringify/parse verbatim. (JSON drops
   // explicit-undefined fields, so equality is asserted over what a save
   // actually stores: the source, identity and live payload.)
-  const restored = JSON.parse(JSON.stringify({ effectInstances: b.effectInstances })) as {
+  const restored = JSON.parse(JSON.stringify({ effectInstances: preview.effectInstances })) as {
     effectInstances: EffectInstance[];
   };
   assertEquals(restored.effectInstances.length, 1);
@@ -758,5 +779,5 @@ Deno.test('#108: source provenance survives a JSON round-trip of active effects'
   assertEquals(restored.effectInstances[0]!.defId, 'sap');
   assertEquals(restored.effectInstances[0]!.pct, -0.4);
   assertEquals(restored.effectInstances[0]!.remaining, 2);
-  assertEquals(restored.effectInstances[0]!.appliedRound, b.round);
+  assertEquals(restored.effectInstances[0]!.appliedRound, preview.round);
 });

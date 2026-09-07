@@ -26,38 +26,38 @@ import type { Condition, RouteDef, TravelEvent } from '../src/content/types.ts';
 // ── content integrity: the graph ─────────────────────────────────────────
 
 Deno.test('content integrity: route ids are unique and stable', () => {
-  const ids = new Set(ROUTES.map((r) => r.id));
+  const ids = new Set(ROUTES.map((routeDef) => routeDef.id));
   assertEquals(ids.size, ROUTES.length, 'route ids must be unique');
-  for (const r of ROUTES) {
-    assert(r.id.length > 0, 'route ids must be non-empty');
-    assertEquals(route(r.id), r, 'route(id) must resolve the catalog entry');
+  for (const routeDef of ROUTES) {
+    assert(routeDef.id.length > 0, 'route ids must be non-empty');
+    assertEquals(route(routeDef.id), routeDef, 'route(id) must resolve the catalog entry');
   }
 });
 
 Deno.test('content integrity: every route endpoint resolves to a real zone', () => {
-  for (const r of ROUTES) {
-    assert(zone(r.from), `route ${r.id} origin '${r.from}' is not a zone`);
-    assert(zone(r.to), `route ${r.id} destination '${r.to}' is not a zone`);
+  for (const routeDef of ROUTES) {
+    assert(zone(routeDef.from), `route ${routeDef.id} origin '${routeDef.from}' is not a zone`);
+    assert(zone(routeDef.to), `route ${routeDef.id} destination '${routeDef.to}' is not a zone`);
   }
 });
 
 Deno.test('content integrity: no self-edges and no duplicate directed edges', () => {
-  for (const r of ROUTES) {
-    assert(r.from !== r.to, `route ${r.id} is a self-edge`);
+  for (const routeDef of ROUTES) {
+    assert(routeDef.from !== routeDef.to, `route ${routeDef.id} is a self-edge`);
   }
-  const pairs = new Set(ROUTES.map((r) => `${r.from}>${r.to}`));
+  const pairs = new Set(ROUTES.map((routeDef) => `${routeDef.from}>${routeDef.to}`));
   assertEquals(pairs.size, ROUTES.length, 'duplicate directed edges are forbidden');
 });
 
 Deno.test('content integrity: the shipped graph is one weakly connected whole', () => {
   // Every current zone must participate in the authored progression graph:
   // reachability through DIRECTED edges from the starter village.
-  const adjacency = new Map(ROUTES.map((r) => [r.from, r.to]));
+  const adjacency = new Map(ROUTES.map((routeDef) => [routeDef.from, routeDef.to]));
   void adjacency;
   const out = new Map<string, Set<string>>();
-  for (const r of ROUTES) {
-    if (!out.has(r.from)) out.set(r.from, new Set());
-    out.get(r.from)!.add(r.to);
+  for (const routeDef of ROUTES) {
+    if (!out.has(routeDef.from)) out.set(routeDef.from, new Set());
+    out.get(routeDef.from)!.add(routeDef.to);
   }
   const seen = new Set<string>([STARTING_ZONES[0]!]);
   const queue = [STARTING_ZONES[0]!];
@@ -73,11 +73,11 @@ Deno.test('content integrity: the shipped graph is one weakly connected whole', 
   // The full directed walk may need reverse edges for backtracking; verify
   // every zone is on SOME path: weak connectivity (undirected reach).
   const undirected = new Map<string, Set<string>>();
-  for (const r of ROUTES) {
-    if (!undirected.has(r.from)) undirected.set(r.from, new Set());
-    if (!undirected.has(r.to)) undirected.set(r.to, new Set());
-    undirected.get(r.from)!.add(r.to);
-    undirected.get(r.to)!.add(r.from);
+  for (const routeDef of ROUTES) {
+    if (!undirected.has(routeDef.from)) undirected.set(routeDef.from, new Set());
+    if (!undirected.has(routeDef.to)) undirected.set(routeDef.to, new Set());
+    undirected.get(routeDef.from)!.add(routeDef.to);
+    undirected.get(routeDef.to)!.add(routeDef.from);
   }
   const weak = new Set<string>([STARTING_ZONES[0]!]);
   const wq = [STARTING_ZONES[0]!];
@@ -90,8 +90,8 @@ Deno.test('content integrity: the shipped graph is one weakly connected whole', 
       }
     }
   }
-  for (const z of ZONES) {
-    assert(weak.has(z.id), `zone ${z.id} is disconnected from the world graph`);
+  for (const zoneDef of ZONES) {
+    assert(weak.has(zoneDef.id), `zone ${zoneDef.id} is disconnected from the world graph`);
   }
   // And the full chain must be walkable in one direction for the story:
   // every zone must be reachable from the village through authored edges
@@ -99,10 +99,10 @@ Deno.test('content integrity: the shipped graph is one weakly connected whole', 
   // not. (Backtracking edges exist, so undirected reach + bidirectional
   // chain coverage is what content guarantees; the progression test pins
   // story-stage reachability through real unlocks.)
-  for (const z of ZONES) {
-    const reachesBack = routesBetween(z.id, STARTING_ZONES[0]!).length > 0 ||
-      walkExists(z.id, STARTING_ZONES[0]!);
-    assert(reachesBack, `zone ${z.id} has no authored way back toward home`);
+  for (const zoneDef of ZONES) {
+    const reachesBack = routesBetween(zoneDef.id, STARTING_ZONES[0]!).length > 0 ||
+      walkExists(zoneDef.id, STARTING_ZONES[0]!);
+    assert(reachesBack, `zone ${zoneDef.id} has no authored way back toward home`);
   }
 
   function walkExists(fromId: string, toId: string): boolean {
@@ -124,35 +124,41 @@ Deno.test('content integrity: the shipped graph is one weakly connected whole', 
 
 // ── content integrity: event plans ───────────────────────────────────────
 
-function effectiveTable(r: RouteDef, events?: TravelEvent[]): TravelEvent[] {
-  return events ?? r.events ?? [];
+function effectiveTable(routeDef: RouteDef, events?: TravelEvent[]): TravelEvent[] {
+  return events ?? routeDef.events ?? [];
 }
 
 Deno.test('content integrity: event counts are finite non-negative integers', () => {
-  for (const r of ROUTES) {
-    assert(Number.isInteger(r.eventCount), `route ${r.id}: eventCount must be an integer`);
-    assert(r.eventCount >= 0, `route ${r.id}: eventCount must be non-negative`);
-    for (const v of r.variants ?? []) {
-      assert(Number.isInteger(v.eventCount), `variant ${v.id}: eventCount must be an integer`);
-      assert(v.eventCount >= 0, `variant ${v.id}: eventCount must be non-negative`);
+  for (const routeDef of ROUTES) {
+    assert(
+      Number.isInteger(routeDef.eventCount),
+      `route ${routeDef.id}: eventCount must be an integer`,
+    );
+    assert(routeDef.eventCount >= 0, `route ${routeDef.id}: eventCount must be non-negative`);
+    for (const variant of routeDef.variants ?? []) {
+      assert(
+        Number.isInteger(variant.eventCount),
+        `variant ${variant.id}: eventCount must be an integer`,
+      );
+      assert(variant.eventCount >= 0, `variant ${variant.id}: eventCount must be non-negative`);
     }
   }
 });
 
 Deno.test('content integrity: a nonzero event count resolves to a non-empty table', () => {
-  for (const r of ROUTES) {
-    if (r.eventCount > 0) {
+  for (const routeDef of ROUTES) {
+    if (routeDef.eventCount > 0) {
       assert(
-        (r.events ?? []).length > 0,
-        `route ${r.id}: nonzero eventCount requires a non-empty events table`,
+        (routeDef.events ?? []).length > 0,
+        `route ${routeDef.id}: nonzero eventCount requires a non-empty events table`,
       );
     }
-    for (const v of r.variants ?? []) {
-      const table = effectiveTable(r, v.events);
-      if (v.eventCount > 0) {
+    for (const variant of routeDef.variants ?? []) {
+      const table = effectiveTable(routeDef, variant.events);
+      if (variant.eventCount > 0) {
         assert(
           table.length > 0,
-          `variant ${v.id}: nonzero eventCount requires a non-empty table (own or base)`,
+          `variant ${variant.id}: nonzero eventCount requires a non-empty table (own or base)`,
         );
       }
     }
@@ -160,13 +166,16 @@ Deno.test('content integrity: a nonzero event count resolves to a non-empty tabl
 });
 
 Deno.test('content integrity: event weights are finite and positive', () => {
-  for (const r of ROUTES) {
-    for (const e of r.events ?? []) {
-      assert(Number.isFinite(e.weight) && e.weight > 0, `route ${r.id}: bad weight`);
+  for (const routeDef of ROUTES) {
+    for (const event of routeDef.events ?? []) {
+      assert(Number.isFinite(event.weight) && event.weight > 0, `route ${routeDef.id}: bad weight`);
     }
-    for (const v of r.variants ?? []) {
-      for (const e of v.events ?? []) {
-        assert(Number.isFinite(e.weight) && e.weight > 0, `variant ${v.id}: bad weight`);
+    for (const variant of routeDef.variants ?? []) {
+      for (const event of variant.events ?? []) {
+        assert(
+          Number.isFinite(event.weight) && event.weight > 0,
+          `variant ${variant.id}: bad weight`,
+        );
       }
     }
   }
@@ -176,20 +185,20 @@ Deno.test('content integrity: every route table keeps at least one non-hostile e
   // Level-locked battles can roll out of a table at any time; the
   // non-hostile remainder is what guarantees the road never becomes
   // mandatory combat.
-  const hostile = (e: TravelEvent): boolean => e.kind === 'battle';
-  for (const r of ROUTES) {
-    if ((r.events ?? []).length > 0) {
+  const hostile = (event: TravelEvent): boolean => event.kind === 'battle';
+  for (const routeDef of ROUTES) {
+    if ((routeDef.events ?? []).length > 0) {
       assert(
-        (r.events ?? []).some((e) => !hostile(e)),
-        `route ${r.id}: table must keep a quiet/beneficial entry`,
+        (routeDef.events ?? []).some((event) => !hostile(event)),
+        `route ${routeDef.id}: table must keep a quiet/beneficial entry`,
       );
     }
-    for (const v of r.variants ?? []) {
-      const table = effectiveTable(r, v.events);
+    for (const variant of routeDef.variants ?? []) {
+      const table = effectiveTable(routeDef, variant.events);
       if (table.length > 0) {
         assert(
-          table.some((e) => !hostile(e)),
-          `variant ${v.id}: table must keep a quiet/beneficial entry`,
+          table.some((event) => !hostile(event)),
+          `variant ${variant.id}: table must keep a quiet/beneficial entry`,
         );
       }
     }
@@ -197,26 +206,35 @@ Deno.test('content integrity: every route table keeps at least one non-hostile e
 });
 
 Deno.test('content integrity: battle events are ordinary and fleeable — no bosses, no elite kind', () => {
-  for (const r of ROUTES) {
-    for (const e of r.events ?? []) {
-      if (e.kind === 'battle') {
-        const def = enemy(e.enemy);
-        assert(def, `route ${r.id}: unknown battle enemy ${e.enemy}`);
-        assert(!def!.boss, `route ${r.id}: boss enemy ${e.enemy} must not hide in a road`);
-        if (e.minPlayerLevel !== undefined) {
-          assert(e.minPlayerLevel >= 1, `route ${r.id}: bad minPlayerLevel`);
+  for (const routeDef of ROUTES) {
+    for (const event of routeDef.events ?? []) {
+      if (event.kind === 'battle') {
+        const def = enemy(event.enemy);
+        assert(def, `route ${routeDef.id}: unknown battle enemy ${event.enemy}`);
+        assert(
+          !def!.boss,
+          `route ${routeDef.id}: boss enemy ${event.enemy} must not hide in a road`,
+        );
+        if (event.minPlayerLevel !== undefined) {
+          assert(event.minPlayerLevel >= 1, `route ${routeDef.id}: bad minPlayerLevel`);
         }
-        if (e.maxPlayerLevel !== undefined) {
-          assert(e.maxPlayerLevel >= (e.minPlayerLevel ?? 1), `route ${r.id}: bad level band`);
+        if (event.maxPlayerLevel !== undefined) {
+          assert(
+            event.maxPlayerLevel >= (event.minPlayerLevel ?? 1),
+            `route ${routeDef.id}: bad level band`,
+          );
         }
       }
     }
-    for (const v of r.variants ?? []) {
-      for (const e of v.events ?? []) {
-        if (e.kind === 'battle') {
-          const def = enemy(e.enemy);
-          assert(def, `variant ${v.id}: unknown battle enemy ${e.enemy}`);
-          assert(!def!.boss, `variant ${v.id}: boss enemy ${e.enemy} must not hide in a road`);
+    for (const variant of routeDef.variants ?? []) {
+      for (const event of variant.events ?? []) {
+        if (event.kind === 'battle') {
+          const def = enemy(event.enemy);
+          assert(def, `variant ${variant.id}: unknown battle enemy ${event.enemy}`);
+          assert(
+            !def!.boss,
+            `variant ${variant.id}: boss enemy ${event.enemy} must not hide in a road`,
+          );
         }
       }
     }
@@ -224,18 +242,26 @@ Deno.test('content integrity: battle events are ordinary and fleeable — no bos
 });
 
 Deno.test('content integrity: treasure items and contextual drop references resolve', () => {
-  for (const r of ROUTES) {
-    for (const e of r.events ?? []) {
-      if (e.kind === 'treasure') {
-        if (e.item) assert(item(e.item), `route ${r.id}: unknown treasure item ${e.item}`);
-        if (e.dropTable) assert(dropTable(e.dropTable), `route ${r.id}: unknown drop table`);
+  for (const routeDef of ROUTES) {
+    for (const event of routeDef.events ?? []) {
+      if (event.kind === 'treasure') {
+        if (event.item) {
+          assert(item(event.item), `route ${routeDef.id}: unknown treasure item ${event.item}`);
+        }
+        if (event.dropTable) {
+          assert(dropTable(event.dropTable), `route ${routeDef.id}: unknown drop table`);
+        }
       }
     }
-    for (const v of r.variants ?? []) {
-      for (const e of v.events ?? []) {
-        if (e.kind === 'treasure') {
-          if (e.item) assert(item(e.item), `variant ${v.id}: unknown treasure item ${e.item}`);
-          if (e.dropTable) assert(dropTable(e.dropTable), `variant ${v.id}: unknown drop table`);
+    for (const variant of routeDef.variants ?? []) {
+      for (const event of variant.events ?? []) {
+        if (event.kind === 'treasure') {
+          if (event.item) {
+            assert(item(event.item), `variant ${variant.id}: unknown treasure item ${event.item}`);
+          }
+          if (event.dropTable) {
+            assert(dropTable(event.dropTable), `variant ${variant.id}: unknown drop table`);
+          }
         }
       }
     }
@@ -243,78 +269,94 @@ Deno.test('content integrity: treasure items and contextual drop references reso
 });
 
 Deno.test('content integrity: drop tables are non-empty, bounded and reference real items', () => {
-  const ids = new Set(DROP_TABLES.map((t) => t.id));
+  const ids = new Set(DROP_TABLES.map((dropTable) => dropTable.id));
   assertEquals(ids.size, DROP_TABLES.length, 'drop table ids must be unique');
-  for (const t of DROP_TABLES) {
-    assert(t.entries.length > 0, `drop table ${t.id} is empty`);
-    assert(t.entries.length <= 16, `drop table ${t.id} is unbounded`);
-    for (const e of t.entries) {
-      assert(item(e.item), `drop table ${t.id} references unknown item ${e.item}`);
+  for (const dropTable of DROP_TABLES) {
+    assert(dropTable.entries.length > 0, `drop table ${dropTable.id} is empty`);
+    assert(dropTable.entries.length <= 16, `drop table ${dropTable.id} is unbounded`);
+    for (const drop of dropTable.entries) {
+      assert(item(drop.item), `drop table ${dropTable.id} references unknown item ${drop.item}`);
       assert(
-        Number.isFinite(e.chance) && e.chance > 0 && e.chance <= 1,
-        `drop table ${t.id}: entry chance out of (0,1]`,
+        Number.isFinite(drop.chance) && drop.chance > 0 && drop.chance <= 1,
+        `drop table ${dropTable.id}: entry chance out of (0,1]`,
       );
-      if (e.qty !== undefined) {
-        assert(Number.isInteger(e.qty) && e.qty >= 1, `drop table ${t.id}: bad qty`);
+      if (drop.qty !== undefined) {
+        assert(Number.isInteger(drop.qty) && drop.qty >= 1, `drop table ${dropTable.id}: bad qty`);
       }
     }
   }
 });
 
 Deno.test('content integrity: zone loot tables resolve', () => {
-  for (const z of ZONES) {
-    if (z.lootTable) assert(dropTable(z.lootTable), `zone ${z.id}: unknown loot table`);
+  for (const zoneDef of ZONES) {
+    if (zoneDef.lootTable) {
+      assert(dropTable(zoneDef.lootTable), `zone ${zoneDef.id}: unknown loot table`);
+    }
   }
 });
 
 Deno.test('content integrity: every referenced condition identity resolves', () => {
-  const crawl = (owner: string, c: NonNullable<RouteDef['when']>): void => {
-    const refs = conditionRefs(c);
-    for (const q of refs.quests) {
-      assert(quest(q), `${owner}: condition references unknown quest ${q}`);
+  const crawl = (owner: string, condition: NonNullable<RouteDef['when']>): void => {
+    const refs = conditionRefs(condition);
+    for (const questId of refs.quests) {
+      assert(quest(questId), `${owner}: condition references unknown quest ${questId}`);
     }
-    for (const i of refs.items) assert(item(i), `${owner}: condition references unknown item ${i}`);
-    for (const z of refs.zones) assert(zone(z), `${owner}: condition references unknown zone ${z}`);
+    for (const itemId of refs.items) {
+      assert(item(itemId), `${owner}: condition references unknown item ${itemId}`);
+    }
+    for (const zoneId of refs.zones) {
+      assert(zone(zoneId), `${owner}: condition references unknown zone ${zoneId}`);
+    }
   };
-  for (const r of ROUTES) {
-    if (r.when) crawl(`route ${r.id}`, r.when);
-    for (const v of r.variants ?? []) {
-      if (v.when) crawl(`variant ${v.id}`, v.when);
+  for (const routeDef of ROUTES) {
+    if (routeDef.when) crawl(`route ${routeDef.id}`, routeDef.when);
+    for (const variant of routeDef.variants ?? []) {
+      if (variant.when) crawl(`variant ${variant.id}`, variant.when);
     }
   }
 });
 
 Deno.test('content integrity: variant ids are unique within their route', () => {
-  for (const r of ROUTES) {
-    const ids = new Set((r.variants ?? []).map((v) => v.id));
-    assertEquals(ids.size, (r.variants ?? []).length, `route ${r.id}: duplicate variant ids`);
+  for (const routeDef of ROUTES) {
+    const ids = new Set((routeDef.variants ?? []).map((variant) => variant.id));
+    assertEquals(
+      ids.size,
+      (routeDef.variants ?? []).length,
+      `route ${routeDef.id}: duplicate variant ids`,
+    );
   }
 });
 
 Deno.test('content integrity: risk descriptors use the authored vocabulary (#164)', () => {
   const KNOWN = new Set(['sheltered', 'mild', 'wild', 'perilous']);
-  for (const r of ROUTES) {
-    if (r.risk !== undefined) assert(KNOWN.has(r.risk), `route ${r.id}: unknown risk ${r.risk}`);
-    for (const v of r.variants ?? []) {
-      if (v.risk !== undefined) assert(KNOWN.has(v.risk), `variant ${v.id}: unknown risk`);
+  for (const routeDef of ROUTES) {
+    if (routeDef.risk !== undefined) {
+      assert(KNOWN.has(routeDef.risk), `route ${routeDef.id}: unknown risk ${routeDef.risk}`);
+    }
+    for (const variant of routeDef.variants ?? []) {
+      if (variant.risk !== undefined) {
+        assert(KNOWN.has(variant.risk), `variant ${variant.id}: unknown risk`);
+      }
     }
   }
   // Every nonzero-event road carries a risk descriptor: the travel view
   // never shows a bare count without its authored characterization.
-  for (const r of ROUTES) {
-    if (r.eventCount > 0) assert(r.risk !== undefined, `route ${r.id} lacks risk metadata`);
+  for (const routeDef of ROUTES) {
+    if (routeDef.eventCount > 0) {
+      assert(routeDef.risk !== undefined, `route ${routeDef.id} lacks risk metadata`);
+    }
   }
 });
 
 Deno.test('content integrity: starter-region routes carry zero forced events', () => {
-  for (const r of ROUTES) {
-    if (STARTING_ZONES.includes(r.from) && STARTING_ZONES.includes(r.to)) {
+  for (const routeDef of ROUTES) {
+    if (STARTING_ZONES.includes(routeDef.from) && STARTING_ZONES.includes(routeDef.to)) {
       const fresh = createPlayer(1, 'Fresh', 'warrior');
-      const plan = resolveRoute(fresh, r);
+      const plan = resolveRoute(fresh, routeDef);
       assertEquals(
         plan.eventCount,
         0,
-        `starter route ${r.id} must have zero forced events`,
+        `starter route ${routeDef.id} must have zero forced events`,
       );
     }
   }
@@ -323,36 +365,36 @@ Deno.test('content integrity: starter-region routes carry zero forced events', (
 // ── resolution helpers ───────────────────────────────────────────────────
 
 function playerWith(zones: string[], currentZone: string, flags: Record<string, unknown> = {}) {
-  const p = createPlayer(1, 'Walker', 'warrior');
-  p.unlockedZones = [...zones];
-  p.currentZone = currentZone;
-  for (const [k, v] of Object.entries(flags)) {
-    (p.flags as Record<string, unknown>)[k] = v;
+  const player = createPlayer(1, 'Walker', 'warrior');
+  player.unlockedZones = [...zones];
+  player.currentZone = currentZone;
+  for (const [flagId, flagValue] of Object.entries(flags)) {
+    (player.flags as Record<string, unknown>)[flagId] = flagValue;
   }
-  return p;
+  return player;
 }
 
 Deno.test('usableRoutesFrom enumerates adjacency + unlocks, never every unlocked zone', () => {
-  const p = playerWith(['emberdawn', 'outskirts', 'whisperwood', 'hollowmere'], 'outskirts');
-  const ids = usableRoutesFrom(p).map((r) => r.id);
+  const player = playerWith(['emberdawn', 'outskirts', 'whisperwood', 'hollowmere'], 'outskirts');
+  const ids = usableRoutesFrom(player).map((routeDef) => routeDef.id);
   // Adjacent edges only — hollowmere is unlocked but NOT adjacent.
   assertEquals(new Set(ids), new Set(['w_outskirts_emberdawn', 'w_outskirts_whisperwood']));
   // From emberdawn only one edge exists.
   const p2 = playerWith(['emberdawn', 'outskirts'], 'emberdawn');
-  assertEquals(usableRoutesFrom(p2).map((r) => r.id), ['w_emberdawn_outskirts']);
+  assertEquals(usableRoutesFrom(p2).map((routeDef) => routeDef.id), ['w_emberdawn_outskirts']);
 });
 
 Deno.test('usableRoutesFrom hides a locked destination even when adjacent', () => {
-  const p = playerWith(['emberdawn', 'outskirts'], 'outskirts');
+  const player = playerWith(['emberdawn', 'outskirts'], 'outskirts');
   // whisperwood unlocked? no — only the route to emberdawn may show.
-  const ids = usableRoutesFrom(p).map((r) => r.id);
+  const ids = usableRoutesFrom(player).map((routeDef) => routeDef.id);
   assertEquals(ids, ['w_outskirts_emberdawn']);
 });
 
 Deno.test('resolveRoute: authored variant order, first match, base fallback', () => {
-  const p = playerWith(['emberdawn'], 'emberdawn');
+  const player = playerWith(['emberdawn'], 'emberdawn');
   // m7_tyrant not done → base plan (2 events, hostile-heavy).
-  const base = resolveRouteById(p, 'w_whisperwood_hollowmere')!;
+  const base = resolveRouteById(player, 'w_whisperwood_hollowmere')!;
   assertEquals(base.variantId, 'base');
   assertEquals(base.eventCount, 2);
   assert(base.events.length > 0);
@@ -366,22 +408,22 @@ Deno.test('resolveRoute: authored variant order, first match, base fallback', ()
   // The secured variant's table replaces the base table entirely.
   assert(quiet.events !== base.events);
   // A variant-less route always resolves to its base plan.
-  const plain = resolveRoute(p, route('w_outskirts_whisperwood')!);
+  const plain = resolveRoute(player, route('w_outskirts_whisperwood')!);
   assertEquals(plain.variantId, 'base');
   assertEquals(plain.eventCount, 0);
 });
 
 Deno.test('routeUsable refuses a usable-only-by-name plan (conditions + empty tables)', () => {
-  const p = playerWith(['emberdawn', 'outskirts', 'hollowmere'], 'outskirts');
-  for (const r of usableRoutesFrom(p)) assert(routeUsable(p, r));
+  const player = playerWith(['emberdawn', 'outskirts', 'hollowmere'], 'outskirts');
+  for (const routeDef of usableRoutesFrom(player)) assert(routeUsable(player, routeDef));
   // An unlocked but non-adjacent zone never appears.
-  const names = usableRoutesFrom(p).map((r) => r.to);
+  const names = usableRoutesFrom(player).map((routeDef) => routeDef.to);
   assert(!names.includes('hollowmere'));
 });
 
 Deno.test('resolveRouteById: unknown edge id resolves to undefined', () => {
-  const p = playerWith(['emberdawn'], 'emberdawn');
-  assertEquals(resolveRouteById(p, 'w_nope_nada'), undefined);
+  const player = playerWith(['emberdawn'], 'emberdawn');
+  assertEquals(resolveRouteById(player, 'w_nope_nada'), undefined);
 });
 
 // ── the departure authority (#168) ───────────────────────────────────────
@@ -394,15 +436,15 @@ Deno.test('departureCheck: a false top-level route condition refuses; truth open
   const edgeAny = edge as typeof edge & { when?: Condition };
   edgeAny.when = { flag: { id: 'road_gate_open' } };
   try {
-    const p = playerWith(['emberdawn', 'outskirts', 'whisperwood'], 'outskirts');
+    const player = playerWith(['emberdawn', 'outskirts', 'whisperwood'], 'outskirts');
     // The gate is closed: enumeration, usability and departure all refuse.
-    assertEquals(routeUsable(p, edge), false);
+    assertEquals(routeUsable(player, edge), false);
     assertEquals(
-      usableRoutesFrom(p).map((r) => r.id),
+      usableRoutesFrom(player).map((routeDef) => routeDef.id),
       ['w_outskirts_emberdawn'],
       'the gated road never even displays',
     );
-    const closed = departureCheck(p, 'w_outskirts_whisperwood');
+    const closed = departureCheck(player, 'w_outskirts_whisperwood');
     assertEquals(closed.ok, false);
     assert(closed.ok === false && closed.refusal.includes('closed'));
     // And it opens the moment the live condition turns true.
@@ -413,7 +455,7 @@ Deno.test('departureCheck: a false top-level route condition refuses; truth open
     );
     const ready = departureCheck(open, 'w_outskirts_whisperwood');
     assert(ready.ok, 'the same road departs once its condition passes');
-    assertEquals(usableRoutesFrom(open).map((r) => r.id), [
+    assertEquals(usableRoutesFrom(open).map((routeDef) => routeDef.id), [
       'w_outskirts_emberdawn',
       'w_outskirts_whisperwood',
     ]);
@@ -424,15 +466,15 @@ Deno.test('departureCheck: a false top-level route condition refuses; truth open
 });
 
 Deno.test('departureCheck: one authority for identity, origin, unlock and plan', () => {
-  const p = playerWith(['emberdawn', 'outskirts'], 'outskirts');
-  const unknown = departureCheck(p, 'w_nope_nada');
+  const player = playerWith(['emberdawn', 'outskirts'], 'outskirts');
+  const unknown = departureCheck(player, 'w_nope_nada');
   assert(!unknown.ok && unknown.refusal.includes("can't find a road"));
-  const foreign = departureCheck(p, 'w_whisperwood_outskirts');
+  const foreign = departureCheck(player, 'w_whisperwood_outskirts');
   assert(!foreign.ok && foreign.refusal.includes('does not start here'));
-  const locked = departureCheck(p, 'w_outskirts_whisperwood');
+  const locked = departureCheck(player, 'w_outskirts_whisperwood');
   assert(!locked.ok && locked.refusal.includes('closed'), 'destination lock refused');
   // Every enumerated route passes the same check that startJourney applies.
-  for (const r of usableRoutesFrom(p)) assert(departureCheck(p, r.id).ok);
+  for (const routeDef of usableRoutesFrom(player)) assert(departureCheck(player, routeDef.id).ok);
 });
 
 // ── deterministic fixtures ───────────────────────────────────────────────
@@ -440,17 +482,17 @@ Deno.test('departureCheck: one authority for identity, origin, unlock and plan',
 /** Hostile weight share of a plan: the probability a roll is an ordinary
  * battle (before level gating). */
 function hostileShare(plan: { events: readonly TravelEvent[] }): number {
-  const total = plan.events.reduce((a, e) => a + e.weight, 0);
+  const total = plan.events.reduce((totalWeight, event) => totalWeight + event.weight, 0);
   const hostile = plan.events
-    .filter((e) => e.kind === 'battle')
-    .reduce((a, e) => a + e.weight, 0);
+    .filter((event) => event.kind === 'battle')
+    .reduce((totalWeight, event) => totalWeight + event.weight, 0);
   return total > 0 ? hostile / total : 0;
 }
 
 Deno.test('fixture: two same-count edges carry materially different distributions', () => {
-  const p = playerWith(['sunspire', 'frostpeak'], 'sunspire');
-  const up = resolveRoute(p, route('w_sunspire_frostpeak')!);
-  const down = resolveRoute(p, route('w_frostpeak_sunspire')!);
+  const player = playerWith(['sunspire', 'frostpeak'], 'sunspire');
+  const up = resolveRoute(player, route('w_sunspire_frostpeak')!);
+  const down = resolveRoute(player, route('w_frostpeak_sunspire')!);
   assertEquals(up.eventCount, down.eventCount, 'fixture requires equal counts');
   const upShare = hostileShare(up);
   const downShare = hostileShare(down);
@@ -466,9 +508,9 @@ Deno.test('fixture: two same-count edges carry materially different distribution
 });
 
 Deno.test('fixture: asymmetric reciprocal edges (counts differ by direction)', () => {
-  const p = playerWith(['whisperwood', 'hollowmere'], 'whisperwood');
-  const out = resolveRoute(p, route('w_whisperwood_hollowmere')!);
-  const back = resolveRoute(p, route('w_hollowmere_whisperwood')!);
+  const player = playerWith(['whisperwood', 'hollowmere'], 'whisperwood');
+  const out = resolveRoute(player, route('w_whisperwood_hollowmere')!);
+  const back = resolveRoute(player, route('w_hollowmere_whisperwood')!);
   assertEquals(out.eventCount, 2);
   assertEquals(back.eventCount, 1);
 });
@@ -504,20 +546,20 @@ Deno.test('rollDropTable: deterministic under a seeded rng, empty for unknown ta
 });
 
 Deno.test('rollDropTable: never grants beyond the authored qty', () => {
-  for (const t of DROP_TABLES) {
+  for (const dropTable of DROP_TABLES) {
     for (let seed = 0; seed < 50; seed++) {
       const rng = (() => {
-        let a = seed * 2654435761;
+        let state = seed * 2654435761;
         return () => {
-          a = (a + 0x6d2b79f5) | 0;
-          let x = Math.imul(a ^ (a >>> 15), 1 | a);
-          x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-          return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+          state = (state + 0x6d2b79f5) | 0;
+          let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+          mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+          return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
         };
       })();
-      for (const d of rollDropTable(t.id, rng)) {
-        const authored = t.entries.find((e) => e.item === d.item)!;
-        assertEquals(d.qty, authored.qty ?? 1);
+      for (const drop of rollDropTable(dropTable.id, rng)) {
+        const authored = dropTable.entries.find((authoredDrop) => authoredDrop.item === drop.item)!;
+        assertEquals(drop.qty, authored.qty ?? 1);
       }
     }
   }
@@ -528,7 +570,9 @@ Deno.test('content integrity: routes never inherit a zone explore table (distinc
   // ZoneDef.explore for crossings. Structural pin: the route event kinds
   // are their own closed union — flavor/battle/treasure/rest — never a
   // passthrough of the exploration vocabulary.
-  const kinds = new Set(ROUTES.flatMap((r) => (r.events ?? []).map((e) => e.kind)));
+  const kinds = new Set(
+    ROUTES.flatMap((routeDef) => (routeDef.events ?? []).map((event) => event.kind)),
+  );
   assertEquals(
     [...kinds].sort(),
     ['battle', 'flavor', 'rest', 'treasure'],
@@ -536,10 +580,10 @@ Deno.test('content integrity: routes never inherit a zone explore table (distinc
   );
   // And the zone-side integrity stays intact: every explore event still
   // references real content (the same rule the zone tests pin).
-  for (const z of ZONES) {
-    for (const ev of z.explore) {
-      if (ev.kind === 'battle' || ev.kind === 'elite') {
-        assert(enemy(ev.enemy), `zone ${z.id}: unknown explore enemy ${ev.enemy}`);
+  for (const zoneDef of ZONES) {
+    for (const event of zoneDef.explore) {
+      if (event.kind === 'battle' || event.kind === 'elite') {
+        assert(enemy(event.enemy), `zone ${zoneDef.id}: unknown explore enemy ${event.enemy}`);
       }
     }
   }
@@ -547,9 +591,15 @@ Deno.test('content integrity: routes never inherit a zone explore table (distinc
 
 Deno.test('content integrity: route ids never collide with route helper lookups', () => {
   // routesFrom/routesBetween agreement with the catalog.
-  for (const r of ROUTES) {
-    assert(routesFrom(r.from).includes(r), `routesFrom(${r.from}) must include ${r.id}`);
-    assert(routesBetween(r.from, r.to).includes(r), `routesBetween must include ${r.id}`);
+  for (const routeDef of ROUTES) {
+    assert(
+      routesFrom(routeDef.from).includes(routeDef),
+      `routesFrom(${routeDef.from}) must include ${routeDef.id}`,
+    );
+    assert(
+      routesBetween(routeDef.from, routeDef.to).includes(routeDef),
+      `routesBetween must include ${routeDef.id}`,
+    );
   }
 });
 
@@ -559,23 +609,25 @@ Deno.test('world topology: the authoring map matches the shipped catalog (#163)'
   // docs/world-topology.md is a maintained authoring map, not a second
   // mechanics source — its mechanical facts are test-checked here.
   const doc = await Deno.readTextFile(new URL('../docs/world-topology.md', import.meta.url));
-  const zones = new Set(ZONES.map((z) => z.id));
+  const zones = new Set(ZONES.map((zoneDef) => zoneDef.id));
   // Every zone and every route id appears in the documented map (by name
   // or road id), so the doc cannot silently lag the world.
-  for (const z of ZONES) {
-    assert(doc.includes(z.name), `the topology map never names ${z.name}`);
+  for (const zoneDef of ZONES) {
+    assert(doc.includes(zoneDef.name), `the topology map never names ${zoneDef.name}`);
   }
   // The documented haven/facility matrix matches the catalog.
-  const havens = ZONES.filter((z) => z.safeHaven).map((z) => z.id);
+  const havens = ZONES.filter((zoneDef) => zoneDef.safeHaven).map((zoneDef) => zoneDef.id);
   assertEquals(havens.sort(), ['emberdawn', 'mirefoot'], 'the map documents exactly these havens');
   assert(doc.includes('Mirefoot Landing') && doc.includes('forge only') === false);
-  const shopZones = ZONES.filter((z) => z.services?.shop).map((z) => z.id).sort();
+  const shopZones = ZONES.filter((zoneDef) => zoneDef.services?.shop).map((zoneDef) => zoneDef.id)
+    .sort();
   assertEquals(
     shopZones,
     ['cinder', 'emberdawn', 'frostpeak', 'hollowmere', 'sunspire'],
     'five authored shops across the map',
   );
-  const forgeZones = ZONES.filter((z) => z.services?.forge).map((z) => z.id).sort();
+  const forgeZones = ZONES.filter((zoneDef) => zoneDef.services?.forge).map((zoneDef) => zoneDef.id)
+    .sort();
   assertEquals(forgeZones, ['cinder', 'emberdawn', 'mirefoot'], 'three authored forges');
   // The starter region and the Descent's exceptional count are documented.
   assert(doc.includes('zero-event'), 'starter roads are documented as zero-event');
@@ -587,37 +639,37 @@ Deno.test('world topology: road tables keep meaningful quiet/beneficial room (#1
   // "Random event" must never become a euphemism for mandatory combat:
   // every nonzero-event table keeps at least a quarter of its weight
   // non-hostile (level-gated battles excluded from the promise).
-  for (const r of ROUTES) {
-    const tables: TravelEvent[][] = [r.events ?? []];
-    for (const v of r.variants ?? []) {
-      if ((v.events ?? r.events ?? []).length > 0 && (v.eventCount ?? 0) > 0) {
-        tables.push(v.events ?? r.events ?? []);
+  for (const routeDef of ROUTES) {
+    const tables: TravelEvent[][] = [routeDef.events ?? []];
+    for (const variant of routeDef.variants ?? []) {
+      if ((variant.events ?? routeDef.events ?? []).length > 0 && (variant.eventCount ?? 0) > 0) {
+        tables.push(variant.events ?? routeDef.events ?? []);
       }
     }
     for (const table of tables) {
       if (table.length === 0) continue;
-      const total = table.reduce((a, e) => a + e.weight, 0);
+      const total = table.reduce((totalWeight, event) => totalWeight + event.weight, 0);
       const hostile = table
-        .filter((e) => e.kind === 'battle')
-        .reduce((a, e) => a + e.weight, 0);
+        .filter((event) => event.kind === 'battle')
+        .reduce((totalWeight, event) => totalWeight + event.weight, 0);
       const quiet = (total - hostile) / total;
       assert(
         quiet >= 0.25,
-        `${r.id}: only ${(quiet * 100).toFixed(0)}% of the road is non-hostile`,
+        `${routeDef.id}: only ${(quiet * 100).toFixed(0)}% of the road is non-hostile`,
       );
     }
   }
 });
 
 Deno.test('world topology: a quest-secured road can drop to a zero-event crossing (#163)', () => {
-  const p = createPlayer(1660, 'Trader', 'warrior');
-  p.level = 20;
-  p.unlockedZones.push('sunspire', 'hollowmere');
-  p.currentZone = 'sunspire';
+  const player = createPlayer(1660, 'Trader', 'warrior');
+  player.level = 20;
+  player.unlockedZones.push('sunspire', 'hollowmere');
+  player.currentZone = 'sunspire';
   const edge = route('w_sunspire_hollowmere')!;
-  assertEquals(resolveRoute(p, edge).eventCount, 1, 'the patrolled descent rolls');
-  p.quests['m10_cult'] = { status: 'done', counts: [8] };
-  const plan = resolveRoute(p, edge);
+  assertEquals(resolveRoute(player, edge).eventCount, 1, 'the patrolled descent rolls');
+  player.quests['m10_cult'] = { status: 'done', counts: [8] };
+  const plan = resolveRoute(player, edge);
   assertEquals(plan.variantId, 'v_sun_road_open');
   assertEquals(plan.eventCount, 0, 'caravans run: a zero-event secured road');
   assertEquals(plan.risk, 'sheltered');

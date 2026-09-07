@@ -32,7 +32,7 @@ async function tap(
 }
 
 /** /start → pick warrior → apply direct mutations and save. */
-async function startWarrior(mutate: (p: PlayerState) => void) {
+async function startWarrior(mutate: (player: PlayerState) => void) {
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
@@ -54,13 +54,13 @@ Deno.test('class pick creates a character and shows the zone hub', async () => {
   const { user, store } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:mage');
-  const p = await store.get(4242);
-  assert(p, 'player should be created');
-  assertEquals(p.classId, 'mage');
-  assertEquals(p.scene.view, 'zone');
-  assertEquals(p.name, 'Tester');
+  const player = await store.get(4242);
+  assert(player, 'player should be created');
+  assertEquals(player.classId, 'mage');
+  assertEquals(player.scene.view, 'zone');
+  assertEquals(player.name, 'Tester');
   // starting gear equipped
-  assert(p.equipment.weapon === 'w_mage_1');
+  assert(player.equipment.weapon === 'w_mage_1');
 });
 
 Deno.test('exploring can start battles; battles resolve; zone view returns', async () => {
@@ -72,15 +72,15 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
   await tap(store, user, 't:go:w_emberdawn_outskirts');
   // Explore until a battle starts (weighted tables guarantee battles often).
   let started = false;
-  for (let i = 0; i < 30 && !started; i++) {
+  for (let exploreAttempt = 0; exploreAttempt < 30 && !started; exploreAttempt++) {
     await tap(store, user, 'z:ex');
-    const p = (await store.get(4242))!;
-    started = p.battle !== undefined;
+    const player = (await store.get(4242))!;
+    started = player.battle !== undefined;
   }
   assert(started, 'a battle should have started within 30 explores');
   // Fight: attack until the battle resolves. If it ends in death, the UI is
   // the death screen — rise again (applyDeath + revive) like a player would.
-  for (let i = 0; i < 100; i++) {
+  for (let roundIndex = 0; roundIndex < 100; roundIndex++) {
     const cur = (await store.get(4242))!;
     if (!cur.battle) break;
     if (cur.battle.phase === 'active') {
@@ -91,11 +91,11 @@ Deno.test('exploring can start battles; battles resolve; zone view returns', asy
       await tap(store, user, 'b:go');
     }
   }
-  const p = (await store.get(4242))!;
-  assertEquals(p.battle, undefined, 'battle should be resolved and cleared');
-  assertEquals(p.scene.view, 'zone');
+  const player = (await store.get(4242))!;
+  assertEquals(player.battle, undefined, 'battle should be resolved and cleared');
+  assertEquals(player.scene.view, 'zone');
   // A resolved battle means either victory (stats) or death (revived).
-  assert(p.hp > 0, 'alive after the fight — revived if it was lost');
+  assert(player.hp > 0, 'alive after the fight — revived if it was lost');
 });
 
 Deno.test('shop buy/sell flow updates gold and inventory', async () => {
@@ -108,7 +108,7 @@ Deno.test('shop buy/sell flow updates gold and inventory', async () => {
   await tap(store, user, 'h:buy:c_minor_potion');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.gold, gold0 - 30);
-  const qty = p1.inventory.find((e) => e.id === 'c_minor_potion')?.qty ?? 0;
+  const qty = p1.inventory.find((entry) => entry.id === 'c_minor_potion')?.qty ?? 0;
   assert(qty >= 3);
   await tap(store, user, 'h:sell:c_minor_potion');
   const p2 = (await store.get(4242))!;
@@ -130,8 +130,8 @@ Deno.test('quest accept via NPC talk — the authored offer flow (#64, #127)', a
   await tap(store, user, 'dlg:nx:o2'); // beat 2
   await tap(store, user, 'dlg:nx:oa'); // the accept choice node
   await tap(store, user, 'dlg:ch:accept'); // the authored accept
-  const p = (await store.get(4242))!;
-  assertEquals(p.quests['m1_embers']?.status, 'active');
+  const player = (await store.get(4242))!;
+  assertEquals(player.quests['m1_embers']?.status, 'active');
 
   // The Quest Log route cannot accept — lifecycle authority is on-site.
   await tap(store, user, 'q:bk');
@@ -154,9 +154,9 @@ Deno.test('travel view navigates and back returns to zone', async () => {
 
 Deno.test('inventory equip flow swaps gear', async () => {
   // Give a better weapon directly, then equip it through the UI.
-  const { user, store } = await startWarrior((p) => {
-    p.level = 7;
-    p.inventory.push({ id: 'w_warrior_2', qty: 1 });
+  const { user, store } = await startWarrior((player) => {
+    player.level = 7;
+    player.inventory.push({ id: 'w_warrior_2', qty: 1 });
   });
   await tap(store, user, 'z:inv');
   await tap(store, user, 'i:v:w_warrior_2');
@@ -164,23 +164,23 @@ Deno.test('inventory equip flow swaps gear', async () => {
   const p1 = (await store.get(4242))!;
   assertEquals(p1.equipment.weapon, 'w_warrior_2');
   // Old weapon back in the bag
-  assert(p1.inventory.some((e) => e.id === 'w_warrior_1'));
+  assert(p1.inventory.some((entry) => entry.id === 'w_warrior_1'));
   const atk = statsOf(p1).atk;
   assert(atk > 10);
 });
 
 Deno.test('forge tempering through the UI consumes resources', async () => {
-  const { user, store } = await startWarrior((p) => {
-    p.gold = 5000;
-    p.inventory.push({ id: 'm_ember_shard', qty: 10 }, { id: 'm_hardwood', qty: 10 });
+  const { user, store } = await startWarrior((player) => {
+    player.gold = 5000;
+    player.inventory.push({ id: 'm_ember_shard', qty: 10 }, { id: 'm_hardwood', qty: 10 });
   });
   await tap(store, user, 'z:fg');
   await tap(store, user, 'f:w');
   const p1 = (await store.get(4242))!;
   assertEquals(p1.flags['forge_i_w_warrior_1'], 1);
   assertEquals(p1.gold, 5000 - 15);
-  assertEquals(p1.inventory.find((e) => e.id === 'm_ember_shard')?.qty, 9);
-  assertEquals(p1.inventory.find((e) => e.id === 'm_hardwood')?.qty, 8);
+  assertEquals(p1.inventory.find((entry) => entry.id === 'm_ember_shard')?.qty, 9);
+  assertEquals(p1.inventory.find((entry) => entry.id === 'm_hardwood')?.qty, 8);
 });
 
 Deno.test('full player persists across bot instance using the same store', async () => {
@@ -190,39 +190,39 @@ Deno.test('full player persists across bot instance using the same store', async
   const user = chats.newUser({ id: 77, first_name: 'Persisto' });
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:cleric');
-  const p = await store.get(77);
-  assert(p);
-  assertEquals(p.classId, 'cleric');
-  assertEquals(createPlayer(77, 'Persisto', 'cleric').classId, p.classId);
+  const player = await store.get(77);
+  assert(player);
+  assertEquals(player.classId, 'cleric');
+  assertEquals(createPlayer(77, 'Persisto', 'cleric').classId, player.classId);
 });
 
 Deno.test('death flow: felling the player routes through death view and revives', async () => {
   // Force a hopeless fight against a boss.
-  const { user, store } = await startWarrior((p) => {
-    p.unlockedZones.push('umbra');
-    p.currentZone = 'umbra';
+  const { user, store } = await startWarrior((player) => {
+    player.unlockedZones.push('umbra');
+    player.currentZone = 'umbra';
   });
   await tap(store, user, 'z:dg'); // dive into Sundered Throne → floor 1 enemy
-  let p = (await store.get(4242))!;
-  if (!p.battle) return; // explore rolls may differ; skip if no battle (defensive)
+  let player = (await store.get(4242))!;
+  if (!player.battle) return; // explore rolls may differ; skip if no battle (defensive)
   // Keep attacking without healing until dead (boss zone enemies outscale Lv1).
-  for (let i = 0; i < 60; i++) {
-    p = (await store.get(4242))!;
-    if (!p.battle) break;
-    if (p.scene.view === 'death') break;
-    if (p.battle.phase === 'active') await tap(store, user, 'b:atk');
+  for (let exploreAttempt = 0; exploreAttempt < 60; exploreAttempt++) {
+    player = (await store.get(4242))!;
+    if (!player.battle) break;
+    if (player.scene.view === 'death') break;
+    if (player.battle.phase === 'active') await tap(store, user, 'b:atk');
     else await tap(store, user, 'b:go');
   }
-  p = (await store.get(4242))!;
-  if (p.scene.view === 'death') {
+  player = (await store.get(4242))!;
+  if (player.scene.view === 'death') {
     await tap(store, user, 'd:ok');
-    p = (await store.get(4242))!;
-    assertEquals(p.scene.view, 'zone');
-    assert(p.hp > 0);
-    assertEquals(p.stats.deaths, 1);
+    player = (await store.get(4242))!;
+    assertEquals(player.scene.view, 'zone');
+    assert(player.hp > 0);
+    assertEquals(player.stats.deaths, 1);
   } else {
     // Won or fled somehow — either way state must be consistent.
-    assert(p.hp > 0);
+    assert(player.hp > 0);
   }
 });
 
@@ -248,9 +248,9 @@ Deno.test('overlap hardening (#117): a rejected update never skips a queued same
   // then rejects. Later updates run normally.
   let ran = 0;
   let release!: () => void;
-  const gate = new Promise<void>((r) => (release = r));
+  const gate = new Promise<void>((resolve) => (release = resolve));
   let entered!: () => void;
-  const firstEntered = new Promise<void>((r) => (entered = r));
+  const firstEntered = new Promise<void>((resolve) => (entered = resolve));
   bot.use(async () => {
     ran++;
     if (ran === 1) {
@@ -260,10 +260,10 @@ Deno.test('overlap hardening (#117): a rejected update never skips a queued same
     }
   });
   const uid = 9001;
-  const p1 = bot.handleUpdate(msgUpdate(1, uid)).catch((e) => e); // observe, don't crash
+  const p1 = bot.handleUpdate(msgUpdate(1, uid)).catch((error) => error); // observe, don't crash
   await firstEntered; // first update holds the critical section
   const p2 = bot.handleUpdate(msgUpdate(2, uid));
-  await new Promise((r) => setTimeout(r, 20)); // let p2 chain behind p1
+  await new Promise((resolve) => setTimeout(resolve, 20)); // let p2 chain behind p1
   assertEquals(ran, 1, 'the queued update must wait for its predecessor');
   release(); // first update rejects; the second must still run
   const [r1] = await Promise.all([p1, p2]);

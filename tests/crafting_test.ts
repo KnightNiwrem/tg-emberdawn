@@ -8,108 +8,116 @@ import { temper, temperCost, temperMaterialsForTier } from '../src/engine/forge.
 import { addItem, countOf } from '../src/engine/inventory.ts';
 
 Deno.test('processing catalog resolves identities and cannot turn purchased inputs into sale profit', () => {
-  assertEquals(new Set(RECIPES.map((r) => r.id)).size, RECIPES.length);
-  for (const r of RECIPES) {
-    assert(r.inputs.length > 1);
-    assertEquals(new Set(r.inputs.map((i) => i.id)).size, r.inputs.length);
-    for (const zone of r.zones) assert(ZONES.some((z) => z.id === zone));
-    assert(item(r.output.id));
-    let inputValue = r.gold;
-    for (const input of r.inputs) {
+  assertEquals(new Set(RECIPES.map((recipe) => recipe.id)).size, RECIPES.length);
+  for (const recipe of RECIPES) {
+    assert(recipe.inputs.length > 1);
+    assertEquals(
+      new Set(recipe.inputs.map((materialCost) => materialCost.id)).size,
+      recipe.inputs.length,
+    );
+    for (const zone of recipe.zones) assert(ZONES.some((zoneDef) => zoneDef.id === zone));
+    assert(item(recipe.output.id));
+    let inputValue = recipe.gold;
+    for (const input of recipe.inputs) {
       assert(item(input.id));
       assert(Number.isInteger(input.qty) && input.qty > 0);
       inputValue += item(input.id)!.price * input.qty;
     }
-    assert(sellPrice(r.output.id) * r.output.qty <= inputValue, r.id);
+    assert(sellPrice(recipe.output.id) * recipe.output.qty <= inputValue, recipe.id);
   }
 });
 
 Deno.test('every processing recipe debits exact inputs and grants exact output at its local counter', () => {
-  for (const r of RECIPES) {
-    const p = createPlayer(1, 'T', 'warrior');
-    p.level = 45;
-    p.currentZone = r.zones[0]!;
-    p.gold = r.gold;
-    p.inventory = [];
-    for (const input of r.inputs) addItem(p, input.id, input.qty);
-    assert(craft(p, r.id).ok, r.id);
-    assertEquals(p.gold, 0);
-    assertEquals(p.inventory, [{ id: r.output.id, qty: r.output.qty }]);
+  for (const recipe of RECIPES) {
+    const player = createPlayer(1, 'T', 'warrior');
+    player.level = 45;
+    player.currentZone = recipe.zones[0]!;
+    player.gold = recipe.gold;
+    player.inventory = [];
+    for (const input of recipe.inputs) addItem(player, input.id, input.qty);
+    assert(craft(player, recipe.id).ok, recipe.id);
+    assertEquals(player.gold, 0);
+    assertEquals(player.inventory, [{ id: recipe.output.id, qty: recipe.output.qty }]);
   }
 });
 
 Deno.test('processing refuses missing last ingredient, money, level, and wrong location without mutation', () => {
-  const r = RECIPES.find((r) => r.id === 'eel_stew')!;
+  const recipe = RECIPES.find((recipe) => recipe.id === 'eel_stew')!;
   for (const scenario of ['ingredient', 'gold', 'level', 'zone', 'unknown']) {
-    const p = createPlayer(2, 'T', 'warrior');
-    p.currentZone = 'mirefoot';
-    p.level = 10;
-    p.gold = 100;
-    for (const input of r.inputs) addItem(p, input.id, input.qty);
-    if (scenario === 'ingredient') p.inventory = p.inventory.filter((i) => i.id !== 'm_salt');
-    if (scenario === 'gold') p.gold = 0;
-    if (scenario === 'level') p.level = 1;
-    if (scenario === 'zone') p.currentZone = 'abyss';
-    const before = structuredClone(p);
-    assert(!craft(p, scenario === 'unknown' ? 'invented' : r.id).ok);
-    assertEquals(p, before, scenario);
+    const player = createPlayer(2, 'T', 'warrior');
+    player.currentZone = 'mirefoot';
+    player.level = 10;
+    player.gold = 100;
+    for (const input of recipe.inputs) addItem(player, input.id, input.qty);
+    if (scenario === 'ingredient') {
+      player.inventory = player.inventory.filter((entry) => entry.id !== 'm_salt');
+    }
+    if (scenario === 'gold') player.gold = 0;
+    if (scenario === 'level') player.level = 1;
+    if (scenario === 'zone') player.currentZone = 'abyss';
+    const before = structuredClone(player);
+    assert(!craft(player, scenario === 'unknown' ? 'invented' : recipe.id).ok);
+    assertEquals(player, before, scenario);
   }
 });
 
 Deno.test('processing discloses future recipes and refuses fights and journeys', () => {
-  const p = createPlayer(3, 'T', 'warrior');
-  assert(recipesAt(p).some((r) => r.id === 'eel_stew'));
-  assert(recipeBlock(p, 'eel_stew')?.includes('level'));
-  p.battle = {} as NonNullable<typeof p.battle>;
-  const before = structuredClone(p);
-  assert(!craft(p, 'minor_potion').ok);
-  assertEquals(p, before);
-  delete p.battle;
-  p.journey = {} as NonNullable<typeof p.journey>;
-  const onRoad = structuredClone(p);
-  assert(!craft(p, 'minor_potion').ok);
-  assertEquals(p, onRoad);
+  const player = createPlayer(3, 'T', 'warrior');
+  assert(recipesAt(player).some((recipe) => recipe.id === 'eel_stew'));
+  assert(recipeBlock(player, 'eel_stew')?.includes('level'));
+  player.battle = {} as NonNullable<typeof player.battle>;
+  const before = structuredClone(player);
+  assert(!craft(player, 'minor_potion').ok);
+  assertEquals(player, before);
+  delete player.battle;
+  player.journey = {} as NonNullable<typeof player.journey>;
+  const onRoad = structuredClone(player);
+  assert(!craft(player, 'minor_potion').ok);
+  assertEquals(player, onRoad);
 });
 
 Deno.test('tempering validates all materials atomically and charges modest tier-based fees', () => {
-  const p = createPlayer(4, 'T', 'warrior');
-  p.gold = 100;
-  addItem(p, 'm_ember_shard', 3);
-  const before = structuredClone(p);
-  assert(!temper(p, 'weapon').ok);
-  assertEquals(p, before);
-  addItem(p, 'm_hardwood', 2);
-  const cost = temperCost(p, 'weapon')!;
+  const player = createPlayer(4, 'T', 'warrior');
+  player.gold = 100;
+  addItem(player, 'm_ember_shard', 3);
+  const before = structuredClone(player);
+  assert(!temper(player, 'weapon').ok);
+  assertEquals(player, before);
+  addItem(player, 'm_hardwood', 2);
+  const cost = temperCost(player, 'weapon')!;
   assertEquals(cost, {
     gold: 15,
     materials: [{ id: 'm_ember_shard', qty: 1 }, { id: 'm_hardwood', qty: 2 }],
   });
-  assert(temper(p, 'weapon').ok);
-  assertEquals(countOf(p, 'm_ember_shard'), 2);
-  assertEquals(countOf(p, 'm_hardwood'), 0);
-  assertEquals(p.gold, 85);
+  assert(temper(player, 'weapon').ok);
+  assertEquals(countOf(player, 'm_ember_shard'), 2);
+  assertEquals(countOf(player, 'm_hardwood'), 0);
+  assertEquals(player.gold, 85);
   for (let tier = 1; tier <= 8; tier++) {
     for (const slot of ['weapon', 'armor'] as const) {
-      p.equipment[slot] = `${slot === 'weapon' ? 'w' : 'a'}_warrior_${tier}`;
-      const materials = temperCost(p, slot)!.materials;
-      assertEquals(materials.map((m) => m.id), temperMaterialsForTier(tier, slot));
+      player.equipment[slot] = `${slot === 'weapon' ? 'w' : 'a'}_warrior_${tier}`;
+      const materials = temperCost(player, slot)!.materials;
+      assertEquals(
+        materials.map((materialCost) => materialCost.id),
+        temperMaterialsForTier(tier, slot),
+      );
       for (const material of materials) assert(item(material.id));
     }
   }
 });
 
 Deno.test('starter forge makes gathering tools through ordinary processing', () => {
-  const p = createPlayer(5, 'T', 'warrior');
-  p.inventory = [];
-  p.gold = 13;
-  addItem(p, 'm_hardwood', 2);
-  addItem(p, 'm_plant_fiber', 2);
-  addItem(p, 'm_bone', 1);
-  addItem(p, 'm_iron_chunk', 2);
-  addItem(p, 'm_coal', 1);
-  assert(craft(p, 'fishing_rod').ok);
-  assert(craft(p, 'iron_ingot').ok);
-  assert(craft(p, 'pickaxe').ok);
-  assertEquals(p.gold, 0);
-  assertEquals(p.inventory, [{ id: 'm_fishing_rod', qty: 1 }, { id: 'm_pickaxe', qty: 1 }]);
+  const player = createPlayer(5, 'T', 'warrior');
+  player.inventory = [];
+  player.gold = 13;
+  addItem(player, 'm_hardwood', 2);
+  addItem(player, 'm_plant_fiber', 2);
+  addItem(player, 'm_bone', 1);
+  addItem(player, 'm_iron_chunk', 2);
+  addItem(player, 'm_coal', 1);
+  assert(craft(player, 'fishing_rod').ok);
+  assert(craft(player, 'iron_ingot').ok);
+  assert(craft(player, 'pickaxe').ok);
+  assertEquals(player.gold, 0);
+  assertEquals(player.inventory, [{ id: 'm_fishing_rod', qty: 1 }, { id: 'm_pickaxe', qty: 1 }]);
 });

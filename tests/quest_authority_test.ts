@@ -29,11 +29,11 @@ function walkToChoice(
 ): Promise<void> {
   return (async () => {
     let cur = start;
-    for (let i = 0; i < 12; i++) {
+    for (let dialogueStep = 0; dialogueStep < 12; dialogueStep++) {
       const scene = cur.scene;
       if (scene.view !== 'dialogue') return;
-      const d = dialogue(scene.arg ?? '')!;
-      const node = d.nodes.find((n) => n.id === scene.arg2)!;
+      const dialogueDef = dialogue(scene.arg ?? '')!;
+      const node = dialogueDef.nodes.find((node) => node.id === scene.arg2)!;
       if (node.kind === 'choice') return;
       if (node.kind === 'line' && node.next) {
         await handleCallback(
@@ -51,69 +51,69 @@ import { dialogue } from '../src/content/dialogues.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
 Deno.test('accepting requires the configured STARTER in the current zone (#64)', () => {
-  const p = createPlayer(980, 'T', 'warrior'); // starts in Emberdawn Village
-  syncAvailability(p);
+  const player = createPlayer(980, 'T', 'warrior'); // starts in Emberdawn Village
+  syncAvailability(player);
 
   // Wrong NPC — Bram cannot offer Maren's quest.
-  const wrongNpc = acceptQuest(p, 'm1_embers', 'npc_bram');
+  const wrongNpc = acceptQuest(player, 'm1_embers', 'npc_bram');
   assertEquals(wrongNpc.ok, false);
   assert(wrongNpc.msg.includes('Elder Maren'), `guidance names the contact: ${wrongNpc.msg}`);
-  assertEquals(p.quests['m1_embers']?.status ?? 'unavailable', 'available', 'non-mutating');
-  assertEquals(p.scene.view, 'zone', 'nothing else moved');
+  assertEquals(player.quests['m1_embers']?.status ?? 'unavailable', 'available', 'non-mutating');
+  assertEquals(player.scene.view, 'zone', 'nothing else moved');
 
   // Right NPC, wrong zone — Maren is not standing in the Whisperwood.
-  p.currentZone = 'whisperwood';
-  const wrongZone = acceptQuest(p, 'm1_embers', 'npc_maren');
+  player.currentZone = 'whisperwood';
+  const wrongZone = acceptQuest(player, 'm1_embers', 'npc_maren');
   assertEquals(wrongZone.ok, false);
   assert(wrongZone.msg.includes('Elder Maren'));
-  assertEquals(p.quests['m1_embers']?.status ?? 'unavailable', 'available', 'non-mutating');
+  assertEquals(player.quests['m1_embers']?.status ?? 'unavailable', 'available', 'non-mutating');
 
   // Right NPC, on-site: works. Same-NPC start/finish completes at Maren.
-  p.currentZone = 'emberdawn';
-  assert(acceptQuest(p, 'm1_embers', 'npc_maren').ok);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
-  assert(turnInQuest(p, 'm1_embers', 'npc_maren').ok);
-  assertEquals(p.quests['m1_embers']?.status, 'done');
+  player.currentZone = 'emberdawn';
+  assert(acceptQuest(player, 'm1_embers', 'npc_maren').ok);
+  for (let i = 0; i < 4; i++) onKill(player, 'e_ember_rat');
+  assert(turnInQuest(player, 'm1_embers', 'npc_maren').ok);
+  assertEquals(player.quests['m1_embers']?.status, 'done');
 });
 
 Deno.test('turning in requires the configured FINISHER — never the starter, never the log (#64)', () => {
-  const p = createPlayer(981, 'T', 'warrior');
-  p.level = 2; // m2 requires level 2
-  p.quests['m1_embers'] = { status: 'done', counts: [] }; // m2's prereq
-  syncAvailability(p);
+  const player = createPlayer(981, 'T', 'warrior');
+  player.level = 2; // m2 requires level 2
+  player.quests['m1_embers'] = { status: 'done', counts: [] }; // m2's prereq
+  syncAvailability(player);
   // m2: Maren starts, Bram finishes (delivery flow, #63).
-  assert(acceptQuest(p, 'm2_letter', 'npc_maren').ok);
-  grantItem(p, 'q_sealed_letter', 1);
-  onStoryEvent(p, 'heard_bram_reading'); // the conversation event — quest is ready
-  assertEquals(p.quests['m2_letter']?.status, 'turnIn');
+  assert(acceptQuest(player, 'm2_letter', 'npc_maren').ok);
+  grantItem(player, 'q_sealed_letter', 1);
+  onStoryEvent(player, 'heard_bram_reading'); // the conversation event — quest is ready
+  assertEquals(player.quests['m2_letter']?.status, 'turnIn');
 
   // The reading readied it, but "return to the giver" is NOT the rule:
   // Maren cannot accept the handover — the finisher is the explicit field.
-  const atStarter = turnInQuest(p, 'm2_letter', 'npc_maren');
+  const atStarter = turnInQuest(player, 'm2_letter', 'npc_maren');
   assertEquals(atStarter.ok, false, 'talk objectives do not define the finisher');
   assert(atStarter.lines[0]!.includes('Blacksmith Bram'));
-  assertEquals(p.quests['m2_letter']?.status, 'turnIn', 'refusal is non-mutating');
-  assertEquals(countOf(p, 'q_sealed_letter'), 1, 'nothing left the bag');
+  assertEquals(player.quests['m2_letter']?.status, 'turnIn', 'refusal is non-mutating');
+  assertEquals(countOf(player, 'q_sealed_letter'), 1, 'nothing left the bag');
 
   // Wrong zone: Bram stands in Emberdawn — not the Whisperwood.
-  p.currentZone = 'whisperwood';
-  const wrongZone = turnInQuest(p, 'm2_letter', 'npc_bram');
+  player.currentZone = 'whisperwood';
+  const wrongZone = turnInQuest(player, 'm2_letter', 'npc_bram');
   assertEquals(wrongZone.ok, false);
-  assertEquals(countOf(p, 'q_sealed_letter'), 1, 'still non-mutating');
+  assertEquals(countOf(player, 'q_sealed_letter'), 1, 'still non-mutating');
 
   // On-site with the finisher: completes, goods handed over.
-  p.currentZone = 'emberdawn';
-  assert(turnInQuest(p, 'm2_letter', 'npc_bram').ok);
-  assertEquals(p.quests['m2_letter']?.status, 'done');
-  assertEquals(countOf(p, 'q_sealed_letter'), 0, 'the letter was handed over');
+  player.currentZone = 'emberdawn';
+  assert(turnInQuest(player, 'm2_letter', 'npc_bram').ok);
+  assertEquals(player.quests['m2_letter']?.status, 'done');
+  assertEquals(countOf(player, 'q_sealed_letter'), 0, 'the letter was handed over');
 });
 
 Deno.test('handler: log callbacks refuse with guidance; the topic menu is navigation (#64, #127)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(982, 'T', 'warrior');
-  syncAvailability(p);
-  p.messageId = 900;
-  await store.set(982, p);
+  const player = createPlayer(982, 'T', 'warrior');
+  syncAvailability(player);
+  player.messageId = 900;
+  await store.set(982, player);
 
   // Log → detail → Accept: refused, nothing mutates. Since #65 the wire
   // form is gone entirely — these taps decode as unknown controls.
@@ -155,12 +155,12 @@ Deno.test('handler: log callbacks refuse with guidance; the topic menu is naviga
 
 Deno.test('handler: duplicate turn-in choices cannot grant rewards twice (#64, #127)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(983, 'T', 'warrior');
-  syncAvailability(p);
-  assert(acceptQuest(p, 'm1_embers', 'npc_maren').ok);
-  for (let i = 0; i < 4; i++) onKill(p, 'e_ember_rat');
-  p.messageId = 910;
-  await store.set(983, p);
+  const player = createPlayer(983, 'T', 'warrior');
+  syncAvailability(player);
+  assert(acceptQuest(player, 'm1_embers', 'npc_maren').ok);
+  for (let i = 0; i < 4; i++) onKill(player, 'e_ember_rat');
+  player.messageId = 910;
+  await store.set(983, player);
 
   // Open the turn-in dialogue the way the UI does: topics → ready quest.
   let cur = (await store.get(983))!;
@@ -188,14 +188,14 @@ Deno.test('handler: duplicate turn-in choices cannot grant rewards twice (#64, #
 
 Deno.test('handler: dialogue choice callbacks without a live scene are harmless (#127)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(984, 'T', 'warrior');
-  p.level = 2;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  grantItem(p, 'q_sealed_letter', 1);
-  syncAvailability(p);
-  p.messageId = 920;
-  p.scene = { view: 'zone' }; // NOT a dialogue
-  await store.set(984, p);
+  const player = createPlayer(984, 'T', 'warrior');
+  player.level = 2;
+  player.quests['m1_embers'] = { status: 'done', counts: [4] };
+  grantItem(player, 'q_sealed_letter', 1);
+  syncAvailability(player);
+  player.messageId = 920;
+  player.scene = { view: 'zone' }; // NOT a dialogue
+  await store.set(984, player);
   let cur = (await store.get(984))!;
   await handleCallback(fakeCtx(984, 920, withRev(cur.uiRev ?? 0, 'dlg:ch:accept')), store);
   cur = (await store.get(984))!;
@@ -215,13 +215,13 @@ Deno.test('handler: dialogue choice callbacks without a live scene are harmless 
 
 Deno.test('handler: the Maren → Bram delivery end to end (#63, #64, #127)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(985, 'T', 'warrior');
-  p.level = 5;
-  p.quests['m1_embers'] = { status: 'done', counts: [4] };
-  grantItem(p, 'q_sealed_letter', 1); // m1's reward is in the bag
-  syncAvailability(p); // m2 becomes available
-  p.messageId = 930;
-  await store.set(985, p);
+  const player = createPlayer(985, 'T', 'warrior');
+  player.level = 5;
+  player.quests['m1_embers'] = { status: 'done', counts: [4] };
+  grantItem(player, 'q_sealed_letter', 1); // m1's reward is in the bag
+  syncAvailability(player); // m2 becomes available
+  player.messageId = 930;
+  await store.set(985, player);
 
   let cur = (await store.get(985))!;
   // Talk to Maren (index 0) and open her m2 offer topic (#123).

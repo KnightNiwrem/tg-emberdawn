@@ -71,188 +71,194 @@ type DecodedCb = Cb & { rev?: number };
  * revision; the router then rejects taps from earlier renders, so the
  * exact same button can never execute a mutation twice. */
 export function withRev(rev: number, wire: string): string {
-  const seg = wire.split(':');
-  if (seg.length >= 2 && /^\d{1,4}$/.test(seg[1]!)) seg.splice(1, 1);
-  seg.splice(1, 0, String(rev));
-  return seg.join(':');
+  const segments = wire.split(':');
+  if (segments.length >= 2 && /^\d{1,4}$/.test(segments[1]!)) segments.splice(1, 1);
+  segments.splice(1, 0, String(rev));
+  return segments.join(':');
 }
 
 /** Serializes a Cb to its wire form. */
-export function encodeCb(c: Cb): string {
-  switch (c.v) {
+export function encodeCb(callback: Cb): string {
+  switch (callback.v) {
     case 'uses':
-      return c.a === 'bk' ? 'uses:bk' : `uses:pg:${c.arg}`;
+      return callback.a === 'bk' ? 'uses:bk' : `uses:pg:${callback.arg}`;
     case 'sources':
-      return c.a === 'bk' ? 'src:bk' : `src:pg:${c.arg}`;
+      return callback.a === 'bk' ? 'src:bk' : `src:pg:${callback.arg}`;
     case 'zone':
-      return `z:${c.a === 'hm' ? 'hm' : c.a}${'arg' in c ? `:${c.arg}` : ''}`;
+      return `z:${callback.a === 'hm' ? 'hm' : callback.a}${
+        'arg' in callback ? `:${callback.arg}` : ''
+      }`;
     case 'npc':
       // #123 topic menu: open (by NPC id), quest-business/lore selection,
       // and leave. Revalidation of NPC/zone/state lives in the handler.
-      return c.a === 'bk' ? 'npc:bk' : `npc:${c.a}:${c.arg}`;
+      return callback.a === 'bk' ? 'npc:bk' : `npc:${callback.a}:${callback.arg}`;
     case 'dlg':
       // #124/#126 dialogue scene: Continue carries the TARGET node id (the
       // handler revalidates it against the live scene's current node);
       // choice selection/confirmation carry the choice id — consequence
       // data never rides the wire; cc cancels a staged confirmation; bk
       // leaves for the NPC topic menu.
-      if (c.a === 'bk') return 'dlg:bk';
-      if (c.a === 'cc') return 'dlg:cc';
-      return `dlg:${c.a}:${c.arg}`;
+      if (callback.a === 'bk') return 'dlg:bk';
+      if (callback.a === 'cc') return 'dlg:cc';
+      return `dlg:${callback.a}:${callback.arg}`;
     case 'battle':
-      if (c.a === 'use') return `b:us:${c.arg}`;
-      return `b:${c.a}`;
+      if (callback.a === 'use') return `b:us:${callback.arg}`;
+      return `b:${callback.a}`;
     case 'inventory':
-      if (c.a === 'p') return `i:pg:${c.arg}`;
-      if (c.a === 'bk') return 'i:bk';
-      return `i:${c.a}:${c.arg}`;
+      if (callback.a === 'p') return `i:pg:${callback.arg}`;
+      if (callback.a === 'bk') return 'i:bk';
+      return `i:${callback.a}:${callback.arg}`;
     case 'equipment':
       // #112: `vi` inspects the EQUIPPED item by SLOT — the slot is the
       // authoritative ownership check, never an arbitrary item id.
-      return c.a === 'bk'
+      return callback.a === 'bk'
         ? 'e:bk'
-        : c.a === 'open'
+        : callback.a === 'open'
         ? 'e:op'
-        : c.a === 'view'
-        ? `e:vi:${c.arg}`
-        : `e:rm:${c.arg}`;
+        : callback.a === 'view'
+        ? `e:vi:${callback.arg}`
+        : `e:rm:${callback.arg}`;
     case 'skills':
       return 's:bk';
     case 'quests':
       // Navigation only (#65): the log cannot express lifecycle actions —
       // accept/turn-in live solely on the npcq interaction surface.
-      if (c.a === 'open') return `q:op${c.arg ? `:${c.arg}` : ''}`;
-      if (c.a === 'p') return `q:pg:${c.arg}`;
-      if (c.a === 'bk') return 'q:bk';
-      return `q:q:${c.arg}`;
+      if (callback.a === 'open') return `q:op${callback.arg ? `:${callback.arg}` : ''}`;
+      if (callback.a === 'p') return `q:pg:${callback.arg}`;
+      if (callback.a === 'bk') return 'q:bk';
+      return `q:q:${callback.arg}`;
     case 'shop':
-      if (c.a === 'p') return `h:pg:${c.arg}`;
-      if (c.a === 'bk') return 'h:bk';
-      return `h:${c.a}:${c.arg}`;
+      if (callback.a === 'p') return `h:pg:${callback.arg}`;
+      if (callback.a === 'bk') return 'h:bk';
+      return `h:${callback.a}:${callback.arg}`;
     case 'forge':
-      return `f:${c.a}`;
+      return `f:${callback.a}`;
     case 'travel':
       // #159: `go` carries the compact ROUTE INTENT (the stable edge id) —
       // counts, tables, rewards and conditions resolve server-side.
-      return c.a === 'bk' ? 't:bk' : `t:go:${c.arg}`;
+      return callback.a === 'bk' ? 't:bk' : `t:go:${callback.arg}`;
     case 'journey':
       // #159: continue resolves the next roll(s) server-side; retreat
       // aborts back to the origin. No plan data ever rides the wire.
-      return `j:${c.a}`;
+      return `j:${callback.a}`;
     case 'death':
       return 'd:ok';
     case 'tut':
-      return `u:${c.a}`;
+      return `u:${callback.a}`;
     case 'meta':
-      if (c.a === 'pick') return `m:pk:${c.arg}`;
-      return `m:${c.a === 'resetYes' ? 'ry' : c.a === 'resetNo' ? 'rn' : c.a}`;
+      if (callback.a === 'pick') return `m:pk:${callback.arg}`;
+      return `m:${callback.a === 'resetYes' ? 'ry' : callback.a === 'resetNo' ? 'rn' : callback.a}`;
   }
 }
 
-/** Typed wire-action guard: narrows `a` to one of a view's known action
+/** Typed wire-action guard: narrows `action` to one of a view's known action
  * tokens, else undefined — replaces per-case `.includes` + cast blocks. */
-function act<A extends string>(a: string, known: readonly A[]): A | undefined {
-  return (known as readonly string[]).includes(a) ? (a as A) : undefined;
+function act<A extends string>(action: string, known: readonly A[]): A | undefined {
+  return (known as readonly string[]).includes(action) ? (action as A) : undefined;
 }
 
-function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
-  switch (v) {
+function parseCbParts(view: string, action: string, arg: string): Cb | undefined {
+  switch (view) {
     case 'uses':
-      if (a === 'bk' && !arg) return { v: 'uses', a: 'bk' };
-      return a === 'pg' && /^\d{1,6}$/.test(arg)
+      if (action === 'bk' && !arg) return { v: 'uses', a: 'bk' };
+      return action === 'pg' && /^\d{1,6}$/.test(arg)
         ? { v: 'uses', a: 'p', arg: Number(arg) }
         : undefined;
     case 'src':
-      if (a === 'bk' && !arg) return { v: 'sources', a: 'bk' };
-      return a === 'pg' && /^\d{1,6}$/.test(arg)
+      if (action === 'bk' && !arg) return { v: 'sources', a: 'bk' };
+      return action === 'pg' && /^\d{1,6}$/.test(arg)
         ? { v: 'sources', a: 'p', arg: Number(arg) }
         : undefined;
     case 'z': {
-      if (a === 'ga' || a === 'cr') return arg ? { v: 'zone', a, arg } : undefined;
-      if (a === 'cp') return /^\d+$/.test(arg) ? { v: 'zone', a, arg: Number(arg) } : undefined;
-      if (a === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
-      const z = act(
-        a,
+      if (action === 'ga' || action === 'cr') {
+        return arg ? { v: 'zone', a: action, arg } : undefined;
+      }
+      if (action === 'cp') {
+        return /^\d+$/.test(arg) ? { v: 'zone', a: action, arg: Number(arg) } : undefined;
+      }
+      if (action === 'tk') return { v: 'zone', a: 'tk', arg: Number(arg) };
+      const zoneAction = act(
+        action,
         ['hm', 'ex', 'dg', 'dx', 'dgb', 'tv', 'ch', 'inv', 'sk', 'q', 'sh', 'fg', 'gp'] as const,
       );
-      return z ? { v: 'zone', a: z } : undefined;
+      return zoneAction ? { v: 'zone', a: zoneAction } : undefined;
     }
     case 'b': {
-      if (a === 'us') return { v: 'battle', a: 'use', arg };
-      const b = act(a, ['atk', 'gd', 'fl', 'go', 'sk', 'it'] as const);
-      return b ? { v: 'battle', a: b } : undefined;
+      if (action === 'us') return { v: 'battle', a: 'use', arg };
+      const battleAction = act(action, ['atk', 'gd', 'fl', 'go', 'sk', 'it'] as const);
+      return battleAction ? { v: 'battle', a: battleAction } : undefined;
     }
     case 'i': {
-      if (a === 'pg') return { v: 'inventory', a: 'p', arg: Number(arg) };
-      if (a === 'bk') return { v: 'inventory', a: 'bk' };
+      if (action === 'pg') return { v: 'inventory', a: 'p', arg: Number(arg) };
+      if (action === 'bk') return { v: 'inventory', a: 'bk' };
       // #161: selling left the generic inventory — it happens only at a
       // shop's own counter (shopAction), never remotely from the bag.
-      const i = act(a, ['v', 'u', 'eq', 'drop'] as const);
-      return i ? { v: 'inventory', a: i, arg } : undefined;
+      const inventoryAction = act(action, ['v', 'u', 'eq', 'drop'] as const);
+      return inventoryAction ? { v: 'inventory', a: inventoryAction, arg } : undefined;
     }
     case 'e':
-      if (a === 'op') return { v: 'equipment', a: 'open' };
-      if (a === 'bk') return { v: 'equipment', a: 'bk' };
-      if (a === 'vi') return { v: 'equipment', a: 'view', arg };
-      if (a === 'rm') return { v: 'equipment', a: 'rm', arg };
+      if (action === 'op') return { v: 'equipment', a: 'open' };
+      if (action === 'bk') return { v: 'equipment', a: 'bk' };
+      if (action === 'vi') return { v: 'equipment', a: 'view', arg };
+      if (action === 'rm') return { v: 'equipment', a: 'rm', arg };
       return undefined;
     case 's':
-      if (a === 'bk') return { v: 'skills', a: 'bk' };
+      if (action === 'bk') return { v: 'skills', a: 'bk' };
       return undefined;
     case 'q': {
-      if (a === 'op') return { v: 'quests', a: 'open', arg: arg || undefined };
-      if (a === 'pg') return { v: 'quests', a: 'p', arg: Number(arg) };
-      if (a === 'bk') return { v: 'quests', a: 'bk' };
-      const qa = act(a, ['q'] as const);
-      return qa ? { v: 'quests', a: qa, arg } : undefined;
+      if (action === 'op') return { v: 'quests', a: 'open', arg: arg || undefined };
+      if (action === 'pg') return { v: 'quests', a: 'p', arg: Number(arg) };
+      if (action === 'bk') return { v: 'quests', a: 'bk' };
+      const questAction = act(action, ['q'] as const);
+      return questAction ? { v: 'quests', a: questAction, arg } : undefined;
     }
     case 'npc': {
       // #123 topic menu navigation. Every action revalidates the live
       // scene, zone, NPC presence and current availability in the handler.
-      if (a === 'bk') return { v: 'npc', a: 'bk' };
-      const na = act(a, ['op', 'q', 'lore'] as const);
-      return na ? { v: 'npc', a: na, arg } : undefined;
+      if (action === 'bk') return { v: 'npc', a: 'bk' };
+      const npcAction = act(action, ['op', 'q', 'lore'] as const);
+      return npcAction ? { v: 'npc', a: npcAction, arg } : undefined;
     }
     case 'dlg': {
       // #124/#126 dialogue scene controls.
-      if (a === 'bk') return { v: 'dlg', a: 'bk' };
-      if (a === 'cc') return { v: 'dlg', a: 'cc' };
-      const da = act(a, ['nx', 'ch', 'cf'] as const);
-      return da ? { v: 'dlg', a: da, arg } : undefined;
+      if (action === 'bk') return { v: 'dlg', a: 'bk' };
+      if (action === 'cc') return { v: 'dlg', a: 'cc' };
+      const dialogueAction = act(action, ['nx', 'ch', 'cf'] as const);
+      return dialogueAction ? { v: 'dlg', a: dialogueAction, arg } : undefined;
     }
     case 'h': {
-      if (a === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };
-      if (a === 'bk') return { v: 'shop', a: 'bk' };
-      const h = act(a, ['buy', 'sell', 'view'] as const);
-      return h ? { v: 'shop', a: h, arg } : undefined;
+      if (action === 'pg') return { v: 'shop', a: 'p', arg: Number(arg) };
+      if (action === 'bk') return { v: 'shop', a: 'bk' };
+      const shopAction = act(action, ['buy', 'sell', 'view'] as const);
+      return shopAction ? { v: 'shop', a: shopAction, arg } : undefined;
     }
     case 'f': {
-      const f = act(a, ['w', 'a', 'bk'] as const);
-      return f ? { v: 'forge', a: f } : undefined;
+      const forgeAction = act(action, ['w', 'a', 'bk'] as const);
+      return forgeAction ? { v: 'forge', a: forgeAction } : undefined;
     }
     case 't':
-      if (a === 'bk') return { v: 'travel', a: 'bk' };
-      if (a === 'go') return { v: 'travel', a: 'go', arg };
+      if (action === 'bk') return { v: 'travel', a: 'bk' };
+      if (action === 'go') return { v: 'travel', a: 'go', arg };
       return undefined;
     case 'j': {
-      const ja = act(a, ['go', 'rt'] as const);
-      return ja ? { v: 'journey', a: ja } : undefined;
+      const journeyAction = act(action, ['go', 'rt'] as const);
+      return journeyAction ? { v: 'journey', a: journeyAction } : undefined;
     }
     case 'd':
-      if (a === 'ok') return { v: 'death', a: 'ok' };
+      if (action === 'ok') return { v: 'death', a: 'ok' };
       return undefined;
     case 'u': {
       // Guided prologue controls (#69) — same guarded surface as everything
       // else: rev-stamped, routed through dispatch.
-      const tu = act(a, ['maren', 'out', 'face'] as const);
-      return tu ? { v: 'tut', a: tu } : undefined;
+      const tutorialAction = act(action, ['maren', 'out', 'face'] as const);
+      return tutorialAction ? { v: 'tut', a: tutorialAction } : undefined;
     }
     case 'm':
-      if (a === 'pk') return { v: 'meta', a: 'pick', arg };
-      if (a === 'help') return { v: 'meta', a: 'help' };
-      if (a === 'reset') return { v: 'meta', a: 'reset' };
-      if (a === 'ry') return { v: 'meta', a: 'resetYes' };
-      if (a === 'rn') return { v: 'meta', a: 'resetNo' };
+      if (action === 'pk') return { v: 'meta', a: 'pick', arg };
+      if (action === 'help') return { v: 'meta', a: 'help' };
+      if (action === 'reset') return { v: 'meta', a: 'reset' };
+      if (action === 'ry') return { v: 'meta', a: 'resetYes' };
+      if (action === 'rn') return { v: 'meta', a: 'resetNo' };
       return undefined;
     default:
       return undefined;
@@ -264,9 +270,9 @@ function parseCbParts(v: string, a: string, arg: string): Cb | undefined {
  * [:<arg>]` — buttons from an earlier render of the same message are
  * rejected by the router before any mutation. */
 export function decodeCb(data: string): DecodedCb | undefined {
-  const m = CB_RE.exec(data);
-  if (!m) return undefined;
-  const cb = parseCbParts(m[1]!, m[3]!, m[4] ?? '');
+  const match = CB_RE.exec(data);
+  if (!match) return undefined;
+  const cb = parseCbParts(match[1]!, match[3]!, match[4] ?? '');
   if (!cb) return undefined;
-  return m[2] ? { ...cb, rev: Number(m[2]) } : cb;
+  return match[2] ? { ...cb, rev: Number(match[2]) } : cb;
 }

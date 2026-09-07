@@ -39,19 +39,19 @@ import { route, ROUTES } from '../src/content/routes.ts';
 import type { TravelEvent, ZoneDef } from '../src/content/types.ts';
 import { zone as zoneDef, ZONES } from '../src/content/zones.ts';
 
-const ALL_MAINS = QUESTS.filter((q) => q.main).map((q) => q.id);
+const ALL_MAINS = QUESTS.filter((questDef) => questDef.main).map((questDef) => questDef.id);
 const SEED = 20260902;
 
 /** BFS over currently usable edges from the state's zone. */
-function reachable(p: PlayerState): Set<string> {
-  const seen = new Set<string>([p.currentZone]);
-  const queue = [p.currentZone];
+function reachable(player: PlayerState): Set<string> {
+  const seen = new Set<string>([player.currentZone]);
+  const queue = [player.currentZone];
   while (queue.length > 0) {
-    const z = queue.shift()!;
-    for (const r of usableRoutesFrom({ ...p, currentZone: z })) {
-      if (!seen.has(r.to)) {
-        seen.add(r.to);
-        queue.push(r.to);
+    const zoneId = queue.shift()!;
+    for (const routeDef of usableRoutesFrom({ ...player, currentZone: zoneId })) {
+      if (!seen.has(routeDef.to)) {
+        seen.add(routeDef.to);
+        queue.push(routeDef.to);
       }
     }
   }
@@ -88,11 +88,11 @@ interface SourceSite {
 
 /** Zones that author each shop id (a shop is usable where it stands). */
 const SHOP_ZONES = new Map<string, string[]>();
-for (const z of ZONES) {
-  if (!z.services?.shop) continue;
-  const list = SHOP_ZONES.get(z.services.shop) ?? [];
-  list.push(z.id);
-  SHOP_ZONES.set(z.services.shop, list);
+for (const zoneDef of ZONES) {
+  if (!zoneDef.services?.shop) continue;
+  const list = SHOP_ZONES.get(zoneDef.services.shop) ?? [];
+  list.push(zoneDef.id);
+  SHOP_ZONES.set(zoneDef.services.shop, list);
 }
 
 function enemyDropsItem(enemyId: string | undefined, id: string): boolean {
@@ -103,70 +103,84 @@ function enemyDropsItem(enemyId: string | undefined, id: string): boolean {
 /** Every structured non-travel source for `id` — content-aware (#171). */
 function itemSources(id: string): SourceSite[] {
   const sites: SourceSite[] = [];
-  for (const z of ZONES) {
-    sites.push(...exploreItemSources(id, z), ...dungeonItemSources(id, z));
+  for (const zoneDef of ZONES) {
+    sites.push(...exploreItemSources(id, zoneDef), ...dungeonItemSources(id, zoneDef));
   }
   sites.push(...shopItemSources(id), ...questItemSources(id), ...storyItemSources(id));
   return sites;
 }
 
-function exploreItemSources(id: string, z: ZoneDef): SourceSite[] {
+function exploreItemSources(id: string, zoneDef: ZoneDef): SourceSite[] {
   const sites: SourceSite[] = [];
   // Explore: enemy drop tables and authored treasure caches, each with
   // its own authored level band.
-  for (const ev of z.explore) {
-    if ((ev.kind === 'battle' || ev.kind === 'elite') && enemyDropsItem(ev.enemy, id)) {
+  for (const event of zoneDef.explore) {
+    if ((event.kind === 'battle' || event.kind === 'elite') && enemyDropsItem(event.enemy, id)) {
       sites.push({
-        label: `explore:${ev.enemy}@${z.id}`,
-        zone: z.id,
-        minLevel: ev.minPlayerLevel ?? 1,
-        ...(ev.maxPlayerLevel !== undefined ? { maxLevel: ev.maxPlayerLevel } : {}),
+        label: `explore:${event.enemy}@${zoneDef.id}`,
+        zone: zoneDef.id,
+        minLevel: event.minPlayerLevel ?? 1,
+        ...(event.maxPlayerLevel !== undefined ? { maxLevel: event.maxPlayerLevel } : {}),
       });
     }
-    if (ev.kind === 'treasure' && ev.item === id) {
-      sites.push({ label: `explore-cache@${z.id}`, zone: z.id, minLevel: 1 });
+    if (event.kind === 'treasure' && event.item === id) {
+      sites.push({ label: `explore-cache@${zoneDef.id}`, zone: zoneDef.id, minLevel: 1 });
     }
   }
   // Zone contextual loot (#165): rolls on every eligible battle in the
   // zone — usable only while some battle table is eligible at all.
-  if (z.lootTable && dropTable(z.lootTable)?.entries.some((e) => e.item === id)) {
-    const battles = z.explore.filter((e) => e.kind === 'battle' || e.kind === 'elite');
-    const min = Math.min(...battles.map((e) => e.minPlayerLevel ?? 1));
-    sites.push({ label: `zone-loot:${z.lootTable}@${z.id}`, zone: z.id, minLevel: min });
+  if (zoneDef.lootTable && dropTable(zoneDef.lootTable)?.entries.some((drop) => drop.item === id)) {
+    const battles = zoneDef.explore.filter((event) =>
+      event.kind === 'battle' || event.kind === 'elite'
+    );
+    const min = Math.min(...battles.map((event) => event.minPlayerLevel ?? 1));
+    sites.push({
+      label: `zone-loot:${zoneDef.lootTable}@${zoneDef.id}`,
+      zone: zoneDef.id,
+      minLevel: min,
+    });
   }
   return sites;
 }
 
-function dungeonItemSources(id: string, z: ZoneDef): SourceSite[] {
+function dungeonItemSources(id: string, zoneDef: ZoneDef): SourceSite[] {
   const sites: SourceSite[] = [];
   // Dungeon floors, boss, and first clear — each named site must itself
   // grant the item, and boss-tier sites carry their story gate.
-  const d = z.dungeon ? dungeonOf(z) : undefined;
-  if (d) {
-    for (const [fi, floor] of d.floors.entries()) {
+  const dungeon = zoneDef.dungeon ? dungeonOf(zoneDef) : undefined;
+  if (dungeon) {
+    for (const [fi, floor] of dungeon.floors.entries()) {
       if (floor.treasure?.item === id) {
-        sites.push({ label: `dungeon-cache:${d.id}:floor${fi + 1}`, zone: z.id, minLevel: 1 });
+        sites.push({
+          label: `dungeon-cache:${dungeon.id}:floor${fi + 1}`,
+          zone: zoneDef.id,
+          minLevel: 1,
+        });
       }
-      for (const e of floor.enemies) {
-        if (enemyDropsItem(e, id)) {
-          sites.push({ label: `dungeon:${d.id}:floor${fi + 1}:${e}`, zone: z.id, minLevel: 1 });
+      for (const enemyId of floor.enemies) {
+        if (enemyDropsItem(enemyId, id)) {
+          sites.push({
+            label: `dungeon:${dungeon.id}:floor${fi + 1}:${enemyId}`,
+            zone: zoneDef.id,
+            minLevel: 1,
+          });
         }
       }
     }
-    if (enemyDropsItem(d.boss, id)) {
+    if (enemyDropsItem(dungeon.boss, id)) {
       sites.push({
-        label: `dungeon-boss:${d.id}:${d.boss}`,
-        zone: z.id,
+        label: `dungeon-boss:${dungeon.id}:${dungeon.boss}`,
+        zone: zoneDef.id,
         minLevel: 1,
-        ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
+        ...(dungeon.bossGate ? { gatedBy: dungeon.bossGate.quest, gateOpen: true } : {}),
       });
     }
-    if (d.firstClear?.item === id) {
+    if (dungeon.firstClear?.item === id) {
       sites.push({
-        label: `dungeon-first-clear:${d.id}`,
-        zone: z.id,
+        label: `dungeon-first-clear:${dungeon.id}`,
+        zone: zoneDef.id,
         minLevel: 1,
-        ...(d.bossGate ? { gatedBy: d.bossGate.quest, gateOpen: true } : {}),
+        ...(dungeon.bossGate ? { gatedBy: dungeon.bossGate.quest, gateOpen: true } : {}),
       });
     }
   }
@@ -176,12 +190,12 @@ function dungeonItemSources(id: string, z: ZoneDef): SourceSite[] {
 function shopItemSources(id: string): SourceSite[] {
   const sites: SourceSite[] = [];
   // Shop shelves: the shop must stock it in a rule the gate allows.
-  for (const s of SHOPS) {
-    for (const rule of s.stock) {
+  for (const shopDef of SHOPS) {
+    for (const rule of shopDef.stock) {
       if (!rule.items.includes(id)) continue;
-      for (const zone of SHOP_ZONES.get(s.id) ?? []) {
+      for (const zone of SHOP_ZONES.get(shopDef.id) ?? []) {
         sites.push({
-          label: `shop:${s.id}`,
+          label: `shop:${shopDef.id}`,
           zone,
           minLevel: 1,
           ...(rule.when && 'questStatus' in rule.when
@@ -199,11 +213,16 @@ function shopItemSources(id: string): SourceSite[] {
 function questItemSources(id: string): SourceSite[] {
   const sites: SourceSite[] = [];
   // Quest rewards: the finisher hands it over where they stand.
-  for (const q of QUESTS) {
-    if ((q.rewards.items?.[id] ?? 0) > 0) {
-      const zone = npcZone(q.finishNpc);
+  for (const questDef of QUESTS) {
+    if ((questDef.rewards.items?.[id] ?? 0) > 0) {
+      const zone = npcZone(questDef.finishNpc);
       if (zone) {
-        sites.push({ label: `quest-reward:${q.id}`, zone, minLevel: q.level, gatedBy: q.id });
+        sites.push({
+          label: `quest-reward:${questDef.id}`,
+          zone,
+          minLevel: questDef.level,
+          gatedBy: questDef.id,
+        });
       }
     }
   }
@@ -214,17 +233,17 @@ function storyItemSources(id: string): SourceSite[] {
   const sites: SourceSite[] = [];
   // Any other explicit structured grant site: story effects in authored
   // dialogue (grantItem), usable where the owning NPC stands.
-  for (const d of DIALOGUES) {
-    for (const n of d.nodes) {
-      const effects = n.kind === 'line'
-        ? n.effects ?? []
-        : n.kind === 'choice'
-        ? n.choices.flatMap((c) => c.effects ?? [])
+  for (const dialogueDef of DIALOGUES) {
+    for (const node of dialogueDef.nodes) {
+      const effects = node.kind === 'line'
+        ? node.effects ?? []
+        : node.kind === 'choice'
+        ? node.choices.flatMap((choice) => choice.effects ?? [])
         : [];
-      for (const e of effects) {
-        if (e.kind === 'grantItem' && e.itemId === id) {
-          const zone = npcZone(d.npcId);
-          if (zone) sites.push({ label: `story:${d.id}:${n.id}`, zone, minLevel: 1 });
+      for (const effect of effects) {
+        if (effect.kind === 'grantItem' && effect.itemId === id) {
+          const zone = npcZone(dialogueDef.npcId);
+          if (zone) sites.push({ label: `story:${dialogueDef.id}:${node.id}`, zone, minLevel: 1 });
         }
       }
     }
@@ -236,38 +255,38 @@ function storyItemSources(id: string): SourceSite[] {
  * player level is inside the site's band, an open gate stands (or the
  * gating quest is not permanently closed), and a shop shelf actually
  * stocks it for this shopper. */
-function siteUsableAt(s: SourceSite, p: PlayerState, walkable: Set<string>): boolean {
-  if (!p.unlockedZones.includes(s.zone) || !walkable.has(s.zone)) return false;
-  if (p.level < s.minLevel) return false;
-  if (s.maxLevel !== undefined && p.level > s.maxLevel) return false;
-  if (s.gatedBy) {
-    const st = p.quests[s.gatedBy]?.status;
-    const outcome = p.questOutcomes[s.gatedBy]?.kind;
-    if (s.gateOpen) {
+function siteUsableAt(site: SourceSite, player: PlayerState, walkable: Set<string>): boolean {
+  if (!player.unlockedZones.includes(site.zone) || !walkable.has(site.zone)) return false;
+  if (player.level < site.minLevel) return false;
+  if (site.maxLevel !== undefined && player.level > site.maxLevel) return false;
+  if (site.gatedBy) {
+    const status = player.quests[site.gatedBy]?.status;
+    const outcome = player.questOutcomes[site.gatedBy]?.kind;
+    if (site.gateOpen) {
       // The gate must stand OPEN right now (boss floors, first clears).
-      if (st !== 'active' && st !== 'turnIn' && st !== 'done') return false;
+      if (status !== 'active' && status !== 'turnIn' && status !== 'done') return false;
     } else if (outcome === 'locked' || outcome === 'failed') {
       // Permanently closed content can never be a source again.
       return false;
     }
   }
-  if (s.shop) {
+  if (site.shop) {
     // Find the item's shelving rule for this shopper (#161/#22): the
     // shelf re-filters gear to class and level at resolution, and a
     // condition-gated rule only stocks while its gate stands.
-    const shopId = s.label.slice('shop:'.length);
+    const shopId = site.label.slice('shop:'.length);
     const def = SHOPS.find((sh) => sh.id === shopId);
     const itemId = currentNeededItem;
     if (def && itemId) {
       const stocked = def.stock.some((rule) => {
-        if (rule.when && !evalCondition(p, rule.when)) return false;
+        if (rule.when && !evalCondition(player, rule.when)) return false;
         return rule.items.includes(itemId);
       });
       if (!stocked) return false;
       const kind = itemDef(itemId)?.kind;
       if (
         (kind === 'weapon' || kind === 'armor' || kind === 'trinket') &&
-        !isEquippable(itemId, p.classId, p.level).ok
+        !isEquippable(itemId, player.classId, player.level).ok
       ) {
         return false;
       }
@@ -288,7 +307,7 @@ Deno.test('progression: the story graph stays traversable at every turn-in snaps
     SEED,
     ALL_MAINS,
     'm25_silence',
-    (p, qid) => snaps.push({ questId: qid, p: structuredClone(p) }),
+    (player, qid) => snaps.push({ questId: qid, p: structuredClone(player) }),
   );
   assert(rep.campaignDone, 'the snapshot driver completes the campaign');
   assertEquals(
@@ -298,36 +317,39 @@ Deno.test('progression: the story graph stays traversable at every turn-in snaps
   );
 
   let last: PlayerState | undefined;
-  for (const { questId, p } of snaps) {
-    const ctx = `${questId}@L${p.level}`;
-    const seen = reachable(p);
+  for (const { questId, p: player } of snaps) {
+    const ctx = `${questId}@L${player.level}`;
+    const seen = reachable(player);
     // 1. No unlocked zone is a dead end: everything the story has opened
     // must be physically walkable from where the hero stands.
-    for (const zid of p.unlockedZones) {
+    for (const zid of player.unlockedZones) {
       assert(seen.has(zid), `${ctx}: unlocked zone ${zid} is disconnected`);
     }
     // 2. Facilities and havens ride the same rule — called out for the
     // issue's "facilities reachable when required" clause.
-    for (const z of ZONES) {
-      if (!p.unlockedZones.includes(z.id) || !z.services) continue;
-      assert(seen.has(z.id), `${ctx}: facility zone ${z.id} unreachable`);
+    for (const zoneDef of ZONES) {
+      if (!player.unlockedZones.includes(zoneDef.id) || !zoneDef.services) continue;
+      assert(seen.has(zoneDef.id), `${ctx}: facility zone ${zoneDef.id} unreachable`);
     }
     // 3. EVERY quest the player can hold right now — main AND side — has
     // both contacts on the traversable map (#171: side quests checked).
-    for (const q of QUESTS) {
-      const st = p.quests[q.id]?.status;
-      if (st !== 'available' && st !== 'active' && st !== 'turnIn') continue;
-      const start = npcZone(q.startNpc);
-      const finish = npcZone(q.finishNpc);
-      assert(start && seen.has(start), `${ctx}: ${q.id} starter zone ${start} unreachable`);
-      assert(finish && seen.has(finish), `${ctx}: ${q.id} finisher zone ${finish} unreachable`);
+    for (const questDef of QUESTS) {
+      const status = player.quests[questDef.id]?.status;
+      if (status !== 'available' && status !== 'active' && status !== 'turnIn') continue;
+      const start = npcZone(questDef.startNpc);
+      const finish = npcZone(questDef.finishNpc);
+      assert(start && seen.has(start), `${ctx}: ${questDef.id} starter zone ${start} unreachable`);
+      assert(
+        finish && seen.has(finish),
+        `${ctx}: ${questDef.id} finisher zone ${finish} unreachable`,
+      );
       // 4. Reach objectives point at walkable destinations.
-      if (st === 'active') {
-        for (const o of q.objectives) {
-          if (o.kind !== 'reach') continue;
+      if (status === 'active') {
+        for (const objective of questDef.objectives) {
+          if (objective.kind !== 'reach') continue;
           assert(
-            p.unlockedZones.includes(o.target) && seen.has(o.target),
-            `${ctx}: ${q.id} reach objective ${o.target} unreachable`,
+            player.unlockedZones.includes(objective.target) && seen.has(objective.target),
+            `${ctx}: ${questDef.id} reach objective ${objective.target} unreachable`,
           );
         }
       }
@@ -335,61 +357,63 @@ Deno.test('progression: the story graph stays traversable at every turn-in snaps
     // 5. (#171) Every item an open quest still needs has a non-travel
     // source that is REACHABLE and USABLE at this snapshot — not merely
     // present somewhere in an unlocked zone.
-    const openQuests = QUESTS.filter((q) => {
-      const st = p.quests[q.id]?.status;
-      return st === 'available' || st === 'active' || st === 'turnIn';
+    const openQuests = QUESTS.filter((questDef) => {
+      const status = player.quests[questDef.id]?.status;
+      return status === 'available' || status === 'active' || status === 'turnIn';
     });
-    for (const q of openQuests) {
-      for (const o of q.objectives) {
-        if (o.kind !== 'collect') continue;
-        currentNeededItem = o.target;
-        const usable = itemSources(o.target).filter((s) => siteUsableAt(s, p, seen));
+    for (const questDef of openQuests) {
+      for (const objective of questDef.objectives) {
+        if (objective.kind !== 'collect') continue;
+        currentNeededItem = objective.target;
+        const usable = itemSources(objective.target).filter((site) =>
+          siteUsableAt(site, player, seen)
+        );
         currentNeededItem = undefined;
         assert(
           usable.length > 0,
-          `${ctx}: ${q.id} needs ${o.target} but no non-travel source is reachable ` +
-            `and usable (of ${itemSources(o.target).length} known sites)`,
+          `${ctx}: ${questDef.id} needs ${objective.target} but no non-travel source is reachable ` +
+            `and usable (of ${itemSources(objective.target).length} known sites)`,
         );
       }
     }
-    last = p;
+    last = player;
   }
   assert(last, 'at least one snapshot observed');
 
   // ── End-state graph facts (all zones unlocked, story resolved) ──
   const end = last!;
   const endSeen = reachable({ ...end, currentZone: 'emberdawn' });
-  for (const z of ZONES) {
-    assert(endSeen.has(z.id), `end state: zone ${z.id} is disconnected from Emberdawn`);
+  for (const zoneDef of ZONES) {
+    assert(endSeen.has(zoneDef.id), `end state: zone ${zoneDef.id} is disconnected from Emberdawn`);
   }
   // One-way traps: every node must be able to reach Emberdawn again.
-  for (const z of ZONES) {
-    const back = reachable({ ...end, currentZone: z.id });
-    assert(back.has('emberdawn'), `end state: ${z.id} is a one-way trap (no road home)`);
+  for (const zoneDef of ZONES) {
+    const back = reachable({ ...end, currentZone: zoneDef.id });
+    assert(back.has('emberdawn'), `end state: ${zoneDef.id} is a one-way trap (no road home)`);
   }
 });
 
 Deno.test('progression: every eventful road rolls something eligible at its destination band (#162)', () => {
-  for (const r of ROUTES) {
-    if (r.eventCount <= 0) continue;
-    const dest = zoneDef(r.to);
-    assert(dest, `${r.id}: destination ${r.to} exists`);
+  for (const routeDef of ROUTES) {
+    if (routeDef.eventCount <= 0) continue;
+    const dest = zoneDef(routeDef.to);
+    assert(dest, `${routeDef.id}: destination ${routeDef.to} exists`);
     const floor = dest.levels[0];
-    const tables: { label: string; events: NonNullable<typeof r.events> }[] = [];
-    if (r.events) tables.push({ label: 'base', events: r.events });
-    for (const v of r.variants ?? []) {
-      if (v.events) tables.push({ label: v.id, events: v.events });
+    const tables: { label: string; events: NonNullable<typeof routeDef.events> }[] = [];
+    if (routeDef.events) tables.push({ label: 'base', events: routeDef.events });
+    for (const variant of routeDef.variants ?? []) {
+      if (variant.events) tables.push({ label: variant.id, events: variant.events });
     }
-    assert(tables.length > 0, `${r.id}: eventful road authors a table`);
+    assert(tables.length > 0, `${routeDef.id}: eventful road authors a table`);
     for (const { label, events } of tables) {
-      const live = events.filter((e) =>
-        e.weight > 0 && encounterEligible(e, floor) &&
-        (e.kind !== 'battle' || enemyDef(e.enemy) !== undefined) &&
-        (e.kind !== 'treasure' || !e.item || itemDef(e.item) !== undefined)
+      const live = events.filter((event) =>
+        event.weight > 0 && encounterEligible(event, floor) &&
+        (event.kind !== 'battle' || enemyDef(event.enemy) !== undefined) &&
+        (event.kind !== 'treasure' || !event.item || itemDef(event.item) !== undefined)
       );
       assert(
         live.length > 0,
-        `${r.id}/${label}: no eligible result at ${r.to} band floor L${floor}`,
+        `${routeDef.id}/${label}: no eligible result at ${routeDef.to} band floor L${floor}`,
       );
     }
   }
@@ -401,16 +425,20 @@ Deno.test('progression: every eventful road rolls something eligible at its dest
  * dungeon boss-gate keys, and dungeon first-clear rewards. */
 function mandatoryItems(): Map<string, string> {
   const mandatory = new Map<string, string>();
-  for (const q of QUESTS.filter((q) => q.main)) {
-    for (const o of q.objectives) {
-      if (o.kind === 'collect') mandatory.set(o.target, `main-quest ${q.id} collect`);
+  for (const questDef of QUESTS.filter((questDef) => questDef.main)) {
+    for (const objective of questDef.objectives) {
+      if (objective.kind === 'collect') {
+        mandatory.set(objective.target, `main-quest ${questDef.id} collect`);
+      }
     }
   }
-  for (const z of ZONES) {
-    const d = z.dungeon ? dungeonOf(z) : undefined;
-    if (!d) continue;
-    if (d.bossGate?.item) mandatory.set(d.bossGate.item, `${d.id} boss gate key`);
-    if (d.firstClear?.item) mandatory.set(d.firstClear.item, `${d.id} first clear`);
+  for (const zoneDef of ZONES) {
+    const dungeon = zoneDef.dungeon ? dungeonOf(zoneDef) : undefined;
+    if (!dungeon) continue;
+    if (dungeon.bossGate?.item) mandatory.set(dungeon.bossGate.item, `${dungeon.id} boss gate key`);
+    if (dungeon.firstClear?.item) {
+      mandatory.set(dungeon.firstClear.item, `${dungeon.id} first clear`);
+    }
   }
   return mandatory;
 }
@@ -428,7 +456,7 @@ Deno.test('progression: mandatory items never come only from luck-locked travel 
     // #171: every claimed source must name the item's own structured
     // content — sanity on a known item against a known site.
     assert(
-      src.every((s) => s.zone && itemDef(id) !== undefined),
+      src.every((site) => site.zone && itemDef(id) !== undefined),
       `${id} (${why}): sources carry provenance`,
     );
   }
@@ -445,9 +473,9 @@ Deno.test('sources: dungeons count only when their structured content grants the
   // appear as a source merely because the zone has one.
   const sites = itemSources('m_iron_chunk');
   assert(
-    sites.some((s) =>
-      s.label.startsWith('dungeon-cache:d_rootbound') ||
-      s.label.startsWith('dungeon:d_rootbound')
+    sites.some((site) =>
+      site.label.startsWith('dungeon-cache:d_rootbound') ||
+      site.label.startsWith('dungeon:d_rootbound')
     ),
     'the Hollow names its own iron-chunk sites',
   );
@@ -456,14 +484,14 @@ Deno.test('sources: dungeons count only when their structured content grants the
   // never appear: the Vault of Hours and the Glacier Maw grant no Iron
   // Chunks from any floor, cache, boss or clear.
   assert(
-    !sites.some((s) => s.label.includes('d_vault') || s.label.includes('d_glacier')),
+    !sites.some((site) => site.label.includes('d_vault') || site.label.includes('d_glacier')),
     `non-granting dungeons must never be sources: ${JSON.stringify(sites)}`,
   );
   // And the Sunspire Key's sole source is its quest reward — never a
   // dungeon, shop, cache or loot table (engine_test pins the same rule).
   const keySites = itemSources('q_sunspire_key');
   assertEquals(
-    keySites.map((s) => s.label),
+    keySites.map((site) => site.label),
     ['quest-reward:m11_toll'],
     'the key has exactly one structured source',
   );
@@ -472,10 +500,10 @@ Deno.test('sources: dungeons count only when their structured content grants the
 Deno.test('sources: a deliberately travel-only fixture fails the mandatory assertion (#171)', () => {
   // Patch a main-quest collect target onto an item whose ONLY grant is a
   // route treasure event — the exact shape the rule exists to refuse.
-  const m6 = QUESTS.find((q) => q.id === 'm6_toxin')!;
+  const m6 = QUESTS.find((questDef) => questDef.id === 'm6_toxin')!;
   const originalTarget = m6.objectives[0]!.target;
-  const r = route('w_whisperwood_mirefoot')!;
-  const treasure = r.events![4] as Extract<TravelEvent, { kind: 'treasure' }>;
+  const routeDef = route('w_whisperwood_mirefoot')!;
+  const treasure = routeDef.events![4] as Extract<TravelEvent, { kind: 'treasure' }>;
   const originalItem = treasure.item;
   m6.objectives[0] = { kind: 'collect', target: 'c_elixir', count: 1 };
   treasure.item = 'c_elixir';

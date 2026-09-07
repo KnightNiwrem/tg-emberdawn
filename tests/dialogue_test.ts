@@ -30,10 +30,10 @@ import { MemoryStore } from '../src/persistence/store.ts';
 import { fakeCtx } from './helpers.ts';
 import type { PlayerState } from '../src/engine/types.ts';
 
-const QUEST_IDS = QUESTS.map((q) => q.id);
-const ITEM_IDS = ITEMS.map((i) => i.id);
+const QUEST_IDS = QUESTS.map((questDef) => questDef.id);
+const ITEM_IDS = ITEMS.map((itemDef) => itemDef.id);
 const questIds = new Set(QUEST_IDS);
-const zoneIds = new Set(ZONES.map((z) => z.id));
+const zoneIds = new Set(ZONES.map((zoneDef) => zoneDef.id));
 const itemIds = new Set(ITEM_IDS);
 
 /** Obvious incompatible bundles are statically rejected (#132, #146): one
@@ -47,14 +47,14 @@ function assertNoIncompatibleBundle(
 ): void {
   const started = new Set(
     effects
-      .filter((e) => e.kind === 'startQuest' || e.kind === 'acceptQuest')
-      .map((e) => (e as { questId: string }).questId),
+      .filter((effect) => effect.kind === 'startQuest' || effect.kind === 'acceptQuest')
+      .map((effect) => (effect as { questId: string }).questId),
   );
-  for (const e of effects) {
-    if (e.kind === 'lockQuest' || e.kind === 'failQuest') {
+  for (const effect of effects) {
+    if (effect.kind === 'lockQuest' || effect.kind === 'failQuest') {
       assert(
-        !started.has(e.questId),
-        `${from}: starts and ${e.kind}s ${e.questId} in one bundle`,
+        !started.has(effect.questId),
+        `${from}: starts and ${effect.kind}s ${effect.questId} in one bundle`,
       );
     }
   }
@@ -63,56 +63,73 @@ function assertNoIncompatibleBundle(
 // ── content integrity ────────────────────────────────────────────────────
 
 Deno.test('dialogue integrity: ids, references, reachability, terminals (#124, #126)', () => {
-  const ids = new Set(DIALOGUES.map((d) => d.id));
+  const ids = new Set(DIALOGUES.map((dialogueDef) => dialogueDef.id));
   assertEquals(ids.size, DIALOGUES.length, 'dialogue ids are unique');
-  const placedNpcs = new Set(ZONES.flatMap((z) => z.npcs.map((n) => n.id)));
-  for (const d of DIALOGUES) {
-    assert(placedNpcs.has(d.npcId), `${d.id}: npc ${d.npcId} is not placed in any zone`);
-    assert(d.nodes.length > 0, `${d.id}: no nodes`);
-    const nodeIds = new Set(d.nodes.map((n) => n.id));
-    assertEquals(nodeIds.size, d.nodes.length, `${d.id}: node ids must be unique`);
-    assert(nodeIds.has(d.start), `${d.id}: start node missing`);
-    for (const n of d.nodes) {
-      if (n.kind === 'line') {
-        assert(n.text.length > 0, `${d.id}:${n.id}: empty line node`);
-        if (n.next !== undefined) {
-          assert(nodeIds.has(n.next), `${d.id}:${n.id}: missing next target ${n.next}`);
+  const placedNpcs = new Set(ZONES.flatMap((zoneDef) => zoneDef.npcs.map((npcDef) => npcDef.id)));
+  for (const dialogueDef of DIALOGUES) {
+    assert(
+      placedNpcs.has(dialogueDef.npcId),
+      `${dialogueDef.id}: npc ${dialogueDef.npcId} is not placed in any zone`,
+    );
+    assert(dialogueDef.nodes.length > 0, `${dialogueDef.id}: no nodes`);
+    const nodeIds = new Set(dialogueDef.nodes.map((node) => node.id));
+    assertEquals(
+      nodeIds.size,
+      dialogueDef.nodes.length,
+      `${dialogueDef.id}: node ids must be unique`,
+    );
+    assert(nodeIds.has(dialogueDef.start), `${dialogueDef.id}: start node missing`);
+    for (const node of dialogueDef.nodes) {
+      if (node.kind === 'line') {
+        assert(node.text.length > 0, `${dialogueDef.id}:${node.id}: empty line node`);
+        if (node.next !== undefined) {
+          assert(
+            nodeIds.has(node.next),
+            `${dialogueDef.id}:${node.id}: missing next target ${node.next}`,
+          );
         }
         // Line-entry effects resolve too (#132): every effect surface is
         // crawled, not only choices.
-        assertEffectReferences(d.id, n.effects ?? []);
+        assertEffectReferences(dialogueDef.id, node.effects ?? []);
         // Line bundles get the same incompatible-bundle gate as choices
         // (#146): no effect surface may start/accept AND lock/fail the
         // SAME quest — the runtime refuses that as contradictory content.
-        assertNoIncompatibleBundle(`${d.id}:${n.id}`, n.effects ?? []);
-      } else if (n.kind === 'choice') {
-        assert(n.prompt.length > 0, `${d.id}:${n.id}: empty choice prompt`);
+        assertNoIncompatibleBundle(`${dialogueDef.id}:${node.id}`, node.effects ?? []);
+      } else if (node.kind === 'choice') {
+        assert(node.prompt.length > 0, `${dialogueDef.id}:${node.id}: empty choice prompt`);
         // A choice node always offers a real branch: either multiple
         // responses, or a single response while the structural deferral
         // ("Not now") remains available as the non-mutating exit (#132).
         assert(
-          n.choices.length >= 2 || (n.choices.length >= 1 && n.allowDeferral !== false),
-          `${d.id}:${n.id}: a choice node offers a real branch`,
+          node.choices.length >= 2 || (node.choices.length >= 1 && node.allowDeferral !== false),
+          `${dialogueDef.id}:${node.id}: a choice node offers a real branch`,
         );
-        const choiceIds = new Set(n.choices.map((c) => c.id));
-        assertEquals(choiceIds.size, n.choices.length, `${d.id}:${n.id}: choice ids unique`);
-        for (const c of n.choices) {
-          assertDialogueChoice(d, n, c, nodeIds);
+        const choiceIds = new Set(node.choices.map((choice) => choice.id));
+        assertEquals(
+          choiceIds.size,
+          node.choices.length,
+          `${dialogueDef.id}:${node.id}: choice ids unique`,
+        );
+        for (const choice of node.choices) {
+          assertDialogueChoice(dialogueDef, node, choice, nodeIds);
         }
       } else {
         assertEquals(
-          (n as { next?: string }).next,
+          (node as { next?: string }).next,
           undefined,
-          `${d.id}:${n.id}: end nodes carry no next`,
+          `${dialogueDef.id}:${node.id}: end nodes carry no next`,
         );
       }
       // Callback budget: dlg:nx:<rev4>:<nodeId> must stay under 64 bytes.
-      if (n.kind === 'line' && n.next) {
-        const wire = withRev(9999, encodeCb({ v: 'dlg', a: 'nx', arg: n.next }));
-        assert(wire.length <= 64, `${d.id}:${n.id} wire form too long (${wire.length})`);
+      if (node.kind === 'line' && node.next) {
+        const wire = withRev(9999, encodeCb({ v: 'dlg', a: 'nx', arg: node.next }));
+        assert(
+          wire.length <= 64,
+          `${dialogueDef.id}:${node.id} wire form too long (${wire.length})`,
+        );
       }
     }
-    assertDialogueGraph(d);
+    assertDialogueGraph(dialogueDef);
   }
 });
 
@@ -128,127 +145,146 @@ function assertKnownReferences(
 }
 
 function assertEffectReferences(from: string, effects: readonly StoryEffect[]): void {
-  for (const e of effects) assertKnownReferences(from, storyEffectRefs(e));
+  for (const effect of effects) assertKnownReferences(from, storyEffectRefs(effect));
 }
 
 function assertDialogueChoice(
-  d: DialogueDef,
-  n: Extract<DialogueNode, { kind: 'choice' }>,
-  c: DialogueChoice,
+  dialogueDef: DialogueDef,
+  node: Extract<DialogueNode, { kind: 'choice' }>,
+  choice: DialogueChoice,
   nodeIds: Set<string>,
 ): void {
-  assert(c.label.length > 0, `${d.id}:${n.id}:${c.id}: empty label`);
-  if (c.next !== undefined) {
-    assert(nodeIds.has(c.next), `${d.id}:${n.id}:${c.id}: missing next ${c.next}`);
+  assert(choice.label.length > 0, `${dialogueDef.id}:${node.id}:${choice.id}: empty label`);
+  if (choice.next !== undefined) {
+    assert(
+      nodeIds.has(choice.next),
+      `${dialogueDef.id}:${node.id}:${choice.id}: missing next ${choice.next}`,
+    );
   }
   // Availability conditions resolve (#132): choice `when` gates are
   // crawled like every other condition surface.
-  if (c.when) {
-    assertKnownReferences(`${d.id}:${n.id}:${c.id}`, conditionRefs(c.when));
+  if (choice.when) {
+    assertKnownReferences(`${dialogueDef.id}:${node.id}:${choice.id}`, conditionRefs(choice.when));
   }
   // Effect references resolve (quests, items, zones) and decision
   // ids never collide with incompatible option sets.
-  assertEffectReferences(d.id, c.effects ?? []);
+  assertEffectReferences(dialogueDef.id, choice.effects ?? []);
   // Obvious incompatible bundles are statically rejected (#132,
   // #146 — for choice AND line effect surfaces alike).
-  assertNoIncompatibleBundle(`${d.id}:${n.id}:${c.id}`, c.effects ?? []);
-  const dec = (c.effects ?? []).find((e) => e.kind === 'recordDecision');
+  assertNoIncompatibleBundle(`${dialogueDef.id}:${node.id}:${choice.id}`, choice.effects ?? []);
+  const dec = (choice.effects ?? []).find((effect) => effect.kind === 'recordDecision');
   if (dec && dec.kind === 'recordDecision') {
     const prior = DECISION_CHOICES.get(dec.id);
     if (prior) {
       assert(
         prior.choiceId !== dec.choiceId,
-        `${d.id}:${n.id}: decision ${dec.id} reused with duplicate option`,
+        `${dialogueDef.id}:${node.id}: decision ${dec.id} reused with duplicate option`,
       );
     }
-    DECISION_CHOICES.set(dec.id, { choiceId: dec.choiceId, from: `${d.id}:${c.id}` });
+    DECISION_CHOICES.set(dec.id, {
+      choiceId: dec.choiceId,
+      from: `${dialogueDef.id}:${choice.id}`,
+    });
   }
   // Callback budget for choice selection + confirmation.
   for (const action of ['ch', 'cf'] as const) {
-    const wire = withRev(9999, encodeCb({ v: 'dlg', a: action, arg: c.id }));
+    const wire = withRev(9999, encodeCb({ v: 'dlg', a: action, arg: choice.id }));
     assert(
       wire.length <= 64,
-      `${d.id}:${n.id}:${c.id} wire form too long (${wire.length})`,
+      `${dialogueDef.id}:${node.id}:${choice.id} wire form too long (${wire.length})`,
     );
   }
 }
 
-function assertDialogueGraph(d: DialogueDef): void {
+function assertDialogueGraph(dialogueDef: DialogueDef): void {
   // Reachability: every node is visited from start via next links.
   const seen = new Set<string>();
-  let cursor: string | undefined = d.start;
+  let cursor: string | undefined = dialogueDef.start;
   while (cursor && !seen.has(cursor)) {
     seen.add(cursor);
-    const n = dialogueNode(d, cursor);
-    if (!n) break;
-    if (n.kind === 'line') cursor = n.next;
-    else if (n.kind === 'choice') {
+    const node = dialogueNode(dialogueDef, cursor);
+    if (!node) break;
+    if (node.kind === 'line') cursor = node.next;
+    else if (node.kind === 'choice') {
       // Follow every branch.
-      for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
+      for (const choice of node.choices) if (choice.next) walkFrom(dialogueDef, choice.next, seen);
       cursor = undefined;
     } else cursor = undefined;
   }
-  for (const n of d.nodes) {
-    assert(seen.has(n.id), `${d.id}:${n.id}: unreachable node`);
+  for (const node of dialogueDef.nodes) {
+    assert(seen.has(node.id), `${dialogueDef.id}:${node.id}: unreachable node`);
   }
   // Terminals: every branch path terminates — on an explicit end node or
   // on a final line that omits `next`, or on a choice without next.
-  assert(dWalkTerminates(d, d.start, new Set()), `${d.id}: every path terminates`);
+  assert(
+    dWalkTerminates(dialogueDef, dialogueDef.start, new Set()),
+    `${dialogueDef.id}: every path terminates`,
+  );
   // The dialogue is opened by an NPC topic OR by a quest flow
   // (offer/turn-in/conversation) owned by the same NPC (#127).
-  const offered = ZONES.flatMap((z) => z.npcs).some((n) =>
-    n.id === d.npcId && (n.topics ?? []).some((t) => t.dialogue === d.id)
+  const offered = ZONES.flatMap((zoneDef) => zoneDef.npcs).some((npcDef) =>
+    npcDef.id === dialogueDef.npcId &&
+    (npcDef.topics ?? []).some((topic) => topic.dialogue === dialogueDef.id)
   );
-  const questWired = QUESTS.some((q) =>
-    [q.offerDialogue, q.turnInDialogue, q.conversationDialogue].includes(d.id)
+  const questWired = QUESTS.some((questDef) =>
+    [questDef.offerDialogue, questDef.turnInDialogue, questDef.conversationDialogue].includes(
+      dialogueDef.id,
+    )
   );
-  assert(offered || questWired, `${d.id}: nothing opens this dialogue`);
+  assert(offered || questWired, `${dialogueDef.id}: nothing opens this dialogue`);
 }
 
 function walkFrom(
-  d: NonNullable<ReturnType<typeof dialogue>>,
+  dialogueDef: NonNullable<ReturnType<typeof dialogue>>,
   nodeId: string,
   seen: Set<string>,
 ): void {
   let cursor: string | undefined = nodeId;
   while (cursor && !seen.has(cursor)) {
     seen.add(cursor);
-    const n = dialogueNode(d, cursor);
-    if (!n) break;
-    if (n.kind === 'line') cursor = n.next;
-    else if (n.kind === 'choice') {
-      for (const c of n.choices) if (c.next) walkFrom(d, c.next, seen);
+    const node = dialogueNode(dialogueDef, cursor);
+    if (!node) break;
+    if (node.kind === 'line') cursor = node.next;
+    else if (node.kind === 'choice') {
+      for (const choice of node.choices) if (choice.next) walkFrom(dialogueDef, choice.next, seen);
       cursor = undefined;
     } else cursor = undefined;
   }
 }
 
 function dWalkTerminates(
-  d: NonNullable<ReturnType<typeof dialogue>>,
+  dialogueDef: NonNullable<ReturnType<typeof dialogue>>,
   nodeId: string,
   visiting: Set<string>,
 ): boolean {
   if (visiting.has(nodeId)) return false; // cycle
-  const n = dialogueNode(d, nodeId);
-  if (!n) return false;
-  if (n.kind === 'end') return true;
-  if (n.kind === 'line') return n.next === undefined || dWalkTerminates(d, n.next, visiting);
-  return n.choices.every((c) => c.next === undefined || dWalkTerminates(d, c.next, visiting));
+  const node = dialogueNode(dialogueDef, nodeId);
+  if (!node) return false;
+  if (node.kind === 'end') return true;
+  if (node.kind === 'line') {
+    return node.next === undefined || dWalkTerminates(dialogueDef, node.next, visiting);
+  }
+  return node.choices.every((choice) =>
+    choice.next === undefined || dWalkTerminates(dialogueDef, choice.next, visiting)
+  );
 }
 
 Deno.test('dialogue integrity: topic shapes are complete (#124)', () => {
-  for (const z of ZONES) {
-    for (const n of z.npcs) {
-      for (const t of n.topics ?? []) {
-        if (t.dialogue !== undefined) {
-          assert(dialogue(t.dialogue), `${n.id}:${t.id}: unknown dialogue ${t.dialogue}`);
+  for (const zoneDef of ZONES) {
+    for (const npcDef of zoneDef.npcs) {
+      for (const topic of npcDef.topics ?? []) {
+        if (topic.dialogue !== undefined) {
+          assert(
+            dialogue(topic.dialogue),
+            `${npcDef.id}:${topic.id}: unknown dialogue ${topic.dialogue}`,
+          );
           assertEquals(
-            dialogue(t.dialogue)!.npcId,
-            n.id,
-            `${n.id}:${t.id}: dialogue belongs to another NPC`,
+            dialogue(topic.dialogue)!.npcId,
+            npcDef.id,
+            `${npcDef.id}:${topic.id}: dialogue belongs to another NPC`,
           );
         } else {
-          assert(t.text, `${n.id}:${t.id}: static topic needs text`);
+          assert(topic.text, `${npcDef.id}:${topic.id}: static topic needs text`);
         }
       }
     }
@@ -258,99 +294,99 @@ Deno.test('dialogue integrity: topic shapes are complete (#124)', () => {
 // ── scene flow ───────────────────────────────────────────────────────────
 
 function hero(id: number): PlayerState {
-  const p = createPlayer(id, 'T', 'warrior');
-  syncAvailability(p);
-  return p;
+  const player = createPlayer(id, 'T', 'warrior');
+  syncAvailability(player);
+  return player;
 }
 
 Deno.test('dialogue: selecting a dialogue topic opens the scene at the start node (#124)', () => {
-  const p = hero(1200);
-  p.scene = { view: 'npc', arg: 'npc_maren' };
-  npcAction(p, { v: 'npc', a: 'lore', arg: 'maren_flame' });
-  assertEquals(p.scene.view, 'dialogue');
-  assertEquals(p.scene.arg, 'dlg_maren_flame');
-  assertEquals(p.scene.arg2, 'n1');
+  const player = hero(1200);
+  player.scene = { view: 'npc', arg: 'npc_maren' };
+  npcAction(player, { v: 'npc', a: 'lore', arg: 'maren_flame' });
+  assertEquals(player.scene.view, 'dialogue');
+  assertEquals(player.scene.arg, 'dlg_maren_flame');
+  assertEquals(player.scene.arg2, 'n1');
 });
 
 Deno.test('dialogue: Continue advances exactly one node; End returns to topics (#124)', () => {
-  const p = hero(1201);
-  p.scene = { view: 'npc', arg: 'npc_maren' };
-  npcAction(p, { v: 'npc', a: 'lore', arg: 'maren_flame' });
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n2' });
-  assertEquals(p.scene.arg2, 'n2');
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n3' });
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n4' });
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n5' });
-  assertEquals(p.scene.arg2, 'n5');
+  const player = hero(1201);
+  player.scene = { view: 'npc', arg: 'npc_maren' };
+  npcAction(player, { v: 'npc', a: 'lore', arg: 'maren_flame' });
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
+  assertEquals(player.scene.arg2, 'n2');
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n3' });
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n4' });
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n5' });
+  assertEquals(player.scene.arg2, 'n5');
   // n5 is the final line (no next): there is nothing to continue to.
   const last = dialogueNode(dialogue('dlg_maren_flame')!, 'n5')!;
   assertEquals(last.kind === 'line' ? last.next : undefined, undefined);
   // End/back returns to the owning NPC's topic menu.
-  dialogueAction(p, { v: 'dlg', a: 'bk' });
-  assertEquals(p.scene.view, 'npc');
-  assertEquals(p.scene.arg, 'npc_maren');
+  dialogueAction(player, { v: 'dlg', a: 'bk' });
+  assertEquals(player.scene.view, 'npc');
+  assertEquals(player.scene.arg, 'npc_maren');
 });
 
 Deno.test('dialogue: hostile callbacks are non-mutating (#124)', () => {
-  const p = hero(1202);
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
+  const player = hero(1202);
+  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
   // Wrong next target (forged): refused.
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n5' });
-  assertEquals(p.scene.arg2, 'n1', 'a forged skip is refused');
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n5' });
+  assertEquals(player.scene.arg2, 'n1', 'a forged skip is refused');
   // Wrong node: the callback targets a node that is not current.next.
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n1' });
-  assertEquals(p.scene.arg2, 'n1', 'self-advance refused');
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n1' });
+  assertEquals(player.scene.arg2, 'n1', 'self-advance refused');
   // Wrong dialogue: the scene names a different conversation.
-  p.scene = { view: 'dialogue', arg: 'dlg_bram_forge', arg2: 'n1' };
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n2' }); // valid for THIS scene
-  assertEquals(p.scene.arg, 'dlg_bram_forge');
-  assertEquals(p.scene.arg2, 'n2');
+  player.scene = { view: 'dialogue', arg: 'dlg_bram_forge', arg2: 'n1' };
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' }); // valid for THIS scene
+  assertEquals(player.scene.arg, 'dlg_bram_forge');
+  assertEquals(player.scene.arg2, 'n2');
   // No live scene: refusal.
-  p.scene = { view: 'zone' };
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n2' });
-  assertEquals(p.scene.view, 'zone', 'nothing opened');
+  player.scene = { view: 'zone' };
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
+  assertEquals(player.scene.view, 'zone', 'nothing opened');
   // Wrong zone: Maren is not in the Whisperwood.
-  p.currentZone = 'whisperwood';
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
-  dialogueAction(p, { v: 'dlg', a: 'nx', arg: 'n2' });
-  assertEquals(p.scene.arg2, 'n1', 'off-site dialogue cannot advance');
+  player.currentZone = 'whisperwood';
+  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
+  dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
+  assertEquals(player.scene.arg2, 'n1', 'off-site dialogue cannot advance');
 });
 
 Deno.test('dialogue: rerender reproduces the current node (#124)', () => {
-  const p = hero(1203);
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n3' };
-  const a = JSON.stringify(renderDialogue(p));
-  const b = JSON.stringify(renderDialogue(p));
-  assertEquals(a, b, 'rendering is pure and position-stable');
-  assert(a.includes('Elder Maren'), 'the same beat renders');
+  const player = hero(1203);
+  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n3' };
+  const firstRender = JSON.stringify(renderDialogue(player));
+  const secondRender = JSON.stringify(renderDialogue(player));
+  assertEquals(firstRender, secondRender, 'rendering is pure and position-stable');
+  assert(firstRender.includes('Elder Maren'), 'the same beat renders');
 });
 
 Deno.test('dialogue: the representative conversation distinguishes all speakers (#124)', () => {
-  const p = hero(1204);
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n2' }; // narrator
-  const narrator = JSON.stringify(renderDialogue(p));
+  const heroState = hero(1204);
+  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n2' }; // narrator
+  const narrator = JSON.stringify(renderDialogue(heroState));
   assert(!narrator.includes('“'), 'narration is not quoted as speech');
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' }; // npc
-  const npcSpeech = JSON.stringify(renderDialogue(p));
+  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' }; // npc
+  const npcSpeech = JSON.stringify(renderDialogue(heroState));
   assert(npcSpeech.includes('“'), 'NPC speech renders quoted');
   assert(npcSpeech.includes('Elder Maren'), 'the speaker is named');
   assert(npcSpeech.includes('dlg:nx:n2'), 'Continue carries the next node');
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n4' }; // player
-  const player = JSON.stringify(renderDialogue(p));
+  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n4' }; // player
+  const player = JSON.stringify(renderDialogue(heroState));
   assert(player.includes('You — “'), 'authored player speech is attributed');
   // The final beat offers End, not Continue.
-  p.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n5' };
-  const final = JSON.stringify(renderDialogue(p));
+  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n5' };
+  const final = JSON.stringify(renderDialogue(heroState));
   assert(final.includes('End conversation'), 'the last beat offers the exit');
   assert(!final.includes('dlg:nx'), 'no Continue past the final line');
 });
 
 Deno.test('dialogue: full router — one message, deterministic advance, replay-safe (#124)', async () => {
   const store = new MemoryStore();
-  const p = hero(1205);
-  p.messageId = 200;
-  p.scene = { view: 'npc', arg: 'npc_maren' };
-  await store.set(1205, p);
+  const player = hero(1205);
+  player.messageId = 200;
+  player.scene = { view: 'npc', arg: 'npc_maren' };
+  await store.set(1205, player);
   let cur = (await store.get(1205))!;
   // Topic → dialogue scene.
   await handleCallback(fakeCtx(1205, 200, withRev(cur.uiRev ?? 0, 'npc:lore:maren_flame')), store);
@@ -371,9 +407,9 @@ Deno.test('dialogue: full router — one message, deterministic advance, replay-
 });
 
 Deno.test('dialogue: topics still resolve for every NPC (#123 parity)', () => {
-  for (const z of ZONES) {
-    for (const n of z.npcs) {
-      assert(npc(n.id), `${n.id} resolves`);
+  for (const zoneDef of ZONES) {
+    for (const npcDef of zoneDef.npcs) {
+      assert(npc(npcDef.id), `${npcDef.id} resolves`);
       void npcTopics(
         {
           quests: {},
@@ -382,7 +418,7 @@ Deno.test('dialogue: topics still resolve for every NPC (#123 parity)', () => {
           storyEvents: [],
           questOutcomes: {},
         } as unknown as PlayerState,
-        n.id,
+        npcDef.id,
       );
     }
   }

@@ -30,20 +30,21 @@ Deno.test('gathering catalogs: ecology, identities and useful bounded yields', (
       }
     }
   }
-  for (const z of ZONES) assert(gatheringSites(z.id).length > 0, z.id);
+  for (const zoneDef of ZONES) assert(gatheringSites(zoneDef.id).length > 0, zoneDef.id);
   for (const id of ['sunspire', 'frostpeak', 'cinder', 'umbra', 'abyss']) {
-    assert(!gatheringSites(id).some((s) => s.activity === 'fish'), id);
+    assert(!gatheringSites(id).some((site) => site.activity === 'fish'), id);
   }
-  for (const z of ZONES) {
-    for (const ev of z.explore) {
-      if (ev.kind === 'treasure') {
+  for (const zoneDef of ZONES) {
+    for (const event of zoneDef.explore) {
+      if (event.kind === 'treasure') {
         assertEquals(
-          ev.gold,
+          event.gold,
           undefined,
           'Routine exploration finds resources rather than gold hoards',
         );
         assert(
-          !ev.item || !item(ev.item)?.effect || ['c_wild_berry', 'c_bitterleaf'].includes(ev.item),
+          !event.item || !item(event.item)?.effect ||
+            ['c_wild_berry', 'c_bitterleaf'].includes(event.item),
         );
       }
     }
@@ -51,95 +52,98 @@ Deno.test('gathering catalogs: ecology, identities and useful bounded yields', (
 });
 
 Deno.test('gathering: tool and forged activity refusals preserve state and random stream', () => {
-  const p = createPlayer(700, 'Gatherer', 'warrior');
-  p.currentZone = 'outskirts';
-  const before = structuredClone(p);
+  const player = createPlayer(700, 'Gatherer', 'warrior');
+  player.currentZone = 'outskirts';
+  const before = structuredClone(player);
   const never = () => {
     throw new Error('Refusal must not roll');
   };
-  assert(!gather(p, 'mine', never, 1000).ok);
-  assert(!gather(p, 'fish', never, 1000).ok);
-  assert(!gather(p, 'forage', never, 1000, 'm_worm_bait').ok);
-  assertEquals(p, before);
-  addItem(p, 'm_pickaxe');
-  assert(gather(p, 'mine', () => 0, 1000).ok);
-  assertEquals(countOf(p, 'm_pickaxe'), 1);
-  assertEquals(countOf(p, 'm_copper_ore'), 1);
+  assert(!gather(player, 'mine', never, 1000).ok);
+  assert(!gather(player, 'fish', never, 1000).ok);
+  assert(!gather(player, 'forage', never, 1000, 'm_worm_bait').ok);
+  assertEquals(player, before);
+  addItem(player, 'm_pickaxe');
+  assert(gather(player, 'mine', () => 0, 1000).ok);
+  assertEquals(countOf(player, 'm_pickaxe'), 1);
+  assertEquals(countOf(player, 'm_copper_ore'), 1);
 });
 
 Deno.test('gathering: local shared allowance and recharge cannot be bypassed by travel or activity', () => {
-  const p = createPlayer(701, 'Gatherer', 'warrior');
-  p.currentZone = 'outskirts';
-  addItem(p, 'm_pickaxe');
-  assert(gather(p, 'forage', () => 0, 1000).ok);
-  assert(gather(p, 'mine', () => 0, 2000).ok);
-  assert(gather(p, 'forage', () => 0, 3000).ok);
-  assertEquals(p.flags.gatherReset_outskirts, 3000 + GATHERING_COOLDOWN_MS);
-  p.currentZone = 'emberdawn';
-  assert(gather(p, 'forage', () => 0, 4000).ok);
-  p.currentZone = 'outskirts';
-  const before = structuredClone(p);
-  assert(!gather(p, 'mine', () => 0, 3000 + GATHERING_COOLDOWN_MS - 1).ok);
-  assertEquals(p, before);
-  assertEquals(gatheringOptions(p)[0]?.remaining, 0);
-  assertEquals(gatheringOptions(p, 3000 + GATHERING_COOLDOWN_MS)[0]?.remaining, 3);
-  assertEquals(p, before, 'Projection never performs recharge mutations');
-  assert(gather(p, 'mine', () => 0, 3000 + GATHERING_COOLDOWN_MS).ok);
-  assertEquals(p.flags.gather_outskirts, 1);
-  assertEquals(p.flags.gatherReset_outskirts, undefined);
+  const player = createPlayer(701, 'Gatherer', 'warrior');
+  player.currentZone = 'outskirts';
+  addItem(player, 'm_pickaxe');
+  assert(gather(player, 'forage', () => 0, 1000).ok);
+  assert(gather(player, 'mine', () => 0, 2000).ok);
+  assert(gather(player, 'forage', () => 0, 3000).ok);
+  assertEquals(player.flags.gatherReset_outskirts, 3000 + GATHERING_COOLDOWN_MS);
+  player.currentZone = 'emberdawn';
+  assert(gather(player, 'forage', () => 0, 4000).ok);
+  player.currentZone = 'outskirts';
+  const before = structuredClone(player);
+  assert(!gather(player, 'mine', () => 0, 3000 + GATHERING_COOLDOWN_MS - 1).ok);
+  assertEquals(player, before);
+  assertEquals(gatheringOptions(player)[0]?.remaining, 0);
+  assertEquals(gatheringOptions(player, 3000 + GATHERING_COOLDOWN_MS)[0]?.remaining, 3);
+  assertEquals(player, before, 'Projection never performs recharge mutations');
+  assert(gather(player, 'mine', () => 0, 3000 + GATHERING_COOLDOWN_MS).ok);
+  assertEquals(player.flags.gather_outskirts, 1);
+  assertEquals(player.flags.gatherReset_outskirts, undefined);
 });
 
 Deno.test('gathering: fishing validates bait and consumes one only after acceptance', () => {
-  const p = createPlayer(702, 'Gatherer', 'warrior');
-  p.currentZone = 'whisperwood';
-  addItem(p, 'm_fishing_rod');
-  addItem(p, 'm_worm_bait', 2);
-  const before = structuredClone(p);
-  assert(!gather(p, 'fish', () => 0, 1000, 'm_pickaxe').ok);
-  assert(!gather(p, 'fish', () => 0, 1000, 'm_grub_bait').ok);
-  assertEquals(p, before);
-  assert(gather(p, 'fish', () => 0, 1000, 'm_worm_bait').ok);
-  assertEquals(countOf(p, 'm_worm_bait'), 1);
-  assertEquals(countOf(p, 'm_fishing_rod'), 1);
-  assertEquals(countOf(p, 'm_river_trout'), 1);
-  addItem(p, 'm_grub_bait');
-  assert(gather(p, 'fish', () => 0.5, 1000, 'm_grub_bait').ok);
-  assertEquals(countOf(p, 'm_grub_bait'), 0);
-  assertEquals(countOf(p, 'm_river_trout'), 3);
+  const player = createPlayer(702, 'Gatherer', 'warrior');
+  player.currentZone = 'whisperwood';
+  addItem(player, 'm_fishing_rod');
+  addItem(player, 'm_worm_bait', 2);
+  const before = structuredClone(player);
+  assert(!gather(player, 'fish', () => 0, 1000, 'm_pickaxe').ok);
+  assert(!gather(player, 'fish', () => 0, 1000, 'm_grub_bait').ok);
+  assertEquals(player, before);
+  assert(gather(player, 'fish', () => 0, 1000, 'm_worm_bait').ok);
+  assertEquals(countOf(player, 'm_worm_bait'), 1);
+  assertEquals(countOf(player, 'm_fishing_rod'), 1);
+  assertEquals(countOf(player, 'm_river_trout'), 1);
+  addItem(player, 'm_grub_bait');
+  assert(gather(player, 'fish', () => 0.5, 1000, 'm_grub_bait').ok);
+  assertEquals(countOf(player, 'm_grub_bait'), 0);
+  assertEquals(countOf(player, 'm_river_trout'), 3);
 });
 
 Deno.test('gathering: battle and journey guards precede mutation', () => {
-  const p = createPlayer(703, 'Gatherer', 'warrior');
-  p.battle =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, { player: p, rng: () => 0.5 })!
+  const player = createPlayer(703, 'Gatherer', 'warrior');
+  player.battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, { player, rng: () => 0.5 })!
       .battle;
-  let before = structuredClone(p);
-  assert(!gather(p, 'forage', () => 0, 1000).ok);
-  assertEquals(p, before);
-  delete p.battle;
+  let before = structuredClone(player);
+  assert(!gather(player, 'forage', () => 0, 1000).ok);
+  assertEquals(player, before);
+  delete player.battle;
   // Only presence matters to this guard; real journey construction is
   // covered in journey engine tests.
-  p.journey = {} as NonNullable<typeof p.journey>;
-  before = structuredClone(p);
-  assert(!gather(p, 'forage', () => 0, 1000).ok);
-  assertEquals(p, before);
+  player.journey = {} as NonNullable<typeof player.journey>;
+  before = structuredClone(player);
+  assert(!gather(player, 'forage', () => 0, 1000).ok);
+  assertEquals(player, before);
 });
 
 Deno.test('gathering: ore gain completes live collection objectives immediately', () => {
-  const p = createPlayer(704, 'Gatherer', 'warrior');
-  p.currentZone = 'outskirts';
-  p.quests.m5_arms = { status: 'active', counts: [0] };
-  addItem(p, 'm_pickaxe');
-  addItem(p, 'm_iron_chunk');
-  const yields = gatheringSites('outskirts').find((s) => s.activity === 'mine')!.yields;
-  const index = yields.findIndex((y) => y.item === 'm_iron_chunk');
+  const player = createPlayer(704, 'Gatherer', 'warrior');
+  player.currentZone = 'outskirts';
+  player.quests.m5_arms = { status: 'active', counts: [0] };
+  addItem(player, 'm_pickaxe');
+  addItem(player, 'm_iron_chunk');
+  const yields = gatheringSites('outskirts').find((site) => site.activity === 'mine')!.yields;
+  const index = yields.findIndex((gatheringYield) => gatheringYield.item === 'm_iron_chunk');
   assert(index >= 0);
-  const total = yields.reduce((sum, y) => sum + y.weight, 0);
-  const before = yields.slice(0, index).reduce((sum, y) => sum + y.weight, 0);
+  const total = yields.reduce((sum, gatheringYield) => sum + gatheringYield.weight, 0);
+  const before = yields.slice(0, index).reduce(
+    (sum, gatheringYield) => sum + gatheringYield.weight,
+    0,
+  );
   const rolls = [(before + yields[index].weight / 2) / total, 0];
-  const out = gather(p, 'mine', () => rolls.shift()!, 1000);
+  const out = gather(player, 'mine', () => rolls.shift()!, 1000);
   assert(out.ok);
-  assertEquals(countOf(p, 'm_iron_chunk'), 2);
-  assertEquals(p.quests.m5_arms.status, 'turnIn');
+  assertEquals(countOf(player, 'm_iron_chunk'), 2);
+  assertEquals(player.quests.m5_arms.status, 'turnIn');
   assert(out.lines.some((line) => line.includes('ready to turn in')));
 });

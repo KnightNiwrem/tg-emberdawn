@@ -30,41 +30,41 @@ const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 const trigId = (trinket: string): string => `${trinket}:t0:e0`;
 
 function hero(id: number, classId: ClassId, level: number, trinket?: string): PlayerState {
-  const p = createPlayer(id, 'T', classId);
-  p.level = level;
-  if (trinket) p.equipment.trinket = trinket;
-  return p;
+  const player = createPlayer(id, 'T', classId);
+  player.level = level;
+  if (trinket) player.equipment.trinket = trinket;
+  return player;
 }
 
 /** Tanky wolf so multi-round fights survive the hero's strikes. */
-function tankyWolf(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function tankyWolf(player: PlayerState, seed: number): BattleState {
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 /** The Forge Warden hits hard but has NO status resistance — late-band
  * proc tests that must observe a LANDED application use it instead of the
  * Void Warden (whose #83 statusResist can eat the proc attempt). */
-function tankyForge(p: PlayerState, seed: number): BattleState {
-  p.hp = 99999; // #86: a fallen wearer procs nothing — survive the Warden's swings
-  const b = startBattle('e_forge_warden', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function tankyForge(player: PlayerState, seed: number): BattleState {
+  player.hp = 99999; // #86: a fallen wearer procs nothing — survive the Warden's swings
+  const battle = startBattle('e_forge_warden', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 /** Same-seed rounds replay identical draws — deterministic procs. */
-function round(p: PlayerState, b: BattleState, seed: number) {
-  return performAction(p, b, { kind: 'attack' }, seeded(seed));
+function round(player: PlayerState, battle: BattleState, seed: number) {
+  return performAction(player, battle, { kind: 'attack' }, seeded(seed));
 }
 
 /** #216: poison the wearer and stun the enemy so only the tick can cost HP. */
-function isolatePeriodicHpLoss(b: BattleState): void {
-  applyInstance(b, {
+function isolatePeriodicHpLoss(battle: BattleState): void {
+  applyInstance(battle, {
     defId: 'test_poison',
     name: 'Test Rot',
     kind: 'periodic',
@@ -78,7 +78,7 @@ function isolatePeriodicHpLoss(b: BattleState): void {
     timing: 'immediate',
     removable: true,
   });
-  applyInstance(b, {
+  applyInstance(battle, {
     defId: 'test_stun',
     name: 'Stun',
     kind: 'control',
@@ -100,83 +100,87 @@ function reactiveSeed(
   trinket: string,
   level: number,
   wantProc: boolean,
-  enemy: (p: PlayerState, s: number) => BattleState = tankyWolf,
+  enemy: (player: PlayerState, seed: number) => BattleState = tankyWolf,
 ): number {
-  for (let s = 1; s <= 300; s++) {
-    const p = hero(900 + s, 'warrior', level, trinket);
-    const b = enemy(p, s);
-    round(p, b, s);
+  for (let seed = 1; seed <= 300; seed++) {
+    const player = hero(900 + seed, 'warrior', level, trinket);
+    const battle = enemy(player, seed);
+    round(player, battle, seed);
     // Hunt on a LANDED application — a resisted attempt (⚡-prefixed resist
     // line) must not read as a proc (#83 statusResist).
-    if (b.effectInstances.some((i) => i.defId === trigId(trinket)) === wantProc) return s;
+    if (
+      battle.effectInstances.some((instance) => instance.defId === trigId(trinket)) === wantProc
+    ) return seed;
   }
   throw new Error(`no ${wantProc ? 'proc' : 'miss'} seed found for ${trinket}`);
 }
 
 /** A seed under which the trinket's battleStart roll (un)applies. */
 function openingSeed(trinket: string, level: number, wantApplied: boolean): number {
-  for (let s = 1; s <= 200; s++) {
-    const p = hero(900 + s, 'warrior', level, trinket);
-    const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
-    if (b.effectInstances.some((i) => i.defId === trigId(trinket)) === wantApplied) return s;
+  for (let seed = 1; seed <= 200; seed++) {
+    const player = hero(900 + seed, 'warrior', level, trinket);
+    const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+    if (
+      battle.effectInstances.some((instance) => instance.defId === trigId(trinket)) === wantApplied
+    ) return seed;
   }
   throw new Error(`no ${wantApplied ? 'success' : 'failure'} opening seed for ${trinket}`);
 }
 
 Deno.test('#82: battleStart trigger wards the wearer through the opening', () => {
-  const p = hero(1, 'warrior', 28, 't_15');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(1) })!.battle;
-  const ward = b.effectInstances.find((i) => i.defId === 't_15:t0:e0');
+  const player = hero(1, 'warrior', 28, 't_15');
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(1) })!.battle;
+  const ward = battle.effectInstances.find((instance) => instance.defId === 't_15:t0:e0');
   assertExists(ward, 'the Rime Ward instance exists');
   assertEquals(ward.side, 'player');
   assertEquals(ward.shieldAmount, 35);
-  assertEquals(b.shield.player, 35, 'opening wards fill the pool with no waste');
-  assert(b.opening?.lines.some((l) => l.includes('Rime crystals settle over you')));
-  assert(b.opening?.lines.some((l) => l.includes('absorbing up to 35 damage')));
-  assertEquals(b.round, 1, 'the opening consumes no round');
+  assertEquals(battle.shield.player, 35, 'opening wards fill the pool with no waste');
+  assert(battle.opening?.lines.some((line) => line.includes('Rime crystals settle over you')));
+  assert(battle.opening?.lines.some((line) => line.includes('absorbing up to 35 damage')));
+  assertEquals(battle.round, 1, 'the opening consumes no round');
 });
 
 Deno.test('#82: battleStart chance failure is recorded exactly once', () => {
-  const s = openingSeed('t_7', 32, false);
-  const p = hero(2, 'warrior', 32, 't_7');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
-  assertEquals(b.effectInstances.some((i) => i.defId === 't_7:t0:e0'), false);
-  const fizzles = b.opening?.lines.filter((l) => l.includes('roll missed')) ?? [];
+  const seed = openingSeed('t_7', 32, false);
+  const player = hero(2, 'warrior', 32, 't_7');
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  assertEquals(battle.effectInstances.some((instance) => instance.defId === 't_7:t0:e0'), false);
+  const fizzles = battle.opening?.lines.filter((line) => line.includes('roll missed')) ?? [];
   assertEquals(fizzles.length, 1, 'the miss is logged once — outcome persistence');
   assert(fizzles[0]!.includes('Keen Fracture'));
-  assertEquals(b.shield.player, 0);
+  assertEquals(battle.shield.player, 0);
 });
 
 Deno.test('#82: battleStart success applies the typed effect once', () => {
-  const s = openingSeed('t_7', 32, true);
-  const p = hero(3, 'warrior', 32, 't_7');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
-  const exposed = b.effectInstances.find((i) => i.defId === 't_7:t0:e0');
+  const seed = openingSeed('t_7', 32, true);
+  const player = hero(3, 'warrior', 32, 't_7');
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  const exposed = battle.effectInstances.find((instance) => instance.defId === 't_7:t0:e0');
   assertExists(exposed);
   assertEquals(exposed.side, 'enemy');
   assertEquals(exposed.stat, 'incoming');
   assertEquals(exposed.pct, 0.25);
   assertEquals(exposed.source, { kind: 'item', id: 't_7', name: 'Glass Arrowhead' });
-  assertEquals(b.opening?.lines.some((l) => l.includes('roll missed')), false);
+  assertEquals(battle.opening?.lines.some((line) => line.includes('roll missed')), false);
 });
 
 Deno.test('#82: openings are deterministic; procs persist verbatim via JSON', () => {
-  const a = startBattle('e_wolf', ORIGIN, {
+  const firstBattle = startBattle('e_wolf', ORIGIN, {
     player: hero(4, 'warrior', 28, 't_15'),
     rng: seeded(11),
   })!.battle;
-  const b = startBattle('e_wolf', ORIGIN, {
+  const secondBattle = startBattle('e_wolf', ORIGIN, {
     player: hero(5, 'warrior', 28, 't_15'),
     rng: seeded(11),
   })!.battle;
-  assertEquals(a.opening, b.opening);
-  assertEquals(a.effectInstances, b.effectInstances);
+  assertEquals(firstBattle.opening, secondBattle.opening);
+  assertEquals(firstBattle.effectInstances, secondBattle.effectInstances);
 
   // A reactive proc's bookkeeping survives a save-shaped roundtrip.
-  const s = reactiveSeed('t_9', 5, true);
+  const seed = reactiveSeed('t_9', 5, true);
   const rp = hero(6, 'warrior', 5, 't_9');
-  const rb = tankyWolf(rp, s);
-  round(rp, rb, s);
+  const rb = tankyWolf(rp, seed);
+  round(rp, rb, seed);
   assertExists(rb.procs);
   const rt = JSON.parse(JSON.stringify(rb)) as BattleState;
   assertEquals(rt.procs, rb.procs);
@@ -184,25 +188,25 @@ Deno.test('#82: openings are deterministic; procs persist verbatim via JSON', ()
 });
 
 Deno.test('#82: onHpDamage retaliation procs with source attribution', () => {
-  const s = reactiveSeed('t_9', 5, true);
-  const p = hero(7, 'warrior', 5, 't_9');
-  const b = tankyWolf(p, s);
-  const res = round(p, b, s);
-  const bleed = b.effectInstances.find((i) => i.defId === 't_9:t0:e0');
+  const seed = reactiveSeed('t_9', 5, true);
+  const player = hero(7, 'warrior', 5, 't_9');
+  const battle = tankyWolf(player, seed);
+  const res = round(player, battle, seed);
+  const bleed = battle.effectInstances.find((instance) => instance.defId === 't_9:t0:e0');
   assertExists(bleed, 'the attacker is bleeding');
   assertEquals(bleed.side, 'enemy');
   assertEquals(bleed.kind, 'periodic');
   assertEquals(bleed.perRound, -4);
   assertEquals(bleed.source, { kind: 'item', id: 't_9', name: 'Thorn Ring' });
-  assertEquals(b.procs?.['t_9:0'], { count: 1, round: 1 });
-  assert(res.lines.some((l) => l.startsWith('⚡ ')), 'proc lines carry the ⚡ attribution');
+  assertEquals(battle.procs?.['t_9:0'], { count: 1, round: 1 });
+  assert(res.lines.some((line) => line.startsWith('⚡ ')), 'proc lines carry the ⚡ attribution');
 });
 
 Deno.test('#82: shield-only absorbs never proc onHpDamage', () => {
-  const s = reactiveSeed('t_9', 5, true);
-  const p = hero(8, 'warrior', 5, 't_9');
-  const b = tankyWolf(p, s);
-  grantShield(b, 'player', {
+  const seed = reactiveSeed('t_9', 5, true);
+  const player = hero(8, 'warrior', 5, 't_9');
+  const battle = tankyWolf(player, seed);
+  grantShield(battle, 'player', {
     defId: 'test_ward',
     name: 'Test Ward',
     kind: 'shield',
@@ -215,43 +219,43 @@ Deno.test('#82: shield-only absorbs never proc onHpDamage', () => {
     timing: 'immediate',
     removable: false,
   });
-  const hpBefore = p.hp;
-  const res = round(p, b, s);
+  const hpBefore = player.hp;
+  const res = round(player, battle, seed);
   const events = res.trace;
-  assertEquals(p.hp, hpBefore, 'the strike never reached HP');
-  assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false);
-  assertEquals(b.procs?.['t_9:0']?.count ?? 0, 0);
+  assertEquals(player.hp, hpBefore, 'the strike never reached HP');
+  assertEquals(res.lines.some((line) => line.startsWith('⚡ ')), false);
+  assertEquals(battle.procs?.['t_9:0']?.count ?? 0, 0);
   assertEquals(
-    events.filter((e) => e.kind === 'hpDamaged' && e.target === 'player').length,
+    events.filter((event) => event.kind === 'hpDamaged' && event.target === 'player').length,
     0,
     'shield-only absorption emits no hpDamaged event (#89)',
   );
 });
 
 Deno.test('#82: maxProcs caps reactive procs per battle', () => {
-  const s = reactiveSeed('t_9', 5, true);
-  const p = hero(9, 'warrior', 5, 't_9');
-  const b = tankyWolf(p, s);
+  const seed = reactiveSeed('t_9', 5, true);
+  const player = hero(9, 'warrior', 5, 't_9');
+  const battle = tankyWolf(player, seed);
   let procLines = 0;
-  for (let r = 0; r < 5; r++) {
-    const res = round(p, b, s);
-    procLines += res.lines.filter((l) => l.startsWith('⚡ ')).length;
+  for (let roundIndex = 0; roundIndex < 5; roundIndex++) {
+    const res = round(player, battle, seed);
+    procLines += res.lines.filter((line) => line.startsWith('⚡ ')).length;
   }
-  assertEquals(b.procs?.['t_9:0']?.count, 3, 'capped at the authored limit');
+  assertEquals(battle.procs?.['t_9:0']?.count, 3, 'capped at the authored limit');
   assertEquals(procLines, 3);
 });
 
 Deno.test('#89: cooldown 2 blocks the two rounds after a proc', () => {
   const run = (seed: number): { rounds: number[]; count: number } => {
-    const p = hero(10, 'warrior', 36, 't_16');
-    const b = tankyForge(p, seed);
+    const player = hero(10, 'warrior', 36, 't_16');
+    const battle = tankyForge(player, seed);
     const rounds: number[] = [];
-    for (let r = 0; r < 7; r++) {
-      p.hp = statsOf(p).maxHp; // survival is not the variable under test
-      const res = round(p, b, seed);
-      if (res.lines.some((l) => l.startsWith('⚡ '))) rounds.push(b.round - 1);
+    for (let roundIndex = 0; roundIndex < 7; roundIndex++) {
+      player.hp = statsOf(player).maxHp; // survival is not the variable under test
+      const res = round(player, battle, seed);
+      if (res.lines.some((line) => line.startsWith('⚡ '))) rounds.push(battle.round - 1);
     }
-    return { rounds, count: b.procs?.['t_16:0']?.count ?? 0 };
+    return { rounds, count: battle.procs?.['t_16:0']?.count ?? 0 };
   };
   let result = { rounds: [] as number[], count: 0 };
   for (let seed = 1; seed <= 80; seed++) {
@@ -260,11 +264,11 @@ Deno.test('#89: cooldown 2 blocks the two rounds after a proc', () => {
   }
   const { rounds: procRounds, count } = result;
   assert(procRounds.length >= 2, 'at least two procs landed within seven rounds');
-  for (let i = 1; i < procRounds.length; i++) {
+  for (let procIndex = 1; procIndex < procRounds.length; procIndex++) {
     assert(
-      procRounds[i]! - procRounds[i - 1]! >= 3,
-      `procs at rounds ${procRounds[i - 1]} and ${
-        procRounds[i]
+      procRounds[procIndex]! - procRounds[procIndex - 1]! >= 3,
+      `procs at rounds ${procRounds[procIndex - 1]} and ${
+        procRounds[procIndex]
       } respect the cooldown-2 gate (blocked R+1..R+2, eligible R+3, #89)`,
     );
   }
@@ -272,47 +276,51 @@ Deno.test('#89: cooldown 2 blocks the two rounds after a proc', () => {
 });
 
 Deno.test('#82: periodic ticks damage the wearer but never proc', () => {
-  const p = hero(11, 'warrior', 5, 't_9');
-  const b = tankyWolf(p, 1);
-  isolatePeriodicHpLoss(b);
-  const hpBefore = p.hp;
-  const res = round(p, b, 1);
-  assert(p.hp < hpBefore, 'the end-of-round tick bit HP');
-  assertEquals(res.lines.some((l) => l.startsWith('⚡ ')), false, 'ticks are not enemy actions');
-  assertEquals(b.procs?.['t_9:0']?.count ?? 0, 0);
+  const player = hero(11, 'warrior', 5, 't_9');
+  const battle = tankyWolf(player, 1);
+  isolatePeriodicHpLoss(battle);
+  const hpBefore = player.hp;
+  const res = round(player, battle, 1);
+  assert(player.hp < hpBefore, 'the end-of-round tick bit HP');
+  assertEquals(
+    res.lines.some((line) => line.startsWith('⚡ ')),
+    false,
+    'ticks are not enemy actions',
+  );
+  assertEquals(battle.procs?.['t_9:0']?.count ?? 0, 0);
 });
 
 Deno.test('#82: onGuard triggers restore MP and cap at maxProcs', () => {
-  const p = hero(12, 'mage', 15, 't_13');
-  const b = tankyWolf(p, 5);
-  p.mp = 5;
-  const base = Math.ceil(statsOf(p).maxMp * 0.08);
-  const tide = Math.floor(statsOf(p).maxMp * 0.08);
-  performAction(p, b, { kind: 'guard' }, seeded(5));
-  assertEquals(b.procs?.['t_13:0']?.count, 1);
-  assertEquals(p.mp, 5 + base + tide, 'guard MP plus the tide return');
-  for (let i = 0; i < 3; i++) performAction(p, b, { kind: 'guard' }, seeded(5));
-  assertEquals(b.procs?.['t_13:0']?.count, 3, 'capped at 3 restores');
+  const player = hero(12, 'mage', 15, 't_13');
+  const battle = tankyWolf(player, 5);
+  player.mp = 5;
+  const base = Math.ceil(statsOf(player).maxMp * 0.08);
+  const tide = Math.floor(statsOf(player).maxMp * 0.08);
+  performAction(player, battle, { kind: 'guard' }, seeded(5));
+  assertEquals(battle.procs?.['t_13:0']?.count, 1);
+  assertEquals(player.mp, 5 + base + tide, 'guard MP plus the tide return');
+  for (let i = 0; i < 3; i++) performAction(player, battle, { kind: 'guard' }, seeded(5));
+  assertEquals(battle.procs?.['t_13:0']?.count, 3, 'capped at 3 restores');
 });
 
 function procInstance(
   trinket: string,
   level: number,
-  s: number,
+  seed: number,
   temper: boolean,
-  enemy: (p: PlayerState, s: number) => BattleState = tankyWolf,
+  enemy: (player: PlayerState, seed: number) => BattleState = tankyWolf,
 ): EffectInstance {
-  const p = hero(800, 'warrior', level, trinket);
-  if (temper) p.flags['forge_i_w_warrior_1'] = 5;
-  const b = enemy(p, s);
-  round(p, b, s);
-  return b.effectInstances.find((i) => i.defId === trigId(trinket))!;
+  const player = hero(800, 'warrior', level, trinket);
+  if (temper) player.flags['forge_i_w_warrior_1'] = 5;
+  const battle = enemy(player, seed);
+  round(player, battle, seed);
+  return battle.effectInstances.find((instance) => instance.defId === trigId(trinket))!;
 }
 
 Deno.test('#82: forge temper never scales proc data', () => {
-  const s = reactiveSeed('t_16', 36, true, tankyForge);
-  const base = procInstance('t_16', 36, s, false, tankyForge);
-  const tempered = procInstance('t_16', 36, s, true, tankyForge);
+  const seed = reactiveSeed('t_16', 36, true, tankyForge);
+  const base = procInstance('t_16', 36, seed, false, tankyForge);
+  const tempered = procInstance('t_16', 36, seed, true, tankyForge);
   assertEquals(tempered.perRound, base.perRound);
   assertEquals(tempered.perRound, -12, 'temper is stat-only; potency is authored data');
   assertEquals(tempered.remaining, base.remaining);
@@ -321,30 +329,32 @@ Deno.test('#82: forge temper never scales proc data', () => {
 
 Deno.test('#82: item opening + pre-emptive skill coexist, item slot first', () => {
   const both = (): number => {
-    for (let s = 1; s <= 200; s++) {
-      const p = hero(900 + s, 'rogue', 45, 't_7');
-      p.skills.push('sk_expose_weakness');
-      const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
+    for (let seed = 1; seed <= 200; seed++) {
+      const player = hero(900 + seed, 'rogue', 45, 't_7');
+      player.skills.push('sk_expose_weakness');
+      const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
       if (
-        b.effectInstances.some((i) => i.defId === 't_7:t0:e0') &&
-        b.effectInstances.some((i) => i.defId === 'sk_expose_weakness:e0')
+        battle.effectInstances.some((instance) => instance.defId === 't_7:t0:e0') &&
+        battle.effectInstances.some((instance) => instance.defId === 'sk_expose_weakness:e0')
       ) {
-        return s;
+        return seed;
       }
     }
     throw new Error('no both-success seed');
   };
-  const s = both();
-  const p = hero(13, 'rogue', 45, 't_7');
-  p.skills.push('sk_expose_weakness');
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(s) })!.battle;
-  const lens = b.effectInstances.find((i) => i.defId === 't_7:t0:e0')!;
-  const sk = b.effectInstances.find((i) => i.defId === 'sk_expose_weakness:e0')!;
+  const seed = both();
+  const player = hero(13, 'rogue', 45, 't_7');
+  player.skills.push('sk_expose_weakness');
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  const lens = battle.effectInstances.find((instance) => instance.defId === 't_7:t0:e0')!;
+  const instance = battle.effectInstances.find((instance) =>
+    instance.defId === 'sk_expose_weakness:e0'
+  )!;
   assertEquals(lens.stat, 'incoming');
-  assertEquals(sk.stat, 'incoming');
-  assertEquals(incomingAmpPct(b, 'enemy'), 0.5, 'different sources fold additively');
+  assertEquals(instance.stat, 'incoming');
+  assertEquals(incomingAmpPct(battle, 'enemy'), 0.5, 'different sources fold additively');
   assert(
-    b.effectInstances.indexOf(lens) < b.effectInstances.indexOf(sk),
+    battle.effectInstances.indexOf(lens) < battle.effectInstances.indexOf(instance),
     'equipment slot order precedes learned pre-emptive skills',
   );
 });
@@ -393,46 +403,49 @@ Deno.test('#82: UI disclosure derives exact mechanics from trigger data', () => 
 // ── #89: cause-matched triggers, exact cooldown arithmetic, provenance ──
 
 Deno.test('#89: broad onHpDamage answers periodic ticks', () => {
-  const p = hero(21, 'warrior', 5, 't_19');
-  const b = tankyWolf(p, 1);
-  isolatePeriodicHpLoss(b);
-  const hpBefore = p.hp;
-  const res = round(p, b, 1);
-  assert(p.hp < hpBefore, 'the end-of-round tick bit HP');
+  const player = hero(21, 'warrior', 5, 't_19');
+  const battle = tankyWolf(player, 1);
+  isolatePeriodicHpLoss(battle);
+  const hpBefore = player.hp;
+  const res = round(player, battle, 1);
+  assert(player.hp < hpBefore, 'the end-of-round tick bit HP');
   assertEquals(
-    res.lines.some((l) => l.includes('damage to you!')),
+    res.lines.some((line) => line.includes('damage to you!')),
     false,
     'the stunned wolf never struck — the tick is the only HP loss',
   );
-  assert(res.lines.some((l) => l.startsWith('⚡ ')), 'the broad trigger answers the tick');
-  const bleed = b.effectInstances.find((i) => i.defId === 't_19:t0:e0');
+  assert(res.lines.some((line) => line.startsWith('⚡ ')), 'the broad trigger answers the tick');
+  const bleed = battle.effectInstances.find((instance) => instance.defId === 't_19:t0:e0');
   assertExists(bleed, 'the striker is bleeding');
   assertEquals(bleed.side, 'enemy');
   assertEquals(bleed.perRound, -3);
-  assertEquals(b.procs?.['t_19:0']?.count, 1);
+  assertEquals(battle.procs?.['t_19:0']?.count, 1);
 });
 
 Deno.test('#89: cooldown 1 pins exact eligible rounds (R+1 blocked, R+2 re-arms)', () => {
   const run = (seed: number) => {
-    const p = hero(22, 'warrior', 36, 't_19');
-    const b = tankyForge(p, seed);
+    const player = hero(22, 'warrior', 36, 't_19');
+    const battle = tankyForge(player, seed);
     const events: CombatTraceEntry[] = [];
     const procs: number[] = [];
     const hits: boolean[] = [];
-    for (let r = 0; r < 3; r++) {
-      p.hp = statsOf(p).maxHp; // survival is not the variable under test
-      const res = round(p, b, seed);
+    for (let roundIndex = 0; roundIndex < 3; roundIndex++) {
+      player.hp = statsOf(player).maxHp; // survival is not the variable under test
+      const res = round(player, battle, seed);
       events.push(...res.trace);
-      hits.push(p.hp < statsOf(p).maxHp); // the warden's strike reached HP
-      if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
+      hits.push(player.hp < statsOf(player).maxHp); // the warden's strike reached HP
+      if (res.lines.some((line) => line.startsWith('⚡ '))) procs.push(battle.round - 1);
     }
-    return { b, events, procs, hits };
+    return { b: battle, events, procs, hits };
   };
   let found: ReturnType<typeof run> | undefined;
   for (let seed = 1; seed <= 300; seed++) {
-    const r = run(seed);
-    if (r.hits.every(Boolean) && r.procs.length === 2 && r.procs[0] === 1 && r.procs[1] === 3) {
-      found = r;
+    const fixture = run(seed);
+    if (
+      fixture.hits.every(Boolean) && fixture.procs.length === 2 && fixture.procs[0] === 1 &&
+      fixture.procs[1] === 3
+    ) {
+      found = fixture;
       break;
     }
   }
@@ -440,7 +453,7 @@ Deno.test('#89: cooldown 1 pins exact eligible rounds (R+1 blocked, R+2 re-arms)
   assertEquals(found.procs, [1, 3]);
   assertEquals(found.b.procs?.['t_19:0'], { count: 2, round: 3 });
   assertEquals(
-    found.events.filter((e) => e.kind === 'procAttempt').length,
+    found.events.filter((event) => event.kind === 'procAttempt').length,
     2,
     'exactly the two successes emitted attempts — the blocked round emitted nothing',
   );
@@ -448,13 +461,13 @@ Deno.test('#89: cooldown 1 pins exact eligible rounds (R+1 blocked, R+2 re-arms)
 
 Deno.test('#89: unauthored cooldown answers every round (cooldown-0 contract)', () => {
   const run = (seed: number): number[] => {
-    const p = hero(23, 'warrior', 5, 't_9');
-    const b = tankyWolf(p, seed);
+    const player = hero(23, 'warrior', 5, 't_9');
+    const battle = tankyWolf(player, seed);
     const procs: number[] = [];
-    for (let r = 0; r < 2; r++) {
-      p.hp = statsOf(p).maxHp;
-      const res = round(p, b, seed);
-      if (res.lines.some((l) => l.startsWith('⚡ '))) procs.push(b.round - 1);
+    for (let roundIndex = 0; roundIndex < 2; roundIndex++) {
+      player.hp = statsOf(player).maxHp;
+      const res = round(player, battle, seed);
+      if (res.lines.some((line) => line.startsWith('⚡ '))) procs.push(battle.round - 1);
     }
     return procs;
   };
@@ -470,28 +483,28 @@ Deno.test('#89: unauthored cooldown answers every round (cooldown-0 contract)', 
 
 Deno.test('#89: missed chance rolls write nothing (no budget, no cooldown)', () => {
   const run = (seed: number) => {
-    const p = hero(24, 'warrior', 5, 't_9');
-    const b = tankyWolf(p, seed);
-    p.hp = statsOf(p).maxHp;
-    const res = round(p, b, seed);
-    return { b, res, events: res.trace, hit: p.hp < statsOf(p).maxHp };
+    const player = hero(24, 'warrior', 5, 't_9');
+    const battle = tankyWolf(player, seed);
+    player.hp = statsOf(player).maxHp;
+    const res = round(player, battle, seed);
+    return { b: battle, res, events: res.trace, hit: player.hp < statsOf(player).maxHp };
   };
   let miss: ReturnType<typeof run> | undefined;
   for (let seed = 1; seed <= 300; seed++) {
-    const r = run(seed);
+    const fixture = run(seed);
     if (
-      r.hit && !r.res.lines.some((l) => l.startsWith('⚡ ')) &&
-      r.b.procs?.['t_9:0'] === undefined
+      fixture.hit && !fixture.res.lines.some((line) => line.startsWith('⚡ ')) &&
+      fixture.b.procs?.['t_9:0'] === undefined
     ) {
-      miss = r;
+      miss = fixture;
       break;
     }
   }
   assertExists(miss, 'no seed reproduces a landed strike with a missed chance roll');
   assertEquals(miss.b.procs?.['t_9:0'], undefined, 'the miss wrote no bookkeeping at all');
   const attempts = miss.events.filter((
-    e,
-  ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
+    event,
+  ): event is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => event.kind === 'procAttempt');
   assertEquals(attempts.length, 1, 'the miss is recorded as exactly one attempt');
   assertEquals(attempts[0]!.success, false, 'a missed roll is a failure that consumed nothing');
 });
@@ -500,11 +513,11 @@ Deno.test('#89: non-damaging openings scan nothing', () => {
   // Chrono Wisp's Chrono Anchor (#80) slows but never wounds — no HP-loss
   // scan runs, so neither reactive trigger kind may proc from an opening.
   for (const trinket of ['t_9', 't_19'] as const) {
-    const p = hero(25, 'warrior', 25, trinket);
-    const b = startBattle('e_chronowisp', ORIGIN, { player: p, rng: seeded(1) })!.battle;
-    assertEquals(b.procs, undefined, `${trinket} procs nothing on a non-damaging opening`);
+    const player = hero(25, 'warrior', 25, trinket);
+    const battle = startBattle('e_chronowisp', ORIGIN, { player, rng: seeded(1) })!.battle;
+    assertEquals(battle.procs, undefined, `${trinket} procs nothing on a non-damaging opening`);
     assertEquals(
-      b.effectInstances.some((i) => i.defId === trigId(trinket)),
+      battle.effectInstances.some((instance) => instance.defId === trigId(trinket)),
       false,
       `${trinket} applied nothing at the opening`,
     );
@@ -512,20 +525,22 @@ Deno.test('#89: non-damaging openings scan nothing', () => {
 });
 
 Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduced', () => {
-  const s = reactiveSeed('t_19', 5, true);
-  const p = hero(26, 'warrior', 5, 't_19');
-  const b = tankyWolf(p, s);
-  const events = round(p, b, s).trace;
-  const hpEvents = events.filter((e): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
-    e.kind === 'hpDamaged'
-  );
+  const seed = reactiveSeed('t_19', 5, true);
+  const player = hero(26, 'warrior', 5, 't_19');
+  const battle = tankyWolf(player, seed);
+  const events = round(player, battle, seed).trace;
+  const hpEvents = events.filter((
+    event,
+  ): event is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> => event.kind === 'hpDamaged');
   const by = (cause: DamageCause, target: 'player' | 'enemy') =>
-    hpEvents.filter((e) => e.cause === cause && e.target === target);
+    hpEvents.filter((event) => event.cause === cause && event.target === target);
   assert(by('enemyAction', 'player').length >= 1, 'the wolf strike is provenance-tagged');
   assert(by('playerAction', 'enemy').length >= 1, 'the hero strike is provenance-tagged');
   assert(by('periodic', 'enemy').length >= 1, "the proc's bleed tick is provenance-tagged");
   assert(
-    hpEvents.every((e) => e.hpLost > 0 && e.resolved >= e.hpLost && e.procProduced === false),
+    hpEvents.every((event) =>
+      event.hpLost > 0 && event.resolved >= event.hpLost && event.procProduced === false
+    ),
     'hpLost is the real applied HP loss (≤ the resolved blow, #106); no content produces proc-produced damage today',
   );
 });
@@ -534,7 +549,7 @@ Deno.test('#89: hpDamaged telemetry carries cause, attacker, target, procProduce
 
 /** The Grudge Charm (broad onHpDamage) with gates removed: deterministic
  * always-proc, unlimited per battle, no cooldown. */
-function ungatedGrudge(run: (p: PlayerState) => void): void {
+function ungatedGrudge(run: (player: PlayerState) => void): void {
   const charm = item('t_19')!;
   const original = charm.triggers;
   charm.triggers = [{
@@ -558,21 +573,21 @@ function ungatedGrudge(run: (p: PlayerState) => void): void {
 }
 
 /** Procs recorded by the battle bookkeeping (successful reactive procs). */
-const procCount = (b: BattleState): number => b.procs?.['t_19:0']?.count ?? 0;
+const procCount = (battle: BattleState): number => battle.procs?.['t_19:0']?.count ?? 0;
 
 /** Tanky rat for synthetic-move fixtures (#97): the mutated moves belong
  * to e_rat, so the fight must actually be against the rat. */
-function tankyRat(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function tankyRat(player: PlayerState, seed: number): BattleState {
+  const battle = startBattle('e_rat', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 Deno.test('#97: a two-hit enemy move answers onHpDamage twice', () => {
-  ungatedGrudge((p) => {
-    const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  ungatedGrudge((player) => {
+    const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
     withOverridden(rat, 'moves', [{
       name: 'Double Bite',
       weight: 1,
@@ -581,10 +596,10 @@ Deno.test('#97: a two-hit enemy move answers onHpDamage twice', () => {
         { kind: 'damage', attack: 'phys', power: 1 },
       ],
     }], () => {
-      const b = tankyRat(p, 601);
-      round(p, b, 601);
+      const battle = tankyRat(player, 601);
+      round(player, battle, 601);
       assertEquals(
-        procCount(b),
+        procCount(battle),
         2,
         'each ordered HP-loss event dispatches its own proc opportunity',
       );
@@ -594,8 +609,8 @@ Deno.test('#97: a two-hit enemy move answers onHpDamage twice', () => {
 
 Deno.test('#97: a cooldown trigger stays spent within the same round', () => {
   // Authored t_19: cooldown 1 — the second hit of one round cannot re-arm.
-  const p = hero(701, 'warrior', 5, 't_19');
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const player = hero(701, 'warrior', 5, 't_19');
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Double Bite',
     weight: 1,
@@ -604,16 +619,16 @@ Deno.test('#97: a cooldown trigger stays spent within the same round', () => {
       { kind: 'damage', attack: 'phys', power: 1 },
     ],
   }], () => {
-    const b = tankyRat(p, 602);
-    round(p, b, 602);
-    assertEquals(procCount(b), 1, 'cooldown gates the same-round second event');
+    const battle = tankyRat(player, 602);
+    round(player, battle, 602);
+    assertEquals(procCount(battle), 1, 'cooldown gates the same-round second event');
   });
 });
 
 Deno.test('#97: damage followed by healing keeps its damage opportunity', () => {
-  ungatedGrudge((p) => {
-    p.hp = 40; // below max so the rider's heal can erase the net loss
-    const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  ungatedGrudge((player) => {
+    player.hp = 40; // below max so the rider's heal can erase the net loss
+    const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
     withOverridden(rat, 'moves', [{
       name: 'Leeching Bite',
       weight: 1,
@@ -622,10 +637,10 @@ Deno.test('#97: damage followed by healing keeps its damage opportunity', () => 
         { kind: 'restore', target: 'opponent', hpPctOfMax: 0.5 },
       ],
     }], () => {
-      const b = tankyRat(p, 603);
-      round(p, b, 603);
+      const battle = tankyRat(player, 603);
+      round(player, battle, 603);
       assertEquals(
-        procCount(b),
+        procCount(battle),
         1,
         'net-positive HP movement never suppresses the real damage event',
       );
@@ -634,9 +649,9 @@ Deno.test('#97: damage followed by healing keeps its damage opportunity', () => 
 });
 
 Deno.test('#97: a shield-only absorption never dispatches', () => {
-  ungatedGrudge((p) => {
-    const b = tankyRat(p, 604);
-    grantShield(b, 'player', {
+  ungatedGrudge((player) => {
+    const battle = tankyRat(player, 604);
+    grantShield(battle, 'player', {
       defId: 'test:ward',
       name: 'Test Ward',
       kind: 'shield',
@@ -649,25 +664,25 @@ Deno.test('#97: a shield-only absorption never dispatches', () => {
       timing: 'immediate',
       removable: true,
     });
-    round(p, b, 604);
-    assertEquals(procCount(b), 0, 'no HP reached flesh — no HP-loss event existed');
+    round(player, battle, 604);
+    assertEquals(procCount(battle), 0, 'no HP reached flesh — no HP-loss event existed');
   });
 });
 
 Deno.test('#97: Phoenix revival lets the lethal event answer — once', () => {
-  const p = hero(705, 'warrior', 5, 't_19');
-  addItem(p, 'c_phoenix_feather', 1);
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const player = hero(705, 'warrior', 5, 't_19');
+  addItem(player, 'c_phoenix_feather', 1);
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Death Bite',
     weight: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 9999 }],
   }], () => {
-    const b = tankyRat(p, 605);
-    round(p, b, 605);
-    assert(p.hp > 0, 'the Cinder revived the wearer');
+    const battle = tankyRat(player, 605);
+    round(player, battle, 605);
+    assert(player.hp > 0, 'the Cinder revived the wearer');
     assertEquals(
-      procCount(b),
+      procCount(battle),
       1,
       'a synchronously revived wearer still answers the lethal HP-loss event',
     );
@@ -675,7 +690,7 @@ Deno.test('#97: Phoenix revival lets the lethal event answer — once', () => {
 });
 
 Deno.test('#97: opening strikes answer broad triggers per event, never narrow ones', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'opening', {
     name: 'Probe Strike',
     effects: [{ kind: 'damage', attack: 'phys', power: 1 }],
@@ -686,9 +701,9 @@ Deno.test('#97: opening strikes answer broad triggers per event, never narrow on
     assertEquals(bn.procs?.['t_9:0'], undefined, 'narrow trigger never answers an opening');
 
     // Broad trigger: each opening HP loss dispatches (ungated → exactly 1).
-    ungatedGrudge((p) => {
-      const b = tankyRat(p, 607);
-      assertEquals(procCount(b), 1, 'the broad trigger answered the opening strike');
+    ungatedGrudge((player) => {
+      const battle = tankyRat(player, 607);
+      assertEquals(procCount(battle), 1, 'the broad trigger answered the opening strike');
     });
   });
 });
@@ -707,21 +722,21 @@ Deno.test('#97: proc-produced damage never re-dispatches (recursion bound)', () 
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
   }];
   try {
-    const p = hero(707, 'warrior', 20, 't_19');
-    p.hp = 99999; // survive the self-wound loop would-be
-    const b = tankyRat(p, 608);
-    const hpBefore = p.hp;
-    const res = round(p, b, 608);
-    assertEquals(procCount(b), 1, 'the proc-produced self-damage never re-triggered');
-    assert(p.hp < hpBefore, 'the self-damage REALLY wounded the wearer (#109), not the foe');
+    const player = hero(707, 'warrior', 20, 't_19');
+    player.hp = 99999; // survive the self-wound loop would-be
+    const battle = tankyRat(player, 608);
+    const hpBefore = player.hp;
+    const res = round(player, battle, 608);
+    assertEquals(procCount(battle), 1, 'the proc-produced self-damage never re-triggered');
+    assert(player.hp < hpBefore, 'the self-damage REALLY wounded the wearer (#109), not the foe');
     const selfWounds = res.trace.filter((
-      e,
-    ): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
-      e.kind === 'hpDamaged' && e.attacker === 'player' && e.target === 'player'
+      event,
+    ): event is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> =>
+      event.kind === 'hpDamaged' && event.attacker === 'player' && event.target === 'player'
     );
     assert(selfWounds.length >= 1, 'the trace names the wearer as BOTH attacker and target');
     assert(
-      selfWounds.every((e) => e.procProduced),
+      selfWounds.every((event) => event.procProduced),
       'the self-wound is marked proc-produced',
     );
   } finally {
@@ -759,21 +774,21 @@ Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws
    * draw streams of both configurations stay aligned up to the scan). */
   const run = (seed: number, triggers: typeof charm.triggers) => {
     charm.triggers = triggers;
-    const p = hero(708, 'warrior', 20, 't_19');
-    p.hp = 99999; // the rat's reply is not the variable — only the scan is
+    const player = hero(708, 'warrior', 20, 't_19');
+    player.hp = 99999; // the rat's reply is not the variable — only the scan is
     let draws = 0;
     const base = seeded(seed);
     const counting = () => {
       draws++;
       return base();
     };
-    const b = startBattle('e_rat', ORIGIN, { player: p, rng: counting })!.battle;
+    const battle = startBattle('e_rat', ORIGIN, { player, rng: counting })!.battle;
     const before = draws;
-    b.enemy.hp = 99999;
-    b.enemy.maxHp = 99999;
-    p.battle = b;
-    const res = performAction(p, b, { kind: 'attack' }, counting);
-    return { draws: draws - before, res, b };
+    battle.enemy.hp = 99999;
+    battle.enemy.maxHp = 99999;
+    player.battle = battle;
+    const res = performAction(player, battle, { kind: 'attack' }, counting);
+    return { draws: draws - before, res, b: battle };
   };
   try {
     // A seed where the rat's reply drew blood (the scan ran and the first
@@ -781,8 +796,8 @@ Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws
     let seed = 0;
     let probe: ReturnType<typeof run> | undefined;
     while (seed++ < 300 && !probe) {
-      const r = run(seed, lethalFirst);
-      if (r.res.outcome === 'victory') probe = r;
+      const fixture = run(seed, lethalFirst);
+      if (fixture.res.outcome === 'victory') probe = fixture;
     }
     assert(probe, 'no seed reproduced a trigger kill');
     // The control wears ONLY the lethal trigger: identical state, seed and
@@ -794,12 +809,12 @@ Deno.test('#103: a lethal trigger ends the scan — the next trigger never draws
       'the skipped trigger consumed no RNG draw of any kind',
     );
     const attempts = probe.res.trace.filter((
-      e,
-    ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
+      event,
+    ): event is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => event.kind === 'procAttempt');
     assertEquals(attempts.length, 1, 'only the first trigger recorded an attempt');
     assertEquals(attempts[0]!.trigger, 'Killing Blow');
     assertEquals(
-      probe.b.effectInstances.some((i) => i.name === 'Never Slow'),
+      probe.b.effectInstances.some((instance) => instance.name === 'Never Slow'),
       false,
       'the skipped trigger applied no effect',
     );
@@ -844,24 +859,24 @@ Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
   try {
     // A seed where the rat's reply drew blood and BOTH triggers fired.
     let found: { res: ReturnType<typeof round>; b: BattleState } | undefined;
-    for (let s = 1; s <= 300 && !found; s++) {
-      const p = hero(709, 'warrior', 20, 't_19');
-      p.hp = 99999;
-      const b = tankyRat(p, s);
-      const res = round(p, b, s);
+    for (let seed = 1; seed <= 300 && !found; seed++) {
+      const player = hero(709, 'warrior', 20, 't_19');
+      player.hp = 99999;
+      const battle = tankyRat(player, seed);
+      const res = round(player, battle, seed);
       if (
-        b.effectInstances.some((i) => i.name === 'First Mark') &&
-        b.effectInstances.some((i) => i.name === 'Second Bleed')
+        battle.effectInstances.some((instance) => instance.name === 'First Mark') &&
+        battle.effectInstances.some((instance) => instance.name === 'Second Bleed')
       ) {
-        found = { res, b };
+        found = { res, b: battle };
       }
     }
     assert(found, 'no seed fired both non-terminal triggers');
     const attempts = found.res.trace.filter((
-      e,
-    ): e is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => e.kind === 'procAttempt');
+      event,
+    ): event is Extract<CombatTraceEntry, { kind: 'procAttempt' }> => event.kind === 'procAttempt');
     assertEquals(
-      attempts.map((a) => a.trigger),
+      attempts.map((event) => event.trigger),
       ['First Sap', 'Second Bleed'],
       'authored order is preserved when combat continues',
     );
@@ -877,8 +892,8 @@ Deno.test('#103: non-terminal multi-trigger order stays deterministic', () => {
 /** Extracts hpDamaged entries from a trace. */
 function hpEvents(trace: CombatTraceEntry[]): Extract<CombatTraceEntry, { kind: 'hpDamaged' }>[] {
   return trace.filter((
-    e,
-  ): e is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> => e.kind === 'hpDamaged');
+    event,
+  ): event is Extract<CombatTraceEntry, { kind: 'hpDamaged' }> => event.kind === 'hpDamaged');
 }
 
 Deno.test('#109: player-authored self-damage wounds the wearer, never the foe', () => {
@@ -890,11 +905,11 @@ Deno.test('#109: player-authored self-damage wounds the wearer, never the foe', 
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
   }];
   try {
-    const p = hero(800, 'warrior', 20, 't_19');
-    p.hp = statsOf(p).maxHp;
-    const full = p.hp;
-    const res = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(801) })!;
-    assert(p.hp < full, 'the recoil reduced the wearer’s HP');
+    const player = hero(800, 'warrior', 20, 't_19');
+    player.hp = statsOf(player).maxHp;
+    const full = player.hp;
+    const res = startBattle('e_wolf', ORIGIN, { player, rng: seeded(801) })!;
+    assert(player.hp < full, 'the recoil reduced the wearer’s HP');
     assertEquals(res.battle.enemy.hp, res.battle.enemy.maxHp, 'the foe is untouched');
     const wounds = hpEvents(res.trace);
     assertEquals(wounds.length, 1, 'exactly one HP-loss event');
@@ -914,11 +929,11 @@ Deno.test('#109: player self-damage routes through the wearer’s own ward', () 
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
   }];
   try {
-    const p = hero(802, 'warrior', 20, 't_19');
-    p.hp = statsOf(p).maxHp;
-    const full = p.hp;
-    const b = tankyRat(p, 803);
-    grantShield(b, 'player', {
+    const player = hero(802, 'warrior', 20, 't_19');
+    player.hp = statsOf(player).maxHp;
+    const full = player.hp;
+    const battle = tankyRat(player, 803);
+    grantShield(battle, 'player', {
       defId: 'test:ward',
       name: 'Test Ward',
       kind: 'shield',
@@ -931,10 +946,10 @@ Deno.test('#109: player self-damage routes through the wearer’s own ward', () 
       timing: 'immediate',
       removable: true,
     });
-    const wardBefore = b.shield.player;
-    const res = performAction(p, b, { kind: 'guard' }, seeded(803));
-    assertEquals(p.hp, full, 'the ward absorbed the recoil — no HP reached flesh');
-    assert(b.shield.player < wardBefore, 'the recoil pooled into the wearer’s OWN ward');
+    const wardBefore = battle.shield.player;
+    const res = performAction(player, battle, { kind: 'guard' }, seeded(803));
+    assertEquals(player.hp, full, 'the ward absorbed the recoil — no HP reached flesh');
+    assert(battle.shield.player < wardBefore, 'the recoil pooled into the wearer’s OWN ward');
     assertEquals(hpEvents(res.trace).length, 0, 'shield-only absorbs emit nothing');
   } finally {
     charm.triggers = original;
@@ -942,17 +957,17 @@ Deno.test('#109: player self-damage routes through the wearer’s own ward', () 
 });
 
 Deno.test('#109: enemy-authored self-damage wounds the foe, never the wearer', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'opening', {
     name: 'Self Lash',
     effects: [{ kind: 'damage', attack: 'phys', power: 1, target: 'self' }],
   }, () => {
-    const p = hero(804, 'warrior', 5);
-    p.hp = statsOf(p).maxHp;
-    const full = p.hp;
-    const res = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(805) })!;
+    const player = hero(804, 'warrior', 5);
+    player.hp = statsOf(player).maxHp;
+    const full = player.hp;
+    const res = startBattle('e_rat', ORIGIN, { player, rng: seeded(805) })!;
     assert(res.battle.enemy.hp < res.battle.enemy.maxHp, 'the foe wounded ITSELF');
-    assertEquals(p.hp, full, 'the wearer is untouched');
+    assertEquals(player.hp, full, 'the wearer is untouched');
     const wounds = hpEvents(res.trace);
     assertEquals(wounds.length, 1);
     assertEquals(wounds[0]!.attacker, 'enemy', 'the trace names the actual attacker');
@@ -961,19 +976,19 @@ Deno.test('#109: enemy-authored self-damage wounds the foe, never the wearer', (
 });
 
 Deno.test('#109: lethal enemy self-damage ends the fight as a victory', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'opening', {
     name: 'Death Spiral',
     effects: [{ kind: 'damage', attack: 'phys', power: 9999, target: 'self' }],
   }, () => {
-    const p = hero(806, 'warrior', 5);
-    p.hp = statsOf(p).maxHp;
-    const full = p.hp;
-    const res = startBattle('e_rat', ORIGIN, { player: p, rng: seeded(807) })!;
+    const player = hero(806, 'warrior', 5);
+    player.hp = statsOf(player).maxHp;
+    const full = player.hp;
+    const res = startBattle('e_rat', ORIGIN, { player, rng: seeded(807) })!;
     assertEquals(res.outcome, 'victory', 'a self-felled foe is a won fight');
     assertEquals(res.battle.enemy.hp, 0);
-    assertEquals(p.hp, full, 'the wearer never lost HP');
-    const terminal = res.trace.find((e) => e.kind === 'terminal');
+    assertEquals(player.hp, full, 'the wearer never lost HP');
+    const terminal = res.trace.find((event) => event.kind === 'terminal');
     assertExists(terminal, 'the opening adjudication recorded the terminal state');
   });
 });
@@ -1013,8 +1028,8 @@ Deno.test('#109: lethal player self-damage obeys the immediate-revival contract'
 // ── #112: context-aware detail views for equipped items ─────────────────
 
 Deno.test('#112: every occupied slot exposes Details; empty slots expose none', () => {
-  const p = hero(900, 'warrior', 5, 't_15'); // starter weapon + armor equipped, trinket t_15
-  const overview = JSON.stringify(renderEquipment(p));
+  const player = hero(900, 'warrior', 5, 't_15'); // starter weapon + armor equipped, trinket t_15
+  const overview = JSON.stringify(renderEquipment(player));
   assert(overview.includes('e:vi:weapon'), 'the occupied weapon slot offers Details');
   assert(overview.includes('e:vi:armor'), 'the occupied armor slot offers Details');
   assert(overview.includes('e:vi:trinket'), 'the occupied trinket slot offers Details');
@@ -1028,12 +1043,12 @@ Deno.test('#112: every occupied slot exposes Details; empty slots expose none', 
 
 Deno.test('#112: equipped details show full facts with NO bag-only controls', () => {
   for (const slot of ['weapon', 'armor', 'trinket'] as const) {
-    const p = hero(902, 'warrior', 5, 't_15');
-    const json = JSON.stringify(renderEquippedItemDetail(p, slot));
+    const player = hero(902, 'warrior', 5, 't_15');
+    const json = JSON.stringify(renderEquippedItemDetail(player, slot));
     assert(json.includes('Equipped'), `${slot} detail names the equipped state`);
     assert(!json.includes('×'), `${slot} detail shows no bag quantity`);
     const controls = JSON.stringify(
-      renderEquippedItemDetail(p, slot).blocks?.filter((b) => b.type === 'buttons'),
+      renderEquippedItemDetail(player, slot).blocks?.filter((block) => block.type === 'buttons'),
     );
     assert(!controls.includes('Sell'), `${slot} detail offers no Sell button`);
     assert(!json.includes('Drop'), `${slot} detail offers no Drop`);
@@ -1045,8 +1060,8 @@ Deno.test('#112: equipped details show full facts with NO bag-only controls', ()
 });
 
 Deno.test('#112: triggered equipped gear discloses exact mechanics in its detail', () => {
-  const p = hero(903, 'warrior', 28, 't_15'); // Rime Ward — battleStart shield
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'trinket'));
+  const player = hero(903, 'warrior', 28, 't_15'); // Rime Ward — battleStart shield
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'trinket'));
   // The full GENERATED Shield sentence, derived from the trigger fields.
   assert(json.includes('⚡ Battle start'));
   assert(json.includes('Grants Shield equal to 35 for 2 rounds.'));
@@ -1056,9 +1071,9 @@ Deno.test('#112: triggered equipped gear discloses exact mechanics in its detail
 });
 
 Deno.test('#112: tempered equipped gear shows level and effective contribution', () => {
-  const p = hero(904, 'warrior', 5);
-  p.flags['forge_i_w_warrior_1'] = 2; // item-pattern mastery flag (#24)
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  const player = hero(904, 'warrior', 5);
+  player.flags['forge_i_w_warrior_1'] = 2; // item-pattern mastery flag (#24)
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'weapon'));
   assert(json.includes('+2'), 'the temper level renders');
   assert(json.includes('16%'), 'the effective contribution renders (+8%/level)');
   const clean = hero(905, 'warrior', 5);
@@ -1071,17 +1086,20 @@ Deno.test('#112: tempered equipped gear shows level and effective contribution',
 Deno.test('#112: an equipped item absent from Inventory stays inspectable', () => {
   // Equipped gear is REMOVED from the bag (qty 0 there) — the equipped
   // detail never consults bag quantities.
-  const p = hero(906, 'warrior', 5);
-  assert(!p.inventory.some((e) => e.id === p.equipment.weapon), 'the weapon is not in the bag');
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  const player = hero(906, 'warrior', 5);
+  assert(
+    !player.inventory.some((entry) => entry.id === player.equipment.weapon),
+    'the weapon is not in the bag',
+  );
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'weapon'));
   assert(json.includes('Equipped:'), 'the equipped weapon renders despite zero bag qty');
   assert(!json.includes('vanished from your bag'), 'no phantom "vanished" state');
 });
 
 Deno.test('#112: an empty-slot detail renders the safe explanatory state', () => {
-  const p = hero(907, 'warrior', 5);
-  delete p.equipment.trinket;
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'trinket'));
+  const player = hero(907, 'warrior', 5);
+  delete player.equipment.trinket;
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'trinket'));
   assert(json.includes('slot is empty'), 'the safe explanatory state renders');
   assert(json.includes('e:op'), 'Back to Equipment remains reachable');
   assert(!json.includes('vanished from your bag'), 'never claims the item left the bag');
@@ -1110,31 +1128,31 @@ Deno.test('#112: bag detail Back returns to the ORIGIN, not the zone', () => {
 Deno.test('#113: bag detail shows the class restriction of class-locked gear', () => {
   // A mage inspecting warrior gear: the restriction is an item FACT, visible
   // even while Equip is withheld.
-  const p = hero(910, 'mage', 5);
-  p.inventory.push({ id: 'w_warrior_1', qty: 1 });
-  const json = JSON.stringify(renderItemDetail(p, 'w_warrior_1'));
+  const player = hero(910, 'mage', 5);
+  player.inventory.push({ id: 'w_warrior_1', qty: 1 });
+  const json = JSON.stringify(renderItemDetail(player, 'w_warrior_1'));
   assert(json.includes('Class: Warrior'), 'the bag detail names the allowed class');
   assert(!json.includes('⚔️ Equip'), 'an incompatible item still withholds Equip');
 });
 
 Deno.test('#113: equipped detail shows the same class restriction', () => {
-  const p = hero(911, 'warrior', 5); // w_warrior_1 equipped from creation
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  const player = hero(911, 'warrior', 5); // w_warrior_1 equipped from creation
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'weapon'));
   assert(json.includes('Class: Warrior'), 'the equipped detail names the allowed class');
 });
 
 Deno.test('#113: level-1 class-locked gear shows its class with no level line', () => {
-  const p = hero(912, 'warrior', 1);
-  const json = JSON.stringify(renderEquippedItemDetail(p, 'weapon'));
+  const player = hero(912, 'warrior', 1);
+  const json = JSON.stringify(renderEquippedItemDetail(player, 'weapon'));
   assert(item('w_warrior_1')!.level === 1, 'starter gear is level 1');
   assert(json.includes('Class: Warrior'), 'the class restriction still renders at level 1');
   assert(!json.includes('Requires level'), 'no level line is needed for a level-1 piece');
 });
 
 Deno.test('#113: unrestricted equipment renders no class limitation', () => {
-  const p = hero(913, 'warrior', 5);
-  p.inventory.push({ id: 't_7', qty: 1 });
-  const bagJson = JSON.stringify(renderItemDetail(p, 't_7'));
+  const player = hero(913, 'warrior', 5);
+  player.inventory.push({ id: 't_7', qty: 1 });
+  const bagJson = JSON.stringify(renderItemDetail(player, 't_7'));
   assert(!bagJson.includes('Class:'), 'an unrestricted trinket shows no class line in the bag');
   const eq = hero(914, 'warrior', 5, 't_7');
   const eqJson = JSON.stringify(renderEquippedItemDetail(eq, 'trinket'));
@@ -1186,34 +1204,34 @@ function twiceModified(raw: number, mod: number): number {
 }
 
 Deno.test('#115: enemy → player damage applies the player’s incoming modifier exactly once', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Heavy Bite',
     weight: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 10 }],
   }], () => {
     const run = (mod: number | undefined, id: number) => {
-      const p = hero(id, 'warrior', 5);
-      p.hp = 99999;
-      const b = tankyRat(p, id);
-      if (mod !== undefined) injectMod(b, 'player', 'incoming', mod);
-      const c = countedStream();
-      const before = p.hp;
-      const res = performAction(p, b, { kind: 'attack' }, c.rng);
-      const hits = hpEvents(res.trace).filter((e) =>
-        e.target === 'player' && e.attacker === 'enemy'
+      const player = hero(id, 'warrior', 5);
+      player.hp = 99999;
+      const battle = tankyRat(player, id);
+      if (mod !== undefined) injectMod(battle, 'player', 'incoming', mod);
+      const random = countedStream();
+      const before = player.hp;
+      const res = performAction(player, battle, { kind: 'attack' }, random.rng);
+      const hits = hpEvents(res.trace).filter((event) =>
+        event.target === 'player' && event.attacker === 'enemy'
       );
       assertEquals(hits.length, 1, 'exactly one enemy hit lands');
       // The raw blow from the same runtime values the engine reads
       // (enemy offense, player mitigation ×0.85, no guard), variance
       // neutralized by the constant stream.
-      const raw = Math.max(1, rat.atk * 10 - statsOf(p).def * 0.85);
+      const raw = Math.max(1, rat.atk * 10 - statsOf(player).def * 0.85);
       return {
-        p,
+        p: player,
         res,
         hit: hits[0]!,
         before,
-        draws: c.draws(),
+        draws: random.draws(),
         raw,
         expected: onceModified(raw, mod ?? 0),
       };
@@ -1221,12 +1239,20 @@ Deno.test('#115: enemy → player damage applies the player’s incoming modifie
     const clean = run(undefined, 1110);
     const amp = run(0.5, 1111);
     const damp = run(-0.5, 1112);
-    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
-      assertEquals(r.hit.resolved, r.expected, `${label}: the resolved blow applies it once`);
-      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
-      assertEquals(r.p.hp, r.before - r.expected, `${label}: player HP moved by exactly that`);
+    for (const [label, fixture] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(
+        fixture.hit.resolved,
+        fixture.expected,
+        `${label}: the resolved blow applies it once`,
+      );
+      assertEquals(fixture.hit.hpLost, fixture.expected, `${label}: the applied HP loss matches`);
+      assertEquals(
+        fixture.p.hp,
+        fixture.before - fixture.expected,
+        `${label}: player HP moved by exactly that`,
+      );
       assert(
-        r.res.lines.some((l) => l.includes(`${r.expected}`)),
+        fixture.res.lines.some((line) => line.includes(`${fixture.expected}`)),
         `${label}: the battle text reports the once-modified amount`,
       );
     }
@@ -1244,36 +1270,50 @@ Deno.test('#115: enemy → player damage applies the player’s incoming modifie
 });
 
 Deno.test('#115: enemy self-damage applies the enemy’s incoming modifier exactly once', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Self Lash',
     weight: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 10, target: 'self' }],
   }], () => {
     const run = (mod: number | undefined, id: number) => {
-      const p = hero(id, 'warrior', 5);
-      p.hp = 99999;
-      const b = tankyRat(p, id);
-      if (mod !== undefined) injectMod(b, 'enemy', 'incoming', mod);
-      const c = countedStream();
-      const before = b.enemy.hp;
+      const player = hero(id, 'warrior', 5);
+      player.hp = 99999;
+      const battle = tankyRat(player, id);
+      if (mod !== undefined) injectMod(battle, 'enemy', 'incoming', mod);
+      const random = countedStream();
+      const before = battle.enemy.hp;
       // The player guards: no player damage touches the enemy, so the ONLY
       // enemy HP loss is the self-lash.
-      const res = performAction(p, b, { kind: 'guard' }, c.rng);
-      const hits = hpEvents(res.trace).filter((e) =>
-        e.target === 'enemy' && e.attacker === 'enemy'
+      const res = performAction(player, battle, { kind: 'guard' }, random.rng);
+      const hits = hpEvents(res.trace).filter((event) =>
+        event.target === 'enemy' && event.attacker === 'enemy'
       );
       assertEquals(hits.length, 1, 'exactly one self-inflicted hit');
       const raw = Math.max(1, rat.atk * 10 - rat.def * 0.85);
-      return { b, hit: hits[0]!, before, draws: c.draws(), expected: onceModified(raw, mod ?? 0) };
+      return {
+        b: battle,
+        hit: hits[0]!,
+        before,
+        draws: random.draws(),
+        expected: onceModified(raw, mod ?? 0),
+      };
     };
     const clean = run(undefined, 1120);
     const amp = run(0.5, 1121);
     const damp = run(-0.5, 1122);
-    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
-      assertEquals(r.hit.resolved, r.expected, `${label}: the self-hit applies it once`);
-      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
-      assertEquals(r.b.enemy.hp, r.before - r.expected, `${label}: enemy HP moved by exactly that`);
+    for (const [label, fixture] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(
+        fixture.hit.resolved,
+        fixture.expected,
+        `${label}: the self-hit applies it once`,
+      );
+      assertEquals(fixture.hit.hpLost, fixture.expected, `${label}: the applied HP loss matches`);
+      assertEquals(
+        fixture.b.enemy.hp,
+        fixture.before - fixture.expected,
+        `${label}: enemy HP moved by exactly that`,
+      );
     }
     assertEquals(amp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
     assertEquals(damp.draws, clean.draws, 'the modifier introduces no extra RNG draws');
@@ -1281,28 +1321,30 @@ Deno.test('#115: enemy self-damage applies the enemy’s incoming modifier exact
 });
 
 Deno.test('#115: player-authored damage applies the resolved target’s modifier once', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Bite',
     weight: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 1 }],
   }], () => {
     // Opponent-directed: the player's strike against a Vulnerable enemy.
-    const p = hero(1130, 'warrior', 5);
-    p.hp = 99999;
-    const b = tankyRat(p, 1131);
-    injectMod(b, 'enemy', 'incoming', 0.5);
-    const c = countedStream();
-    const before = b.enemy.hp;
-    const res = performAction(p, b, { kind: 'attack' }, c.rng);
-    const hits = hpEvents(res.trace).filter((e) => e.target === 'enemy' && e.attacker === 'player');
+    const player = hero(1130, 'warrior', 5);
+    player.hp = 99999;
+    const battle = tankyRat(player, 1131);
+    injectMod(battle, 'enemy', 'incoming', 0.5);
+    const random = countedStream();
+    const before = battle.enemy.hp;
+    const res = performAction(player, battle, { kind: 'attack' }, random.rng);
+    const hits = hpEvents(res.trace).filter((event) =>
+      event.target === 'enemy' && event.attacker === 'player'
+    );
     assertEquals(hits.length, 1, 'exactly one player hit lands');
     // Player strike: crit roll fails on the 0.5 stream, variance neutral.
-    const raw = Math.max(1, statsOf(p).atk - rat.def * 0.85);
+    const raw = Math.max(1, statsOf(player).atk - rat.def * 0.85);
     const expected = onceModified(raw, 0.5);
     assertEquals(hits[0]!.resolved, expected, 'the enemy’s +50% incoming applies exactly once');
     assertEquals(hits[0]!.hpLost, expected);
-    assertEquals(b.enemy.hp, before - expected);
+    assertEquals(battle.enemy.hp, before - expected);
   });
 });
 
@@ -1316,23 +1358,23 @@ Deno.test('#115: player self-damage applies the wearer’s incoming modifier exa
   }];
   try {
     const run = (mod: number | undefined, id: number) => {
-      const p = hero(id, 'warrior', 5, 't_19');
-      p.hp = 99999;
-      const b = tankyRat(p, id);
-      if (mod !== undefined) injectMod(b, 'player', 'incoming', mod);
-      const c = countedStream();
-      const before = p.hp;
-      const res = performAction(p, b, { kind: 'guard' }, c.rng);
-      const allHits = hpEvents(res.trace).filter((e) => e.target === 'player');
-      const hits = allHits.filter((e) => e.attacker === 'player');
+      const player = hero(id, 'warrior', 5, 't_19');
+      player.hp = 99999;
+      const battle = tankyRat(player, id);
+      if (mod !== undefined) injectMod(battle, 'player', 'incoming', mod);
+      const random = countedStream();
+      const before = player.hp;
+      const res = performAction(player, battle, { kind: 'guard' }, random.rng);
+      const allHits = hpEvents(res.trace).filter((event) => event.target === 'player');
+      const hits = allHits.filter((event) => event.attacker === 'player');
       assertEquals(hits.length, 1, 'exactly one self-inflicted hit');
-      const raw = Math.max(1, statsOf(p).atk * 10 - statsOf(p).def * 0.85);
-      const totalLost = allHits.reduce((s, e) => s + e.hpLost, 0); // the rat's bite included
+      const raw = Math.max(1, statsOf(player).atk * 10 - statsOf(player).def * 0.85);
+      const totalLost = allHits.reduce((totalHpLost, event) => totalHpLost + event.hpLost, 0); // the rat's bite included
       return {
-        p,
+        p: player,
         hit: hits[0]!,
         before,
-        draws: c.draws(),
+        draws: random.draws(),
         totalLost,
         expected: onceModified(raw, mod ?? 0),
       };
@@ -1340,12 +1382,12 @@ Deno.test('#115: player self-damage applies the wearer’s incoming modifier exa
     const clean = run(undefined, 1140);
     const amp = run(0.5, 1141);
     const damp = run(-0.5, 1142);
-    for (const [label, r] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
-      assertEquals(r.hit.resolved, r.expected, `${label}: the recoil applies it once`);
-      assertEquals(r.hit.hpLost, r.expected, `${label}: the applied HP loss matches`);
+    for (const [label, fixture] of [['clean', clean], ['+50%', amp], ['−50%', damp]] as const) {
+      assertEquals(fixture.hit.resolved, fixture.expected, `${label}: the recoil applies it once`);
+      assertEquals(fixture.hit.hpLost, fixture.expected, `${label}: the applied HP loss matches`);
       assertEquals(
-        r.p.hp,
-        r.before - r.totalLost,
+        fixture.p.hp,
+        fixture.before - fixture.totalLost,
         `${label}: player HP moved by exactly the reported losses`,
       );
     }
@@ -1357,17 +1399,17 @@ Deno.test('#115: player self-damage applies the wearer’s incoming modifier exa
 });
 
 Deno.test('#115: shield absorption derives from the once-modified amount', () => {
-  const rat = ENEMIES.find((e) => e.id === 'e_rat')!;
+  const rat = ENEMIES.find((enemyDef) => enemyDef.id === 'e_rat')!;
   withOverridden(rat, 'moves', [{
     name: 'Heavy Bite',
     weight: 1,
     effects: [{ kind: 'damage', attack: 'phys', power: 10 }],
   }], () => {
-    const p = hero(1150, 'warrior', 5);
-    p.hp = 99999;
-    const b = tankyRat(p, 1151);
-    injectMod(b, 'player', 'incoming', 0.5);
-    grantShield(b, 'player', {
+    const player = hero(1150, 'warrior', 5);
+    player.hp = 99999;
+    const battle = tankyRat(player, 1151);
+    injectMod(battle, 'player', 'incoming', 0.5);
+    grantShield(battle, 'player', {
       defId: 'test:ward',
       name: 'Test Ward',
       kind: 'shield',
@@ -1380,20 +1422,20 @@ Deno.test('#115: shield absorption derives from the once-modified amount', () =>
       timing: 'immediate',
       removable: true,
     });
-    const c = countedStream();
-    const before = p.hp;
-    const res = performAction(p, b, { kind: 'attack' }, c.rng);
-    const raw = Math.max(1, rat.atk * 10 - statsOf(p).def * 0.85);
+    const random = countedStream();
+    const before = player.hp;
+    const res = performAction(player, battle, { kind: 'attack' }, random.rng);
+    const raw = Math.max(1, rat.atk * 10 - statsOf(player).def * 0.85);
     const expected = onceModified(raw, 0.5);
-    assertEquals(b.shield.player, 9999 - expected, 'the ward absorbed the once-modified blow');
-    assertEquals(p.hp, before, 'no HP reached flesh');
+    assertEquals(battle.shield.player, 9999 - expected, 'the ward absorbed the once-modified blow');
+    assertEquals(player.hp, before, 'no HP reached flesh');
     assertEquals(
-      hpEvents(res.trace).filter((e) => e.target === 'player').length,
+      hpEvents(res.trace).filter((event) => event.target === 'player').length,
       0,
       'a shield-only absorb records nothing',
     );
     assert(
-      res.lines.some((l) => l.includes(`🛡️ ${expected} absorbed`)),
+      res.lines.some((line) => line.includes(`🛡️ ${expected} absorbed`)),
       'the battle text reports the once-modified absorption',
     );
   });

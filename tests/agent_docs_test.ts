@@ -43,7 +43,7 @@ function readRepoText(rel: string): Promise<string> {
  * Duplicates are preserved here so the routing test can reject them
  * instead of letting a Map silently collapse them. */
 function routedSkillPaths(agentsMd: string): { name: string; path: string }[] {
-  return [...agentsMd.matchAll(SKILL_PATH_RE)].map((m) => ({ name: m[1], path: m[0] }));
+  return [...agentsMd.matchAll(SKILL_PATH_RE)].map((match) => ({ name: match[1], path: match[0] }));
 }
 
 Deno.test('agent docs: root AGENTS.md fits the 12 KiB instruction budget', async () => {
@@ -75,7 +75,7 @@ Deno.test('agent docs: routing is bidirectional, duplicate-free, and every skill
   const agentsMd = await readRepoText('AGENTS.md');
   const routed = routedSkillPaths(agentsMd);
   assert(routed.length > 0, 'AGENTS.md routes no .agents/skills/ paths.');
-  const routedNames = routed.map((r) => r.name);
+  const routedNames = routed.map((skillRoute) => skillRoute.name);
   assertEquals(
     new Set(routedNames).size,
     routedNames.length,

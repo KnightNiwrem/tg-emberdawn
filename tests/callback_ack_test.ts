@@ -75,11 +75,11 @@ Deno.test('expired ack: class picking still creates and persists the hero (#75)'
   const { store, user } = await setup();
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
-  const p = await store.get(4242);
-  assert(p, 'hero persisted even though the acknowledgment rejected');
-  assertEquals(p.classId, 'warrior');
-  assertEquals(p.scene.view, 'zone');
-  assert(p.messageId, 'live-message pointer captured');
+  const player = await store.get(4242);
+  assert(player, 'hero persisted even though the acknowledgment rejected');
+  assertEquals(player.classId, 'warrior');
+  assertEquals(player.scene.view, 'zone');
+  assert(player.messageId, 'live-message pointer captured');
 });
 
 Deno.test('expired ack: gameplay taps still commit and persist (#75)', async () => {
@@ -114,9 +114,9 @@ Deno.test('expired ack: revision-mismatched taps complete without looping (#75)'
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
   // Tap the LIVE copy (same message id) with a revision it never rendered.
-  const p = (await store.get(4242))!;
-  await user.sendCallbackQuery(withRev(p.uiRev + 1, 'z:tv'), {
-    message: { message_id: p.messageId! },
+  const player = (await store.get(4242))!;
+  await user.sendCallbackQuery(withRev(player.uiRev + 1, 'z:tv'), {
+    message: { message_id: player.messageId! },
   });
   assertEquals((await store.get(4242))!.scene.view, 'zone', 'mismatched tap mutated nothing');
 });
@@ -126,9 +126,9 @@ Deno.test('expired ack: taps on stale message copies complete without looping (#
   await user.sendCommand('/start');
   await tap(store, user, 'm:pk:warrior');
   // Track the live message FAR ahead of the tapped copy → every tap stale.
-  const p = (await store.get(4242))!;
-  p.messageId = 999_999;
-  await store.set(4242, p);
+  const player = (await store.get(4242))!;
+  player.messageId = 999_999;
+  await store.set(4242, player);
   const rev = (await store.get(4242))!.uiRev;
   await user.sendCallbackQuery(withRev(rev, 'z:tv'));
   assertEquals((await store.get(4242))!.scene.view, 'zone', 'stale tap mutated nothing');
@@ -150,11 +150,11 @@ Deno.test('expired ack: confirmed reset still deletes the save without looping (
 
 Deno.test('expired ack: confirmed reset still delivers the class picker (#75, handler level)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(4242, 'Tester', 'warrior');
-  p.scene = { view: 'reset' }; // confirmation staged
-  p.uiRev = 7;
-  p.messageId = 555;
-  await store.set(4242, p);
+  const player = createPlayer(4242, 'Tester', 'warrior');
+  player.scene = { view: 'reset' }; // confirmation staged
+  player.uiRev = 7;
+  player.messageId = 555;
+  await store.set(4242, player);
 
   // A capturing context whose acknowledgments ALWAYS reject with the
   // canonical expired-query GrammyError — the harness cannot observe

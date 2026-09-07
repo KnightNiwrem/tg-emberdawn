@@ -130,8 +130,8 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
   const backing = new Map<number, PlayerState>();
   const store: PlayerStore = {
     get: (id) => Promise.resolve(backing.has(id) ? structuredClone(backing.get(id)!) : undefined),
-    set: (id, s) => {
-      backing.set(id, structuredClone(s));
+    set: (id, player) => {
+      backing.set(id, structuredClone(player));
       return Promise.resolve();
     },
     delete: (id) => {
@@ -140,9 +140,9 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
     },
     withLock: (_id, fn) => fn(),
   };
-  const p = createPlayer(900, 'T', 'warrior');
-  p.messageId = 100;
-  await store.set(900, p);
+  const player = createPlayer(900, 'T', 'warrior');
+  player.messageId = 100;
+  await store.set(900, player);
 
   // Tap lands on a copy NEWER than our pointer → adopted as live, persisted.
   // The tap must carry its stamped revision to be adoptable (#43).
@@ -153,12 +153,12 @@ Deno.test('newer-message adoption survives clone-on-read stores (P0-7)', async (
 
 Deno.test('revisionless gameplay callbacks are rejected; class picking is not (#43)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(932, 'T', 'warrior');
-  p.gold = 500;
-  p.messageId = 620;
-  p.uiRev = 3;
-  p.scene = { view: 'zone' };
-  await store.set(932, p);
+  const player = createPlayer(932, 'T', 'warrior');
+  player.gold = 500;
+  player.messageId = 620;
+  player.uiRev = 3;
+  player.scene = { view: 'zone' };
+  await store.set(932, player);
 
   // A rev-less gameplay button is obsolete wire junk — never executed.
   await handleCallback(fakeCtx(932, 620, 'z:sh'), store);
@@ -194,20 +194,20 @@ Deno.test('the class picker stays revisionless (#43)', async () => {
 // ── save-version gate (P0-3 / P0-4 / #116) ──────────────────────────────
 
 Deno.test('save gate: unversioned saves fail instead of being repaired (#44)', () => {
-  const p = createPlayer(901, 'T', 'warrior');
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+  const player = createPlayer(901, 'T', 'warrior');
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player,
     rng: seeded(90),
   })!.battle;
-  p.battle = b;
+  player.battle = battle;
   // An unversioned save is NOT interpreted as any numbered version: it stays
   // unversioned and throws (#44) — no sniffing, no stamping.
-  const raw = p as unknown as Record<string, unknown>;
+  const raw = player as unknown as Record<string, unknown>;
   delete raw.stateVersion;
-  assertThrows(() => assertSupportedSaveVersion(p), SaveTooOldError);
+  assertThrows(() => assertSupportedSaveVersion(player), SaveTooOldError);
   // The refused save is untouched — no stamping, no battle normalization.
   assertEquals(raw.stateVersion, undefined);
-  assertEquals(b.origin, { kind: 'explore', zoneId: 'whisperwood' });
+  assertEquals(battle.origin, { kind: 'explore', zoneId: 'whisperwood' });
 
   // Current battles carry the full required shape from startBattle: combat
   // stays finite with no runtime backfill.
@@ -226,19 +226,19 @@ Deno.test('save gate: unversioned saves fail instead of being repaired (#44)', (
 });
 
 Deno.test('stateVersion stamps fresh saves', () => {
-  const p = createPlayer(902, 'T', 'rogue');
-  assertSupportedSaveVersion(p);
-  assertEquals(p.stateVersion, CURRENT_STATE_VERSION);
+  const player = createPlayer(902, 'T', 'rogue');
+  assertSupportedSaveVersion(player);
+  assertEquals(player.stateVersion, CURRENT_STATE_VERSION);
 });
 
 Deno.test('incompatible pre-launch saves: /start and callbacks refuse without writing (#116)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(940, 'T', 'warrior');
-  p.gold = 555;
-  p.messageId = 700;
-  p.uiRev = 1;
-  p.stateVersion = CURRENT_STATE_VERSION - 1; // retired development format
-  await store.set(940, p);
+  const player = createPlayer(940, 'T', 'warrior');
+  player.gold = 555;
+  player.messageId = 700;
+  player.uiRev = 1;
+  player.stateVersion = CURRENT_STATE_VERSION - 1; // retired development format
+  await store.set(940, player);
   const storedBefore = JSON.stringify(await store.get(940));
 
   // /start explains the /reset path and never rewrites the save.
@@ -249,7 +249,7 @@ Deno.test('incompatible pre-launch saves: /start and callbacks refuse without wr
     '/start must not render the game for an unloadable save',
   );
   assert(
-    start.replies.some((r) => r === INCOMPATIBLE_SAVE_REPLY),
+    start.replies.some((reply) => reply === INCOMPATIBLE_SAVE_REPLY),
     '/start points the playtester at /reset with accurate pre-launch wording',
   );
   assert(
@@ -262,7 +262,7 @@ Deno.test('incompatible pre-launch saves: /start and callbacks refuse without wr
   const tap = fakeCtxCapture(940, 700, withRev(1, 'z:sh'));
   await handleCallback(tap.ctx, store);
   assert(
-    tap.replies.some((r) => r === INCOMPATIBLE_SAVE_REPLY),
+    tap.replies.some((reply) => reply === INCOMPATIBLE_SAVE_REPLY),
     'the refused callback explains the /reset path with the same wording',
   );
   assertEquals(tap.edits.length + tap.sends.length, 0, 'no game render is committed');
@@ -274,9 +274,9 @@ Deno.test('incompatible pre-launch saves: /start and callbacks refuse without wr
 
 Deno.test('/reset deletes an incompatible pre-launch save and presents the class picker (#116)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(941, 'T', 'mage');
-  p.stateVersion = CURRENT_STATE_VERSION - 1; // unloadable dev save
-  await store.set(941, p);
+  const player = createPlayer(941, 'T', 'mage');
+  player.stateVersion = CURRENT_STATE_VERSION - 1; // unloadable dev save
+  await store.set(941, player);
 
   // The explicit command is the exception (#44): no Yes/No staging is
   // possible on an unloadable save — /reset drops it and offers the picker.
@@ -299,116 +299,124 @@ Deno.test('/reset deletes an incompatible pre-launch save and presents the class
 // ── engine authority (P1-4 / P1-5 / P1-6) ────────────────────────────────
 
 Deno.test('equip verifies ownership; stale double-tap fails cleanly', () => {
-  const p = createPlayer(903, 'T', 'warrior');
-  p.level = 7;
-  addItem(p, 'w_warrior_2', 1);
-  const r1 = itemAction(p, 'eq', 'w_warrior_2');
+  const player = createPlayer(903, 'T', 'warrior');
+  player.level = 7;
+  addItem(player, 'w_warrior_2', 1);
+  const r1 = itemAction(player, 'eq', 'w_warrior_2');
   assertEquals(r1.toast, undefined);
-  assertEquals(p.equipment.weapon, 'w_warrior_2');
-  assertEquals(countOf(p, 'w_warrior_2'), 0);
-  const r2 = itemAction(p, 'eq', 'w_warrior_2');
+  assertEquals(player.equipment.weapon, 'w_warrior_2');
+  assertEquals(countOf(player, 'w_warrior_2'), 0);
+  const r2 = itemAction(player, 'eq', 'w_warrior_2');
   assertEquals(r2.toast, "You don't have that.", 'second tap must not re-equip');
-  assert(!p.inventory.some((e) => e.id === 'w_warrior_2'));
-  assertEquals(p.equipment.weapon, 'w_warrior_2', 'original equip stays');
+  assert(!player.inventory.some((entry) => entry.id === 'w_warrior_2'));
+  assertEquals(player.equipment.weapon, 'w_warrior_2', 'original equip stays');
 });
 
 Deno.test('combat refuses unlearned and wrong-class skills', () => {
   const rng = seeded(11);
-  const p = createPlayer(904, 'T', 'warrior');
-  const b = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(904, 'T', 'warrior');
+  const battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng,
   })!.battle;
-  const hp0 = b.enemy.hp;
-  const r1 = performAction(p, b, { kind: 'skill', skillId: 'sk_cataclysm' }, rng);
-  assert(r1.lines.some((l) => l.includes("haven't learned")), 'wrong class refused');
-  assertEquals(b.enemy.hp, hp0, 'no enemy phase on a forged tap');
-  assertEquals(b.round, 1, 'no turn consumed');
-  const r2 = performAction(p, b, { kind: 'skill', skillId: 'sk_executioner' }, rng);
-  assert(r2.lines.some((l) => l.includes("haven't learned")), 'unlearned same-class refused');
-  assertEquals(b.round, 1);
+  const hp0 = battle.enemy.hp;
+  const r1 = performAction(player, battle, { kind: 'skill', skillId: 'sk_cataclysm' }, rng);
+  assert(r1.lines.some((line) => line.includes("haven't learned")), 'wrong class refused');
+  assertEquals(battle.enemy.hp, hp0, 'no enemy phase on a forged tap');
+  assertEquals(battle.round, 1, 'no turn consumed');
+  const r2 = performAction(player, battle, { kind: 'skill', skillId: 'sk_executioner' }, rng);
+  assert(r2.lines.some((line) => line.includes("haven't learned")), 'unlearned same-class refused');
+  assertEquals(battle.round, 1);
 });
 
 Deno.test('pools clamp to derived maxima after equipment changes', () => {
-  const p = createPlayer(905, 'T', 'warrior');
-  p.hp = statsOf(p).maxHp + 500;
-  p.mp = statsOf(p).maxMp + 500;
-  clampPools(p);
-  assertEquals(p.hp, statsOf(p).maxHp);
-  assertEquals(p.mp, statsOf(p).maxMp);
+  const player = createPlayer(905, 'T', 'warrior');
+  player.hp = statsOf(player).maxHp + 500;
+  player.mp = statsOf(player).maxMp + 500;
+  clampPools(player);
+  assertEquals(player.hp, statsOf(player).maxHp);
+  assertEquals(player.mp, statsOf(player).maxMp);
 });
 
 // ── quest delivery invariants (P1-1) ─────────────────────────────────────
 
 Deno.test('collect turn-in revalidates goods atomically at the counter', () => {
-  const q = QUESTS.find((x) => x.objectives.length === 1 && x.objectives[0]!.kind === 'collect')!;
-  const obj = q.objectives[0]!;
+  const questDef = QUESTS.find((questDef) =>
+    questDef.objectives.length === 1 && questDef.objectives[0]!.kind === 'collect'
+  )!;
+  const obj = questDef.objectives[0]!;
   const need = obj.count ?? 1;
-  const p = createPlayer(906, 'T', 'warrior');
-  const finZone = zoneOfNpc(q.finishNpc)!.id;
-  p.unlockedZones.push(finZone);
-  p.currentZone = finZone; // the finisher accepts on-site (#64)
-  p.quests[q.id] = { status: 'turnIn', counts: [need] };
+  const player = createPlayer(906, 'T', 'warrior');
+  const finZone = zoneOfNpc(questDef.finishNpc)!.id;
+  player.unlockedZones.push(finZone);
+  player.currentZone = finZone; // the finisher accepts on-site (#64)
+  player.quests[questDef.id] = { status: 'turnIn', counts: [need] };
 
   // Goods spent after the quest readied → turn-in refused, quest reverts.
-  addItem(p, obj.target, need);
-  removeItem(p, obj.target, need);
-  const res = turnInQuest(p, q.id, q.finishNpc);
+  addItem(player, obj.target, need);
+  removeItem(player, obj.target, need);
+  const res = turnInQuest(player, questDef.id, questDef.finishNpc);
   assertEquals(res.ok, false);
-  assertEquals(p.quests[q.id]!.status, 'active', 'quest stays open');
+  assertEquals(player.quests[questDef.id]!.status, 'active', 'quest stays open');
 
   // Goods back in the bag: re-acquisition flips the quest ready again
   // (the same path a purchase/drop uses), then the counter accepts.
-  addItem(p, obj.target, need);
-  assertEquals(onItemGain(p).includes(q.id), true, 're-ready via item gain');
-  const res2 = turnInQuest(p, q.id, q.finishNpc);
+  addItem(player, obj.target, need);
+  assertEquals(onItemGain(player).includes(questDef.id), true, 're-ready via item gain');
+  const res2 = turnInQuest(player, questDef.id, questDef.finishNpc);
   assertEquals(res2.ok, true);
-  assertEquals(countOf(p, obj.target), 0, 'goods are handed over');
+  assertEquals(countOf(player, obj.target), 0, 'goods are handed over');
 });
 
 Deno.test('quests sharing materials cannot both turn in beyond supply', () => {
-  const qs = QUESTS.filter((x) =>
-    x.objectives.some((o) => o.kind === 'collect' && o.target === 'm_ember_shard')
+  const qs = QUESTS.filter((questDef) =>
+    questDef.objectives.some((objective) =>
+      objective.kind === 'collect' && objective.target === 'm_ember_shard'
+    )
   );
   assert(qs.length >= 2, 'fixture: at least two ember-shard quests');
-  const [qa, qb] = qs;
-  const needA = qa!.objectives.find((o) => o.target === 'm_ember_shard')!.count ?? 1;
-  const needB = qb!.objectives.find((o) => o.target === 'm_ember_shard')!.count ?? 1;
-  const p = createPlayer(907, 'T', 'warrior');
-  p.quests[qa!.id] = { status: 'turnIn', counts: qa!.objectives.map(() => 0) };
-  p.quests[qb!.id] = { status: 'turnIn', counts: qb!.objectives.map(() => 0) };
+  const [questDef, qb] = qs;
+  const needA =
+    questDef!.objectives.find((objective) => objective.target === 'm_ember_shard')!.count ?? 1;
+  const needB = qb!.objectives.find((objective) => objective.target === 'm_ember_shard')!.count ??
+    1;
+  const player = createPlayer(907, 'T', 'warrior');
+  player.quests[questDef!.id] = { status: 'turnIn', counts: questDef!.objectives.map(() => 0) };
+  player.quests[qb!.id] = { status: 'turnIn', counts: qb!.objectives.map(() => 0) };
   // Enough for exactly ONE quest's worth of shards.
-  addItem(p, 'm_ember_shard', Math.max(needA, needB));
+  addItem(player, 'm_ember_shard', Math.max(needA, needB));
   // Each turn-in happens at ITS finisher, on-site (#64).
-  const finA = zoneOfNpc(qa!.finishNpc)!.id;
-  p.unlockedZones.push(finA);
-  p.currentZone = finA;
-  const ra = turnInQuest(p, qa!.id, qa!.finishNpc);
+  const finA = zoneOfNpc(questDef!.finishNpc)!.id;
+  player.unlockedZones.push(finA);
+  player.currentZone = finA;
+  const ra = turnInQuest(player, questDef!.id, questDef!.finishNpc);
   assertEquals(ra.ok, true);
-  const left = countOf(p, 'm_ember_shard');
+  const left = countOf(player, 'm_ember_shard');
   const finB = zoneOfNpc(qb!.finishNpc)!.id;
-  if (!p.unlockedZones.includes(finB)) p.unlockedZones.push(finB);
-  p.currentZone = finB;
-  const rb = turnInQuest(p, qb!.id, qb!.finishNpc);
+  if (!player.unlockedZones.includes(finB)) player.unlockedZones.push(finB);
+  player.currentZone = finB;
+  const rb = turnInQuest(player, qb!.id, qb!.finishNpc);
   if (left < needB) {
     assertEquals(rb.ok, false, 'second quest must not complete without goods');
-    assertEquals(p.quests[qb!.id]!.status, 'active');
+    assertEquals(player.quests[qb!.id]!.status, 'active');
   } else {
     assertEquals(rb.ok, true);
   }
 });
 
 Deno.test('grantItem centralizes acquisition → collect readiness', () => {
-  const q = QUESTS.find((x) => x.objectives.length === 1 && x.objectives[0]!.kind === 'collect')!;
-  const obj = q.objectives[0]!;
+  const questDef = QUESTS.find((questDef) =>
+    questDef.objectives.length === 1 && questDef.objectives[0]!.kind === 'collect'
+  )!;
+  const obj = questDef.objectives[0]!;
   const need = obj.count ?? 1;
   assert(need >= 2, 'fixture: multi-count collect quest');
-  const p = createPlayer(908, 'T', 'warrior');
-  p.quests[q.id] = { status: 'active', counts: [0] };
-  for (let i = 0; i < need - 1; i++) grantItem(p, obj.target, 1);
-  assertEquals(p.quests[q.id]!.status, 'active', 'not ready below the threshold');
-  grantItem(p, obj.target, 1); // the final item, from ANY source
-  assertEquals(p.quests[q.id]!.status, 'turnIn', 'final grant readies the quest');
+  const player = createPlayer(908, 'T', 'warrior');
+  player.quests[questDef.id] = { status: 'active', counts: [0] };
+  for (let i = 0; i < need - 1; i++) grantItem(player, obj.target, 1);
+  assertEquals(player.quests[questDef.id]!.status, 'active', 'not ready below the threshold');
+  grantItem(player, obj.target, 1); // the final item, from ANY source
+  assertEquals(player.quests[questDef.id]!.status, 'turnIn', 'final grant readies the quest');
 });
 
 // ── economy & pacing ─────────────────────────────────────────────────────
@@ -416,49 +424,52 @@ Deno.test('grantItem centralizes acquisition → collect readiness', () => {
 Deno.test('gear tier law: tier t is equippable exactly from level 1+(t-1)*6', () => {
   // The economy's level math lives in the ITEMS catalog itself now (#161):
   // authored stock carries items, and isEquippable gates them by level.
-  const t1 = ITEMS.find((i) => i.id === 'w_warrior_1')!;
-  const t2 = ITEMS.find((i) => i.id === 'w_warrior_2')!;
-  const t3 = ITEMS.find((i) => i.id === 'w_warrior_3')!;
-  const t8 = ITEMS.find((i) => i.id === 'w_warrior_8')!;
+  const t1 = ITEMS.find((itemDef) => itemDef.id === 'w_warrior_1')!;
+  const t2 = ITEMS.find((itemDef) => itemDef.id === 'w_warrior_2')!;
+  const t3 = ITEMS.find((itemDef) => itemDef.id === 'w_warrior_3')!;
+  const t8 = ITEMS.find((itemDef) => itemDef.id === 'w_warrior_8')!;
   assertEquals([t1.level, t2.level, t3.level, t8.level], [1, 7, 13, 43]);
 });
 
 Deno.test('postgame XP converts to gold instead of vanishing', () => {
-  const p = createPlayer(909, 'T', 'warrior');
-  p.level = MAX_LEVEL;
-  p.gold = 0;
-  const lines = grantXp(p, 1000);
-  assert(p.gold > 0, 'valor pays out');
-  assertEquals(p.gold, 125, 'rate pinned: ceil(xp / 8)');
+  const player = createPlayer(909, 'T', 'warrior');
+  player.level = MAX_LEVEL;
+  player.gold = 0;
+  const lines = grantXp(player, 1000);
+  assert(player.gold > 0, 'valor pays out');
+  assertEquals(player.gold, 125, 'rate pinned: ceil(xp / 8)');
   assert(lines[0]!.includes('gold'));
-  assertEquals(p.xp, 0);
+  assertEquals(player.xp, 0);
 });
 
 Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel never helps', () => {
-  const p = createPlayer(910, 'T', 'mage');
+  const player = createPlayer(910, 'T', 'mage');
   const t0 = 1_000_000;
   // Burn the three charges.
-  for (let i = 0; i < 3; i++) explore(p, seeded(13), t0 + i * 1000);
-  assertEquals(p.flags['forage_emberdawn'], 3);
+  for (let attempt = 0; attempt < 3; attempt++) explore(player, seeded(13), t0 + attempt * 1000);
+  assertEquals(player.flags['forage_emberdawn'], 3);
   // The 6h recharge is stamped the MOMENT the last charge is spent (#3) —
   // not one interaction later.
-  assertEquals(p.flags['forageResetAt'], t0 + 2000 + 6 * 3_600_000);
-  const gold0 = p.gold;
-  const inv0 = structuredClone(p.inventory);
+  assertEquals(player.flags['forageResetAt'], t0 + 2000 + 6 * 3_600_000);
+  const gold0 = player.gold;
+  const inv0 = structuredClone(player.inventory);
   // Free-travel loop + explores before expiry: the faucet stays dry.
-  for (let i = 0; i < 3; i++) {
-    assert(travelDirect(p, 'whisperwood').ok);
-    assert(travelDirect(p, 'emberdawn').ok);
+  for (let trip = 0; trip < 3; trip++) {
+    assert(travelDirect(player, 'whisperwood').ok);
+    assert(travelDirect(player, 'emberdawn').ok);
   }
-  for (let i = 0; i < 60; i++) explore(p, seeded(13), t0 + 100_000);
-  assertEquals(p.gold, gold0, 'exhausted haven yields no gold');
-  assertEquals(p.inventory, inv0, 'exhausted haven yields no items');
+  for (let i = 0; i < 60; i++) explore(player, seeded(13), t0 + 100_000);
+  assertEquals(player.gold, gold0, 'exhausted haven yields no gold');
+  assertEquals(player.inventory, inv0, 'exhausted haven yields no items');
   // After expiry (one rng across the loop so draws actually vary).
   const rng2 = seeded(15);
   let restored = false;
-  for (let i = 0; i < 40 && !restored; i++) {
-    const o = explore(p, rng2, t0 + 6 * 3_600_000 + 60_000 + i * 1000);
-    if (o.kind === 'result' && o.lines.some((l) => l.includes('Found') || l.startsWith('💰'))) {
+  for (let attempt = 0; attempt < 40 && !restored; attempt++) {
+    const outcome = explore(player, rng2, t0 + 6 * 3_600_000 + 60_000 + attempt * 1000);
+    if (
+      outcome.kind === 'result' &&
+      outcome.lines.some((line) => line.includes('Found') || line.startsWith('💰'))
+    ) {
       restored = true;
     }
   }
@@ -466,21 +477,21 @@ Deno.test('safe-haven forage: 3 charges, timer stamps at exhaustion, travel neve
 });
 
 Deno.test('shops only stock trinkets the player can actually equip (#6)', () => {
-  const p = createPlayer(35, 'T', 'mage');
-  const s1 = resolveStock(p).map((o) => o.itemId);
+  const player = createPlayer(35, 'T', 'mage');
+  const s1 = resolveStock(player).map((offering) => offering.itemId);
   assert(!s1.includes('t_1'), 'Lucky Coin is level 3 — not at level 1');
   assert(!s1.includes('t_9'), 'Thorn Ring is level 5 — not at level 1');
   assert(s1.includes('w_mage_1'), 'gear tiers unchanged');
-  p.level = 5;
-  const s5 = resolveStock(p).map((o) => o.itemId);
+  player.level = 5;
+  const s5 = resolveStock(player).map((offering) => offering.itemId);
   assert(s5.includes('t_1') && s5.includes('t_9'), 'Thorn Ring unlocks at its level');
   assert(!s5.includes('t_2'), 'Feather Charm is level 7');
-  p.level = 7;
-  assert(resolveStock(p).some((o) => o.itemId === 't_2'));
+  player.level = 7;
+  assert(resolveStock(player).some((offering) => offering.itemId === 't_2'));
 });
 
 Deno.test('m25 finale rewards no equipment — t_18 already crowned the fight (#7)', () => {
-  const m25 = QUESTS.find((q) => q.id === 'm25_silence')!;
+  const m25 = QUESTS.find((questDef) => questDef.id === 'm25_silence')!;
   for (const id of Object.keys(m25.rewards.items ?? {})) {
     assert(item(id)!.kind !== 'trinket', `${id} would be instantly dominated by t_18`);
   }
@@ -488,39 +499,39 @@ Deno.test('m25 finale rewards no equipment — t_18 already crowned the fight (#
 });
 
 Deno.test('boss first-clear trinkets are earned trophies — not sellable or droppable (#5)', () => {
-  const p = createPlayer(912, 'T', 'warrior');
-  grantItem(p, 't_12', 1);
-  assertEquals(countOf(p, 't_12'), 1);
+  const player = createPlayer(912, 'T', 'warrior');
+  grantItem(player, 't_12', 1);
+  assertEquals(countOf(player, 't_12'), 1);
   // Selling happens only at a shop's counter now (#161), and earned
   // trophies refuse it there too.
-  const res = sell(p, 't_12', 1);
+  const res = sell(player, 't_12', 1);
   assert(!res.ok);
   assert(res.lines[0]!.includes("can't be sold"));
-  assert(itemAction(p, 'drop', 't_12').toast, 'drop must be refused');
-  assertEquals(countOf(p, 't_12'), 1, 'nothing left the bag');
+  assert(itemAction(player, 'drop', 't_12').toast, 'drop must be refused');
+  assertEquals(countOf(player, 't_12'), 1, 'nothing left the bag');
   // Ordinary trinkets stay disposable — the guard is not a blanket ban.
-  grantItem(p, 't_1', 1);
-  assertEquals(itemAction(p, 'drop', 't_1').toast, undefined);
-  assertEquals(countOf(p, 't_1'), 0);
+  grantItem(player, 't_1', 1);
+  assertEquals(itemAction(player, 'drop', 't_1').toast, undefined);
+  assertEquals(countOf(player, 't_1'), 0);
 });
 
 Deno.test('ready main quest: the log detail refuses; the NPC interaction completes (#15, #64)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(920, 'T', 'warrior');
-  p.level = 7; // m3_roots requires level 7 (#73)
+  const player = createPlayer(920, 'T', 'warrior');
+  player.level = 7; // m3_roots requires level 7 (#73)
   // The reworked chapter-one chain (#73): m3_roots unlocks behind m5_arms.
   for (const id of ['m1_embers', 'm2_letter', 'm3_wolves', 'm4_floors', 'm5_arms']) {
-    p.quests[id] = { status: 'done', counts: [] };
+    player.quests[id] = { status: 'done', counts: [] };
   }
-  syncAvailability(p);
-  assert(acceptQuest(p, 'm3_roots', 'npc_bram').ok);
-  onKill(p, 'e_aranya');
-  assertEquals(p.quests['m3_roots']?.status, 'turnIn');
-  p.messageId = 300; // pin the live message so all taps edit in place
-  await store.set(920, p);
+  syncAvailability(player);
+  assert(acceptQuest(player, 'm3_roots', 'npc_bram').ok);
+  onKill(player, 'e_aranya');
+  assertEquals(player.quests['m3_roots']?.status, 'turnIn');
+  player.messageId = 300; // pin the live message so all taps edit in place
+  await store.set(920, player);
 
   // The log keeps the ready quest as the primary card with a View button.
-  const log = JSON.stringify(renderQuests(p));
+  const log = JSON.stringify(renderQuests(player));
   assert(log.includes('Ready — view details'), 'turnIn main stays primary (#65 neutral label)');
   assert(log.includes('q:q:m3_roots'));
 
@@ -561,13 +572,13 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
 
 Deno.test('inventory Equipment button opens equipment; Back returns (#17)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(921, 'T', 'warrior');
-  p.messageId = 400;
-  p.scene = { view: 'inventory', arg: '0' };
-  await store.set(921, p);
+  const player = createPlayer(921, 'T', 'warrior');
+  player.messageId = 400;
+  player.scene = { view: 'inventory', arg: '0' };
+  await store.set(921, player);
 
   // The rendered button must carry the OPEN action, not the back code.
-  const inv = JSON.stringify(renderInventory(p, 0));
+  const inv = JSON.stringify(renderInventory(player, 0));
   assert(inv.includes('e:op'), 'Equipment button encodes e:op');
 
   await handleCallback(fakeCtx(921, 400, withRev(0, 'e:op')), store);
@@ -588,12 +599,12 @@ Deno.test('inventory Equipment button opens equipment; Back returns (#17)', asyn
 
 Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (#112)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(930, 'T', 'warrior');
-  p.equipment.trinket = 't_15'; // triggered gear, equipped (absent from the bag)
-  p.messageId = 600;
-  p.uiRev = 0;
-  p.scene = { view: 'inventory', arg: '2' };
-  await store.set(930, p);
+  const initialPlayer = createPlayer(930, 'T', 'warrior');
+  initialPlayer.equipment.trinket = 't_15'; // triggered gear, equipped (absent from the bag)
+  initialPlayer.messageId = 600;
+  initialPlayer.uiRev = 0;
+  initialPlayer.scene = { view: 'inventory', arg: '2' };
+  await store.set(930, initialPlayer);
 
   // 1. Inventory → Equipment.
   await handleCallback(fakeCtx(930, 600, withRev(0, 'e:op')), store);
@@ -613,7 +624,7 @@ Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (
   assert(detail.includes('⚡ Battle start'), 'the detail discloses the trigger');
   assert(detail.includes('Equipped'), 'the detail names the equipped state');
   const controls = JSON.stringify(
-    renderEquippedItemDetail(player, 'trinket').blocks?.filter((b) => b.type === 'buttons'),
+    renderEquippedItemDetail(player, 'trinket').blocks?.filter((block) => block.type === 'buttons'),
   );
   assert(!controls.includes('Sell'), 'no Sell button on the equipped copy');
 
@@ -625,16 +636,16 @@ Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (
 
 Deno.test('unequip from the equipped detail returns a copy and clears the slot (#112)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(931, 'T', 'warrior');
-  p.gold = 100000;
-  addItem(p, 'w_warrior_2', 1); // one copy in the bag; a SECOND copy equipped
-  p.equipment.weapon = 'w_warrior_2';
-  p.hp = statsOf(p).maxHp;
-  p.messageId = 610;
-  p.uiRev = 0;
-  p.scene = { view: 'equippedItem', arg: 'weapon' };
-  await store.set(931, p);
-  const bagBefore = countOf(p, 'w_warrior_2');
+  const player = createPlayer(931, 'T', 'warrior');
+  player.gold = 100000;
+  addItem(player, 'w_warrior_2', 1); // one copy in the bag; a SECOND copy equipped
+  player.equipment.weapon = 'w_warrior_2';
+  player.hp = statsOf(player).maxHp;
+  player.messageId = 610;
+  player.uiRev = 0;
+  player.scene = { view: 'equippedItem', arg: 'weapon' };
+  await store.set(931, player);
+  const bagBefore = countOf(player, 'w_warrior_2');
 
   await handleCallback(fakeCtx(931, 610, withRev(0, 'e:rm:weapon')), store);
   const cur = (await store.get(931))!;
@@ -653,12 +664,12 @@ Deno.test('unequip from the equipped detail returns a copy and clears the slot (
 
 Deno.test('forged inspect/unequip taps cannot mutate a slot they do not own (#112)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(934, 'T', 'warrior');
-  delete p.equipment.trinket; // nothing equipped there
-  p.messageId = 620;
-  p.uiRev = 0;
-  p.scene = { view: 'equipment' };
-  await store.set(934, p);
+  const player = createPlayer(934, 'T', 'warrior');
+  delete player.equipment.trinket; // nothing equipped there
+  player.messageId = 620;
+  player.uiRev = 0;
+  player.scene = { view: 'equipment' };
+  await store.set(934, player);
 
   // A forged SLOT TOKEN never changes the scene.
   await handleCallback(fakeCtx(934, 620, withRev(0, 'e:vi:dagger')), store);
@@ -682,13 +693,13 @@ Deno.test('forged inspect/unequip taps cannot mutate a slot they do not own (#11
 
 Deno.test('Back from an inventory detail returns to the SAME page (#112)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(935, 'T', 'warrior');
-  p.gold = 1000;
-  addItem(p, 'c_minor_potion', 2);
-  p.messageId = 630;
-  p.uiRev = 0;
-  p.scene = { view: 'inventory', arg: '1' };
-  await store.set(935, p);
+  const player = createPlayer(935, 'T', 'warrior');
+  player.gold = 1000;
+  addItem(player, 'c_minor_potion', 2);
+  player.messageId = 630;
+  player.uiRev = 0;
+  player.scene = { view: 'inventory', arg: '1' };
+  await store.set(935, player);
 
   // Tap the item on page 1 — the detail records the origin page.
   await handleCallback(fakeCtx(935, 630, withRev(0, 'i:v:c_minor_potion')), store);
@@ -712,12 +723,12 @@ Deno.test('Back from an inventory detail returns to the SAME page (#112)', async
 
 Deno.test('replayed buy callback on the same message is a no-op (#16)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(922, 'T', 'rogue');
-  p.gold = 1000;
-  p.messageId = 500;
-  p.uiRev = 5; // a render already happened; its buttons carry rev 5
-  p.scene = { view: 'shop', arg: '0' };
-  await store.set(922, p);
+  const player = createPlayer(922, 'T', 'rogue');
+  player.gold = 1000;
+  player.messageId = 500;
+  player.uiRev = 5; // a render already happened; its buttons carry rev 5
+  player.scene = { view: 'shop', arg: '0' };
+  await store.set(922, player);
 
   const staleTap = withRev(5, 'h:buy:c_minor_potion');
   await handleCallback(fakeCtx(922, 500, staleTap), store);
@@ -739,15 +750,15 @@ Deno.test('replayed buy callback on the same message is a no-op (#16)', async ()
 
 Deno.test('double-tapping forge cannot spend beyond the shown cost (#16)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(923, 'T', 'warrior'); // w_warrior_1 equipped
-  p.gold = 5000;
-  addItem(p, 'm_ember_shard', 10);
-  addItem(p, 'm_hardwood', 10);
-  addItem(p, 'm_plant_fiber', 10);
-  p.messageId = 510;
-  p.uiRev = 2;
-  p.scene = { view: 'forge' };
-  await store.set(923, p);
+  const player = createPlayer(923, 'T', 'warrior'); // w_warrior_1 equipped
+  player.gold = 5000;
+  addItem(player, 'm_ember_shard', 10);
+  addItem(player, 'm_hardwood', 10);
+  addItem(player, 'm_plant_fiber', 10);
+  player.messageId = 510;
+  player.uiRev = 2;
+  player.scene = { view: 'forge' };
+  await store.set(923, player);
 
   const tap1 = withRev(2, 'f:w');
   await handleCallback(fakeCtx(923, 510, tap1), store);
@@ -766,17 +777,17 @@ Deno.test('double-tapping forge cannot spend beyond the shown cost (#16)', async
 
 Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(924, 'T', 'warrior');
-  p.gold = 1000;
-  p.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
-    player: p,
+  const player = createPlayer(924, 'T', 'warrior');
+  player.gold = 1000;
+  player.battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'whisperwood' }, {
+    player,
     rng: seeded(92),
   })!.battle;
-  p.battle.phase = 'lost';
-  p.scene = { view: 'death' };
-  p.messageId = 520;
-  p.uiRev = 4;
-  await store.set(924, p);
+  player.battle.phase = 'lost';
+  player.scene = { view: 'death' };
+  player.messageId = 520;
+  player.uiRev = 4;
+  await store.set(924, player);
 
   const tap1 = withRev(4, 'd:ok');
   await handleCallback(fakeCtx(924, 520, tap1), store);
@@ -795,13 +806,13 @@ Deno.test('double-tapping rise-again cannot charge death twice (#16)', async () 
 
 Deno.test('/reset stages a confirmation; No preserves the whole save (#19)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(930, 'T', 'mage');
-  p.level = 9;
-  p.gold = 777;
-  p.quests['m1_embers'] = { status: 'done', counts: [3] };
-  p.messageId = 600;
-  p.uiRev = 2;
-  await store.set(930, p);
+  const player = createPlayer(930, 'T', 'mage');
+  player.level = 9;
+  player.gold = 777;
+  player.quests['m1_embers'] = { status: 'done', counts: [3] };
+  player.messageId = 600;
+  player.uiRev = 2;
+  await store.set(930, player);
 
   await handleReset(fakeCtx(930, 600, 'i:bk'), store);
   let cur = (await store.get(930))!;
@@ -821,13 +832,13 @@ Deno.test('/reset stages a confirmation; No preserves the whole save (#19)', asy
 
 Deno.test('/reset → Yes deletes the save and returns to the stateless class picker (#62)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(931, 'T', 'mage');
-  p.level = 9;
-  p.gold = 777;
-  p.quests['m1_embers'] = { status: 'done', counts: [3] };
-  p.messageId = 610;
-  p.uiRev = 1;
-  await store.set(931, p);
+  const player = createPlayer(931, 'T', 'mage');
+  player.level = 9;
+  player.gold = 777;
+  player.quests['m1_embers'] = { status: 'done', counts: [3] };
+  player.messageId = 610;
+  player.uiRev = 1;
+  await store.set(931, player);
 
   await handleReset(fakeCtx(931, 610, 'i:bk'), store);
   const staged = (await store.get(931))!;
@@ -881,10 +892,10 @@ Deno.test('/reset → Yes deletes the save and returns to the stateless class pi
 
 Deno.test('character menu 🗑️ Delete hero → Yes deletes the save too (#62)', async () => {
   const store = new MemoryStore();
-  const p = createPlayer(934, 'T', 'rogue');
-  p.messageId = 640;
-  p.uiRev = 3;
-  await store.set(934, p);
+  const player = createPlayer(934, 'T', 'rogue');
+  player.messageId = 640;
+  player.uiRev = 3;
+  await store.set(934, player);
 
   // The menu entry stages the SAME confirmation scene as /reset.
   await handleCallback(fakeCtx(934, 640, withRev(3, 'm:reset')), store);
@@ -902,11 +913,11 @@ Deno.test('reach quests record the journey; the starter starts, the finisher fin
   // with the Ferryman in Hollowmere (#66): the quest motivates the journey
   // instead of being acceptable only after arriving.
   const mk = () => {
-    const p = createPlayer(941, 'T', 'warrior');
-    p.level = 9;
-    p.quests['m4_blessing'] = { status: 'done', counts: [] };
-    syncAvailability(p);
-    return p;
+    const player = createPlayer(941, 'T', 'warrior');
+    player.level = 9;
+    player.quests['m4_blessing'] = { status: 'done', counts: [] };
+    syncAvailability(player);
+    return player;
   };
 
   // (1) Accepted at the starter, target never seen: stays active 0/1, and
@@ -953,32 +964,32 @@ Deno.test('shop stocks only the shopping class, only immediately usable gear (#2
     { level: 29, zoneId: 'frostpeak', shelved: 'w_warrior_5', bait: 'w_warrior_6' },
     { level: 33, zoneId: 'cinder', shelved: 'w_warrior_6', bait: 'w_warrior_7' },
   ];
-  for (const cls of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
+  for (const classId of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
     for (const probe of probes) {
-      const p = createPlayer(950, 'T', cls);
-      p.level = probe.level;
-      p.currentZone = probe.zoneId;
-      const stock = resolveStock(p).map((o) => o.itemId);
+      const player = createPlayer(950, 'T', classId);
+      player.level = probe.level;
+      player.currentZone = probe.zoneId;
+      const stock = resolveStock(player).map((offering) => offering.itemId);
       for (const other of ['warrior', 'mage', 'rogue', 'cleric'] as const) {
-        if (other === cls) continue;
+        if (other === classId) continue;
         assert(
           !stock.some((id) => id.startsWith(`w_${other}_`) || id.startsWith(`a_${other}_`)),
-          `${other} gear must not sit on a ${cls}'s shelf (L${probe.level} ${probe.zoneId})`,
+          `${other} gear must not sit on a ${classId}'s shelf (L${probe.level} ${probe.zoneId})`,
         );
       }
       for (const id of stock) {
-        const d = item(id)!;
-        if (d.kind === 'weapon' || d.kind === 'armor' || d.kind === 'trinket') {
+        const itemDef = item(id)!;
+        if (itemDef.kind === 'weapon' || itemDef.kind === 'armor' || itemDef.kind === 'trinket') {
           assertEquals(
-            isEquippable(id, cls, probe.level).ok,
+            isEquippable(id, classId, probe.level).ok,
             true,
             `${id} must be usable at L${probe.level} in ${probe.zoneId}`,
           );
         }
       }
       // Tier pins per probe: the bait tier is gone, the usable one shelved.
-      const shelvedId = probe.shelved.replace('warrior', cls);
-      const baitId = probe.bait.replace('warrior', cls);
+      const shelvedId = probe.shelved.replace('warrior', classId);
+      const baitId = probe.bait.replace('warrior', classId);
       assert(stock.includes(shelvedId), `${shelvedId} is shelved at L${probe.level}`);
       assert(!stock.includes(baitId), `${baitId} is not bait at L${probe.level}`);
     }
@@ -988,63 +999,63 @@ Deno.test('shop stocks only the shopping class, only immediately usable gear (#2
   // does not offer this shopper is refused with the purse untouched.
   const mage = createPlayer(953, 'T', 'mage');
   mage.gold = 100;
-  const r = buy(mage, 'w_warrior_1', 1);
-  assertEquals(r.ok, false);
+  const purchase = buy(mage, 'w_warrior_1', 1);
+  assertEquals(purchase.ok, false);
   assertEquals(mage.gold, 100, 'no charge on a refused sale');
 });
 
 Deno.test('temper is item-pattern mastery: reacquired copies carry the forge-work (#24)', () => {
-  const p = createPlayer(960, 'T', 'warrior');
-  p.level = 10;
-  addItem(p, 'm_ember_shard', 30);
-  addItem(p, 'm_hardwood', 30);
-  addItem(p, 'm_plant_fiber', 30);
-  p.gold = 100000;
-  assert(temper(p, 'weapon').ok); // w_warrior_1, equipped at creation
-  assert(temper(p, 'weapon').ok);
-  assertEquals(temperLevel(p, 'weapon'), 2);
-  const boostedAtk = statsOf(p).atk;
+  const player = createPlayer(960, 'T', 'warrior');
+  player.level = 10;
+  addItem(player, 'm_ember_shard', 30);
+  addItem(player, 'm_hardwood', 30);
+  addItem(player, 'm_plant_fiber', 30);
+  player.gold = 100000;
+  assert(temper(player, 'weapon').ok); // w_warrior_1, equipped at creation
+  assert(temper(player, 'weapon').ok);
+  assertEquals(temperLevel(player, 'weapon'), 2);
+  const boostedAtk = statsOf(player).atk;
 
   // Dispose of the physical copy, then reacquire the same pattern. The
   // real unequip route returns the copy to the bag; mirror it here.
-  p.equipment.weapon = undefined;
-  addItem(p, 'w_warrior_1', 1);
-  assertEquals(itemAction(p, 'drop', 'w_warrior_1').toast, undefined);
-  assertEquals(countOf(p, 'w_warrior_1'), 0);
-  grantItem(p, 'w_warrior_1', 1);
-  assertEquals(itemAction(p, 'eq', 'w_warrior_1').toast, undefined);
+  player.equipment.weapon = undefined;
+  addItem(player, 'w_warrior_1', 1);
+  assertEquals(itemAction(player, 'drop', 'w_warrior_1').toast, undefined);
+  assertEquals(countOf(player, 'w_warrior_1'), 0);
+  grantItem(player, 'w_warrior_1', 1);
+  assertEquals(itemAction(player, 'eq', 'w_warrior_1').toast, undefined);
   // Mastery is bound to the pattern (#24): the replacement is born +2.
-  assertEquals(temperLevel(p, 'weapon'), 2);
-  assertEquals(statsOf(p).atk, boostedAtk);
+  assertEquals(temperLevel(player, 'weapon'), 2);
+  assertEquals(statsOf(player).atk, boostedAtk);
 
   // A different pattern never inherited it.
-  addItem(p, 'w_warrior_2', 1);
-  assertEquals(itemAction(p, 'eq', 'w_warrior_2').toast, undefined);
-  assertEquals(temperLevel(p, 'weapon'), 0);
+  addItem(player, 'w_warrior_2', 1);
+  assertEquals(itemAction(player, 'eq', 'w_warrior_2').toast, undefined);
+  assertEquals(temperLevel(player, 'weapon'), 0);
 });
 
 Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () => {
-  const p = createPlayer(961, 'T', 'warrior');
-  p.level = 9;
-  p.currentZone = 'hollowmere'; // tier ≥ 2: m_iron_chunk on the shelf
-  p.gold = 5000;
+  const player = createPlayer(961, 'T', 'warrior');
+  player.level = 9;
+  player.currentZone = 'hollowmere'; // tier ≥ 2: m_iron_chunk on the shelf
+  player.gold = 5000;
   // sq_ore active at 2/3 iron: one purchase completes it (collect
   // objectives read the bag live).
-  p.quests['sq_ore'] = { status: 'active', counts: [2] };
-  addItem(p, 'm_iron_chunk', 2);
-  const buyRes = shopAction(p, { v: 'shop', a: 'buy', arg: 'm_iron_chunk' });
+  player.quests['sq_ore'] = { status: 'active', counts: [2] };
+  addItem(player, 'm_iron_chunk', 2);
+  const buyRes = shopAction(player, { v: 'shop', a: 'buy', arg: 'm_iron_chunk' });
   assertEquals(buyRes.toast, undefined, 'a successful buy is not a failure toast');
-  assert(p.notices.some((l) => l.includes('Bought')), 'purchase confirmation surfaces');
+  assert(player.notices.some((line) => line.includes('Bought')), 'purchase confirmation surfaces');
   assert(
-    p.notices.some((l) => l.includes('ready to turn in')),
+    player.notices.some((line) => line.includes('ready to turn in')),
     'quest readiness from the purchase is visible',
   );
-  assertEquals(p.quests['sq_ore']?.status, 'turnIn');
+  assertEquals(player.quests['sq_ore']?.status, 'turnIn');
 
   // Sell success surfaces too.
-  const sellRes = shopAction(p, { v: 'shop', a: 'sell', arg: 'm_iron_chunk' });
+  const sellRes = shopAction(player, { v: 'shop', a: 'sell', arg: 'm_iron_chunk' });
   assertEquals(sellRes.toast, undefined);
-  assert(p.notices.some((l) => l.includes('Sold')), 'sale confirmation surfaces');
+  assert(player.notices.some((line) => line.includes('Sold')), 'sale confirmation surfaces');
 
   // Failure remains a non-mutating toast.
   const broke = createPlayer(962, 'T', 'mage');
@@ -1057,19 +1068,21 @@ Deno.test('shop buy/sell surface success lines and quest readiness (#30)', () =>
 });
 
 Deno.test('battle round lines render once — the log is authoritative (#32)', () => {
-  const p = createPlayer(963, 'T', 'warrior');
-  p.level = 20;
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(963, 'T', 'warrior');
+  player.level = 20;
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  p.battle = b;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
+  player.battle = battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
 
-  battleAction(p, { v: 'battle', a: 'atk' });
-  const line = b.history.flatMap((r) => r.lines).find((l) => l.includes('Strike hits'))!;
+  battleAction(player, { v: 'battle', a: 'atk' });
+  const line = battle.history.flatMap((roundResult) => roundResult.lines).find((line) =>
+    line.includes('Strike hits')
+  )!;
   assert(line, 'the attack reached the structured round history');
-  const rendered = JSON.stringify(renderBattle(p));
+  const rendered = JSON.stringify(renderBattle(player));
   assertEquals(
     rendered.split(line).length - 1,
     1,
@@ -1077,23 +1090,23 @@ Deno.test('battle round lines render once — the log is authoritative (#32)', (
   );
 
   // Invalid actions (no turn consumed, never logged) keep their feedback.
-  battleAction(p, { v: 'battle', a: 'use', arg: 'sk_cataclysm' });
+  battleAction(player, { v: 'battle', a: 'use', arg: 'sk_cataclysm' });
   assert(
-    p.notices.some((l) => l.includes("haven't learned")),
+    player.notices.some((line) => line.includes("haven't learned")),
     'invalid-action feedback is preserved',
   );
 });
 
 Deno.test('battle button labels the class free action from engine metadata (#70)', () => {
   for (const cid of CLASS_IDS) {
-    const p = createPlayer(964, 'T', cid);
-    p.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
-      player: p,
+    const player = createPlayer(964, 'T', cid);
+    player.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, {
+      player,
       rng: seeded(93),
     })!.battle;
-    const msg = renderBattle(p);
-    const labels = (msg.blocks ?? []).flatMap((b) =>
-      b.type === 'buttons' ? b.buttons.map((btn) => btn.text) : []
+    const msg = renderBattle(player);
+    const labels = (msg.blocks ?? []).flatMap((block) =>
+      block.type === 'buttons' ? block.buttons.map((btn) => btn.text) : []
     );
     const basic = CLASSES[cid].basicAction;
     assert(
@@ -1106,13 +1119,13 @@ Deno.test('battle button labels the class free action from engine metadata (#70)
 });
 
 Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', () => {
-  const p = createPlayer(981, 'T', 'warrior');
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(981, 'T', 'warrior');
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  p.battle = b;
-  p.notices = ['🐀 A wild Giant Rat appears!'];
-  const rendered = JSON.stringify(renderBattle(p));
+  player.battle = battle;
+  player.notices = ['🐀 A wild Giant Rat appears!'];
+  const rendered = JSON.stringify(renderBattle(player));
   assert(rendered.includes('⚔️ Battle · Round 1'), 'Round 1 is visible on the initial render');
   assert(!rendered.includes('blocks your path'), 'the flat intro line is gone from history');
   assertEquals(
@@ -1124,12 +1137,12 @@ Deno.test('battle screen: Round 1 renders immediately, intro shown once (#67)', 
 });
 
 Deno.test('battle screen: labelled sections with separated resource lines (#67)', () => {
-  const p = createPlayer(982, 'T', 'warrior');
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(982, 'T', 'warrior');
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  p.battle = b;
-  const msg = renderBattle(p);
+  player.battle = battle;
+  const msg = renderBattle(player);
   const rendered = JSON.stringify(msg);
   assert(rendered.includes('"ENEMY"'), 'the enemy side is labelled');
   assert(rendered.includes('YOU ·'), 'the player side is labelled with class and level');
@@ -1140,27 +1153,27 @@ Deno.test('battle screen: labelled sections with separated resource lines (#67)'
   for (const blk of msg.blocks ?? []) {
     if (blk.type === 'paragraph') texts.push(String(blk.text));
   }
-  for (const t of texts) {
+  for (const text of texts) {
     assert(
-      !(t.includes('▰') && /\d+\/\d+/.test(t)),
-      `value and bar must not share a line: ${t}`,
+      !(text.includes('▰') && /\d+\/\d+/.test(text)),
+      `value and bar must not share a line: ${text}`,
     );
   }
-  assert(texts.some((t) => t.includes('▰')), 'bars render');
-  assert(texts.some((t) => /\d+\/\d+/.test(t)), 'resource values render');
+  assert(texts.some((text) => text.includes('▰')), 'bars render');
+  assert(texts.some((text) => /\d+\/\d+/.test(text)), 'resource values render');
 });
 
 Deno.test('battle screen: effects rows carry identity, duration, and details (#67)', () => {
-  const p = createPlayer(983, 'T', 'cleric');
-  p.level = 10;
-  p.skills.push('sk_blessing');
-  p.mp = statsOf(p).maxMp;
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(983, 'T', 'cleric');
+  player.level = 10;
+  player.skills.push('sk_blessing');
+  player.mp = statsOf(player).maxMp;
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  p.battle = b;
-  performAction(p, b, { kind: 'skill', skillId: 'sk_blessing' }, seeded(41));
-  const rendered = JSON.stringify(renderBattle(p));
+  player.battle = battle;
+  performAction(player, battle, { kind: 'skill', skillId: 'sk_blessing' }, seeded(41));
+  const rendered = JSON.stringify(renderBattle(player));
   assert(rendered.includes('Effects: none'), 'the unbuffed combatant shows an empty row');
   assert(rendered.includes('🔆 Blessing'), 'effects keep their identity, not just a delta');
   // Blessing legs diverge on the cast round: DEF ticked (2 left), MAG
@@ -1173,23 +1186,29 @@ Deno.test('battle screen: effects rows carry identity, duration, and details (#6
   assert(!rendered.includes('+30% ATK'), 'the dead ATK leg is gone (#77)');
   assert(rendered.includes('fades end of round'), 'expiry round is shown');
   // Engine and display agree: one entry per covered stat key.
-  assertEquals(b.effectInstances.length, 2, 'one instance per covered stat leg');
-  assertEquals(modRemaining(b, 'player', 'mag'), 3, 'off-buff defers its first decay');
-  assertEquals(modRemaining(b, 'player', 'def'), 2, 'def buff ticks on the cast round');
-  assertEquals(statPct(b, 'player', 'atk'), 0, 'Blessing never buffs the unusable ATK stat (#77)');
+  assertEquals(battle.effectInstances.length, 2, 'one instance per covered stat leg');
+  assertEquals(modRemaining(battle, 'player', 'mag'), 3, 'off-buff defers its first decay');
+  assertEquals(modRemaining(battle, 'player', 'def'), 2, 'def buff ticks on the cast round');
+  assertEquals(
+    statPct(battle, 'player', 'atk'),
+    0,
+    'Blessing never buffs the unusable ATK stat (#77)',
+  );
 });
 
 Deno.test('battle screen: only the latest round expands; earlier rounds collapse in order (#67)', () => {
-  const p = createPlayer(984, 'T', 'warrior');
-  p.level = 30;
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(984, 'T', 'warrior');
+  player.level = 30;
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  b.enemy.maxHp = 99999;
-  b.enemy.hp = 99999;
-  p.battle = b;
-  for (let i = 0; i < 4; i++) performAction(p, b, { kind: 'attack' }, seeded(51 + i));
-  const rendered = JSON.stringify(renderBattle(p).blocks);
+  battle.enemy.maxHp = 99999;
+  battle.enemy.hp = 99999;
+  player.battle = battle;
+  for (let roundIndex = 0; roundIndex < 4; roundIndex++) {
+    performAction(player, battle, { kind: 'attack' }, seeded(51 + roundIndex));
+  }
+  const rendered = JSON.stringify(renderBattle(player).blocks);
   assert(rendered.includes('Round 4 result'), 'the newest completed round is expanded');
   assert(
     rendered.indexOf('Round 4 result') < rendered.indexOf('Earlier battle history'),
@@ -1208,46 +1227,46 @@ Deno.test('battle screen: only the latest round expands; earlier rounds collapse
 });
 
 Deno.test('battle history truncation keeps complete rounds and discloses omission (#67)', () => {
-  const p = createPlayer(985, 'T', 'warrior');
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(985, 'T', 'warrior');
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  b.enemy.maxHp = 99999;
-  b.enemy.hp = 99999;
-  p.battle = b;
-  b.history = Array.from({ length: 12 }, (_, i) => ({
-    round: i + 1,
-    lines: [`r${i + 1}-a`, `r${i + 1}-b`],
+  battle.enemy.maxHp = 99999;
+  battle.enemy.hp = 99999;
+  player.battle = battle;
+  battle.history = Array.from({ length: 12 }, (_, roundIndex) => ({
+    round: roundIndex + 1,
+    lines: [`r${roundIndex + 1}-a`, `r${roundIndex + 1}-b`],
   }));
-  const rendered = JSON.stringify(renderBattle(p).blocks);
+  const rendered = JSON.stringify(renderBattle(player).blocks);
   assert(rendered.includes('… 1 earlier round omitted.'), 'omission is explicitly disclosed');
   assert(!rendered.includes('r1-a'), 'the omitted round is gone entirely');
-  for (let r = 2; r <= 12; r++) {
+  for (let roundNumber = 2; roundNumber <= 12; roundNumber++) {
     assert(
-      rendered.includes(`r${r}-a`) && rendered.includes(`r${r}-b`),
-      `round ${r} renders COMPLETE — never split mid-round`,
+      rendered.includes(`r${roundNumber}-a`) && rendered.includes(`r${roundNumber}-b`),
+      `round ${roundNumber} renders COMPLETE — never split mid-round`,
     );
   }
   assert(rendered.includes('Round 12 result'), 'the newest round stays expanded');
 });
 
 Deno.test('victory screen orders recap, outcome, spoils, and history — no duplicates (#67)', () => {
-  const p = createPlayer(986, 'T', 'warrior');
-  p.level = 20;
-  const b =
-    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player: p, rng: seeded(93) })!
+  const player = createPlayer(986, 'T', 'warrior');
+  player.level = 20;
+  const battle =
+    startBattle('e_rat', { kind: 'explore', zoneId: 'emberdawn' }, { player, rng: seeded(93) })!
       .battle;
-  b.enemy.maxHp = 99999;
-  b.enemy.hp = 99999;
-  p.battle = b;
+  battle.enemy.maxHp = 99999;
+  battle.enemy.hp = 99999;
+  player.battle = battle;
   // One warm-up round so the victory screen has BOTH a final round and
   // collapsed earlier history to order.
-  performAction(p, b, { kind: 'attack' }, seeded(61));
-  assertEquals(b.round, 2);
-  b.enemy.hp = 1; // one clean killing blow
-  battleAction(p, { v: 'battle', a: 'atk' });
-  assertEquals(b.phase, 'won');
-  const rendered = JSON.stringify(renderBattle(p).blocks);
+  performAction(player, battle, { kind: 'attack' }, seeded(61));
+  assertEquals(battle.round, 2);
+  battle.enemy.hp = 1; // one clean killing blow
+  battleAction(player, { v: 'battle', a: 'atk' });
+  assertEquals(battle.phase, 'won');
+  const rendered = JSON.stringify(renderBattle(player).blocks);
   const iV = rendered.indexOf('🏆 Victory · 2 rounds');
   const iR = rendered.indexOf('Round 2 result');
   const iD = rendered.indexOf('is defeated');
@@ -1266,16 +1285,16 @@ Deno.test('victory screen orders recap, outcome, spoils, and history — no dupl
   assertEquals(rendered.split('Spoils').length - 1, 1, 'exactly one Spoils presentation');
   assert(!rendered.includes('💰 +'), 'no XP/gold headline repeated in the outcome lines');
   // The terminal round is regular history.
-  assertEquals(b.history.length, 2, 'every consumed round was recorded');
-  assertEquals(b.history[1].round, 2);
+  assertEquals(battle.history.length, 2, 'every consumed round was recorded');
+  assertEquals(battle.history[1].round, 2);
 });
 
 Deno.test('quest log names the level-locked next quest during grind gaps (#33)', () => {
   // Level gap: the chapter-one chain is done, level 8 → m5_fen (req 9) is
   // story-unlocked but locked. (Partial chains keep an 'available' card on
   // the log and never reach the gap branch.)
-  const p = createPlayer(964, 'T', 'warrior');
-  p.level = 8;
+  const player = createPlayer(964, 'T', 'warrior');
+  player.level = 8;
   for (
     const id of [
       'm1_embers',
@@ -1287,10 +1306,10 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
       'm4_blessing',
     ]
   ) {
-    p.quests[id] = { status: 'done', counts: [] };
+    player.quests[id] = { status: 'done', counts: [] };
   }
-  syncAvailability(p);
-  const log = JSON.stringify(renderQuests(p));
+  syncAvailability(player);
+  const log = JSON.stringify(renderQuests(player));
   assert(log.includes('Into the Fen'), 'the next quest is named');
   assert(log.includes('Requires level 9'), 'the requirement is shown');
   assert(log.includes('you are 8'), 'the current level is shown');
@@ -1334,7 +1353,9 @@ Deno.test('quest log names the level-locked next quest during grind gaps (#33)',
   // Campaign complete: the log says so instead of dangling a fake target.
   const done = createPlayer(967, 'T', 'warrior');
   done.level = 45;
-  for (const q of QUESTS.filter((x) => x.main)) done.quests[q.id] = { status: 'done', counts: [] };
+  for (const questDef of QUESTS.filter((questDef) => questDef.main)) {
+    done.quests[questDef.id] = { status: 'done', counts: [] };
+  }
   const doneLog = JSON.stringify(renderQuests(done));
   assert(doneLog.includes('story is complete'), 'post-campaign message');
 });
@@ -1352,7 +1373,7 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   // staged record is the single source, rendered once as Spoils.
   assertEquals(b44.rewards!.xpConvertedGold, undefined, 'pre-cap grant stays nominal');
   assert(b44.rewards!.xp > 0, 'pre-cap grant stages XP');
-  assert(!r44.some((l) => l.includes('converts your valor')), 'no conversion line at 44');
+  assert(!r44.some((line) => line.includes('converts your valor')), 'no conversion line at 44');
 
   const p45 = createPlayer(969, 'T', 'warrior');
   p45.level = 45;
@@ -1374,7 +1395,7 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
   pq.quests['sq_rats'] = { status: 'turnIn', counts: [6] };
   const tq = turnInQuest(pq, 'sq_rats', 'npc_lyra'); // Lyra offers and accepts it (#64)
   assertEquals(tq.ok, true);
-  assert(tq.lines.some((l) => l.includes('XP → +')), 'turn-in shows the conversion');
+  assert(tq.lines.some((line) => line.includes('XP → +')), 'turn-in shows the conversion');
 
   // Spoils renderer: converted at cap, nominal pre-cap.
   b45.phase = 'won';
@@ -1388,23 +1409,23 @@ Deno.test('level-45 rewards show the conversion; level-44 stays nominal (#36)', 
 Deno.test('44→45 victory never advertises unawarded conversion gold (#40)', () => {
   // One XP short of the summit: the kill itself reaches level 45, but the
   // reward was granted pre-cap — nominal XP spoils, no phantom gold.
-  const p = createPlayer(973, 'T', 'warrior');
-  p.level = 44;
-  p.xp = xpForNextLevel(44) - 1;
-  const b = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+  const player = createPlayer(973, 'T', 'warrior');
+  player.level = 44;
+  player.xp = xpForNextLevel(44) - 1;
+  const battle = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
+    player,
     rng: seeded(96),
   })!.battle;
-  b.enemy.hp = 0;
-  const goldBefore = p.gold;
-  const lines = resolveVictory(p, b, seeded(93));
-  assertEquals(p.level, 45, 'the kill itself reaches the summit');
-  assert(!lines.some((l) => l.includes('→')), 'headline claims no conversion');
-  assertEquals(b.rewards!.xpConvertedGold, undefined, 'no conversion stamped pre-grant');
-  assertEquals(p.gold, goldBefore + b.rewards!.gold, 'no conversion gold was granted');
-  b.phase = 'won';
-  p.battle = b;
-  const spoils = JSON.stringify(renderBattle(p));
+  battle.enemy.hp = 0;
+  const goldBefore = player.gold;
+  const lines = resolveVictory(player, battle, seeded(93));
+  assertEquals(player.level, 45, 'the kill itself reaches the summit');
+  assert(!lines.some((line) => line.includes('→')), 'headline claims no conversion');
+  assertEquals(battle.rewards!.xpConvertedGold, undefined, 'no conversion stamped pre-grant');
+  assertEquals(player.gold, goldBefore + battle.rewards!.gold, 'no conversion gold was granted');
+  battle.phase = 'won';
+  player.battle = battle;
+  const spoils = JSON.stringify(renderBattle(player));
   assert(!spoils.includes('→ +'), '44→45 spoils must not show unawarded gold');
 
   // A victory begun at the cap shows exactly the gold actually granted.
@@ -1453,80 +1474,80 @@ Deno.test('every level-cap reward surface shows the conversion (#42)', () => {
     dungeonId: 'd_rootbound',
     nextFloor: zone('whisperwood')!.dungeon!.floors.length + 1,
   };
-  const b = startBattle('e_aranya', {
+  const battle = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
     floor: pd.dungeonRun.nextFloor,
     boss: true,
   }, { player: pd, rng: seeded(98) })!.battle;
-  b.enemy.hp = 0;
-  const lines = resolveVictory(pd, b, seeded(95));
+  battle.enemy.hp = 0;
+  const lines = resolveVictory(pd, battle, seeded(95));
   assert(
-    lines.some((l) => l.includes(`400 XP → +${xpToGoldAtCap(400)} gold`)),
+    lines.some((line) => line.includes(`400 XP → +${xpToGoldAtCap(400)} gold`)),
     'level-45 first-clear headline shows the converted amount',
   );
 });
 
 Deno.test('44→45 dungeon first clear remains nominal (#42)', () => {
-  const p = createPlayer(980, 'T', 'warrior');
-  p.level = 44;
+  const player = createPlayer(980, 'T', 'warrior');
+  player.level = 44;
   // The kill rewards alone must NOT reach the summit; the first-clear grant
   // (400 XP) is what crosses 44→45 — so its headline must stay nominal.
   const killXp = rollRewards(enemy('e_aranya')!, seeded(96)).xp;
-  p.xp = xpForNextLevel(44) - killXp - 100;
-  p.currentZone = 'whisperwood';
-  p.dungeonRun = {
+  player.xp = xpForNextLevel(44) - killXp - 100;
+  player.currentZone = 'whisperwood';
+  player.dungeonRun = {
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
     nextFloor: zone('whisperwood')!.dungeon!.floors.length + 1,
   };
-  const b = startBattle('e_aranya', {
+  const battle = startBattle('e_aranya', {
     kind: 'dungeon',
     zoneId: 'whisperwood',
     dungeonId: 'd_rootbound',
-    floor: p.dungeonRun.nextFloor,
+    floor: player.dungeonRun.nextFloor,
     boss: true,
-  }, { player: p, rng: seeded(99) })!.battle;
-  b.enemy.hp = 0;
-  const goldBefore = p.gold;
-  const lines = resolveVictory(p, b, seeded(96));
-  assertEquals(p.level, 45, 'the first-clear reward itself reaches the summit');
+  }, { player, rng: seeded(99) })!.battle;
+  battle.enemy.hp = 0;
+  const goldBefore = player.gold;
+  const lines = resolveVictory(player, battle, seeded(96));
+  assertEquals(player.level, 45, 'the first-clear reward itself reaches the summit');
   assert(
-    lines.some((l) => l.includes('+250 gold · ✨ +400 XP')),
+    lines.some((line) => line.includes('+250 gold · ✨ +400 XP')),
     'first-clear headline stays nominal for a pre-cap grant',
   );
-  assert(!lines.some((l) => l.includes('→')), 'no unawarded conversion is claimed');
-  b.phase = 'won';
-  p.battle = b;
-  const spoils = JSON.stringify(renderBattle(p));
+  assert(!lines.some((line) => line.includes('→')), 'no unawarded conversion is claimed');
+  battle.phase = 'won';
+  player.battle = battle;
+  const spoils = JSON.stringify(renderBattle(player));
   assert(!spoils.includes('→ +'), 'staged spoils stay nominal too');
   // Direct first-clear gold + battle gold only — no conversion gold.
-  assertEquals(p.gold, goldBefore + b.rewards!.gold + 250);
+  assertEquals(player.gold, goldBefore + battle.rewards!.gold + 250);
 });
 
 Deno.test('item menus only advertise actions that can succeed (#35)', () => {
-  const p = createPlayer(971, 'T', 'warrior');
-  p.level = 10;
-  grantItem(p, 'q_sealed_letter', 1);
-  grantItem(p, 'c_minor_potion', 1);
-  grantItem(p, 'c_smoke_bomb', 1);
-  grantItem(p, 'c_antidote', 1);
-  grantItem(p, 'c_phoenix_feather', 1);
+  const player = createPlayer(971, 'T', 'warrior');
+  player.level = 10;
+  grantItem(player, 'q_sealed_letter', 1);
+  grantItem(player, 'c_minor_potion', 1);
+  grantItem(player, 'c_smoke_bomb', 1);
+  grantItem(player, 'c_antidote', 1);
+  grantItem(player, 'c_phoenix_feather', 1);
 
   // Quest items: no Drop, no Sell — the handler refused both already.
-  const questDetail = JSON.stringify(renderItemDetail(p, 'q_sealed_letter'));
+  const questDetail = JSON.stringify(renderItemDetail(player, 'q_sealed_letter'));
   assert(!questDetail.includes('i:drop:q_sealed_letter'), 'quest items render no Drop');
   assert(!questDetail.includes('i:sell:q_sealed_letter'), 'quest items render no Sell');
 
   // Out-of-battle Use only for consumables it actually helps with.
-  const potion = JSON.stringify(renderItemDetail(p, 'c_minor_potion'));
+  const potion = JSON.stringify(renderItemDetail(player, 'c_minor_potion'));
   assert(potion.includes('i:u:c_minor_potion'), 'healing consumables keep Use');
-  const smoke = JSON.stringify(renderItemDetail(p, 'c_smoke_bomb'));
+  const smoke = JSON.stringify(renderItemDetail(player, 'c_smoke_bomb'));
   assert(!smoke.includes('i:u:c_smoke_bomb'), 'Smoke Bomb has no out-of-battle Use');
-  const anti = JSON.stringify(renderItemDetail(p, 'c_antidote'));
+  const anti = JSON.stringify(renderItemDetail(player, 'c_antidote'));
   assert(!anti.includes('i:u:c_antidote'), 'Antidote has no out-of-battle Use');
-  const cinder = JSON.stringify(renderItemDetail(p, 'c_phoenix_feather'));
+  const cinder = JSON.stringify(renderItemDetail(player, 'c_phoenix_feather'));
   assert(!cinder.includes('i:u:c_phoenix_feather'), 'the Cinder stays auto-trigger-only');
 
   // Battle menu context: Smoke Bomb disabled vs a boss; Antidote disabled
@@ -1539,34 +1560,40 @@ Deno.test('item menus only advertise actions that can succeed (#35)', () => {
     dungeonId: 'd_sunken',
     floor: zone('hollowmere')!.dungeon!.floors.length + 1,
     boss: true,
-  }, { player: p, rng: seeded(100) })!.battle;
-  p.battle = boss;
-  const bossMenu = JSON.stringify(renderItemMenu(p));
+  }, { player, rng: seeded(100) })!.battle;
+  player.battle = boss;
+  const bossMenu = JSON.stringify(renderItemMenu(player));
   assert(!bossMenu.includes('b:us:c_smoke_bomb'), 'no Smoke Bomb button vs a boss');
   assert(bossMenu.includes('no use here'), 'inapplicable items render disabled');
 
   const wolf = startBattle('e_wolf', { kind: 'explore', zoneId: 'emberdawn' }, {
-    player: p,
+    player,
     rng: seeded(101),
   })!.battle;
   injectMod(wolf, 'player', 'outgoing', -0.2, { defId: 'sap', name: 'Sapped' });
-  p.battle = wolf;
-  const wolfMenu = JSON.stringify(renderItemMenu(p));
+  player.battle = wolf;
+  const wolfMenu = JSON.stringify(renderItemMenu(player));
   assert(wolfMenu.includes('b:us:c_antidote'), 'Antidote usable when a debuff is active');
   assert(wolfMenu.includes('b:us:c_smoke_bomb'), 'Smoke Bomb usable vs a normal enemy');
 });
 
 Deno.test('quest contacts resolve to real, placed NPCs — starter and finisher independent (#63)', () => {
-  for (const q of QUESTS) {
-    assert(npc(q.startNpc), `${q.id}: starter ${q.startNpc} must be a real NPC`);
-    assert(npc(q.finishNpc), `${q.id}: finisher ${q.finishNpc} must be a real NPC`);
-    const sz = zoneOfNpc(q.startNpc);
-    const fz = zoneOfNpc(q.finishNpc);
-    assert(sz, `${q.id}: starter ${q.startNpc} must be placed in a zone`);
-    assert(fz, `${q.id}: finisher ${q.finishNpc} must be placed in a zone`);
+  for (const questDef of QUESTS) {
+    assert(
+      npc(questDef.startNpc),
+      `${questDef.id}: starter ${questDef.startNpc} must be a real NPC`,
+    );
+    assert(
+      npc(questDef.finishNpc),
+      `${questDef.id}: finisher ${questDef.finishNpc} must be a real NPC`,
+    );
+    const sz = zoneOfNpc(questDef.startNpc);
+    const fz = zoneOfNpc(questDef.finishNpc);
+    assert(sz, `${questDef.id}: starter ${questDef.startNpc} must be placed in a zone`);
+    assert(fz, `${questDef.id}: finisher ${questDef.finishNpc} must be placed in a zone`);
     // Canonical resolvers agree with the raw fields.
-    assertEquals(questStarter(q.id)?.npc.id, q.startNpc);
-    assertEquals(questFinisher(q.id)?.npc.id, q.finishNpc);
+    assertEquals(questStarter(questDef.id)?.npc.id, questDef.startNpc);
+    assertEquals(questFinisher(questDef.id)?.npc.id, questDef.finishNpc);
   }
 });
 
@@ -1575,12 +1602,12 @@ Deno.test("quest contacts are reachable at the quest's point in the progression 
   // by the time the quest is offered: starting zones, or zones unlocked by
   // any strictly earlier quest (catalog order = progression order).
   const unlocked = new Set(STARTING_ZONES);
-  for (const q of QUESTS) {
-    const sz = zoneOfNpc(q.startNpc)!.id;
-    const fz = zoneOfNpc(q.finishNpc)!.id;
-    assert(unlocked.has(sz), `${q.id}: starter zone ${sz} is unreachable at its point`);
-    assert(unlocked.has(fz), `${q.id}: finisher zone ${fz} is unreachable at its point`);
-    for (const zid of q.rewards.unlockZones ?? []) unlocked.add(zid);
+  for (const questDef of QUESTS) {
+    const sz = zoneOfNpc(questDef.startNpc)!.id;
+    const fz = zoneOfNpc(questDef.finishNpc)!.id;
+    assert(unlocked.has(sz), `${questDef.id}: starter zone ${sz} is unreachable at its point`);
+    assert(unlocked.has(fz), `${questDef.id}: finisher zone ${fz} is unreachable at its point`);
+    for (const zid of questDef.rewards.unlockZones ?? []) unlocked.add(zid);
   }
 });
 
@@ -1589,10 +1616,10 @@ Deno.test('dialogue quests: acceptance is the talk — one event, no second inte
   // Ferryman out. Under the authored model the OFFER conversation IS that
   // conversation: its accept choice deliberately emits the stable event,
   // so one mutation accepts AND readies — never a second identical tap.
-  const p = createPlayer(948, 'T', 'warrior');
-  p.level = 13;
-  p.unlockedZones.push('hollowmere');
-  p.currentZone = 'hollowmere'; // the Ferryman stands here
+  const player = createPlayer(948, 'T', 'warrior');
+  player.level = 13;
+  player.unlockedZones.push('hollowmere');
+  player.currentZone = 'hollowmere'; // the Ferryman stands here
   for (
     const id of [
       'm1_embers',
@@ -1604,31 +1631,31 @@ Deno.test('dialogue quests: acceptance is the talk — one event, no second inte
       'm7_tyrant',
     ]
   ) {
-    p.quests[id] = { status: 'done', counts: [] };
+    player.quests[id] = { status: 'done', counts: [] };
   }
-  syncAvailability(p);
+  syncAvailability(player);
   // Bare acceptance no longer completes the conversation (#127).
-  assert(acceptQuest(p, 'm8_passage', 'npc_ferryman').ok);
+  assert(acceptQuest(player, 'm8_passage', 'npc_ferryman').ok);
   assertEquals(
-    p.quests['m8_passage']?.status,
+    player.quests['m8_passage']?.status,
     'active',
     'acceptance alone ticks nothing',
   );
   // The authored accept choice emits the event — readiness, exactly once.
-  const offered = onStoryEvent(p, 'heard_ferrymans_word');
+  const offered = onStoryEvent(player, 'heard_ferrymans_word');
   assertEquals(offered, ['m8_passage']);
   assertEquals(
-    p.quests['m8_passage']?.status,
+    player.quests['m8_passage']?.status,
     'turnIn',
     'the conversation event readies it at the Ferryman',
   );
 });
 
 Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred from talk objectives (#63)', () => {
-  const q = quest('m2_letter')!;
-  assertEquals(q.startNpc, 'npc_maren');
-  assertEquals(q.finishNpc, 'npc_bram');
-  assert(q.startNpc !== q.finishNpc, 'the delivery case has distinct contacts');
+  const questDef = quest('m2_letter')!;
+  assertEquals(questDef.startNpc, 'npc_maren');
+  assertEquals(questDef.finishNpc, 'npc_bram');
+  assert(questDef.startNpc !== questDef.finishNpc, 'the delivery case has distinct contacts');
   // Resolution is independent per role, each anchored to a real zone.
   const start = questStarter('m2_letter')!;
   const fin = questFinisher('m2_letter')!;
@@ -1640,61 +1667,70 @@ Deno.test('m2_letter is a Maren → Bram delivery — finisher never inferred fr
   // did NOT derive the finisher from it — the finisher is the explicit
   // field (#127: talk objectives became stable story events).
   assert(
-    q.objectives.some((o) => o.kind === 'storyEvent' && o.target === 'heard_bram_reading'),
+    questDef.objectives.some((objective) =>
+      objective.kind === 'storyEvent' && objective.target === 'heard_bram_reading'
+    ),
   );
-  assertEquals(questFinisher('m2_letter')!.npc.id, q.finishNpc);
+  assertEquals(questFinisher('m2_letter')!.npc.id, questDef.finishNpc);
 });
 
 Deno.test('NPC talk opens their authored quest (#31, #123)', () => {
-  const p = createPlayer(972, 'T', 'warrior');
-  p.level = 7;
+  const player = createPlayer(972, 'T', 'warrior');
+  player.level = 7;
   // The chain (#73): after m4_floors, Bram offers the m5_arms preparation.
   for (const id of ['m2_letter', 'm3_wolves', 'm4_floors']) {
-    p.quests[id] = { status: 'done', counts: [] };
+    player.quests[id] = { status: 'done', counts: [] };
   }
-  syncAvailability(p);
+  syncAvailability(player);
   // Bram is the second NPC of Emberdawn Village (maren, bram, lyra).
-  zoneAction(p, { v: 'zone', a: 'tk', arg: 1 });
-  assertEquals(p.scene.view, 'npc');
-  assertEquals(p.scene.arg, 'npc_bram');
+  zoneAction(player, { v: 'zone', a: 'tk', arg: 1 });
+  assertEquals(player.scene.view, 'npc');
+  assertEquals(player.scene.arg, 'npc_bram');
   // The offer is enumerated as a topic; selecting it routes to the
   // authoritative interaction.
-  assert(npcTopics(p, 'npc_bram').some((t) => t.id === 'm5_arms' && t.kind === 'questOffer'));
-  npcAction(p, { v: 'npc', a: 'q', arg: 'm5_arms' });
-  assertEquals(p.scene.view, 'dialogue', "the topic opens the giver's offer dialogue");
-  assertEquals(p.scene.arg, 'dlg_m5_arms_offer');
+  assert(
+    npcTopics(player, 'npc_bram').some((topic) =>
+      topic.id === 'm5_arms' && topic.kind === 'questOffer'
+    ),
+  );
+  npcAction(player, { v: 'npc', a: 'q', arg: 'm5_arms' });
+  assertEquals(player.scene.view, 'dialogue', "the topic opens the giver's offer dialogue");
+  assertEquals(player.scene.arg, 'dlg_m5_arms_offer');
 });
 
 Deno.test('actionless item details render no empty button rows (#39)', () => {
-  const p = createPlayer(975, 'T', 'warrior');
-  p.level = 10;
-  grantItem(p, 'q_sealed_letter', 1);
-  const view = renderItemDetail(p, 'q_sealed_letter');
+  const player = createPlayer(975, 'T', 'warrior');
+  player.level = 10;
+  grantItem(player, 'q_sealed_letter', 1);
+  const view = renderItemDetail(player, 'q_sealed_letter');
   // Telegram requires 1–8 buttons per block; an actionless quest item must
   // still open a valid informational view — Back row only, no empty rows.
   const blocks = view.blocks ?? [];
-  const rows = blocks.filter((b) => b.type === 'buttons');
+  const rows = blocks.filter((block) => block.type === 'buttons');
   assert(rows.length >= 1, 'the Back row remains');
-  for (const r of rows) {
-    const n = (r as { buttons: unknown[] }).buttons.length;
-    assert(n >= 1 && n <= 8, `button row holds 1–8 buttons (got ${n})`);
+  for (const row of rows) {
+    const buttonCount = (row as { buttons: unknown[] }).buttons.length;
+    assert(
+      buttonCount >= 1 && buttonCount <= 8,
+      `button row holds 1–8 buttons (got ${buttonCount})`,
+    );
   }
   assert(!JSON.stringify(view).includes('"buttons":[]'), 'no empty button rows emitted');
 });
 
 Deno.test('renderer invariant: every catalog item detail has only valid button rows (#39)', () => {
-  const p = createPlayer(976, 'T', 'warrior');
-  p.level = 45; // maximum equip eligibility
+  const player = createPlayer(976, 'T', 'warrior');
+  player.level = 45; // maximum equip eligibility
   for (const def of ITEMS) {
-    addItem(p, def.id, 1);
-    const view = renderItemDetail(p, def.id);
+    addItem(player, def.id, 1);
+    const view = renderItemDetail(player, def.id);
     const blocks = view.blocks ?? [];
     for (const block of blocks) {
       if (block.type !== 'buttons') continue;
-      const n = block.buttons.length;
+      const buttonCount = block.buttons.length;
       assert(
-        n >= 1 && n <= 8,
-        `${def.id} detail rendered a ${n}-button row (must be 1–8)`,
+        buttonCount >= 1 && buttonCount <= 8,
+        `${def.id} detail rendered a ${buttonCount}-button row (must be 1–8)`,
       );
     }
   }

@@ -22,17 +22,17 @@ import { seeded } from './helpers.ts';
 const ORIGIN = { kind: 'explore', zoneId: 'whisperwood' } as const;
 
 /** A tanky wolf so multi-round fixtures survive the hero's strikes. */
-function tankyWolf(p: PlayerState, seed: number): BattleState {
-  const b = startBattle('e_wolf', ORIGIN, { player: p, rng: seeded(seed) })!.battle;
-  b.enemy.hp = 99999;
-  b.enemy.maxHp = 99999;
-  p.battle = b;
-  return b;
+function tankyWolf(player: PlayerState, seed: number): BattleState {
+  const battle = startBattle('e_wolf', ORIGIN, { player, rng: seeded(seed) })!.battle;
+  battle.enemy.hp = 99999;
+  battle.enemy.maxHp = 99999;
+  player.battle = battle;
+  return battle;
 }
 
 /** The one authored line in a narration bundle that mentions `marker`. */
 function narrativeLine(lines: readonly string[], marker: string): string {
-  const hit = lines.find((l) => l.includes(marker));
+  const hit = lines.find((line) => line.includes(marker));
   assert(hit !== undefined, `expected a line mentioning "${marker}", got: ${lines.join('\n')}`);
   return hit;
 }
@@ -58,19 +58,19 @@ Deno.test('periodic trigger narration is qualitative; the live row carries the n
     maxProcs: 99,
   }];
   try {
-    const p = createPlayer(1500, 'T', 'warrior');
-    p.level = 30;
-    p.equipment.trinket = 't_3';
-    const b = tankyWolf(p, 1);
-    const res = performAction(p, b, { kind: 'attack' }, seeded(2));
-    const burn = b.effectInstances.find((i) => i.defId === 't_3:t0:e0');
+    const player = createPlayer(1500, 'T', 'warrior');
+    player.level = 30;
+    player.equipment.trinket = 't_3';
+    const battle = tankyWolf(player, 1);
+    const res = performAction(player, battle, { kind: 'attack' }, seeded(2));
+    const burn = battle.effectInstances.find((instance) => instance.defId === 't_3:t0:e0');
     assert(burn, 'the Ember Burn instance landed');
     assertEquals(burn.perRound, -6);
     assertEquals(burn.remaining, 1, 'one end-of-round tick has run by the next round');
     assertQualitative(narrativeLine(res.lines, 'The Ember Sigil flares'));
     // The generated live row states the exact mechanics once, derived from
     // the instance — not from the narration.
-    const rendered = JSON.stringify(renderBattle(p));
+    const rendered = JSON.stringify(renderBattle(player));
     assert(rendered.includes('−6 HP/round'), 'the row derives the per-round damage');
     assert(rendered.includes('1 round remaining'), 'the row derives the duration');
   } finally {
@@ -84,14 +84,14 @@ Deno.test('statmod trigger narration is qualitative; the live row carries the nu
   const original = arrowhead.triggers;
   arrowhead.triggers = [{ ...original![0], chance: 1 }];
   try {
-    const p = createPlayer(1501, 'T', 'warrior');
-    p.equipment.trinket = 't_7';
-    const b = tankyWolf(p, 3);
-    const exposed = b.effectInstances.find((i) => i.defId === 't_7:t0:e0');
+    const player = createPlayer(1501, 'T', 'warrior');
+    player.equipment.trinket = 't_7';
+    const battle = tankyWolf(player, 3);
+    const exposed = battle.effectInstances.find((instance) => instance.defId === 't_7:t0:e0');
     assert(exposed, 'the Exposed instance landed');
     assertEquals(exposed.pct, 0.25);
-    assertQualitative(narrativeLine(b.opening?.lines ?? [], 'fault line'));
-    const rendered = JSON.stringify(renderBattle(p));
+    assertQualitative(narrativeLine(battle.opening?.lines ?? [], 'fault line'));
+    const rendered = JSON.stringify(renderBattle(player));
     assert(rendered.includes('+25% damage taken'), 'the row derives the magnitude');
     assert(rendered.includes('3 rounds remaining'), 'the row derives the duration');
   } finally {
@@ -101,25 +101,31 @@ Deno.test('statmod trigger narration is qualitative; the live row carries the nu
 
 Deno.test('enemy Slow variant narration is qualitative; the live row carries the numbers (#153)', () => {
   // The Woodfang Spider's Web Snare: find a seed where it lands Webbed.
-  let b: BattleState | undefined;
+  let battle: BattleState | undefined;
   let lines: readonly string[] = [];
-  for (let s = 1; s <= 120 && !b; s++) {
-    const p = createPlayer(1502 + s, 'T', 'warrior');
-    const attempt = startBattle('e_spider', ORIGIN, { player: p, rng: seeded(s) })!.battle;
+  for (let seed = 1; seed <= 120 && !battle; seed++) {
+    const player = createPlayer(1502 + seed, 'T', 'warrior');
+    const attempt = startBattle('e_spider', ORIGIN, { player, rng: seeded(seed) })!.battle;
     attempt.enemy.hp = 99999; // tank the spider — it must survive to answer
     attempt.enemy.maxHp = 99999;
-    const res = performAction(p, attempt, { kind: 'attack' }, seeded(s));
-    if (attempt.effectInstances.some((i) => i.side === 'player' && i.name === 'Webbed')) {
-      b = attempt;
+    const res = performAction(player, attempt, { kind: 'attack' }, seeded(seed));
+    if (
+      attempt.effectInstances.some((instance) =>
+        instance.side === 'player' && instance.name === 'Webbed'
+      )
+    ) {
+      battle = attempt;
       lines = res.lines;
     }
   }
-  assert(b, 'found a seed where Web Snare lands');
-  const webbed = b.effectInstances.find((i) => i.side === 'player' && i.name === 'Webbed')!;
+  assert(battle, 'found a seed where Web Snare lands');
+  const webbed = battle.effectInstances.find((instance) =>
+    instance.side === 'player' && instance.name === 'Webbed'
+  )!;
   assertEquals(webbed.pct, -0.25);
   assertQualitative(narrativeLine(lines, 'webbing binds'));
   const p2 = createPlayer(1999, 'T', 'warrior');
-  p2.battle = b;
+  p2.battle = battle;
   const rendered = JSON.stringify(renderBattle(p2));
   assert(rendered.includes('−25% SPD'), 'the row derives the slow magnitude');
   assert(rendered.includes('2 rounds remaining'), 'the row derives the duration');
@@ -128,23 +134,23 @@ Deno.test('enemy Slow variant narration is qualitative; the live row carries the
 Deno.test('a multi-effect skill narrates only its own resolution; the sibling buff surfaces in the live row (#153)', () => {
   // Adrenaline Surge: the heal line must not describe the separate quiet
   // ATK buff — changing the buff spec must never leave the heal line stale.
-  const p = createPlayer(1503, 'T', 'warrior');
-  p.skills.push('sk_adrenaline');
-  p.mp = 40;
-  const b = tankyWolf(p, 5);
-  p.hp = 10; // make the restored amount a real resolution product
-  const res = performAction(p, b, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(6));
+  const player = createPlayer(1503, 'T', 'warrior');
+  player.skills.push('sk_adrenaline');
+  player.mp = 40;
+  const battle = tankyWolf(player, 5);
+  player.hp = 10; // make the restored amount a real resolution product
+  const res = performAction(player, battle, { kind: 'skill', skillId: 'sk_adrenaline' }, seeded(6));
   const healLine = narrativeLine(res.lines, 'feel the rush');
   assert(!healLine.includes('20%'), 'the heal line does not narrate the sibling buff: ' + healLine);
   assert(/\{n\}|HP/.test(healLine), 'the heal line still names its own event');
   const restored = Number(healLine.match(/recover (\d+) HP/)?.[1] ?? -1);
   assert(restored > 0, 'the {n} token resolved to the actual restored HP');
-  const atkBuff = b.effectInstances.find((i) =>
-    i.side === 'player' && i.kind === 'statmod' && i.stat === 'atk'
+  const atkBuff = battle.effectInstances.find((instance) =>
+    instance.side === 'player' && instance.kind === 'statmod' && instance.stat === 'atk'
   );
   assert(atkBuff, 'the quiet ATK buff landed as a live instance');
   assertEquals(atkBuff.pct, 0.2);
-  const rendered = JSON.stringify(renderBattle(p));
+  const rendered = JSON.stringify(renderBattle(player));
   assert(rendered.includes('+20% ATK'), 'the live row carries the buff magnitude');
   assert(rendered.includes('2 rounds remaining'), 'the live row carries the buff duration');
 });
@@ -158,11 +164,11 @@ Deno.test('{n} follows the structured value, never a content constant (#153)', (
   assert(spec.amount === 25, 'fixture precondition: the authored amount is 25');
   spec.amount = 99;
   try {
-    const p = createPlayer(1504, 'T', 'warrior');
-    p.equipment.trinket = 't_wardstone';
-    const b = tankyWolf(p, 7);
+    const player = createPlayer(1504, 'T', 'warrior');
+    player.equipment.trinket = 't_wardstone';
+    const battle = tankyWolf(player, 7);
     assert(
-      (b.opening?.lines ?? []).some((l) => l.includes('absorbing up to 99 damage')),
+      (battle.opening?.lines ?? []).some((line) => line.includes('absorbing up to 99 damage')),
       'the rendered {n} followed the altered structured amount',
     );
   } finally {
@@ -183,22 +189,26 @@ function authoredLines(): { from: string; line: string }[] {
     if (spec.line) out.push({ from, line: spec.line });
   };
   for (const def of ITEMS) {
-    def.triggers?.forEach((t, ti) =>
-      t.effects.forEach((e, ei) => fromSpec(`${def.id}:t${ti}:e${ei}`, e))
+    def.triggers?.forEach((trigger, ti) =>
+      trigger.effects.forEach((effect, ei) => fromSpec(`${def.id}:t${ti}:e${ei}`, effect))
     );
   }
-  for (const sk of SKILLS) {
-    sk.effects.forEach((e, ei) => fromSpec(`${sk.id}:e${ei}`, e));
+  for (const skillDef of SKILLS) {
+    skillDef.effects.forEach((effect, ei) => fromSpec(`${skillDef.id}:e${ei}`, effect));
   }
-  for (const e of ENEMIES) {
-    if (e.opening) {
-      e.opening.effects.forEach((spec, ei) => fromSpec(`${e.id}:opening:e${ei}`, spec));
+  for (const enemyDef of ENEMIES) {
+    if (enemyDef.opening) {
+      enemyDef.opening.effects.forEach((spec, ei) =>
+        fromSpec(`${enemyDef.id}:opening:e${ei}`, spec)
+      );
     }
-    e.moves.forEach((m, mi) => {
-      m.effects.forEach((spec, ei) => fromSpec(`${e.id}:m${mi}:e${ei}`, spec));
+    enemyDef.moves.forEach((move, mi) => {
+      move.effects.forEach((spec, ei) => fromSpec(`${enemyDef.id}:m${mi}:e${ei}`, spec));
     });
-    if (e.special) {
-      e.special.move.effects.forEach((spec, ei) => fromSpec(`${e.id}:special:e${ei}`, spec));
+    if (enemyDef.special) {
+      enemyDef.special.move.effects.forEach((spec, ei) =>
+        fromSpec(`${enemyDef.id}:special:e${ei}`, spec)
+      );
     }
   }
   return out;
@@ -233,7 +243,7 @@ Deno.test('integrity: enemy opening lines are crawled; a copied mechanic there i
   // Regression: copying the structured slow magnitude and duration into
   // the opening narration must be seen and rejected by the same authority
   // as every other authored battle line.
-  const wisp = ENEMIES.find((e) => e.id === 'e_chronowisp')!;
+  const wisp = ENEMIES.find((enemyDef) => enemyDef.id === 'e_chronowisp')!;
   const spec = wisp.opening!.effects[0];
   const original = spec.line;
   const forged = '⏳ The wisp anchors you outside time (SPD −20%, 2 rounds)!';
