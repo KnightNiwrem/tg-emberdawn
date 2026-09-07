@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * Branching dialogue choices (#126): conditionally available responses,
  * deferral, irreversible confirmation, atomic single-application through
@@ -30,13 +31,13 @@ function hero(id: number): PlayerState {
 }
 
 function openChoice(player: PlayerState): void {
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   npcAction(player, { v: 'npc', a: 'lore', arg: 'ferry_promise' });
   assertEquals(player.scene.view, 'dialogue');
-  assertEquals(player.scene.arg2, 'n1');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n1');
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: CHOICE_NODE });
-  assertEquals(player.scene.arg2, CHOICE_NODE);
+  assertEquals(expectScene(player, 'dialogue').nodeId, CHOICE_NODE);
 }
 
 Deno.test('choices: both responses render, deferral is offered, prompt is separate', () => {
@@ -50,7 +51,11 @@ Deno.test('choices: both responses render, deferral is offered, prompt is separa
     view.includes('Which job will you take: the beacon or the water intake?'),
     'the NPC prompt is shown',
   );
-  assertEquals(player.scene.arg3, undefined, 'no confirmation is staged yet');
+  assertEquals(
+    expectScene(player, 'dialogue').confirmation,
+    undefined,
+    'no confirmation is staged yet',
+  );
   assert(!view.includes('dlg:cf:'), 'the list offers selection, never a committing confirmation');
 });
 
@@ -64,10 +69,10 @@ Deno.test('choices: deferral ("Not now") performs no story mutation', () => {
     before,
   );
   assertEquals(player.scene.view, 'npc', 'deferral returns to the topic menu');
-  assertEquals(player.scene.arg, FERRY);
+  assertEquals(expectScene(player, 'npc').npcId, FERRY);
   // The topic remains available for a later decision.
   openChoice(player);
-  assertEquals(player.scene.arg2, CHOICE_NODE);
+  assertEquals(expectScene(player, 'dialogue').nodeId, CHOICE_NODE);
 });
 
 Deno.test('choices: irreversible selection stages confirmation; open/back mutate nothing', () => {
@@ -75,7 +80,7 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   openChoice(player);
   const before = JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents });
   dialogueAction(player, { v: 'dlg', a: 'ch', arg: 'promise' });
-  assertEquals(player.scene.arg3, 'confirm:promise', 'the panel is staged');
+  assertEquals(expectScene(player, 'dialogue').confirmation, 'promise', 'the panel is staged');
   assertEquals(
     JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents }),
     before,
@@ -92,7 +97,7 @@ Deno.test('choices: irreversible selection stages confirmation; open/back mutate
   assert(panel.includes('dlg:cc'), 'Go back is offered');
   // Abandon: back to the choice list, still zero mutation.
   dialogueAction(player, { v: 'dlg', a: 'cc' });
-  assertEquals(player.scene.arg3, undefined);
+  assertEquals(expectScene(player, 'dialogue').confirmation, undefined);
   assertEquals(
     JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents }),
     before,
@@ -115,8 +120,12 @@ Deno.test('choices: confirmation applies effects exactly once, atomically (#126,
   assertEquals(player.quests['sq_shrine_pact']?.status, 'active');
   assertEquals(player.quests['sq_shrine_pact']?.counts, [0]);
   assertEquals(player.questOutcomes['sq_ledger_debt']?.kind, 'locked');
-  assertEquals(player.scene.arg2, 'n4', 'the choice advanced to its authored next node');
-  assertEquals(player.scene.arg3, undefined, 'the staged panel cleared');
+  assertEquals(
+    expectScene(player, 'dialogue').nodeId,
+    'n4',
+    'the choice advanced to its authored next node',
+  );
+  assertEquals(expectScene(player, 'dialogue').confirmation, undefined, 'the staged panel cleared');
   // A later topic can identify the actual choice from the ledger.
   assert(evalCondition(player, { decision: { id: 'ferry_shrine_pledge', choiceId: 'promise' } }));
   assert(!evalCondition(player, { decision: { id: 'ferry_shrine_pledge', choiceId: 'decline' } }));
@@ -129,9 +138,9 @@ Deno.test('choices: the decline branch starts the other route and locks the firs
   openChoice(promisingPlayer);
   // The central op derives dialogue/node/NPC from the live scene (#130);
   // both committing responses are irreversible and need staged panels.
-  decliningPlayer.scene.arg3 = 'confirm:decline';
+  expectScene(decliningPlayer, 'dialogue').confirmation = 'decline';
   applyDialogueChoice(decliningPlayer, { choiceId: 'decline', now: 1 });
-  promisingPlayer.scene.arg3 = 'confirm:promise';
+  expectScene(promisingPlayer, 'dialogue').confirmation = 'promise';
   applyDialogueChoice(promisingPlayer, { choiceId: 'promise', now: 1 });
   assertEquals(decliningPlayer.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
   assertEquals(promisingPlayer.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
@@ -150,12 +159,12 @@ Deno.test('choices: the decline branch starts the other route and locks the firs
 Deno.test('choices: incompatible re-choices and engine-level replays are refused', () => {
   const player = ferryHero(1406);
   openChoice(player);
-  player.scene.arg3 = 'confirm:promise';
+  expectScene(player, 'dialogue').confirmation = 'promise';
   applyDialogueChoice(player, { choiceId: 'promise', now: 1 });
   // Trying to re-decide the same dialogue choice with the other option is
   // refused by the central op (ledger wins), and the state is untouched.
   // (The handler would have routed the scene on; restore the choice node.)
-  player.scene = { view: 'dialogue', arg: DIALOGUE, arg2: CHOICE_NODE };
+  player.scene = { view: 'dialogue', dialogueId: DIALOGUE, nodeId: CHOICE_NODE };
   const before = JSON.stringify({ d: player.decisions, f: player.flags, e: player.storyEvents });
   const result = applyDialogueChoice(player, { choiceId: 'decline', now: 2 });
   assert(!result.ok);
@@ -172,7 +181,7 @@ Deno.test('choices: full router — double taps, cancellation, stale confirmatio
   const store = new MemoryStore();
   const player = ferryHero(1407);
   player.messageId = 300;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1407, player);
   let cur = (await store.get(1407))!;
   await handleCallback(
@@ -188,11 +197,11 @@ Deno.test('choices: full router — double taps, cancellation, stale confirmatio
   // Stage the irreversible confirmation.
   await handleCallback(fakeCtx(1407, 300, withRev(rev, 'dlg:ch:promise')), store);
   cur = (await store.get(1407))!;
-  assertEquals(cur.scene.arg3, 'confirm:promise');
+  assertEquals(expectScene(cur, 'dialogue').confirmation, 'promise');
   // Cancel.
   await handleCallback(fakeCtx(1407, 300, withRev(cur.uiRev ?? 0, 'dlg:cc')), store);
   cur = (await store.get(1407))!;
-  assertEquals(cur.scene.arg3, undefined);
+  assertEquals(expectScene(cur, 'dialogue').confirmation, undefined);
   assertEquals(Object.keys(cur.decisions).length, 0, 'cancellation mutated nothing');
   // Stage again and confirm.
   await handleCallback(fakeCtx(1407, 300, withRev(cur.uiRev ?? 0, 'dlg:ch:promise')), store);
@@ -226,7 +235,7 @@ async function routerAtChoice(store: MemoryStore, userId: number) {
   await tap('npc:lore:ferry_promise');
   await tap('dlg:nx:n2');
   const { cur } = await tap('dlg:nx:n3');
-  assertEquals(cur.scene.arg2, CHOICE_NODE);
+  assertEquals(expectScene(cur, 'dialogue').nodeId, CHOICE_NODE);
   return tap;
 }
 
@@ -234,7 +243,7 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
   const store = new MemoryStore();
   const player = ferryHero(1410);
   player.messageId = 300;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1410, player);
   const tap = await routerAtChoice(store, 1410);
 
@@ -251,8 +260,12 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
     'the ordinary choice was not applied',
   );
   assertEquals(tapResult.cur.storyReceipts, []);
-  assertEquals(tapResult.cur.scene.arg2, CHOICE_NODE);
-  assertEquals(tapResult.cur.scene.arg3, undefined, 'no panel was staged');
+  assertEquals(expectScene(tapResult.cur, 'dialogue').nodeId, CHOICE_NODE);
+  assertEquals(
+    expectScene(tapResult.cur, 'dialogue').confirmation,
+    undefined,
+    'no panel was staged',
+  );
 
   // Confirm of the IRREVERSIBLE choice without its staged panel: refused.
   tapResult = await tap('dlg:cf:promise');
@@ -270,11 +283,15 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
     tapResult.toasts.some((toast) => toast?.includes('stale')),
     `staleness toast: ${tapResult.toasts}`,
   );
-  assertEquals(tapResult.cur.scene.arg3, undefined, 'a stale select stages nothing');
+  assertEquals(
+    expectScene(tapResult.cur, 'dialogue').confirmation,
+    undefined,
+    'a stale select stages nothing',
+  );
 
   // Select STAGES the irreversible panel without applying anything.
   tapResult = await tap('dlg:ch:promise');
-  assertEquals(tapResult.cur.scene.arg3, 'confirm:promise');
+  assertEquals(expectScene(tapResult.cur, 'dialogue').confirmation, 'promise');
   assertEquals(Object.keys(tapResult.cur.decisions).length, 0, 'staging is not an application');
 
   // A stale confirm is rejected by the router even while the panel is live.
@@ -292,8 +309,8 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
     `refusal toast: ${tapResult.toasts}`,
   );
   assertEquals(
-    tapResult.cur.scene.arg3,
-    'confirm:promise',
+    expectScene(tapResult.cur, 'dialogue').confirmation,
+    'promise',
     'the staged panel survives the forged tap',
   );
   assertEquals(Object.keys(tapResult.cur.decisions).length, 0);
@@ -303,8 +320,8 @@ Deno.test('choices: full router — forged and mismatched cf callbacks are harml
   tapResult = await tap('dlg:cf:promise');
   assertEquals(tapResult.cur.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
   assertEquals(tapResult.cur.storyReceipts, [`choice:${DIALOGUE}:${CHOICE_NODE}:promise`]);
-  assertEquals(tapResult.cur.scene.arg2, 'n4', 'the authored next beat');
-  assertEquals(tapResult.cur.scene.arg3, undefined);
+  assertEquals(expectScene(tapResult.cur, 'dialogue').nodeId, 'n4', 'the authored next beat');
+  assertEquals(expectScene(tapResult.cur, 'dialogue').confirmation, undefined);
 
   // A duplicate confirm at the CURRENT revision: the conversation has routed
   // on, so it refuses without a second application (the recorded receipt
@@ -320,7 +337,7 @@ Deno.test('choices: full router — an ordinary ch still applies directly (#136)
   const store = new MemoryStore();
   const player = hero(1411);
   player.messageId = 300;
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   await store.set(1411, player);
   const tap = async (data: string) => {
     const before = (await store.get(1411))!;
@@ -329,7 +346,7 @@ Deno.test('choices: full router — an ordinary ch still applies directly (#136)
   };
   let cur = await tap('npc:q:m1_embers');
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m1_embers_offer');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m1_embers_offer');
   cur = await tap('dlg:nx:o2'); // advance through the offer beats
   cur = await tap('dlg:nx:oa'); // …to the choice node
   cur = await tap('dlg:ch:accept');
@@ -340,7 +357,7 @@ Deno.test('choices: full router — an ordinary ch still applies directly (#136)
 Deno.test('choices: scene persists through rerender and /start (#126)', () => {
   const player = ferryHero(1408);
   openChoice(player);
-  player.scene.arg3 = 'confirm:promise';
+  expectScene(player, 'dialogue').confirmation = 'promise';
   const staged = JSON.stringify(renderDialogue(player));
   const again = JSON.stringify(renderDialogue(player));
   assertEquals(staged, again, 'the confirmation panel is position-stable');
@@ -370,7 +387,7 @@ Deno.test('choices: conditionally available responses revalidate at tap time (#1
     JSON.stringify(renderDialogue(player)).includes('dlg:ch:vouch'),
     'a met condition reveals the response',
   );
-  player.scene.arg3 = 'confirm:vouch';
+  expectScene(player, 'dialogue').confirmation = 'vouch';
   const ok = applyDialogueChoice(player, { choiceId: 'vouch', now: 1 });
   assert(ok.ok);
   assertEquals(player.decisions['ferry_shrine_pledge']?.choiceId, 'vouch');

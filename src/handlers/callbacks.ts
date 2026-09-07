@@ -3,6 +3,7 @@
  * live-message rules as everything else, and an existing character can never
  * be replaced by a stale or forged button. */
 
+import type { ItemDetailOrigin } from '../engine/types.ts';
 import { sourcesAction } from './item_sources.ts';
 import { DUNGEON_BLOCK } from '../engine/dungeon_run.ts';
 import type { Context } from 'grammy';
@@ -137,24 +138,24 @@ function dispatch(
         return {};
       }
       if (cb.a === 'p') {
-        player.scene = { view: 'inventory', arg: String(cb.arg) };
+        player.scene = { view: 'inventory', page: cb.arg };
         return {};
       }
       if (cb.a === 'v') {
         // #112: the detail records WHERE it was opened from — the current
         // inventory page, the Equipment screen, or an active journey — so
         // its Back button returns to the origin instead of a hardcoded view.
-        const origin = player.scene.view === 'inventory'
-          ? (player.scene.arg ?? '0')
+        const origin: ItemDetailOrigin | undefined = player.scene.view === 'inventory'
+          ? { kind: 'inventory', page: player.scene.page ?? 0 }
           : player.scene.view === 'equipment'
-          ? 'eq'
+          ? { kind: 'equipment' }
           : player.journey
-          ? 'j'
+          ? { kind: 'journey' }
           : undefined;
         player.scene = {
           view: 'item',
-          arg: cb.arg,
-          ...(origin !== undefined ? { arg2: origin } : {}),
+          itemId: cb.arg,
+          ...(origin !== undefined ? { returnTo: origin } : {}),
         };
         return {};
       }
@@ -174,12 +175,12 @@ function dispatch(
         // player.equipment[slot]); a forged/unknown slot token never
         // changes the scene.
         if (cb.arg === 'weapon' || cb.arg === 'armor' || cb.arg === 'trinket') {
-          player.scene = { view: 'equippedItem', arg: cb.arg };
+          player.scene = { view: 'equippedItem', slot: cb.arg };
         }
         return {};
       }
       if (cb.a === 'bk') {
-        player.scene = { view: 'inventory', arg: '0' };
+        player.scene = { view: 'inventory', page: 0 };
         return {};
       }
       const slot = cb.arg as 'weapon' | 'armor' | 'trinket';

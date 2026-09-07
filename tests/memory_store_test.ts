@@ -24,7 +24,7 @@ Deno.test('failed purchase delivery leaves the stored player unchanged', async (
   const player = createPlayer(231, 'Shopper', 'warrior');
   player.messageId = 100;
   player.uiRev = 3;
-  player.scene = { view: 'shop', arg: '0' };
+  player.scene = { view: 'shop', mode: 'buy', page: 0 };
   await store.set(player.userId, player);
   const ctx = fakeCtx(player.userId, 100, 'h:3:buy:c_minor_potion');
   ctx.api.editMessageText = () => Promise.reject(new Error('delivery failed'));

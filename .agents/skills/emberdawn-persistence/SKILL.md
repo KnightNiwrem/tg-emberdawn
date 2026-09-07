@@ -15,6 +15,13 @@ and `tests/persistence_pg_test.ts`. `src/persistence/migrate.ts` handles Postgre
 not `PlayerState` migrations. Run `deno task test:pg` (or `deno task test:pg:local` for a throwaway
 Docker Postgres) whenever persistence or schema behavior changes.
 
+## Scene state
+
+`SceneState` is a discriminated union. Views use named fields: dialogueId/nodeId/confirmation,
+npcId/topic, questId/page, itemId/returnTo/reference, equipped slot, shop mode/page/itemId, zone
+panel, and travel confirmEdgeId. Item references and return destinations are structured JSON, not
+encoded strings. `validateScene` checks the content identities these variants persist.
+
 ## Persisted shapes
 
 - `PlayerState` (`src/engine/types.ts`), including its nested `battle?: BattleState`, is plain JSON:

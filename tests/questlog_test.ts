@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Quest-log pagination (#21): every live side quest must be reachable. */
 
 import { assert, assertEquals } from '@std/assert';
@@ -54,11 +55,11 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
   // and the journal names the physical contact instead.
   await handleCallback(fakeCtx(940, 700, withRev(0, 'q:pg:1')), store);
   let cur = (await store.get(940))!;
-  assertEquals(cur.scene.arg2, '1', 'page stored in scene.arg2');
+  assertEquals(expectScene(cur, 'quests').page, 1, 'page stored in the quest scene');
   await handleCallback(fakeCtx(940, 700, withRev(cur.uiRev ?? 0, 'q:q:sq_scarabs')), store);
   cur = (await store.get(940))!;
-  assertEquals(cur.scene.arg, 'sq_scarabs');
-  assertEquals(cur.scene.arg2, '1', 'opening a detail preserves the page');
+  assertEquals(expectScene(cur, 'quests').questId, 'sq_scarabs');
+  assertEquals(expectScene(cur, 'quests').page, 1, 'opening a detail preserves the page');
   const detail = JSON.stringify(renderQuestDetail(cur, 'sq_scarabs'));
   assert(!detail.includes('q:a:sq_scarabs'), 'the log renders no accept button (#65)');
   assert(!detail.includes('q:t:'), 'the log renders no turn-in button');
@@ -74,9 +75,9 @@ Deno.test('quest log pages side quests — the 9th live quest is reachable (#21)
   // Back from the detail returns to the SAME page, quest unchanged.
   await handleCallback(fakeCtx(940, 700, withRev(cur.uiRev ?? 0, 'q:bk')), store);
   cur = (await store.get(940))!;
-  assertEquals(cur.scene.arg, undefined);
-  assertEquals(cur.scene.arg2, '1', 'Back returns to the same page');
-  const again = JSON.stringify(renderQuests(cur, Number(cur.scene.arg2 ?? 0)));
+  assertEquals(expectScene(cur, 'quests').questId, undefined);
+  assertEquals(expectScene(cur, 'quests').page, 1, 'Back returns to the same page');
+  const again = JSON.stringify(renderQuests(cur, Number(expectScene(cur, 'quests').page ?? 0)));
   assert(again.includes('q:q:sq_scarabs'), 'page 1 still lists the quest');
 });
 

@@ -1110,12 +1110,12 @@ Deno.test('#112: bag detail Back returns to the ORIGIN, not the zone', () => {
   bag.inventory.push({ id: 't_7', qty: 1 });
   // From inventory page 3: Back re-opens that same page.
   assert(
-    JSON.stringify(renderItemDetail(bag, 't_7', '3')).includes('i:pg:3'),
+    JSON.stringify(renderItemDetail(bag, 't_7', { kind: 'inventory', page: 3 })).includes('i:pg:3'),
     'an inventory-origin detail returns to its page',
   );
   // From the Equipment screen: Back returns there.
   assert(
-    JSON.stringify(renderItemDetail(bag, 't_7', 'eq')).includes('e:op'),
+    JSON.stringify(renderItemDetail(bag, 't_7', { kind: 'equipment' })).includes('e:op'),
     'an equipment-origin detail returns to Equipment',
   );
   // No origin context: the legacy zone fallback stays.

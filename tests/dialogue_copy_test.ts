@@ -43,7 +43,11 @@ function heroAt(
   player.currentZone = zone.id;
   player.unlockedZones.push(zone.id);
   player.flags[`zone_${zone.id}`] = true;
-  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: nodeId ?? dialogueDef.start };
+  player.scene = {
+    view: 'dialogue',
+    dialogueId: dialogueDef.id,
+    nodeId: nodeId ?? dialogueDef.start,
+  };
   return player;
 }
 
@@ -87,7 +91,7 @@ Deno.test('copy: rendering never doubles quotation marks (#133)', () => {
       if (node.kind === 'choice') {
         const staged = {
           ...player,
-          scene: { ...player.scene, arg3: `confirm:${node.choices[0]!.id}` },
+          scene: { ...player.scene, confirmation: node.choices[0]!.id },
         };
         const panel = JSON.stringify(renderDialogue(staged));
         assert(
@@ -214,7 +218,7 @@ Deno.test('copy: the m1 letter is offered before, handed after the commit (#133)
   assert(offered.includes('holds out a wax-sealed letter'), 'the letter is OFFERED');
   assert(!offered.includes('into your hands'), 'nothing is asserted as handed over yet');
   // At the choice screen nothing claims the transfer either.
-  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: 'ta' };
+  player.scene = { view: 'dialogue', dialogueId: dialogueDef.id, nodeId: 'ta' };
   const atChoice = JSON.stringify(renderDialogue(player));
   assert(!atChoice.includes('into your hands'), 'the choice screen asserts no handover');
   // Commit: the letter changes hands only after the choice applies.
@@ -223,7 +227,7 @@ Deno.test('copy: the m1 letter is offered before, handed after the commit (#133)
   assert(result.ok);
   assertEquals(player.quests['m1_embers']?.status, 'done');
   assertEquals(result.nextNodeId, 't3');
-  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: 't3' };
+  player.scene = { view: 'dialogue', dialogueId: dialogueDef.id, nodeId: 't3' };
   const after = JSON.stringify(renderDialogue(player));
   assert(after.includes('into your hands'), 'the handover is narrated only post-commit');
 });
@@ -250,7 +254,7 @@ Deno.test('copy: m5_arms requests the iron before the commit and forges only aft
     !offerView.includes('weighs the chunks'),
     'Bram never narrates holding the player\u2019s iron',
   );
-  player.scene = { view: 'dialogue', arg: offer.id, arg2: 'o2' };
+  player.scene = { view: 'dialogue', dialogueId: offer.id, nodeId: 'o2' };
   const request = JSON.stringify(renderDialogue(player));
   assert(request.includes('bring me two chunks'), 'the offer asks for exactly two chunks');
   // Deferring from the offer mutates nothing.
@@ -274,7 +278,7 @@ Deno.test('copy: m5_arms requests the iron before the commit and forges only aft
   const held = JSON.stringify({ q: p2.quests, i: p2.inventory });
   dialogueAction(p2, { v: 'dlg', a: 'bk' });
   assertEquals(JSON.stringify({ q: p2.quests, i: p2.inventory }), held);
-  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 'ta' };
+  p2.scene = { view: 'dialogue', dialogueId: turnIn.id, nodeId: 'ta' };
 
   // Confirming consumes exactly two chunks through the central authority.
   const result = applyDialogueChoice(p2, { choiceId: 'handover', now: 1 });
@@ -285,10 +289,10 @@ Deno.test('copy: m5_arms requests the iron before the commit and forges only aft
 
   // The post-commit beats survive rerender and a save/reload round-trip,
   // and the recorded receipt makes a replayed hand-over a reward-free no-op.
-  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 't2' };
+  p2.scene = { view: 'dialogue', dialogueId: turnIn.id, nodeId: 't2' };
   const forge = JSON.stringify(renderDialogue(p2));
   assert(forge.includes('forge roaring'), 'the forge work is narrated only post-commit');
-  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 't3' };
+  p2.scene = { view: 'dialogue', dialogueId: turnIn.id, nodeId: 't3' };
   const steel = JSON.stringify(renderDialogue(p2));
   assert(steel.includes('on my rack'), 'the steel is announced only post-commit');
   const reloaded = JSON.parse(JSON.stringify(p2)) as PlayerState;
@@ -298,7 +302,7 @@ Deno.test('copy: m5_arms requests the iron before the commit and forges only aft
     'rerender/reload stability',
   );
   const gold = p2.gold;
-  p2.scene = { view: 'dialogue', arg: turnIn.id, arg2: 'ta' };
+  p2.scene = { view: 'dialogue', dialogueId: turnIn.id, nodeId: 'ta' };
   const replay = applyDialogueChoice(p2, { choiceId: 'handover', now: 2 });
   assertEquals(replay.ok, true, 'the replay routes cleanly…');
   assertEquals(p2.gold, gold, '…and grants nothing twice');

@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Quest-ready notices (#119): every active→turnIn transition must surface
  * ONE named `📜 "<name>" is ready to turn in!` line on the surface that
  * caused it — victory resolution, arrival, the talk interaction, acceptance,
@@ -250,16 +251,16 @@ Deno.test('ready notice: the accept choice carries acceptance and immediate read
   player.unlockedZones.push('hollowmere');
   player.currentZone = 'hollowmere';
   syncAvailability(player);
-  player.scene = { view: 'npc', arg: 'npc_ferryman' };
+  player.scene = { view: 'npc', npcId: 'npc_ferryman' };
   npcAction(player, { v: 'npc', a: 'q', arg: 'm8_passage' });
-  const dialogueDef = dialogue(player.scene.arg ?? '')!;
+  const dialogueDef = dialogue(expectScene(player, 'dialogue').dialogueId ?? '')!;
   // Walk to the accept choice.
   let node = dialogueDef.nodes.find((candidateNode: { id: string; kind: string; next?: string }) =>
-    candidateNode.id === player.scene.arg2
+    candidateNode.id === expectScene(player, 'dialogue').nodeId
   )!;
   while (node.kind === 'line' && node.next) {
     dialogueAction(player, { v: 'dlg', a: 'nx', arg: node.next });
-    node = dialogueDef.nodes.find((node) => node.id === player.scene.arg2)!;
+    node = dialogueDef.nodes.find((node) => node.id === expectScene(player, 'dialogue').nodeId)!;
   }
   assert(node.kind === 'choice');
   dialogueAction(player, { v: 'dlg', a: 'ch', arg: 'accept' });
@@ -289,12 +290,12 @@ Deno.test('ready notice: talking to the NPC surfaces the notice through the full
   await handleCallback(tap.ctx, store);
   let cur = (await store.get(1211))!;
   assertEquals(cur.scene.view, 'npc');
-  assertEquals(cur.scene.arg, 'npc_bram');
+  assertEquals(expectScene(cur, 'npc').npcId, 'npc_bram');
   tap = fakeCtxCapture(1211, 950, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter'));
   await handleCallback(tap.ctx, store);
   cur = (await store.get(1211))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_talk');
   // Notices drain on commit, so assert on what the player was actually shown.
   assertEquals(tap.edits.length, 1, 'the conversation opens in place');
   // Continue into the reading node — the SAME live message carries the

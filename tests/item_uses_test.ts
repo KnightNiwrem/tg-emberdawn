@@ -102,10 +102,10 @@ Deno.test('Uses: guarded navigation preserves bag/shop context, resources and re
   const store = new MemoryStore();
   for (
     const scene of [
-      { view: 'item', arg: 'm_worm_bait', arg2: '3' },
-      { view: 'item', arg: 'm_worm_bait', arg2: 'eq' },
-      { view: 'item', arg: 'm_worm_bait', arg2: 'j' },
-      { view: 'shop', arg: '1', arg2: 'm_worm_bait' },
+      { view: 'item', itemId: 'm_worm_bait', returnTo: { kind: 'inventory', page: 3 } },
+      { view: 'item', itemId: 'm_worm_bait', returnTo: { kind: 'equipment' } },
+      { view: 'item', itemId: 'm_worm_bait', returnTo: { kind: 'journey' } },
+      { view: 'shop', mode: 'buy', page: 1, itemId: 'm_worm_bait' },
     ] as const
   ) {
     player.scene = scene;
@@ -120,7 +120,7 @@ Deno.test('Uses: guarded navigation preserves bag/shop context, resources and re
     const open = withRev(player.uiRev, encodeCb({ v: 'uses', a: 'p', arg: 0 }));
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, open).ctx, store);
     let saved = (await store.get(player.userId))!;
-    assertEquals(saved.scene, { ...scene, arg3: 'uses:0' });
+    assertEquals(saved.scene, { ...scene, reference: { kind: 'uses', page: 0 } });
     const snapshot = JSON.stringify(saved);
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, open).ctx, store);
     assertEquals(JSON.stringify(await store.get(player.userId)), snapshot);
@@ -128,7 +128,7 @@ Deno.test('Uses: guarded navigation preserves bag/shop context, resources and re
     const next = withRev(saved.uiRev, encodeCb({ v: 'uses', a: 'p', arg: 1 }));
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, next).ctx, store);
     saved = (await store.get(player.userId))!;
-    assertEquals(saved.scene, { ...scene, arg3: 'uses:1' });
+    assertEquals(saved.scene, { ...scene, reference: { kind: 'uses', page: 1 } });
     const back = withRev(saved.uiRev, encodeCb({ v: 'uses', a: 'bk' }));
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, back).ctx, store);
     saved = (await store.get(player.userId))!;
@@ -139,17 +139,17 @@ Deno.test('Uses: guarded navigation preserves bag/shop context, resources and re
     );
     if (scene.view === 'item') {
       assert(
-        controls(renderItemDetail(saved, scene.arg, scene.arg2)).includes(
+        controls(renderItemDetail(saved, scene.itemId, scene.returnTo)).includes(
           encodeCb({ v: 'uses', a: 'p', arg: 0 }),
         ),
       );
     }
   }
   for (
-    const scene of [{ view: 'zone' }, { view: 'item', arg: 'm_pickaxe' }, {
+    const scene of [{ view: 'zone' }, { view: 'item', itemId: 'm_pickaxe' }, {
       view: 'shop',
-      arg: 'sell',
-      arg2: '0',
+      mode: 'sell',
+      page: 0,
     }] as const
   ) {
     player.scene = scene;

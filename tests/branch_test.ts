@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * The consequential branch (#132, #147): the Ferryman's shrine pledge
  * advances a real shared parent quest, starts one of two follow-up routes
@@ -42,7 +43,7 @@ async function atPledgeChoice(store: MemoryStore, userId: number) {
   await tap('npc:lore:ferry_promise');
   await tap('dlg:nx:n2');
   const cur = await tap('dlg:nx:n3');
-  assertEquals(cur.scene.arg2, PLEDGE_NODE);
+  assertEquals(expectScene(cur, 'dialogue').nodeId, PLEDGE_NODE);
   return tap;
 }
 
@@ -58,9 +59,9 @@ async function commitPledge(store: MemoryStore, userId: number, choice: string) 
 function pledgeFrom(player: PlayerState, choice: string): void {
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_ferry_promise',
-    arg2: PLEDGE_NODE,
-    arg3: `confirm:${choice}`,
+    dialogueId: 'dlg_ferry_promise',
+    nodeId: PLEDGE_NODE,
+    confirmation: choice,
   };
   const result = applyDialogueChoice(player, { choiceId: choice, now: 1 });
   assert(result.ok);
@@ -70,7 +71,7 @@ Deno.test('branch: the deferral leaves the parent pending and both routes open',
   const store = new MemoryStore();
   const player = ferryHero(1700);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1700, player);
   const tap = await atPledgeChoice(store, 1700);
   const story = (player: PlayerState) =>
@@ -101,7 +102,7 @@ Deno.test('branch: the promise route advances the parent, starts the beacon, loc
   const store = new MemoryStore();
   const player = ferryHero(1701);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1701, player);
   const cur = await commitPledge(store, 1701, 'promise');
   assertEquals(cur.decisions['ferry_shrine_pledge']?.choiceId, 'promise');
@@ -136,7 +137,7 @@ Deno.test('branch: the decline route advances the parent, starts the debt, locks
   const store = new MemoryStore();
   const player = ferryHero(1702);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1702, player);
   const cur = await commitPledge(store, 1702, 'decline');
   assertEquals(cur.decisions['ferry_shrine_pledge']?.choiceId, 'decline');
@@ -153,14 +154,14 @@ Deno.test('branch: after commitment the other choice can never unlock both route
   const store = new MemoryStore();
   const player = ferryHero(1703);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1703, player);
   await commitPledge(store, 1703, 'promise');
   const cur = (await store.get(1703))!;
   // The parent question is answered, so the choice's own gate is closed —
   // and the ledger forbids re-deciding regardless: a fresh engine-level
   // attempt with the other choice is refused untouched.
-  cur.scene = { view: 'dialogue', arg: 'dlg_ferry_promise', arg2: PLEDGE_NODE };
+  cur.scene = { view: 'dialogue', dialogueId: 'dlg_ferry_promise', nodeId: PLEDGE_NODE };
   const before = JSON.stringify({ q: cur.quests, o: cur.questOutcomes });
   const result = applyDialogueChoice(cur, { choiceId: 'decline', now: 99 });
   assertEquals(result.ok, false, 'the answered question and the ledger both refuse');
@@ -183,11 +184,11 @@ Deno.test('branch: the committed state survives save/reload and rerenders stably
   const store = new MemoryStore();
   const player = ferryHero(1704);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1704, player);
   await commitPledge(store, 1704, 'promise');
   const cur = (await store.get(1704))!;
-  cur.scene = { view: 'npc', arg: FERRY };
+  cur.scene = { view: 'npc', npcId: FERRY };
   const firstTopics = JSON.stringify(npcTopics(cur, FERRY));
   const secondTopics = JSON.stringify(npcTopics(cur, FERRY));
   assertEquals(firstTopics, secondTopics, 'the post-commitment topic menu is stable');
@@ -266,7 +267,7 @@ Deno.test('branch: keeping the light resolves the named outcome and forgoes the 
   // relighting guidance, no debt rows.
   const topics = npcTopics(player, FERRY);
   assert(topics.some((topic) => topic.id === 'ferry_ledger'), 'the aftermath topic is offered');
-  player.scene = { view: 'dialogue', arg: 'dlg_ferry_aftermath', arg2: 'a1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_ferry_aftermath', nodeId: 'a1' };
   const view = JSON.stringify(renderDialogue(player));
   assert(view.includes('dlg:ch:keptlight'), 'the kept-light reaction renders');
   assert(!view.includes('dlg:ch:beacon'), 'no relighting guidance for the kept outcome');
@@ -310,7 +311,7 @@ function validateRefusal(player: PlayerState, ctx: StoryContext): boolean {
 // ── the aftermath state matrix (#147) ────────────────────────────────────
 
 function aftermathView(player: PlayerState): string {
-  player.scene = { view: 'dialogue', arg: 'dlg_ferry_aftermath', arg2: 'a1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_ferry_aftermath', nodeId: 'a1' };
   return JSON.stringify(renderDialogue(player));
 }
 
@@ -387,7 +388,7 @@ Deno.test('branch: the pledge parent turn-in completes the shared question (#147
   const store = new MemoryStore();
   const player = ferryHero(1712);
   player.messageId = 400;
-  player.scene = { view: 'npc', arg: FERRY };
+  player.scene = { view: 'npc', npcId: FERRY };
   await store.set(1712, player);
   const tap = async (data: string) => {
     const before = (await store.get(1712))!;

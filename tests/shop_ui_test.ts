@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** #187: inspect the local shelf before buying, with complete item facts
  * and a persisted return page. Ordinary play stays in the live message. */
 import { assert, assertEquals } from '@std/assert';
@@ -21,7 +22,7 @@ function shopper() {
   player.level = 7;
   player.gold = 1000;
   player.quests.m5_arms = { status: 'active', counts: [0] };
-  player.scene = { view: 'shop', arg: '0' };
+  player.scene = { view: 'shop', mode: 'buy', page: 0 };
   player.messageId = 187;
   return player;
 }
@@ -129,10 +130,10 @@ Deno.test('shop: invalid, gated, incompatible and unavailable inspections refuse
   player.currentZone = 'emberdawn';
   player.scene = { view: 'zone' };
   assert(shopAction(player, { v: 'shop', a: 'view', arg: 'c_minor_potion' }).toast);
-  player.scene = { view: 'shop', arg: 'sell', arg2: '0' };
+  player.scene = { view: 'shop', mode: 'sell', page: 0 };
   assert(shopAction(player, { v: 'shop', a: 'view', arg: 'c_minor_potion' }).toast);
 
-  player.scene = { view: 'shop', arg: '0' };
+  player.scene = { view: 'shop', mode: 'buy', page: 0 };
   player.battle = startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, {
     player,
     rng: () => 0.5,
@@ -156,7 +157,7 @@ Deno.test('shop: an offering removed while Details is open loses Buy and refuses
 
 Deno.test('shop: inspect, save/load, buy, stale replay and Back retain the live message and page', async () => {
   const player = shopper();
-  player.scene.arg = '1';
+  expectScene(player, 'shop').page = 1;
   player.gold = offeredPrice(player, 'm_iron_chunk')!;
   const store = new MemoryStore();
   await store.set(player.userId, player);
@@ -173,7 +174,7 @@ Deno.test('shop: inspect, save/load, buy, stale replay and Back retain the live 
   };
   const open = await tap({ v: 'shop', a: 'view', arg: 'm_iron_chunk' });
   assert(JSON.stringify(open.edits).includes(item('m_iron_chunk')!.desc!));
-  const scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' } as const;
+  const scene = { view: 'shop', mode: 'buy', page: 1, itemId: 'm_iron_chunk' } as const;
   assertEquals((await store.get(player.userId))!.scene, scene);
 
   // A fresh deserialization, then /start, must reproduce the selected detail.
@@ -202,7 +203,7 @@ Deno.test('shop: inspect, save/load, buy, stale replay and Back retain the live 
   assertEquals(replay.edits.length, 0);
   assert(replay.toasts.some((toast) => toast?.includes('stale')));
   await tap({ v: 'shop', a: 'p', arg: 1 });
-  assertEquals((await store.get(player.userId))!.scene, { view: 'shop', arg: '1' });
+  assertEquals((await store.get(player.userId))!.scene, { view: 'shop', mode: 'buy', page: 1 });
 });
 
 Deno.test('shop: selling pagination and switching back to buying have distinct controls', () => {
@@ -210,13 +211,13 @@ Deno.test('shop: selling pagination and switching back to buying have distinct c
   const sellWire = encodeCb({ v: 'shop', a: 'p', arg: -1 });
   assert(controls(renderShop(player, 0)).includes(sellWire));
   shopAction(player, decodeCb(sellWire) as Cb & { v: 'shop' });
-  assertEquals(player.scene, { view: 'shop', arg: 'sell', arg2: '0' });
+  assertEquals(player.scene, { view: 'shop', mode: 'sell', page: 0 });
   shopAction(player, { v: 'shop', a: 'p', arg: 1 });
-  assertEquals(player.scene, { view: 'shop', arg: 'sell', arg2: '1' });
+  assertEquals(player.scene, { view: 'shop', mode: 'sell', page: 1 });
   shopAction(player, { v: 'shop', a: 'p', arg: 0 });
-  assertEquals(player.scene, { view: 'shop', arg: 'sell', arg2: '0' });
+  assertEquals(player.scene, { view: 'shop', mode: 'sell', page: 0 });
   const buyWire = encodeCb({ v: 'shop', a: 'p', arg: -2 });
   assert(controls(renderSell(player, 0)).includes(buyWire));
   shopAction(player, decodeCb(buyWire) as Cb & { v: 'shop' });
-  assertEquals(player.scene, { view: 'shop', arg: '0' });
+  assertEquals(player.scene, { view: 'shop', mode: 'buy', page: 0 });
 });

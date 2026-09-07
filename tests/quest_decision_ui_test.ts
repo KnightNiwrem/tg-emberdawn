@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Quest decision hierarchy and informed choices in native Rich Messages (#192). */
 import { assert, assertEquals } from '@std/assert';
 import type { InputRichBlock } from 'grammy/types';
@@ -32,7 +33,7 @@ function rows(blocks: InputRichBlock[]) {
 
 Deno.test('quest decision UI: first offer highlights work and rewards and pairs Accept with Not now', () => {
   const player = createPlayer(1920, 'Reader', 'mage');
-  player.scene = { view: 'dialogue', arg: 'dlg_m1_embers_offer', arg2: 'oa' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m1_embers_offer', nodeId: 'oa' };
   const before = JSON.stringify(player);
   const blocks = renderDialogue(player).blocks!;
   assertEquals(
@@ -103,7 +104,7 @@ Deno.test('quest decision UI: collection costs, progress, and reward timing stay
 
 Deno.test('quest decision UI: Six Fewer Rats puts each Explore location on its own line', () => {
   const player = createPlayer(1926, 'Reader', 'mage');
-  player.scene = { view: 'dialogue', arg: 'dlg_sq_rats_offer', arg2: 'oa' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_sq_rats_offer', nodeId: 'oa' };
   const blocks = renderDialogue(player).blocks!;
   const objectives = blocks.find((block) => block.type === 'list');
   assert(objectives?.type === 'list');
@@ -158,7 +159,7 @@ Deno.test('quest decision UI: collection directions keep each source activity an
 
 Deno.test('quest decision UI: each branch owns its warning and button, without a preferred route', () => {
   const player = ferryHero(1922);
-  player.scene = { view: 'dialogue', arg: 'dlg_ferry_promise', arg2: 'n3' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_ferry_promise', nodeId: 'n3' };
   const blocks = renderDialogue(player).blocks!;
   const actionRows = rows(blocks);
   assertEquals(actionRows.length, 3, 'two visible routes and one deferral');
@@ -227,9 +228,9 @@ Deno.test('quest decision UI: confirmation separates the keepsake from exact for
   const player = ferryHero(1924);
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_sq_shrine_pact_turnin',
-    arg2: 'ta',
-    arg3: 'confirm:keep',
+    dialogueId: 'dlg_sq_shrine_pact_turnin',
+    nodeId: 'ta',
+    confirmation: 'keep',
   };
   const questDef = quest('sq_shrine_pact')!;
   const before = JSON.stringify(player);
@@ -265,7 +266,11 @@ Deno.test('quest decision UI: confirmation separates the keepsake from exact for
   assertEquals(row.buttons.map((button) => button.style), ['danger', undefined]);
   assertEquals(JSON.stringify(player), before);
   dialogueAction(player, { v: 'dlg', a: 'cc' });
-  assertEquals(player.scene.arg3, undefined, 'Go back still only cancels staging');
+  assertEquals(
+    expectScene(player, 'dialogue').confirmation,
+    undefined,
+    'Go back still only cancels staging',
+  );
 });
 
 Deno.test('quest decision UI: direct grants, travel unlocks, and item costs disclose their timing', () => {
@@ -295,7 +300,7 @@ Deno.test('quest decision UI: direct grants, travel unlocks, and item costs disc
   // With the parent no longer active, no response can be chosen; the exit still aligns.
   player.currentZone = 'hollowmere';
   const dialogueDef = dialogue('dlg_ferry_promise')!;
-  player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: 'n3' };
+  player.scene = { view: 'dialogue', dialogueId: dialogueDef.id, nodeId: 'n3' };
   assertEquals(
     rows(renderDialogue(player).blocks!).map((
       block,

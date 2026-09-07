@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Quest action authority (#64, #127): accept/turn-in require the quest's
  * configured contact, physically present in the player's current zone.
  * The Quest Log can neither accept nor turn in; wrong-site attempts never
@@ -32,8 +33,8 @@ function walkToChoice(
     for (let dialogueStep = 0; dialogueStep < 12; dialogueStep++) {
       const scene = cur.scene;
       if (scene.view !== 'dialogue') return;
-      const dialogueDef = dialogue(scene.arg ?? '')!;
-      const node = dialogueDef.nodes.find((node) => node.id === scene.arg2)!;
+      const dialogueDef = dialogue(scene.dialogueId)!;
+      const node = dialogueDef.nodes.find((node) => node.id === scene.nodeId)!;
       if (node.kind === 'choice') return;
       if (node.kind === 'line' && node.next) {
         await handleCallback(
@@ -136,11 +137,11 @@ Deno.test('handler: log callbacks refuse with guidance; the topic menu is naviga
   await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'npc:q:m1_embers')), store);
   cur = (await store.get(982))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m1_embers_offer');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m1_embers_offer');
   // Walk to the accept choice and confirm it.
   await walkToChoice(store, 982, 900, cur);
   cur = (await store.get(982))!;
-  assertEquals(cur.scene.arg2, 'oa');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'oa');
   assertEquals(cur.quests['m1_embers']?.status, 'available', 'reading alone accepts nothing');
   await handleCallback(fakeCtx(982, 900, withRev(cur.uiRev ?? 0, 'dlg:ch:accept')), store);
   cur = (await store.get(982))!;
@@ -169,11 +170,11 @@ Deno.test('handler: duplicate turn-in choices cannot grant rewards twice (#64, #
   await handleCallback(fakeCtx(983, 910, withRev(cur.uiRev ?? 0, 'npc:q:m1_embers')), store);
   cur = (await store.get(983))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m1_embers_turnin');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m1_embers_turnin');
   // Walk to the hand-over choice and confirm it.
   await walkToChoice(store, 983, 910, cur);
   cur = (await store.get(983))!;
-  assertEquals(cur.scene.arg2, 'ta');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'ta');
   const rev = cur.uiRev ?? 0;
   await handleCallback(fakeCtx(983, 910, withRev(rev, 'dlg:ch:handover')), store);
   cur = (await store.get(983))!;
@@ -204,7 +205,7 @@ Deno.test('handler: dialogue choice callbacks without a live scene are harmless 
   // A live offer dialogue: the accept choice runs through the central
   // authority with the dialogue's OWN NPC — the right quest accepts, the
   // wrong-quest id (m1, already done) is not on this table.
-  cur.scene = { view: 'dialogue', arg: 'dlg_m2_letter_offer', arg2: 'oa' };
+  cur.scene = { view: 'dialogue', dialogueId: 'dlg_m2_letter_offer', nodeId: 'oa' };
   await store.set(984, cur);
   cur = (await store.get(984))!;
   await handleCallback(fakeCtx(984, 920, withRev(cur.uiRev ?? 0, 'dlg:ch:accept')), store);
@@ -231,7 +232,7 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64, #127)', as
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(985))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_offer');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_offer');
   // Walk to the accept choice; accept.
   await walkToChoice(store, 985, 930, cur);
   cur = (await store.get(985))!;
@@ -240,7 +241,7 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64, #127)', as
   assertEquals(cur.quests['m2_letter']?.status, 'active');
   // The accept choice ends its conversation: back to Maren's topic menu.
   assertEquals(cur.scene.view, 'npc');
-  assertEquals(cur.scene.arg, 'npc_maren');
+  assertEquals(expectScene(cur, 'npc').npcId, 'npc_maren');
 
   // Then go talk to Bram: the ACTIVE business topic opens the authored
   // conversation; reaching the reading node emits the stable event that
@@ -254,7 +255,7 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64, #127)', as
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(985))!;
   assertEquals(cur.scene.view, 'dialogue', 'the conversation topic opens the reading');
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_talk');
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'dlg:nx:c2')), store);
   cur = (await store.get(985))!;
   assertEquals(cur.quests['m2_letter']?.status, 'turnIn', 'the event readied the quest');
@@ -263,7 +264,7 @@ Deno.test('handler: the Maren → Bram delivery end to end (#63, #64, #127)', as
   cur = (await store.get(985))!;
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(985))!;
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_turnin');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_turnin');
   await walkToChoice(store, 985, 930, cur);
   cur = (await store.get(985))!;
   await handleCallback(fakeCtx(985, 930, withRev(cur.uiRev ?? 0, 'dlg:ch:handover')), store);

@@ -21,7 +21,12 @@ const CHOICE_NODE = 'n3';
 /** The live scene: inside the Ferryman's promise dialogue, on its choice
  * node, optionally with a staged confirmation panel. */
 function atChoice(player: PlayerState, staged?: string): void {
-  player.scene = { view: 'dialogue', arg: DIALOGUE, arg2: CHOICE_NODE, arg3: staged };
+  player.scene = {
+    view: 'dialogue',
+    dialogueId: DIALOGUE,
+    nodeId: CHOICE_NODE,
+    confirmation: staged,
+  };
 }
 
 /** The story state a refused call must never touch. */
@@ -48,7 +53,7 @@ Deno.test('authority: no active dialogue scene refuses, even with the exact choi
   // The #130 bypass shape: ordinary zone view, no dialogue open.
   player.scene = { view: 'zone' };
   assertRefused(player, 'promise');
-  player.scene = { view: 'npc', arg: 'npc_ferryman' };
+  player.scene = { view: 'npc', npcId: 'npc_ferryman' };
   assertRefused(player, 'promise');
   assertEquals(player.decisions['ferry_shrine_pledge'], undefined);
 });
@@ -56,10 +61,10 @@ Deno.test('authority: no active dialogue scene refuses, even with the exact choi
 Deno.test('authority: wrong dialogue, wrong node, wrong choice all refuse', () => {
   const player = ferryHero(1601);
   // A different dialogue's scene cannot reach this dialogue's choices.
-  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n1' };
   assertRefused(player, 'promise');
   // The right dialogue but a LINE node, not the choice node.
-  player.scene = { view: 'dialogue', arg: DIALOGUE, arg2: 'n1' };
+  player.scene = { view: 'dialogue', dialogueId: DIALOGUE, nodeId: 'n1' };
   assertRefused(player, 'promise');
   // The right choice node but a choice id it does not offer.
   atChoice(player);
@@ -72,14 +77,14 @@ Deno.test('authority: correct dialogue in the wrong zone refuses — presence is
   const player = createPlayer(1602, 'T', 'warrior');
   syncAvailability(player);
   assertEquals(player.currentZone, 'emberdawn');
-  atChoice(player, 'confirm:promise');
+  atChoice(player, 'promise');
   assertRefused(player, 'promise');
   assertEquals(player.decisions['ferry_shrine_pledge'], undefined, 'no permanent record');
 });
 
 Deno.test('authority: the acting NPC comes from the dialogue definition, not the caller', () => {
   const player = ferryHero(1603);
-  atChoice(player, 'confirm:promise');
+  atChoice(player, 'promise');
   const result = applyDialogueChoice(player, { choiceId: 'promise', now: 1 });
   assert(result.ok);
   // Provenance names the dialogue's OWN npc/dialogue/node — the API accepts
@@ -109,7 +114,7 @@ Deno.test('authority: an irreversible choice refuses before its confirmation is 
 
 Deno.test('authority: a confirmation staged for a DIFFERENT choice does not authorize', () => {
   const player = ferryHero(1605);
-  atChoice(player, 'confirm:vouch'); // staged for another response
+  atChoice(player, 'vouch'); // staged for another response
   assertRefused(player, 'promise');
 });
 
@@ -122,9 +127,9 @@ Deno.test('authority: an ordinary choice refuses while a confirmation is staged'
   syncAvailability(player);
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_m1_embers_offer',
-    arg2: 'oa',
-    arg3: 'confirm:accept',
+    dialogueId: 'dlg_m1_embers_offer',
+    nodeId: 'oa',
+    confirmation: 'accept',
   };
   const result = applyDialogueChoice(player, { choiceId: 'accept', now: 1 });
   assert(!result.ok, 'the staged panel is the live sub-state, not the list');
@@ -138,14 +143,14 @@ Deno.test('authority: a condition that turned false after render refuses at appl
   // 'vouch' requires m6_toxin done — rendered earlier, no longer true now.
   // The panel stages (rendering was never authority) but the central op
   // re-evaluates the condition and refuses before any mutation.
-  atChoice(player, 'confirm:vouch');
+  atChoice(player, 'vouch');
   assertRefused(player, 'vouch');
   assertEquals(player.decisions['ferry_shrine_pledge'], undefined);
 });
 
 Deno.test('authority: correct scene, owner, presence and staged panel apply exactly once', () => {
   const player = ferryHero(1608);
-  atChoice(player, 'confirm:promise');
+  atChoice(player, 'promise');
   const result = applyDialogueChoice(player, { choiceId: 'promise', now: 1 });
   assert(result.ok);
   assertEquals(result.decided, 'ferry_shrine_pledge');
@@ -166,7 +171,7 @@ Deno.test('authority: correct scene, owner, presence and staged panel apply exac
 
 Deno.test('authority: an identical retry is a complete no-op (#129 receipts)', () => {
   const player = ferryHero(1609);
-  atChoice(player, 'confirm:promise');
+  atChoice(player, 'promise');
   const r1 = applyDialogueChoice(player, { choiceId: 'promise', now: 1 });
   assert(r1.ok);
   const before = JSON.stringify(player);

@@ -391,58 +391,57 @@ function validateReceipt(receipt: string, bad: Report): void {
 function validateScene(scene: SceneState, bad: Report): void {
   if (!(scene.view in KNOWN_VIEWS)) {
     bad('scene.view', scene.view, 'unknown view id');
-    return; // arg meaning is unknowable without a known view
+    return;
   }
-  const arg = scene.arg ?? '';
   switch (scene.view) {
     case 'item':
-      // arg is the item id whose detail is shown (#112).
-      if (!item(arg)) bad('scene.arg', arg, 'unknown item id');
+      if (!item(scene.itemId)) bad('scene.itemId', scene.itemId, 'unknown item id');
       return;
     case 'shop':
-      // #187: arg2 selects an item only in buying mode; sell-mode arg2
-      // remains pagination. Availability is rechecked by the shop itself.
-      if (arg !== 'sell' && scene.arg2 !== undefined && !item(scene.arg2)) {
-        bad('scene.arg2', scene.arg2, 'unknown shop item id');
+      if (scene.mode === 'buy' && scene.itemId !== undefined && !item(scene.itemId)) {
+        bad('scene.itemId', scene.itemId, 'unknown shop item id');
       }
       return;
     case 'quests':
-      // arg (when set) selects a quest detail.
-      if (arg && !quest(arg)) bad('scene.arg', arg, 'unknown quest id');
+      if (scene.questId && !quest(scene.questId)) {
+        bad('scene.questId', scene.questId, 'unknown quest id');
+      }
       return;
     case 'npc': {
-      const npcDef = npc(arg);
-      if (!npcDef) return bad('scene.arg', arg, 'unknown NPC id');
-      const sub = scene.arg2 ?? '';
-      if (sub.startsWith('lore:')) {
-        const topicId = sub.slice('lore:'.length);
-        if (!(npcDef.topics ?? []).some((topic) => topic.id === topicId)) {
-          bad('scene.arg2', sub, 'unknown NPC topic id');
-        }
-      } else if (sub.startsWith('q:')) {
-        if (!quest(sub.slice(2))) bad('scene.arg2', sub, 'unknown quest id');
+      const npcDef = npc(scene.npcId);
+      if (!npcDef) return bad('scene.npcId', scene.npcId, 'unknown NPC id');
+      const topic = scene.topic;
+      if (topic?.kind === 'lore' && !npcDef.topics?.some((entry) => entry.id === topic.id)) {
+        bad('scene.topic', topic.id, 'unknown NPC topic id');
+      }
+      if (topic?.kind === 'quest' && !quest(topic.id)) {
+        bad('scene.topic', topic.id, 'unknown quest id');
       }
       return;
     }
     case 'dialogue': {
-      const dlg = dialogue(arg);
-      if (!dlg) return bad('scene.arg', arg, 'unknown dialogue id');
-      const node = dialogueNode(dlg, scene.arg2 ?? '');
-      if (!node) return bad('scene.arg2', scene.arg2 ?? '', 'unknown dialogue node');
-      const staged = scene.arg3 ?? '';
-      if (staged.startsWith('confirm:')) {
-        const choiceId = staged.slice('confirm:'.length);
-        if (node.kind !== 'choice' || !node.choices.some((choice) => choice.id === choiceId)) {
-          bad('scene.arg3', staged, 'unknown staged confirmation choice');
-        }
+      const dialogueDef = dialogue(scene.dialogueId);
+      if (!dialogueDef) return bad('scene.dialogueId', scene.dialogueId, 'unknown dialogue id');
+      const node = dialogueNode(dialogueDef, scene.nodeId);
+      if (!node) return bad('scene.nodeId', scene.nodeId, 'unknown dialogue node');
+      if (
+        scene.confirmation !== undefined &&
+        (node.kind !== 'choice' || !node.choices.some((choice) => choice.id === scene.confirmation))
+      ) {
+        bad('scene.confirmation', scene.confirmation, 'unknown staged confirmation choice');
       }
       return;
     }
     case 'equippedItem':
-      if (!EQUIP_SLOTS.has(arg)) bad('scene.arg', arg, 'unknown equip slot');
+      if (!EQUIP_SLOTS.has(scene.slot)) bad('scene.slot', scene.slot, 'unknown equip slot');
+      return;
+    case 'travel':
+      if (scene.confirmEdgeId && !route(scene.confirmEdgeId)) {
+        bad('scene.confirmEdgeId', scene.confirmEdgeId, 'unknown route id');
+      }
       return;
     default:
-      return; // remaining views carry no content identity in their args
+      return;
   }
 }
 

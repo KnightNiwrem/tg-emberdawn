@@ -91,16 +91,41 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     // #187: an inspected shop item and its return page survive JSONB;
     // the optional selection must re-pass the persisted-identity gate.
     const shopper = createPlayer(1873, 'Shopper', 'warrior');
-    shopper.scene = { view: 'shop', arg: '1', arg2: 'c_minor_potion', arg3: 'sources:1' };
+    shopper.scene = {
+      view: 'shop',
+      mode: 'buy',
+      page: 1,
+      itemId: 'c_minor_potion',
+      reference: { kind: 'sources', page: 1 },
+    };
     await store.withLock(shopper.userId, () => store.set(shopper.userId, shopper));
     const restored = (await store.get(shopper.userId))!;
     assertEquals(restored, shopper);
     assertResolvablePersistedIds(restored);
-    shopper.scene = { view: 'shop', arg: '1', arg2: 'm_worm_bait', arg3: 'uses:1' };
+    shopper.scene = {
+      view: 'shop',
+      mode: 'buy',
+      page: 1,
+      itemId: 'm_worm_bait',
+      reference: { kind: 'uses', page: 1 },
+    };
     await store.withLock(shopper.userId, () => store.set(shopper.userId, shopper));
     const usesRestored = (await store.get(shopper.userId))!;
     assertEquals(usesRestored, shopper);
     assertResolvablePersistedIds(usesRestored);
+    shopper.scene = {
+      view: 'item',
+      itemId: 'c_minor_potion',
+      returnTo: { kind: 'inventory', page: 2 },
+      reference: { kind: 'uses', page: 1 },
+    };
+    await store.set(shopper.userId, shopper);
+    assertEquals(await store.get(shopper.userId), shopper);
+    assertResolvablePersistedIds((await store.get(shopper.userId))!);
+    shopper.scene = { view: 'travel', confirmEdgeId: 'w_whisperwood_hollowmere' };
+    await store.set(shopper.userId, shopper);
+    assertEquals(await store.get(shopper.userId), shopper);
+    assertResolvablePersistedIds((await store.get(shopper.userId))!);
     await store.delete(shopper.userId);
 
     // #191: the current campaign's quest objects survive JSONB; storing an
@@ -113,7 +138,7 @@ Deno.test('PgStore: ensure schema + set/get/delete round-trip', { ignore: !url }
     carrier.flags.forageReset_mirefoot = 2000;
     carrier.quests.sq_locket = { status: 'turnIn', counts: [1] };
     carrier.inventory.push({ id: 'q_pells_locket', qty: 1 }, { id: 'q_wisp_lantern', qty: 1 });
-    carrier.scene = { view: 'dialogue', arg: 'dlg_sq_locket_turnin', arg2: 'ta' };
+    carrier.scene = { view: 'dialogue', dialogueId: 'dlg_sq_locket_turnin', nodeId: 'ta' };
     await store.set(carrier.userId, carrier);
     const current = (await store.get(carrier.userId))!;
     assertEquals(current, carrier);

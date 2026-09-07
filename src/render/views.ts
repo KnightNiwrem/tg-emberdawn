@@ -80,8 +80,10 @@ export function renderZone(player: PlayerState): InputRichMessage {
   // are withheld until the prologue releases the player into the real hub.
   if (player.tutorial !== 'done' && !player.battle) return renderTutorialHub(player);
   if (player.dungeonRun) return renderDungeonRun(player);
-  if (player.scene.arg === 'gather') return renderGathering(player);
-  if (player.scene.arg === 'craft') return renderCrafting(player);
+  if (player.scene.view === 'zone' && player.scene.panel === 'gather') {
+    return renderGathering(player);
+  }
+  if (player.scene.view === 'zone' && player.scene.panel === 'craft') return renderCrafting(player);
   const zoneDef = zone(player.currentZone)!;
   const dungeon = dungeonOf(zoneDef);
   const blocks = zoneHeader(player);
@@ -93,7 +95,9 @@ export function renderZone(player: PlayerState): InputRichMessage {
     // every action out here is a fight.
     blocks.push(para('🌫️ Dangerous wilds · You can flee exploration battles.'));
   }
-  if (dungeon && player.scene.arg === 'bossok') return renderDungeonEntrance(player);
+  if (dungeon && player.scene.view === 'zone' && player.scene.panel === 'dungeonEntrance') {
+    return renderDungeonEntrance(player);
+  }
 
   const activities = [cbBtn(
     zoneDef.safeHaven ? '🧭 Search' : '🧭 Explore',
@@ -274,7 +278,7 @@ export function renderCrafting(player: PlayerState): InputRichMessage {
   const blocks = zoneHeader(player);
   const recipes = recipesAt(player);
   const pages = Math.max(1, Math.ceil(recipes.length / 3));
-  const requested = Number(player.scene.arg2 ?? 0);
+  const requested = player.scene.view === 'zone' ? player.scene.page ?? 0 : 0;
   const page = Number.isFinite(requested)
     ? Math.max(0, Math.min(pages - 1, Math.floor(requested)))
     : 0;
@@ -394,9 +398,8 @@ const RISK_TEXT: Record<string, string> = {
 function renderTravelConfirmation(player: PlayerState): InputRichMessage | undefined {
   // A hazardous-departure confirmation (#164): the staged panel replaces
   // the route list until confirmed or dismissed.
-  const staged = player.scene.arg ?? '';
-  if (staged.startsWith('go:')) {
-    const edgeId = staged.slice('go:'.length);
+  const edgeId = player.scene.view === 'travel' ? player.scene.confirmEdgeId : undefined;
+  if (edgeId) {
     const plan = resolveRouteById(player, edgeId);
     const dest = plan ? zone(plan.to) : undefined;
     if (plan && dest) {
@@ -636,7 +639,12 @@ export function renderShopItemDetail(
       ],
     };
   }
-  const reference = renderItemReference(def.id, player.scene.arg3);
+  const reference = renderItemReference(
+    def.id,
+    player.scene.view === 'shop' && player.scene.mode === 'buy'
+      ? player.scene.reference
+      : undefined,
+  );
   if (reference) return reference;
   const blocks: Block[] = [
     heading(`${defEmoji(def.kind)} ${def.name}`, 4),
@@ -990,7 +998,9 @@ export function renderQuestDetail(player: PlayerState, id: string): InputRichMes
  * exposes their authored conversation instead of flashing a notice. Pure
  * navigation: nothing here mutates. */
 export function renderNpcTopics(player: PlayerState): InputRichMessage {
-  const npcId = player.scene.arg ?? '';
+  const scene = player.scene.view === 'npc' ? player.scene : undefined;
+  const npcId = scene?.npcId ?? '';
+  const selectedTopic = scene?.topic;
   const def = npc(npcId);
   const blocks: Block[] = [];
   if (!def || !npcInZone(player.currentZone, npcId)) {
@@ -998,18 +1008,16 @@ export function renderNpcTopics(player: PlayerState): InputRichMessage {
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'bk' }))]));
     return { blocks };
   }
-  if (player.scene.arg2?.startsWith('lore:')) {
-    const topic = def.topics?.find((topicItem) =>
-      topicItem.id === player.scene.arg2!.slice('lore:'.length)
-    );
+  if (selectedTopic?.kind === 'lore') {
+    const topic = def.topics?.find((topicItem) => topicItem.id === selectedTopic.id);
     blocks.push(heading(`🗣️ ${def.name}`, 4));
     blocks.push(...noticesBlocks(player));
     if (topic?.text) blocks.push(quote({ type: 'italic', text: topic.text }));
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'npc', a: 'op', arg: npcId }))]));
     return { blocks };
   }
-  if (player.scene.arg2?.startsWith('q:')) {
-    const questDef = quest(player.scene.arg2.slice('q:'.length));
+  if (selectedTopic?.kind === 'quest') {
+    const questDef = quest(selectedTopic.id);
     blocks.push(heading(`🗣️ ${def.name}`, 4));
     blocks.push(...noticesBlocks(player));
     if (questDef) {
@@ -1052,7 +1060,8 @@ export function renderNpcTopics(player: PlayerState): InputRichMessage {
  * restarts it from the start node (documented policy); /start and rerenders
  * reproduce the CURRENT node because the scene persists (dialogue, node). */
 export function renderDialogue(player: PlayerState): InputRichMessage {
-  const dialogueDef = dialogue(player.scene.arg ?? '');
+  const scene = player.scene.view === 'dialogue' ? player.scene : undefined;
+  const dialogueDef = dialogue(scene?.dialogueId ?? '');
   const blocks: Block[] = [];
   const npcDef = dialogueDef ? npc(dialogueDef.npcId) : undefined;
   if (!dialogueDef || !npcDef || !npcInZone(player.currentZone, dialogueDef.npcId)) {
@@ -1060,7 +1069,7 @@ export function renderDialogue(player: PlayerState): InputRichMessage {
     blocks.push(buttonsRow([cbBtn('⬅️ Back', encodeCb({ v: 'dlg', a: 'bk' }))]));
     return { blocks };
   }
-  const node = dialogueNode(dialogueDef, player.scene.arg2 ?? '') ??
+  const node = dialogueNode(dialogueDef, scene?.nodeId ?? '') ??
     dialogueNode(dialogueDef, dialogueDef.start)!;
   blocks.push(heading(`🗣️ ${npcDef.name}`, 4));
   blocks.push(...noticesBlocks(player));
@@ -1087,11 +1096,9 @@ export function renderDialogue(player: PlayerState): InputRichMessage {
   if (node.kind === 'choice') {
     // Irreversible confirmation panel (#126): repeats the selection, states
     // permanence, offers the consequence hint, mutates NOTHING — Confirm
-    // is the only mutating control, staged through arg3.
-    if (player.scene.arg3?.startsWith('confirm:')) {
-      const choice = node.choices.find((choice) =>
-        choice.id === player.scene.arg3!.slice('confirm:'.length)
-      );
+    // is the only mutating control, staged through scene.confirmation.
+    if (scene?.confirmation !== undefined) {
+      const choice = node.choices.find((choice) => choice.id === scene.confirmation);
       if (choice) {
         blocks.push(quote(`You — “${choice.label}”`));
         blocks.push(...choiceQuestBlocks(player, choice));

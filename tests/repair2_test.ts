@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Repair-pass-2 regressions: /start neutrality, meta-callback safety, the
  * save-version gate, engine authority checks, quest delivery invariants, pool
  * clamping, shop boundaries, forage cooldown. */
@@ -526,7 +527,7 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
   await handleCallback(fakeCtx(920, 300, withRev(0, 'q:q:m3_roots')), store);
   let cur = (await store.get(920))!;
   assertEquals(cur.scene.view, 'quests');
-  assertEquals(cur.scene.arg, 'm3_roots');
+  assertEquals(expectScene(cur, 'quests').questId, 'm3_roots');
   const goldBefore = cur.gold;
   await handleCallback(
     fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'q:t:m3_roots')),
@@ -546,7 +547,7 @@ Deno.test('ready main quest: the log detail refuses; the NPC interaction complet
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'npc:q:m3_roots')), store);
   cur = (await store.get(920))!;
   assertEquals(cur.scene.view, 'dialogue', 'the topic opens the turn-in dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m3_roots_turnin');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m3_roots_turnin');
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'dlg:nx:ta')), store);
   cur = (await store.get(920))!;
   await handleCallback(fakeCtx(920, 300, withRev(cur.uiRev ?? 0, 'dlg:ch:handover')), store);
@@ -560,7 +561,7 @@ Deno.test('inventory Equipment button opens equipment; Back returns (#17)', asyn
   const store = new MemoryStore();
   const player = createPlayer(921, 'T', 'warrior');
   player.messageId = 400;
-  player.scene = { view: 'inventory', arg: '0' };
+  player.scene = { view: 'inventory', page: 0 };
   await store.set(921, player);
 
   // The rendered button must carry the OPEN action, not the back code.
@@ -589,7 +590,7 @@ Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (
   initialPlayer.equipment.trinket = 't_15'; // triggered gear, equipped (absent from the bag)
   initialPlayer.messageId = 600;
   initialPlayer.uiRev = 0;
-  initialPlayer.scene = { view: 'inventory', arg: '2' };
+  initialPlayer.scene = { view: 'inventory', page: 2 };
   await store.set(930, initialPlayer);
 
   // 1. Inventory → Equipment.
@@ -601,7 +602,7 @@ Deno.test('Inventory → Equipment → Inspect equipped → Back → Equipment (
   await handleCallback(fakeCtx(930, 600, withRev(cur.uiRev ?? 0, 'e:vi:trinket')), store);
   cur = (await store.get(930))!;
   assertEquals(cur.scene.view, 'equippedItem');
-  assertEquals(cur.scene.arg, 'trinket');
+  assertEquals(expectScene(cur, 'equippedItem').slot, 'trinket');
 
   // 3. The delivered view carries the exact trigger mechanics and the
   // equipped state — never a bag quantity or bag-only controls.
@@ -629,7 +630,7 @@ Deno.test('unequip from the equipped detail returns a copy and clears the slot (
   player.hp = statsOf(player).maxHp;
   player.messageId = 610;
   player.uiRev = 0;
-  player.scene = { view: 'equippedItem', arg: 'weapon' };
+  player.scene = { view: 'equippedItem', slot: 'weapon' };
   await store.set(931, player);
   const bagBefore = countOf(player, 'w_warrior_2');
 
@@ -684,25 +685,34 @@ Deno.test('Back from an inventory detail returns to the SAME page (#112)', async
   addItem(player, 'c_minor_potion', 2);
   player.messageId = 630;
   player.uiRev = 0;
-  player.scene = { view: 'inventory', arg: '1' };
+  player.scene = { view: 'inventory', page: 1 };
   await store.set(935, player);
 
   // Tap the item on page 1 — the detail records the origin page.
   await handleCallback(fakeCtx(935, 630, withRev(0, 'i:v:c_minor_potion')), store);
   let cur = (await store.get(935))!;
   assertEquals(cur.scene.view, 'item');
-  assertEquals(cur.scene.arg, 'c_minor_potion');
-  assertEquals(cur.scene.arg2, '1', 'the origin page is captured');
+  assertEquals(expectScene(cur, 'item').itemId, 'c_minor_potion');
+  assertEquals(
+    expectScene(cur, 'item').returnTo,
+    { kind: 'inventory', page: 1 },
+    'the origin page is captured',
+  );
 
   // The rendered Back button re-opens page 1, and tapping it does.
   assert(
-    JSON.stringify(renderItemDetail(cur, 'c_minor_potion', cur.scene.arg2)).includes('i:pg:1'),
+    JSON.stringify(renderItemDetail(cur, 'c_minor_potion', expectScene(cur, 'item').returnTo))
+      .includes('i:pg:1'),
     'the Back button encodes the origin page',
   );
   await handleCallback(fakeCtx(935, 630, withRev(cur.uiRev ?? 0, 'i:pg:1')), store);
   cur = (await store.get(935))!;
   assertEquals(cur.scene.view, 'inventory');
-  assertEquals(cur.scene.arg, '1', 'Back returned to the SAME page, not the zone or page 0');
+  assertEquals(
+    expectScene(cur, 'inventory').page,
+    1,
+    'Back returned to the SAME page, not the zone or page 0',
+  );
 });
 
 // ── render-revision replay guard (#16) ──────────────────────────────────
@@ -713,7 +723,7 @@ Deno.test('replayed buy callback on the same message is a no-op (#16)', async ()
   player.gold = 1000;
   player.messageId = 500;
   player.uiRev = 5; // a render already happened; its buttons carry rev 5
-  player.scene = { view: 'shop', arg: '0' };
+  player.scene = { view: 'shop', mode: 'buy', page: 0 };
   await store.set(922, player);
 
   const staleTap = withRev(5, 'h:buy:c_minor_potion');
@@ -1671,7 +1681,7 @@ Deno.test('NPC talk opens their authored quest (#31, #123)', () => {
   // Bram is the second NPC of Emberdawn Village (maren, bram, lyra).
   zoneAction(player, { v: 'zone', a: 'tk', arg: 1 });
   assertEquals(player.scene.view, 'npc');
-  assertEquals(player.scene.arg, 'npc_bram');
+  assertEquals(expectScene(player, 'npc').npcId, 'npc_bram');
   // The offer is enumerated as a topic; selecting it routes to the
   // authoritative interaction.
   assert(
@@ -1681,7 +1691,7 @@ Deno.test('NPC talk opens their authored quest (#31, #123)', () => {
   );
   npcAction(player, { v: 'npc', a: 'q', arg: 'm5_arms' });
   assertEquals(player.scene.view, 'dialogue', "the topic opens the giver's offer dialogue");
-  assertEquals(player.scene.arg, 'dlg_m5_arms_offer');
+  assertEquals(expectScene(player, 'dialogue').dialogueId, 'dlg_m5_arms_offer');
 });
 
 Deno.test('actionless item details render no empty button rows (#39)', () => {

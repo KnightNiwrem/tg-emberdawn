@@ -110,8 +110,9 @@ export function clampPools(player: PlayerState): void {
  * and quest objects.
  * v14 (#207): consecutive dungeon attempts with separate permanent cache receipts.
  * v15 (#228): per-zone forage recharge deadlines.
+ * v16 (#231): named scene variants and structured item return/reference context.
  * All earlier development saves require /reset. */
-export const CURRENT_STATE_VERSION = 15;
+export const CURRENT_STATE_VERSION = 16;
 
 /** Thrown when a save was written by a NEWER binary (stateVersion ahead of
  * what this build supports). Handlers must answer without mutating/saving. */

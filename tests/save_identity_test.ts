@@ -239,29 +239,29 @@ Deno.test('identity gate: a decision is valid only against its exact authored pr
 
 Deno.test('identity gate: scene identity arguments (#141)', () => {
   const it = createPlayer(974, 'T', 'warrior');
-  it.scene = { view: 'item', arg: GONE };
-  expectProblems(it, 'scene.arg');
+  it.scene = { view: 'item', itemId: GONE };
+  expectProblems(it, 'scene.itemId');
 
   const qu = createPlayer(975, 'T', 'warrior');
-  qu.scene = { view: 'quests', arg: GONE };
-  expectProblems(qu, 'scene.arg');
+  qu.scene = { view: 'quests', questId: GONE };
+  expectProblems(qu, 'scene.questId');
 
   const np = createPlayer(976, 'T', 'warrior');
-  np.scene = { view: 'npc', arg: GONE };
-  expectProblems(np, 'scene.arg');
+  np.scene = { view: 'npc', npcId: GONE };
+  expectProblems(np, 'scene.npcId');
 
   const dl = createPlayer(977, 'T', 'warrior');
-  dl.scene = { view: 'dialogue', arg: someLine().dialogueId, arg2: GONE };
-  expectProblems(dl, 'scene.arg2');
+  dl.scene = { view: 'dialogue', dialogueId: someLine().dialogueId, nodeId: GONE };
+  expectProblems(dl, 'scene.nodeId');
 
   const cf = createPlayer(978, 'T', 'warrior');
   const { dialogueId, nodeId } = someChoice();
-  cf.scene = { view: 'dialogue', arg: dialogueId, arg2: nodeId, arg3: `confirm:${GONE}` };
-  expectProblems(cf, 'scene.arg3');
+  cf.scene = { view: 'dialogue', dialogueId: dialogueId, nodeId: nodeId, confirmation: GONE };
+  expectProblems(cf, 'scene.confirmation');
 
   const eq = createPlayer(979, 'T', 'warrior');
-  eq.scene = { view: 'equippedItem', arg: GONE };
-  expectProblems(eq, 'scene.arg');
+  eq.scene = { view: 'equippedItem', slot: GONE } as unknown as PlayerState['scene'];
+  expectProblems(eq, 'scene.slot');
 
   const vw = createPlayer(980, 'T', 'warrior');
   vw.scene = { view: GONE } as unknown as PlayerState['scene'];
@@ -270,19 +270,19 @@ Deno.test('identity gate: scene identity arguments (#141)', () => {
 
 Deno.test('identity gate: shop selection is an item ID; sell pagination is not (#187)', () => {
   const player = createPlayer(1871, 'Shopper', 'warrior');
-  player.scene = { view: 'shop', arg: '1', arg2: 'm_iron_chunk' };
+  player.scene = { view: 'shop', mode: 'buy', page: 1, itemId: 'm_iron_chunk' };
   assertResolvablePersistedIds(player);
-  player.scene.arg2 = GONE;
-  expectProblems(player, 'scene.arg2');
-  player.scene = { view: 'shop', arg: 'sell', arg2: '1' };
+  player.scene.itemId = GONE;
+  expectProblems(player, 'scene.itemId');
+  player.scene = { view: 'shop', mode: 'sell', page: 1 };
   assertResolvablePersistedIds(player);
-  player.scene = { view: 'shop', arg: '1' };
+  player.scene = { view: 'shop', mode: 'buy', page: 1 };
   assertResolvablePersistedIds(player);
 });
 
 Deno.test('identity gate: an unresolved shop selection refuses /start without rewriting (#187)', async () => {
   const player = createPlayer(1872, 'Shopper', 'warrior');
-  player.scene = { view: 'shop', arg: '0', arg2: GONE };
+  player.scene = { view: 'shop', mode: 'buy', page: 0, itemId: GONE };
   const store = new MemoryStore();
   await store.set(player.userId, player);
   const before = structuredClone(player);

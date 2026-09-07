@@ -1,5 +1,6 @@
+import { assertEquals } from '@std/assert';
 import type { Context } from 'grammy';
-import type { EffectInstance, PlayerState, QuestOutcome } from '../src/engine/types.ts';
+import type { EffectInstance, PlayerState, QuestOutcome, SceneState } from '../src/engine/types.ts';
 import type { SkillDef, StatKey } from '../src/content/types.ts';
 import { type EffectArena, statPct } from '../src/engine/effects.ts';
 import { arriveAt } from '../src/engine/world.ts';
@@ -201,4 +202,13 @@ export function fakeCtxCapture(userId: number, tapped?: number, data?: string) {
     },
   } as unknown as Context;
   return { ctx, edits, sends, replies, toasts };
+}
+
+/** Assert the current view after a handler, then expose only that view's named fields. */
+export function expectScene<View extends SceneState['view']>(
+  player: PlayerState,
+  view: View,
+): Extract<SceneState, { view: View }> {
+  assertEquals(player.scene.view, view);
+  return player.scene as Extract<SceneState, { view: View }>;
 }

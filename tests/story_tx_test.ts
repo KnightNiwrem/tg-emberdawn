@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /** Story-effect transactions (#129): validation IS the ordered application
  * run against a draft (later effects see the projected result of earlier
  * ones), commits are all-or-nothing with the live player byte-for-byte
@@ -147,9 +148,9 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
   // the irreversible promise needs its exact staged panel.
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_ferry_promise',
-    arg2: 'n3',
-    arg3: 'confirm:promise',
+    dialogueId: 'dlg_ferry_promise',
+    nodeId: 'n3',
+    confirmation: 'promise',
   };
   const args = { choiceId: 'promise', now: 1 };
   const r1 = applyDialogueChoice(player, args);
@@ -177,7 +178,7 @@ Deno.test('tx: a choice replay routes to the next beat with zero notices, even a
 
   // A DIFFERENT choice on the same node is still refused by the ledger
   // (the handler would have cleared the staged panel on routing).
-  player.scene.arg3 = undefined;
+  expectScene(player, 'dialogue').confirmation = undefined;
   const before4 = JSON.stringify(player);
   const r4 = applyDialogueChoice(player, { choiceId: 'decline', now: 4 });
   assert(!r4.ok);

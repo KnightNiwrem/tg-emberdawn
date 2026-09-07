@@ -112,13 +112,13 @@ export function tutorialAction(player: PlayerState, cb: Cb & { v: 'tut' }): Muta
   switch (cb.a) {
     case 'maren': {
       if (player.tutorial !== 'maren' || player.battle) return { toast: 'The tale has moved on.' };
-      player.scene = { view: 'tutorial', arg: 'brief' };
+      player.scene = { view: 'tutorial' };
       return {};
     }
     case 'out': {
       // The brief must be the live sub-view — a replayed 'out' after the
       // step moved on is refused here even before staleness guards.
-      if (player.tutorial !== 'maren' || player.scene.arg !== 'brief') {
+      if (player.tutorial !== 'maren' || player.scene.view !== 'tutorial') {
         return { toast: 'The tale has moved on.' };
       }
       player.tutorial = 'outskirts';

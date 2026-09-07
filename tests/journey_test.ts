@@ -452,7 +452,7 @@ Deno.test('journey helpers: headline, version gate, and plain-JSON round-trip', 
   assert(line.includes('→'), 'origin → destination reads as a crossing');
   assert(line.includes('1/2'), 'progress is legible');
   // v12 carries journeys + the respawn haven.
-  assertEquals(CURRENT_STATE_VERSION, 15);
+  assertEquals(CURRENT_STATE_VERSION, 16);
   // The snapshotted plan is plain JSON and every reference resolves.
   assertResolvablePersistedIds(player);
   const roundTrip = JSON.parse(JSON.stringify(player));

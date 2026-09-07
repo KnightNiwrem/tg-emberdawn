@@ -1,3 +1,4 @@
+import type { ItemReference } from '../engine/types.ts';
 /** Shared subviews after the caller validates the inspected item's context. */
 import type { InputRichMessage } from 'grammy/types';
 import { renderItemSources } from './item_sources.ts';
@@ -5,13 +6,13 @@ import { renderItemUses } from './item_uses.ts';
 
 export function renderItemReference(
   itemId: string,
-  subview: string | undefined,
+  subview: ItemReference | undefined,
 ): InputRichMessage | undefined {
-  if (subview?.startsWith('sources:')) {
-    return renderItemSources(itemId, Number(subview.slice(8)));
+  if (subview?.kind === 'sources') {
+    return renderItemSources(itemId, subview.page);
   }
-  if (subview?.startsWith('uses:')) {
-    return renderItemUses(itemId, Number(subview.slice(5)));
+  if (subview?.kind === 'uses') {
+    return renderItemUses(itemId, subview.page);
   }
   return undefined;
 }

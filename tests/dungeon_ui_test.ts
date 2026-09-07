@@ -123,7 +123,7 @@ Deno.test('dungeon boundaries: external services and recovery trips refuse witho
 
 Deno.test('dungeon controls: a replayed entry callback cannot begin a second attempt', async () => {
   const player = delver();
-  player.scene = { view: 'zone', arg: 'bossok' };
+  player.scene = { view: 'zone', panel: 'dungeonEntrance' };
   const store = new MemoryStore();
   await store.set(player.userId, player);
   const wire = withRev(player.uiRev, encodeCb({ v: 'zone', a: 'dgb' }));

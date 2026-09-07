@@ -119,3 +119,6 @@ story-authority contracts remain in force. Reset confirmation requires its activ
 - #232: dungeon entry and dialogue application expose explicit success/refusal variants.
 - #233: forge mutations and rendering use resolved quotes; route variants share one plan
   constructor.
+
+- #231: named scene variants replace positional arguments; return destinations and item references
+  are structured JSON. Pre-launch version 16 refuses older saves without migration.

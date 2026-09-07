@@ -251,47 +251,47 @@ export interface BattleState {
 /** The guided prologue's lesson beats, in order (#69 rework). */
 export type TutorialBeat = 'basic' | 'skill' | 'guard' | 'item' | 'cleared';
 
-export type ViewId =
-  | 'tutorial'
-  | 'travel'
-  | 'journey'
-  | 'zone'
-  | 'npc'
-  | 'dialogue'
-  | 'battle'
-  | 'battleSkills'
-  | 'battleItems'
-  | 'inventory'
-  | 'item'
-  | 'equipment'
-  | 'equippedItem'
-  | 'skills'
-  | 'quests'
-  | 'shop'
-  | 'forge'
-  | 'death'
-  | 'character'
-  | 'help'
-  | 'reset';
+export type ViewId = SceneState['view'];
 
-export interface SceneState {
-  view: ViewId;
-  /** Pagination / selection parameter for the current view (e.g. page, shop slot). */
-  arg?: string;
-  /** Secondary parameter. For shop details (#187): the inspected item id,
-   * with the buy-list page in arg.
-   * Absent on the buy list; selling uses arg = 'sell' and arg2 = page.
-   * For bag item details (#112): the origin context — the inventory page, or 'eq'
-   * when opened from the Equipment screen, so Back returns to the origin.
-   * For dialogue scenes (#124/#126): the current NODE id. */
-  arg2?: string;
-  /** Third parameter (#126): the dialogue's staged sub-state —
-   * `confirm:<choiceId>` while an irreversible confirmation panel is up.
-   * Item detail references (#208, #209): `sources:<page>` or `uses:<page>`;
-   * the item identity and original menu context stay in arg/arg2.
-   * Absent on other views. */
-  arg3?: string;
+/** Return destination for a bag item detail, independent of its reference subpage. */
+export type ItemDetailOrigin =
+  | { kind: 'inventory'; page: number }
+  | { kind: 'equipment' }
+  | { kind: 'journey' }
+  | { kind: 'zone' };
+
+export interface ItemReference {
+  kind: 'sources' | 'uses';
+  page: number;
 }
+
+/** Plain-JSON navigation state. Each view names its own selections and context. */
+export type SceneState =
+  | { view: 'zone'; panel?: 'gather' | 'craft' | 'dungeonEntrance'; page?: number }
+  | { view: 'travel'; confirmEdgeId?: string }
+  | { view: 'inventory'; page?: number }
+  | { view: 'item'; itemId: string; returnTo?: ItemDetailOrigin; reference?: ItemReference }
+  | { view: 'equippedItem'; slot: EquipSlot; reference?: ItemReference }
+  | { view: 'quests'; questId?: string; page?: number }
+  | { view: 'npc'; npcId: string; topic?: { kind: 'lore' | 'quest'; id: string } }
+  | { view: 'dialogue'; dialogueId: string; nodeId: string; confirmation?: string }
+  | { view: 'shop'; mode: 'buy'; page?: number; itemId?: string; reference?: ItemReference }
+  | { view: 'shop'; mode: 'sell'; page?: number }
+  | {
+    view:
+      | 'tutorial'
+      | 'journey'
+      | 'battle'
+      | 'battleSkills'
+      | 'battleItems'
+      | 'equipment'
+      | 'skills'
+      | 'forge'
+      | 'death'
+      | 'reset'
+      | 'character'
+      | 'help';
+  };
 
 export interface PlayerStats {
   kills: number;

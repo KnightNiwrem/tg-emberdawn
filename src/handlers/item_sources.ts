@@ -10,20 +10,25 @@ export function sourcesAction(
 ): { toast?: string } {
   if (player.battle) return { toast: 'Finish the current battle first.' };
   const scene = player.scene;
+  if (
+    scene.view !== 'item' && scene.view !== 'equippedItem' &&
+    !(scene.view === 'shop' && scene.mode === 'buy')
+  ) {
+    return { toast: 'Open an item detail page first.' };
+  }
   const itemId = scene.view === 'item'
-    ? player.inventory.find((entry) => entry.id === scene.arg && entry.qty > 0)?.id
-    : scene.view === 'equippedItem' &&
-        (scene.arg === 'weapon' || scene.arg === 'armor' || scene.arg === 'trinket')
-    ? player.equipment[scene.arg]
-    : scene.view === 'shop' && scene.arg !== 'sell' && !player.journey && !player.dungeonRun
-    ? resolveStock(player).find((offering) => offering.itemId === scene.arg2)?.itemId
+    ? player.inventory.find((entry) => entry.id === scene.itemId && entry.qty > 0)?.id
+    : scene.view === 'equippedItem'
+    ? player.equipment[scene.slot]
+    : scene.view === 'shop' && scene.mode === 'buy' && !player.journey && !player.dungeonRun
+    ? resolveStock(player).find((offering) => offering.itemId === scene.itemId)?.itemId
     : undefined;
   if (!itemId || !item(itemId)) return { toast: 'Open an item detail page first.' };
   if (cb.a === 'bk') {
-    if (!scene.arg3?.startsWith(`${cb.v}:`)) return {};
-    delete scene.arg3;
+    if (scene.reference?.kind !== cb.v) return {};
+    delete scene.reference;
   } else {
-    scene.arg3 = `${cb.v}:${cb.arg}`;
+    scene.reference = { kind: cb.v, page: cb.arg };
   }
   return {};
 }

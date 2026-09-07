@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * Multi-node dialogue conversations (#124): authored linear dialogue with
  * explicit speakers, Continue advancing exactly one node in the live
@@ -301,60 +302,60 @@ function hero(id: number): PlayerState {
 
 Deno.test('dialogue: selecting a dialogue topic opens the scene at the start node (#124)', () => {
   const player = hero(1200);
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   npcAction(player, { v: 'npc', a: 'lore', arg: 'maren_flame' });
   assertEquals(player.scene.view, 'dialogue');
-  assertEquals(player.scene.arg, 'dlg_maren_flame');
-  assertEquals(player.scene.arg2, 'n1');
+  assertEquals(expectScene(player, 'dialogue').dialogueId, 'dlg_maren_flame');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n1');
 });
 
 Deno.test('dialogue: Continue advances exactly one node; End returns to topics (#124)', () => {
   const player = hero(1201);
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   npcAction(player, { v: 'npc', a: 'lore', arg: 'maren_flame' });
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
-  assertEquals(player.scene.arg2, 'n2');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n2');
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n3' });
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n4' });
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n5' });
-  assertEquals(player.scene.arg2, 'n5');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n5');
   // n5 is the final line (no next): there is nothing to continue to.
   const last = dialogueNode(dialogue('dlg_maren_flame')!, 'n5')!;
   assertEquals(last.kind === 'line' ? last.next : undefined, undefined);
   // End/back returns to the owning NPC's topic menu.
   dialogueAction(player, { v: 'dlg', a: 'bk' });
   assertEquals(player.scene.view, 'npc');
-  assertEquals(player.scene.arg, 'npc_maren');
+  assertEquals(expectScene(player, 'npc').npcId, 'npc_maren');
 });
 
 Deno.test('dialogue: hostile callbacks are non-mutating (#124)', () => {
   const player = hero(1202);
-  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n1' };
   // Wrong next target (forged): refused.
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n5' });
-  assertEquals(player.scene.arg2, 'n1', 'a forged skip is refused');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n1', 'a forged skip is refused');
   // Wrong node: the callback targets a node that is not current.next.
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n1' });
-  assertEquals(player.scene.arg2, 'n1', 'self-advance refused');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n1', 'self-advance refused');
   // Wrong dialogue: the scene names a different conversation.
-  player.scene = { view: 'dialogue', arg: 'dlg_bram_forge', arg2: 'n1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_bram_forge', nodeId: 'n1' };
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' }); // valid for THIS scene
-  assertEquals(player.scene.arg, 'dlg_bram_forge');
-  assertEquals(player.scene.arg2, 'n2');
+  assertEquals(expectScene(player, 'dialogue').dialogueId, 'dlg_bram_forge');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n2');
   // No live scene: refusal.
   player.scene = { view: 'zone' };
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
   assertEquals(player.scene.view, 'zone', 'nothing opened');
   // Wrong zone: Maren is not in the Whisperwood.
   player.currentZone = 'whisperwood';
-  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n1' };
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'n2' });
-  assertEquals(player.scene.arg2, 'n1', 'off-site dialogue cannot advance');
+  assertEquals(expectScene(player, 'dialogue').nodeId, 'n1', 'off-site dialogue cannot advance');
 });
 
 Deno.test('dialogue: rerender reproduces the current node (#124)', () => {
   const player = hero(1203);
-  player.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n3' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n3' };
   const firstRender = JSON.stringify(renderDialogue(player));
   const secondRender = JSON.stringify(renderDialogue(player));
   assertEquals(firstRender, secondRender, 'rendering is pure and position-stable');
@@ -363,19 +364,19 @@ Deno.test('dialogue: rerender reproduces the current node (#124)', () => {
 
 Deno.test('dialogue: the representative conversation distinguishes all speakers (#124)', () => {
   const heroState = hero(1204);
-  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n2' }; // narrator
+  heroState.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n2' }; // narrator
   const narrator = JSON.stringify(renderDialogue(heroState));
   assert(!narrator.includes('“'), 'narration is not quoted as speech');
-  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n1' }; // npc
+  heroState.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n1' }; // npc
   const npcSpeech = JSON.stringify(renderDialogue(heroState));
   assert(npcSpeech.includes('“'), 'NPC speech renders quoted');
   assert(npcSpeech.includes('Elder Maren'), 'the speaker is named');
   assert(npcSpeech.includes('dlg:nx:n2'), 'Continue carries the next node');
-  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n4' }; // player
+  heroState.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n4' }; // player
   const player = JSON.stringify(renderDialogue(heroState));
   assert(player.includes('You — “'), 'authored player speech is attributed');
   // The final beat offers End, not Continue.
-  heroState.scene = { view: 'dialogue', arg: 'dlg_maren_flame', arg2: 'n5' };
+  heroState.scene = { view: 'dialogue', dialogueId: 'dlg_maren_flame', nodeId: 'n5' };
   const final = JSON.stringify(renderDialogue(heroState));
   assert(final.includes('End conversation'), 'the last beat offers the exit');
   assert(!final.includes('dlg:nx'), 'no Continue past the final line');
@@ -385,23 +386,23 @@ Deno.test('dialogue: full router — one message, deterministic advance, replay-
   const store = new MemoryStore();
   const player = hero(1205);
   player.messageId = 200;
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   await store.set(1205, player);
   let cur = (await store.get(1205))!;
   // Topic → dialogue scene.
   await handleCallback(fakeCtx(1205, 200, withRev(cur.uiRev ?? 0, 'npc:lore:maren_flame')), store);
   cur = (await store.get(1205))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg2, 'n1');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'n1');
   const rev = cur.uiRev ?? 0;
   // Continue n1 → n2.
   await handleCallback(fakeCtx(1205, 200, withRev(rev, 'dlg:nx:n2')), store);
   cur = (await store.get(1205))!;
-  assertEquals(cur.scene.arg2, 'n2');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'n2');
   // Replay of the SAME callback (same revision): rejected by the rev guard.
   await handleCallback(fakeCtx(1205, 200, withRev(rev, 'dlg:nx:n2')), store);
   cur = (await store.get(1205))!;
-  assertEquals(cur.scene.arg2, 'n2', 'replay is a no-op');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'n2', 'replay is a no-op');
   // Decoded wire sanity.
   assert(decodeCb('dlg:1234:nx:n2'), 'dlg wire form decodes');
 });

@@ -65,8 +65,8 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
   stable id, owning NPC, start node, and a graph of `DialogueNode`s. A node is a `line` (explicit
   npc/player/narrator speaker and an optional `next` link), a `choice` (a prompt with branching
   `DialogueChoice`s), or an `end`.
-- The scene persists `(arg: dialogueId, arg2: nodeId)` so rerenders and `/start` reproduce the exact
-  current beat.
+- The scene persists `dialogueId` and `nodeId` so rerenders and `/start` reproduce the exact current
+  beat.
 - Dialogue copy follows the #133 contract (machine-checked in `tests/dialogue_copy_test.ts`, prose
   guide in `docs/narrative-guide.md` §3a): the renderer owns speech presentation, so prompts, labels
   and speech are stored unquoted; every choice node defers at most once (the renderer's "Not now" —
@@ -94,19 +94,19 @@ Authoritative code and tests: `src/engine/story.ts`, `src/engine/quests.ts`, `sr
     physically present in the player's current zone;
   - the choice must belong to that current choice node;
   - availability (`when`) re-evaluates at apply time — rendering is never authority;
-  - an `irreversible: true` choice mutates only from its exact staged `confirm:<choiceId>` panel
-    (scene `arg3`), and an ordinary choice refuses while any confirmation is staged.
+  - an `irreversible: true` choice mutates only from its exact staged panel
+    (`scene.confirmation === choiceId`), and an ordinary choice refuses while any confirmation is
+    staged.
 - Then: the ledger conflict check (a recorded decision can never be overwritten) → the atomic
   StoryEffect bundle → next node or back to the topic menu.
 - The handler layer (`dialogueAction` in `src/handlers/hub.ts`) keeps only transport and navigation
   checks — scene view, the rendered node/choice target, confirmation staging (a scene mutation,
   never story state), and the ch/cf wire-intent contract (#136): `ch` applies an ordinary choice but
   only stages the panel for an irreversible one, and `cf` is honored solely for an irreversible
-  choice from its exact staged `confirm:<choiceId>` panel — a forged or mismatched `cf` is a
-  non-mutating refusal. On an irreversible-choice confirmation panel, only Confirm commits story
-  effects; Go back/Not now/Leave perform navigation only. Ordinary choices apply directly, and
-  Continue can enter a line with authored effects. The handler passes the engine exactly the tapped
-  choice id.
+  choice from its exact staged confirmation panel — a forged or mismatched `cf` is a non-mutating
+  refusal. On an irreversible-choice confirmation panel, only Confirm commits story effects; Go
+  back/Not now/Leave perform navigation only. Ordinary choices apply directly, and Continue can
+  enter a line with authored effects. The handler passes the engine exactly the tapped choice id.
 - Callback revision and message staleness are transport-level authority, enforced by the locked
   per-player router before any handler runs. The rev guard kills wire-level double taps and replays.
 - Every committed application records a one-shot receipt in `player.storyReceipts`. Replaying a

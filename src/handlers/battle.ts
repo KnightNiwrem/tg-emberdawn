@@ -216,9 +216,9 @@ export function itemAction(
     // returns where the player came from.
     player.scene = {
       view: 'item',
-      arg: itemId,
-      ...(player.scene.view === 'item' && player.scene.arg2 !== undefined
-        ? { arg2: player.scene.arg2 }
+      itemId: itemId,
+      ...(player.scene.view === 'item' && player.scene.returnTo !== undefined
+        ? { returnTo: player.scene.returnTo }
         : {}),
     };
     return {};
@@ -246,7 +246,7 @@ export function itemAction(
     if (itemDef?.unique) return { toast: "You've earned that — it stays with you." };
     if (!removeItem(player, itemId, 1)) return { toast: "You don't have that." };
     player.notices = [`🗑️ Dropped ${item(itemId)?.name ?? itemId}.`];
-    player.scene = { view: 'inventory', arg: '0' };
+    player.scene = { view: 'inventory', page: 0 };
     return {};
   }
   // The switch is exhaustive ('u' | 'eq' | 'drop' all returned above).

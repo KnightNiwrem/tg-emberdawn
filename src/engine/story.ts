@@ -553,7 +553,7 @@ export type ChoiceApplyResult =
  * - availability (`when`) is re-evaluated at application time — rendering
  *   was never authority;
  * - an `irreversible: true` choice mutates only from its exact staged
- *   panel (`scene.arg3 === 'confirm:<choiceId>'`); an ordinary choice
+ *   panel (`scene.confirmation === choiceId`); an ordinary choice
  *   refuses while any confirmation is staged.
  *
  * Application then re-checks the decision ledger (a recorded decision can
@@ -579,9 +579,10 @@ export function applyDialogueChoice(
   if (player.journey) return { ok: false, refusal: JOURNEY_BLOCK, lines: [] };
   // Scene authority: the player must be inside a dialogue, at a choice
   // node — the dialogue and node ids are read from the live scene itself.
-  if (player.scene.view !== 'dialogue' || !player.scene.arg || !player.scene.arg2) return movedOn;
-  const dialogue = dialogueDef(player.scene.arg);
-  const node = dialogue?.nodes.find((nodeDef) => nodeDef.id === player.scene.arg2);
+  const scene = player.scene;
+  if (scene.view !== 'dialogue') return movedOn;
+  const dialogue = dialogueDef(scene.dialogueId);
+  const node = dialogue?.nodes.find((nodeDef) => nodeDef.id === scene.nodeId);
   if (!dialogue || !node || node.kind !== 'choice') return movedOn;
   // Ownership + presence: the acting NPC is whoever owns this dialogue,
   // and they must be standing in the player's current zone.
@@ -605,14 +606,14 @@ export function applyDialogueChoice(
   // Confirmation authority (#126): an irreversible choice mutates only from
   // its exact staged panel; a direct call from the choice list refuses.
   if (choice.irreversible) {
-    if (player.scene.arg3 !== `confirm:${choice.id}`) {
+    if (scene.confirmation !== choice.id) {
       return {
         ok: false,
         refusal: 'Confirm the choice on its confirmation screen.',
         lines: [],
       };
     }
-  } else if (player.scene.arg3?.startsWith('confirm:')) {
+  } else if (scene.confirmation !== undefined) {
     // An ordinary choice cannot apply while an unrelated confirmation is
     // staged — the staged panel is the live sub-state, not the list.
     return movedOn;

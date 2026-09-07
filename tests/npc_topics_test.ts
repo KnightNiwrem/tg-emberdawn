@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * NPC topic menu (#123): clicking an NPC opens an explicit topic-selection
  * scene enumerating EVERY currently available interaction. Opening it is
@@ -114,13 +115,13 @@ Deno.test('topics: generic NPC contact no longer completes talk objectives (#123
     'the active topic opens the conversation',
   );
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_talk');
   // Reaching the reading node emits the event — readiness, exactly once.
   await handleCallback(fakeCtx(1103, 101, withRev(cur.uiRev ?? 0, 'dlg:nx:c2')), store);
   cur = (await store.get(1103))!;
   assertEquals(cur.quests['m2_letter']?.status, 'turnIn');
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg2, 'c2');
+  assertEquals(expectScene(cur, 'dialogue').nodeId, 'c2');
 });
 
 Deno.test('topics: stale, forged, and no-longer-valid selections are harmless (#123)', async () => {
@@ -143,16 +144,16 @@ Deno.test('topics: stale, forged, and no-longer-valid selections are harmless (#
   assert(cur.scene.view === 'zone' || cur.scene.view === 'npc');
 
   // Forged lore topic id: refusal.
-  player.scene = { view: 'npc', arg: 'npc_bram' };
+  player.scene = { view: 'npc', npcId: 'npc_bram' };
   await store.set(1104, player);
   cur = (await store.get(1104))!;
   await handleCallback(fakeCtx(1104, 102, withRev(cur.uiRev ?? 0, 'npc:lore:nope')), store);
   cur = (await store.get(1104))!;
-  assertEquals(cur.scene.arg2, undefined, 'forged topic refused');
+  assertEquals(expectScene(cur, 'npc').topic, undefined, 'forged topic refused');
 
   // No-longer-valid business: m1 is DONE — selecting its topic must
   // refuse instead of re-opening an interaction.
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   await store.set(1104, player);
   cur = (await store.get(1104))!;
   await handleCallback(fakeCtx(1104, 102, withRev(cur.uiRev ?? 0, 'npc:q:m1_embers')), store);
@@ -162,11 +163,11 @@ Deno.test('topics: stale, forged, and no-longer-valid selections are harmless (#
     'done',
     'a finished quest cannot be re-opened',
   );
-  assertEquals(cur.scene.arg2, undefined);
+  assertEquals(expectScene(cur, 'npc').topic, undefined);
 
   // Wrong zone: Maren's topics are unreachable from the Whisperwood.
   player.currentZone = 'whisperwood';
-  player.scene = { view: 'npc', arg: 'npc_maren' };
+  player.scene = { view: 'npc', npcId: 'npc_maren' };
   await store.set(1104, player);
   cur = (await store.get(1104))!;
   await handleCallback(fakeCtx(1104, 102, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
@@ -183,7 +184,7 @@ Deno.test('topics: Leave returns to the zone; Back re-opens the menu (#123)', as
   const store = new MemoryStore();
   const player = hero(1105);
   player.messageId = 103;
-  player.scene = { view: 'npc', arg: 'npc_lyra' };
+  player.scene = { view: 'npc', npcId: 'npc_lyra' };
   await store.set(1105, player);
   let cur = (await store.get(1105))!;
   await handleCallback(fakeCtx(1105, 103, withRev(cur.uiRev ?? 0, 'npc:bk')), store);
@@ -194,18 +195,18 @@ Deno.test('topics: Leave returns to the zone; Back re-opens the menu (#123)', as
   assertEquals(cur.scene.view, 'npc');
   await handleCallback(fakeCtx(1105, 103, withRev(cur.uiRev ?? 0, 'npc:lore:lyra_work')), store);
   cur = (await store.get(1105))!;
-  assertEquals(cur.scene.arg2, 'lore:lyra_work');
+  assertEquals(expectScene(cur, 'npc').topic, { kind: 'lore', id: 'lyra_work' });
   await handleCallback(fakeCtx(1105, 103, withRev(cur.uiRev ?? 0, 'npc:op:npc_lyra')), store);
   cur = (await store.get(1105))!;
   assertEquals(cur.scene.view, 'npc');
-  assertEquals(cur.scene.arg2, undefined, 'Back returns to the topic list');
+  assertEquals(expectScene(cur, 'npc').topic, undefined, 'Back returns to the topic list');
 });
 
 Deno.test('topics: an NPC with no quest business still exposes their conversation (#123)', () => {
   const player = hero(1106);
   player.currentZone = 'whisperwood';
   player.level = 4;
-  player.scene = { view: 'npc', arg: 'npc_pell' };
+  player.scene = { view: 'npc', npcId: 'npc_pell' };
   // Pell has no quest business for this hero.
   const topics = npcTopics(player, 'npc_pell');
   assertEquals(topics.filter((topic) => topic.kind !== 'lore').length, 0);
@@ -258,7 +259,7 @@ Deno.test('topics: an active quest at a non-owning contact is a pure reminder (#
   // Open Maren's menu (index 0) and select the active m2 business.
   await handleCallback(fakeCtx(1107, 104, withRev(cur.uiRev ?? 0, 'z:tk:0')), store);
   cur = (await store.get(1107))!;
-  assertEquals(cur.scene.arg, 'npc_maren');
+  assertEquals(expectScene(cur, 'npc').npcId, 'npc_maren');
   const before = JSON.stringify({
     quests: cur.quests,
     flags: cur.flags,
@@ -268,8 +269,12 @@ Deno.test('topics: an active quest at a non-owning contact is a pure reminder (#
   await handleCallback(fakeCtx(1107, 104, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(1107))!;
   assertEquals(cur.scene.view, 'npc', 'no dialogue opens at the non-owning contact');
-  assertEquals(cur.scene.arg, 'npc_maren');
-  assertEquals(cur.scene.arg2, 'q:m2_letter', 'a pure progress reminder renders instead');
+  assertEquals(expectScene(cur, 'npc').npcId, 'npc_maren');
+  assertEquals(
+    expectScene(cur, 'npc').topic,
+    { kind: 'quest', id: 'm2_letter' },
+    'a pure progress reminder renders instead',
+  );
   assertEquals(cur.quests['m2_letter']?.status, 'active', 'no progress from the wrong NPC');
   assert(!cur.storyEvents.includes('heard_bram_reading'), 'the event was not emitted');
   const after = JSON.stringify({
@@ -296,7 +301,7 @@ Deno.test('topics: the owning contact opens the conversation; the event fires ex
   await handleCallback(fakeCtx(1108, 105, withRev(cur.uiRev ?? 0, 'npc:q:m2_letter')), store);
   cur = (await store.get(1108))!;
   assertEquals(cur.scene.view, 'dialogue');
-  assertEquals(cur.scene.arg, 'dlg_m2_letter_talk');
+  assertEquals(expectScene(cur, 'dialogue').dialogueId, 'dlg_m2_letter_talk');
   await handleCallback(fakeCtx(1108, 105, withRev(cur.uiRev ?? 0, 'dlg:nx:c2')), store);
   cur = (await store.get(1108))!;
   assertEquals(cur.quests['m2_letter']?.status, 'turnIn');
@@ -327,7 +332,11 @@ Deno.test('topics: an offer cannot be reached from a non-starter menu (#131)', a
   cur = (await store.get(1109))!;
   assertEquals(cur.quests['m2_letter']?.status, 'available', 'the offer did not open');
   assertEquals(cur.scene.view, 'npc');
-  assertEquals(cur.scene.arg2, undefined, 'no reminder for a quest this NPC has no business in');
+  assertEquals(
+    expectScene(cur, 'npc').topic,
+    undefined,
+    'no reminder for a quest this NPC has no business in',
+  );
 });
 
 Deno.test('topics: a lore topic whose condition turns false after render is refused (#131)', async () => {
@@ -347,7 +356,7 @@ Deno.test('topics: a lore topic whose condition turns false after render is refu
   try {
     // Condition unmet: enumeration hides the topic…
     assert(!npcTopics(player, 'npc_maren').some((topic) => topic.id === 'test_when_topic'));
-    player.scene = { view: 'npc', arg: 'npc_maren' };
+    player.scene = { view: 'npc', npcId: 'npc_maren' };
     await store.set(1110, player);
     let cur = (await store.get(1110))!;
     // …and a forged direct selection refuses without mutation.
@@ -356,10 +365,10 @@ Deno.test('topics: a lore topic whose condition turns false after render is refu
       store,
     );
     cur = (await store.get(1110))!;
-    assertEquals(cur.scene.arg2, undefined, 'condition-hidden topic refused');
+    assertEquals(expectScene(cur, 'npc').topic, undefined, 'condition-hidden topic refused');
     // Condition met: the topic enumerates and opens.
     cur.flags['test_when_flag'] = true;
-    cur.scene = { view: 'npc', arg: 'npc_maren' };
+    cur.scene = { view: 'npc', npcId: 'npc_maren' };
     await store.set(1110, cur);
     cur = (await store.get(1110))!;
     assert(npcTopics(cur, 'npc_maren').some((topic) => topic.id === 'test_when_topic'));
@@ -368,11 +377,15 @@ Deno.test('topics: a lore topic whose condition turns false after render is refu
       store,
     );
     cur = (await store.get(1110))!;
-    assertEquals(cur.scene.arg2, 'lore:test_when_topic', 'met condition opens the topic');
+    assertEquals(
+      expectScene(cur, 'npc').topic,
+      { kind: 'lore', id: 'test_when_topic' },
+      'met condition opens the topic',
+    );
     // The condition turns false AFTER the menu rendered: the stale tap
     // re-resolves the row, finds it gone, and refuses without mutation.
     delete cur.flags['test_when_flag'];
-    cur.scene = { view: 'npc', arg: 'npc_maren' };
+    cur.scene = { view: 'npc', npcId: 'npc_maren' };
     await store.set(1110, cur);
     cur = (await store.get(1110))!;
     await handleCallback(
@@ -380,7 +393,11 @@ Deno.test('topics: a lore topic whose condition turns false after render is refu
       store,
     );
     cur = (await store.get(1110))!;
-    assertEquals(cur.scene.arg2, undefined, 'stale conditional topic refused at tap time');
+    assertEquals(
+      expectScene(cur, 'npc').topic,
+      undefined,
+      'stale conditional topic refused at tap time',
+    );
   } finally {
     maren.topics = maren.topics?.filter((topic) => topic.id !== 'test_when_topic');
   }

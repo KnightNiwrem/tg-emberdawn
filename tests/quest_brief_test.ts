@@ -41,7 +41,7 @@ Deno.test('quest brief: every committing offer and report shows the quest, work,
         status: stage === 'offer' ? 'available' : 'turnIn',
         counts: questDef.objectives.map((objective) => objective.count ?? 1),
       };
-      player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: node.id };
+      player.scene = { view: 'dialogue', dialogueId: dialogueDef.id, nodeId: node.id };
       for (const objective of questDef.objectives) {
         if (objective.kind === 'collect') addItem(player, objective.target, objective.count ?? 1);
       }
@@ -74,7 +74,7 @@ Deno.test('quest brief: every committing offer and report shows the quest, work,
 Deno.test('quest brief: iron directions lead to early caches and drones, not the later Aranya reward', () => {
   const player = createPlayer(1901, 'Reader', 'rogue');
   player.quests.m5_arms = { status: 'available', counts: [] };
-  player.scene = { view: 'dialogue', arg: 'dlg_m5_arms_offer', arg2: 'oa' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m5_arms_offer', nodeId: 'oa' };
   const view = JSON.stringify(renderDialogue(player));
   assert(view.includes('Iron Chunk ×2'));
   assert(view.includes('First-visit caches in Rootbound Hollow — Whisperwood'));
@@ -85,7 +85,7 @@ Deno.test('quest brief: iron directions lead to early caches and drones, not the
   const journal = JSON.stringify(renderQuestDetail(player, 'm5_arms'));
   assert(journal.includes('Iron Chunk ×2') && journal.includes('Mycelid Drone'));
   player.quests.m5_arms.status = 'active';
-  player.scene = { view: 'npc', arg: 'npc_bram', arg2: 'q:m5_arms' };
+  player.scene = { view: 'npc', npcId: 'npc_bram', topic: { kind: 'quest', id: 'm5_arms' } };
   addItem(player, 'm_iron_chunk', 1);
   const reminder = JSON.stringify(renderNpcTopics(player));
   assert(reminder.includes('Iron Chunk ×2 — 1/2'));
@@ -96,11 +96,11 @@ Deno.test('quest brief: delivery explains the reading and shows the exact letter
   const player = createPlayer(1902, 'Reader', 'cleric');
   player.quests.m2_letter = { status: 'active', counts: [1, 0] };
   addItem(player, 'q_sealed_letter', 1);
-  player.scene = { view: 'dialogue', arg: 'dlg_m2_letter_talk', arg2: 'c1' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m2_letter_talk', nodeId: 'c1' };
   dialogueAction(player, { v: 'dlg', a: 'nx', arg: 'c2' });
   assertEquals(countOf(player, 'q_sealed_letter'), 1, 'reading retains the letter');
   assertEquals(player.quests.m2_letter.status, 'turnIn');
-  player.scene = { view: 'dialogue', arg: 'dlg_m2_letter_turnin', arg2: 'ta' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m2_letter_turnin', nodeId: 'ta' };
   const view = JSON.stringify(renderDialogue(player));
   assert(view.includes('Hear Bram read the letter — 1/1'));
   assert(view.includes('Hand over now: Sealed Letter ×1'));
@@ -110,7 +110,7 @@ Deno.test('quest brief: delivery explains the reading and shows the exact letter
 
 Deno.test('quest brief: permanent route previews disclose jobs and only the selected confirmation', () => {
   const player = ferryHero(1903);
-  player.scene = { view: 'dialogue', arg: 'dlg_ferry_promise', arg2: 'n3' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_ferry_promise', nodeId: 'n3' };
   const choices = JSON.stringify(renderDialogue(player));
   assert(choices.includes('Defeat Marsh Wisp ×4'));
   assert(choices.includes('Defeat Marsh Leech ×4'));
@@ -131,17 +131,17 @@ Deno.test('quest brief: keeping the light grants one real keepsake and none of t
   const player = ferryHero(1904);
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_ferry_promise',
-    arg2: 'n3',
-    arg3: 'confirm:promise',
+    dialogueId: 'dlg_ferry_promise',
+    nodeId: 'n3',
+    confirmation: 'promise',
   };
   assert(applyDialogueChoice(player, { choiceId: 'promise', now: 1 }).ok);
   for (let i = 0; i < 4; i++) onKill(player, 'e_wisp');
   player.scene = {
     view: 'dialogue',
-    arg: 'dlg_sq_shrine_pact_turnin',
-    arg2: 'ta',
-    arg3: 'confirm:keep',
+    dialogueId: 'dlg_sq_shrine_pact_turnin',
+    nodeId: 'ta',
+    confirmation: 'keep',
   };
   const view = JSON.stringify(renderDialogue(player));
   assert(view.includes('without its normal rewards'));
@@ -175,7 +175,7 @@ Deno.test('quest brief: Pell receives the locket that actually dropped from a sp
   assertEquals(countOf(player, 'q_pells_locket'), 1);
   assertEquals(player.quests.sq_locket.status, 'turnIn');
   assert(!questDropAllowed(player, 'q_pells_locket'), 'no duplicate while held');
-  player.scene = { view: 'dialogue', arg: 'dlg_sq_locket_turnin', arg2: 'ta' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_sq_locket_turnin', nodeId: 'ta' };
   assert(JSON.stringify(renderDialogue(player)).includes("Hand over now: Pell's Locket ×1"));
   assert(applyDialogueChoice(player, { choiceId: 'handover', now: 1 }).ok);
   assertEquals(countOf(player, 'q_pells_locket'), 0);
@@ -187,14 +187,14 @@ Deno.test('quest brief: boss locations, conversation actions and capped rewards 
   const player = createPlayer(1906, 'Reader', 'mage');
   player.level = 45;
   player.currentZone = 'sunspire';
-  player.scene = { view: 'dialogue', arg: 'dlg_m12_chronolich_offer', arg2: 'oa' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m12_chronolich_offer', nodeId: 'oa' };
   const boss = JSON.stringify(renderDialogue(player));
   assert(boss.includes('The Chronolich ×1'));
   assert(boss.includes('Vault of Hours — Sunspire Ruins (boss; recommended Lv 21)'));
   assert(boss.includes(xpRewardLabel(45, quest('m12_chronolich')!.rewards.xp)));
   assert(!boss.includes('✨ +3600 XP'), 'the reward shows conversion instead of an XP grant');
   player.currentZone = 'hollowmere';
-  player.scene = { view: 'dialogue', arg: 'dlg_m8_passage_offer', arg2: 'oa' };
+  player.scene = { view: 'dialogue', dialogueId: 'dlg_m8_passage_offer', nodeId: 'oa' };
   assert(
     JSON.stringify(renderDialogue(player)).includes('Recorded when you accept this conversation.'),
   );
@@ -232,7 +232,7 @@ Deno.test('narrative: recovered regions survive reload and agree between arrival
 });
 
 Deno.test('campaign checkpoint: all older development versions are refused without a rewrite', () => {
-  assertEquals(CURRENT_STATE_VERSION, 15);
+  assertEquals(CURRENT_STATE_VERSION, 16);
   const player = createPlayer(1910, 'Reader', 'rogue');
   assertSupportedSaveVersion(player);
   for (let stateVersion = 0; stateVersion < CURRENT_STATE_VERSION; stateVersion++) {
@@ -262,7 +262,7 @@ Deno.test('dialogue contract: complete choice screens stay compact even with all
       const player = ferryHero(1911);
       player.quests.m6_toxin = { status: 'done', counts: [4] };
       player.currentZone = zoneOfNpc(dialogueDef.npcId)!.id;
-      player.scene = { view: 'dialogue', arg: dialogueDef.id, arg2: node.id };
+      player.scene = { view: 'dialogue', dialogueId: dialogueDef.id, nodeId: node.id };
       assert(
         visible(renderDialogue(player)).length < 4000,
         `${dialogueDef.id}:${node.id} is too long to scan`,

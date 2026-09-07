@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * Integration tests: drive the real bot in-process via grammy-testing.
  * No token, no network. Assertions read captured replies and the store.
@@ -122,11 +123,11 @@ Deno.test('quest accept via NPC talk — the authored offer flow (#64, #127)', a
   await tap(store, user, 'z:tk:0'); // open Elder Maren's topic menu (#123)
   const menu = (await store.get(4242))!;
   assertEquals(menu.scene.view, 'npc', 'talk opens the topic menu');
-  assertEquals(menu.scene.arg, 'npc_maren');
+  assertEquals(expectScene(menu, 'npc').npcId, 'npc_maren');
   await tap(store, user, 'npc:q:m1_embers'); // pick the quest business topic
   const opened = (await store.get(4242))!;
   assertEquals(opened.scene.view, 'dialogue', 'the topic opens the offer conversation');
-  assertEquals(opened.scene.arg, 'dlg_m1_embers_offer');
+  assertEquals(expectScene(opened, 'dialogue').dialogueId, 'dlg_m1_embers_offer');
   await tap(store, user, 'dlg:nx:o2'); // beat 2
   await tap(store, user, 'dlg:nx:oa'); // the accept choice node
   await tap(store, user, 'dlg:ch:accept'); // the authored accept

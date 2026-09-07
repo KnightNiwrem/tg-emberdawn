@@ -38,9 +38,9 @@ Deno.test('resources UI: local menus expose complete facts and valid bounded cal
   crafter.level = 45;
   for (const zoneDef of ZONES) {
     crafter.currentZone = zoneDef.id;
-    for (const scene of ['gather', 'craft']) {
+    for (const scene of ['gather', 'craft'] as const) {
       for (let page = 0; page < 6; page++) {
-        crafter.scene = { view: 'zone', arg: scene, arg2: String(page) };
+        crafter.scene = { view: 'zone', panel: scene, page: page };
         const before = JSON.stringify(crafter);
         const view = renderZone(crafter);
         assertEquals(JSON.stringify(crafter), before, 'render is a pure projection');
@@ -58,7 +58,7 @@ Deno.test('resources UI: local menus expose complete facts and valid bounded cal
     assert(fish.includes(fact), fact);
   }
   crafter.currentZone = 'emberdawn';
-  crafter.scene = { view: 'zone', arg: 'craft', arg2: '0' };
+  crafter.scene = { view: 'zone', panel: 'craft', page: 0 };
   const recipe = RECIPES[0];
   const view = JSON.stringify(renderCrafting(crafter));
   for (const input of recipe.inputs) assert(view.includes(item(input.id)!.name));
@@ -129,7 +129,7 @@ Deno.test('resources UI: stale craft replay grants only one batch on the live me
   for (const materialCost of recipe.inputs) {
     crafter.inventory.push({ id: materialCost.id, qty: materialCost.qty * 2 });
   }
-  crafter.scene = { view: 'zone', arg: 'craft', arg2: '0' };
+  crafter.scene = { view: 'zone', panel: 'craft', page: 0 };
   const before = countOf(crafter, recipe.output.id);
   const store = new MemoryStore();
   await store.set(crafter.userId, crafter);

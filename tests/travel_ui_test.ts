@@ -1,3 +1,4 @@
+import { expectScene } from './helpers.ts';
 /**
  * #164 — the zone/travel/journey UI reads as local geography: adjacency,
  * risk, services, and journey recovery, all in one live message.
@@ -98,7 +99,7 @@ Deno.test('perilous departures stage an explicit confirmation; starter roads sta
   // First tap on the Descent stages the panel.
   const staged = travelAction(player, { v: 'travel', a: 'go', arg: 'w_umbra_abyss' });
   assertEquals(player.scene.view, 'travel');
-  assertEquals(player.scene.arg, 'go:w_umbra_abyss');
+  assertEquals(expectScene(player, 'travel').confirmEdgeId, 'w_umbra_abyss');
   assert(staged.toast?.includes('confirm'), 'the staging names the hazard');
   assertEquals(player.currentZone, 'umbra', 'nothing moved');
   assertEquals(player.journey, undefined);
@@ -182,7 +183,7 @@ Deno.test('the boss readiness panel keeps levels and one unambiguous escape rest
   const dungeon = zone('whisperwood')!.dungeon!;
   const boss = enemy(dungeon.boss)!;
   player.level = dungeon.recommendedLevel! - 1;
-  player.scene = { view: 'zone', arg: 'bossok' };
+  player.scene = { view: 'zone', panel: 'dungeonEntrance' };
   const before = JSON.stringify(player);
   const view = JSON.stringify(renderZone(player));
   assert(view.includes(`${boss.name} · Lv ${boss.level}`));
@@ -325,7 +326,7 @@ Deno.test('/start during a journey battle still restores battle or death (#170)'
   // The enemy strike must land: a random dodge leaves this fixture alive (#186).
   withFixedRandom(0.5, () => battleAction(fallen, { v: 'battle', a: 'atk' }));
   assertEquals(fallen.battle!.phase, 'lost');
-  fallen.scene = { view: 'inventory', arg: '0' };
+  fallen.scene = { view: 'inventory', page: 0 };
   fallen.messageId = 900;
   await store.set(fallen.userId, fallen);
   const tap2 = fakeCtxCapture(fallen.userId, 900);

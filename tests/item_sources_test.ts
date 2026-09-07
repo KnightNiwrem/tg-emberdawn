@@ -61,11 +61,11 @@ Deno.test('sources: open and Back survive serialization and preserve all three d
   player.inventory.push({ id: 'c_minor_potion', qty: 3 });
   player.equipment.weapon = 'w_warrior_1';
   const scenes = [
-    { view: 'item', arg: 'c_minor_potion', arg2: '3' },
-    { view: 'item', arg: 'c_minor_potion', arg2: 'eq' },
-    { view: 'item', arg: 'c_minor_potion', arg2: 'j' },
-    { view: 'equippedItem', arg: 'weapon' },
-    { view: 'shop', arg: '1', arg2: 'c_minor_potion' },
+    { view: 'item', itemId: 'c_minor_potion', returnTo: { kind: 'inventory', page: 3 } },
+    { view: 'item', itemId: 'c_minor_potion', returnTo: { kind: 'equipment' } },
+    { view: 'item', itemId: 'c_minor_potion', returnTo: { kind: 'journey' } },
+    { view: 'equippedItem', slot: 'weapon' },
+    { view: 'shop', mode: 'buy', page: 1, itemId: 'c_minor_potion' },
   ] as const;
   const store = new MemoryStore();
   for (const scene of scenes) {
@@ -81,7 +81,7 @@ Deno.test('sources: open and Back survive serialization and preserve all three d
     const open = withRev(player.uiRev, encodeCb({ v: 'sources', a: 'p', arg: 0 }));
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, open).ctx, store);
     let saved = (await store.get(player.userId))!;
-    assertEquals(saved.scene, { ...scene, arg3: 'sources:0' });
+    assertEquals(saved.scene, { ...scene, reference: { kind: 'sources', page: 0 } });
     const snapshot = JSON.stringify(saved);
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, open).ctx, store);
     assertEquals(
@@ -95,13 +95,13 @@ Deno.test('sources: open and Back survive serialization and preserve all three d
       const next = withRev(saved.uiRev, encodeCb({ v: 'sources', a: 'p', arg: 1 }));
       await handleCallback(fakeCtxCapture(player.userId, player.messageId, next).ctx, store);
       saved = (await store.get(player.userId))!;
-      assertEquals(saved.scene, { ...scene, arg3: 'sources:1' });
+      assertEquals(saved.scene, { ...scene, reference: { kind: 'sources', page: 1 } });
     }
     const render = scene.view === 'item'
-      ? renderItemDetail(saved, scene.arg, scene.arg2)
+      ? renderItemDetail(saved, scene.itemId, scene.returnTo)
       : scene.view === 'equippedItem'
       ? renderEquippedItemDetail(saved, 'weapon')
-      : renderShopItemDetail(saved, scene.arg2, 1);
+      : renderShopItemDetail(saved, scene.itemId, 1);
     assert(JSON.stringify(render).includes('Item details'));
     const back = withRev(saved.uiRev, encodeCb({ v: 'sources', a: 'bk' }));
     await handleCallback(fakeCtxCapture(player.userId, player.messageId, back).ctx, store);
@@ -120,10 +120,10 @@ Deno.test('sources: invalid context, absent item, empty slot, unavailable stock 
   for (
     const scene of [
       { view: 'zone' },
-      { view: 'item', arg: 'm_pickaxe' },
-      { view: 'equippedItem', arg: 'trinket' },
-      { view: 'shop', arg: 'sell', arg2: '0' },
-      { view: 'shop', arg: '0', arg2: 'w_warrior_8' },
+      { view: 'item', itemId: 'm_pickaxe' },
+      { view: 'equippedItem', slot: 'trinket' },
+      { view: 'shop', mode: 'sell', page: 0 },
+      { view: 'shop', mode: 'buy', page: 0, itemId: 'w_warrior_8' },
     ] as const
   ) {
     player.scene = scene;
@@ -132,7 +132,7 @@ Deno.test('sources: invalid context, absent item, empty slot, unavailable stock 
     assertEquals(JSON.stringify(player), before);
   }
   player.inventory.push({ id: 'c_minor_potion', qty: 1 });
-  player.scene = { view: 'item', arg: 'c_minor_potion' };
+  player.scene = { view: 'item', itemId: 'c_minor_potion' };
   player.battle =
     startBattle('e_rat', { kind: 'explore', zoneId: 'outskirts' }, { player, rng: () => 0.5 })!
       .battle;

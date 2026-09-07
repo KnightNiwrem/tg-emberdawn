@@ -5,7 +5,7 @@
 
 import type { Context } from 'grammy';
 import type { InputRichMessage } from 'grammy/types';
-import type { EquipSlot, PlayerState } from '../engine/types.ts';
+import type { PlayerState } from '../engine/types.ts';
 import type { PlayerStore } from '../persistence/store.ts';
 import { withRev } from '../codec.ts';
 import { answerCallbackBestEffort } from './ack.ts';
@@ -45,7 +45,8 @@ import {
 } from '../render/views.ts';
 
 function renderFor(player: PlayerState): InputRichMessage {
-  switch (player.scene.view) {
+  const scene = player.scene;
+  switch (scene.view) {
     case 'battle':
       return renderBattle(player);
     case 'battleSkills':
@@ -53,47 +54,33 @@ function renderFor(player: PlayerState): InputRichMessage {
     case 'battleItems':
       return renderItemMenu(player);
     case 'inventory':
-      return renderInventory(player, Number(player.scene.arg ?? 0));
+      return renderInventory(player, scene.page ?? 0);
     case 'item':
-      // #112: arg2 carries the origin context (the inventory page it came
-      // from, or 'eq' for the Equipment screen) so Back returns to it.
-      return renderItemDetail(player, player.scene.arg ?? '', player.scene.arg2);
+      return renderItemDetail(player, scene.itemId, scene.returnTo);
     case 'equipment':
       return renderEquipment(player);
     case 'equippedItem':
-      // #112: the equipped detail is addressed BY SLOT and re-resolves the
-      // item from player state at render time.
-      return renderEquippedItemDetail(player, (player.scene.arg ?? 'weapon') as EquipSlot);
+      return renderEquippedItemDetail(player, scene.slot);
     case 'skills':
       return renderSkills(player);
     case 'quests':
-      // arg selects a quest detail; arg2 carries the log's side-quest page
-      // (#21) so Back from a detail returns to the same page.
-      return player.scene.arg
-        ? renderQuestDetail(player, player.scene.arg)
-        : renderQuests(player, Number(player.scene.arg2 ?? 0));
+      return scene.questId
+        ? renderQuestDetail(player, scene.questId)
+        : renderQuests(player, scene.page ?? 0);
     case 'npc':
-      // The NPC topic menu (#123): arg is the NPC id, arg2 an optional
-      // sub-state ('lore:<topicId>' or 'q:<questId>').
       return renderNpcTopics(player);
     case 'dialogue':
-      // The dialogue scene (#124): arg is the dialogue id, arg2 the
-      // current node id — both persist so rerenders and /start reproduce
-      // the exact same beat.
       return renderDialogue(player);
     case 'shop':
-      return player.scene.arg === 'sell'
-        ? renderSell(player, Number(player.scene.arg2 ?? 0))
-        : player.scene.arg2 !== undefined
-        ? renderShopItemDetail(player, player.scene.arg2, Number(player.scene.arg ?? 0))
-        : renderShop(player, Number(player.scene.arg ?? 0));
+      if (scene.mode === 'sell') return renderSell(player, scene.page ?? 0);
+      return scene.itemId !== undefined
+        ? renderShopItemDetail(player, scene.itemId, scene.page ?? 0)
+        : renderShop(player, scene.page ?? 0);
     case 'forge':
       return renderForge(player);
     case 'travel':
       return renderTravel(player);
     case 'journey':
-      // The persisted crossing (#159): /start and rerenders rebuild the
-      // intermission from PlayerState without consuming anything.
       return renderJourney(player);
     case 'death':
       return renderDeath(player);
@@ -106,11 +93,9 @@ function renderFor(player: PlayerState): InputRichMessage {
     case 'zone':
       return renderZone(player);
     case 'tutorial':
-      // Guided prologue brief (#69); arg 'brief' is the Maren dialogue.
       return renderTutorial(player);
     default: {
-      // Exhaustive: adding a ViewId obliges a renderer choice at compile time.
-      const never: never = player.scene.view;
+      const never: never = scene;
       return never;
     }
   }

@@ -1,3 +1,4 @@
+import type { ItemDetailOrigin } from '../engine/types.ts';
 /** Menu renderers: inventory, item detail, equipment, skills. */
 
 import type { InputRichBlock, InputRichMessage, RichText } from 'grammy/types';
@@ -115,20 +116,11 @@ export function itemMechanicsLines(def: ItemDef): string[] {
 /** Where a detail view was opened FROM (#112) — the Back button returns to
  * the origin (the same inventory page, or the Equipment screen) instead of
  * a hardcoded zone. */
-export type ItemDetailOrigin =
-  | { kind: 'inventory'; page: number }
-  | { kind: 'equipment' }
-  | { kind: 'journey' }
-  | { kind: 'zone' };
+export type { ItemDetailOrigin } from '../engine/types.ts';
 
-/** Parses the scene's origin marker (#112): a digit string is the inventory
- * page, 'eq' the Equipment screen, 'j' an active journey (#159), anything
- * else the legacy zone fallback. */
-export function itemDetailOrigin(arg2: string | undefined): ItemDetailOrigin {
-  if (arg2 === 'eq') return { kind: 'equipment' };
-  if (arg2 === 'j') return { kind: 'journey' };
-  if (arg2 !== undefined && /^\d+$/.test(arg2)) return { kind: 'inventory', page: Number(arg2) };
-  return { kind: 'zone' };
+/** Default return destination for a directly opened item detail. */
+export function itemDetailOrigin(origin: ItemDetailOrigin | undefined): ItemDetailOrigin {
+  return origin ?? { kind: 'zone' };
 }
 
 function detailBackRow(origin: ItemDetailOrigin): InputRichBlock {
@@ -189,18 +181,21 @@ export function itemFactBlocks(def: ItemDef): InputRichBlock[] {
 export function renderItemDetail(
   player: PlayerState,
   itemId: string,
-  originArg2?: string,
+  returnTo?: ItemDetailOrigin,
 ): InputRichMessage {
   const def = item(itemId);
   const qty = player.inventory.find((entry) => entry.id === itemId)?.qty ?? 0;
   const blocks: InputRichBlock[] = [];
-  const origin = itemDetailOrigin(originArg2);
+  const origin = itemDetailOrigin(returnTo);
   if (!def || qty === 0) {
     blocks.push(para('That item has vanished from your bag.'));
     blocks.push(detailBackRow(origin));
     return { blocks };
   }
-  const reference = renderItemReference(def.id, player.scene.arg3);
+  const reference = renderItemReference(
+    def.id,
+    player.scene.view === 'item' ? player.scene.reference : undefined,
+  );
   if (reference) return reference;
   blocks.push(heading(`${def.name} ×${qty}`, 4));
   blocks.push(...noticesBlocks(player));
@@ -336,7 +331,10 @@ export function renderEquippedItemDetail(player: PlayerState, slot: EquipSlot): 
     blocks.push(buttonsRow([cbBtn('⬅️ Equipment', encodeCb({ v: 'equipment', a: 'open' }))]));
     return { blocks };
   }
-  const reference = renderItemReference(itemDef.id, player.scene.arg3);
+  const reference = renderItemReference(
+    itemDef.id,
+    player.scene.view === 'equippedItem' ? player.scene.reference : undefined,
+  );
   if (reference) return reference;
   const temper = slot !== 'trinket' ? temperLevel(player, slot) : 0;
   const temperMark = temper > 0 ? ` +${temper}` : '';
