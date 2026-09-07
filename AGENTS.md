@@ -15,22 +15,18 @@ This section is the only source of truth for whether save-compatibility obligati
 Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply launch.
 
 - Development and playtest saves are DISPOSABLE; they carry no compatibility promise.
-- Persisted-shape changes advance `stateVersion`; older development saves are refused by
-  `assertSupportedSaveVersion()` rather than migrated. Do not add `PlayerState`/save-payload
-  migrations for retired pre-launch development saves; PostgreSQL schema migrations
-  (`src/persistence/migrate.ts`, `deno task migrate:pg`) are a separate concern.
+- Persisted-shape changes advance `stateVersion`; older development saves are refused rather than
+  migrated. Do not add `PlayerState`/save-payload migrations for retired pre-launch development
+  saves; PostgreSQL schema migrations are a separate concern.
 - Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
   shims — but every ID referenced by current code and content must resolve.
 - Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
-  fallback state for one. Every gameplay load runs the current persisted-identity checks
-  (`assertResolvablePersistedIds` in `src/engine/validate.ts`) after the version gate and before any
-  mutation or render. A detected unresolved ID is refused with a pointer to /reset — never repaired
-  or substituted. The checks cover the identity locations listed in `src/engine/validate.ts`; they
-  are not an exhaustive runtime schema validator.
+  fallback state for one: a detected unresolved ID is refused with a pointer to /reset — never
+  repaired or substituted.
 - Public launch is an explicit decision only; never infer it from a deployment or version tag.
 
-For an explicit launch decision or post-launch compatibility policy, load the `emberdawn-release`
-skill.
+For the mechanics behind this policy, load the `emberdawn-persistence` skill; for an explicit launch
+decision or post-launch compatibility policy, load the `emberdawn-release` skill.
 
 ## Cross-cutting architecture invariants
 
@@ -44,11 +40,8 @@ These apply to every change:
    parallel mutation of the same fight. Async I/O belongs only at the Telegram/database boundary.
    Pinned by `tests/architecture_test.ts`.
 3. **Single live message.** Each player has exactly one live game message. Every view change edits
-   it in place via `commit()` in `src/handlers/session.ts`; `commit()` resends and re-points only
-   when Telegram reports the tracked message is missing or no longer editable — other edit failures
-   surface, and "message is not modified" succeeds without advancing the rendered revision. Never
-   send extra button-bearing messages during normal play (the class picker and the post-reset picker
-   are the only exceptions).
+   it in place via `commit()` in `src/handlers/session.ts`. Never send extra button-bearing messages
+   during normal play.
 4. **Staleness and revision guard.** Every committed render stamps its buttons with the player's
    `uiRev`; the router rejects stale messages and revision mismatches BEFORE any mutation, so
    replays and double-taps are no-ops. Do not weaken this into "always process".
@@ -64,27 +57,22 @@ These apply to every change:
 8. **Rich text, not HTML.** Rich messages use typed entities (`{ type: 'bold', text }`) and the
    helpers in `src/render/rich.ts`. HTML tags render literally.
 9. **Flavor is not rules.** Item and skill names and flavor text are creative, never a rules source.
-   Player-facing mechanical summaries are generated from structured effect specs by
-   `src/engine/mechanics.ts`; never hand-write a second description. Canonical rules vocabulary:
-   Shield, DEF/RES, round, action, beneficial/harmful effect.
+   Player-facing mechanical summaries are generated from structured effect specs; never hand-write a
+   second description. Canonical rules vocabulary: Shield, DEF/RES, round, action,
+   beneficial/harmful effect.
 10. **Secrets.** Never commit `.env`, tokens, or local database files.
 11. **Descriptive naming.** Variable names must be descriptive and reveal intent; avoid
     single-letter domain variables (e.g. use `player`, `battle`, `questDef`, `itemDef`, `stats`).
     Compact `callback_data` keys and values and idiomatic short loop indices (`i`, `j`) are the only
-    exceptions. Local variables holding callback data still need descriptive names, including inside
-    `src/codec.ts`; their names do not consume wire bytes. Apply this to content builders, scripts,
-    tests, destructuring, and array callbacks too. Name semantic counters for their role (e.g.
-    `candidateSeed`, `floorNumber`, `tierIndex`), even in loops (#217, #220, #221).
+    exceptions. Name semantic counters for their role (e.g. `candidateSeed`, `floorNumber`,
+    `tierIndex`), even in loops (#217).
 
 ## Story-authority invariant
 
 Story and quest mutations derive identity and authorization from live `PlayerState` and content
 definitions, never from callback data or caller assertions. Central engine operations revalidate
 scene, ownership, location, and conditions; story bundles commit transactionally; retries are
-suppressed by stable receipts; terminal quest outcomes are monotonic. Dialogue choice callbacks are
-two distinct wire intents: `dlg:ch:<choiceId>` selects a response (staging the confirmation panel
-for an irreversible one), and `dlg:cf:<choiceId>` confirms — valid only for an irreversible choice
-from its exact staged panel; anything else is a non-mutating refusal. Load
+suppressed by stable receipts; terminal quest outcomes are monotonic. Load
 `emberdawn-story-and-quests` before changing this subsystem.
 
 ## Conditional skills
@@ -104,17 +92,6 @@ not auto-load a matching skill, read its `SKILL.md` file directly at the listed 
 | An explicit public launch                                                           | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
 | Intentional trade-offs and non-goals                                                | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
 
-## Theme and tone
-
-The game is about seeking hope for a future: the player is a Dawncaller, the Sundered King is
-despair hoarding tomorrow, and each chapter recovers a piece of the dawn. Keep new writing in this
-register: setbacks are real but framed as "not yet", never "never". The canonical editorial guide
-for player-facing prose is `docs/narrative-guide.md`, routed through the
-`emberdawn-narrative-writing` skill.
-
-Issue references (`#nnn`) throughout this file, the skills, and the tests point at GitHub issues in
-this repository and explain why a rule exists.
-
 ## Verification
 
 CI (`.github/workflows/ci.yml`) runs these gates; all must pass before committing:
@@ -127,14 +104,11 @@ deno task test
 ```
 
 Also run `deno task test:pg` (the Postgres round-trip) whenever persistence or schema behavior
-changes; `deno task test:pg:local` provisions a throwaway Docker Postgres. `npx fallow` is advisory
-only — its "unlisted dependencies" warnings are false positives here: this is a Deno project and
-dependencies live in `deno.json`, not `package.json`.
+changes; `deno task test:pg:local` provisions a throwaway Docker Postgres.
 
-Follow [the code-quality review guidance](docs/code-quality.md) when acting on Fallow signals. The
-owner has deferred unused-code and export-visibility cleanup: retain unused functions and re-exports
-pending future use; do not run automatic removal or make them private merely to clear findings
-(#185).
+`npx fallow` is advisory only — evaluate findings per
+[the code-quality review guidance](docs/code-quality.md) and the settled calls in
+`emberdawn-design-decisions`; never auto-apply removals (#185).
 
 ## Repository layout
 
@@ -144,13 +118,9 @@ pending future use; do not run automatic removal or make them private merely to 
 - `src/handlers/` — Telegram/I/O boundary
 - `src/persistence/` — stores and schema handling
 - `tests/` — deterministic engine and integration tests
-- `.agents/skills/` — conditional agent guidance (standard Agent Skills)
-- `docs/` — human-facing reference (for example `docs/narrative-guide.md`)
 
 ## Working on a change
 
 1. Check `git status` before editing; start from a clean tree.
 2. Load the skill or skills that match your task from the table above.
-3. Run the relevant targeted tests while you work.
-4. Before finishing, run all CI gates above — plus the PostgreSQL test for persistence or schema
-   work.
+3. Run the relevant targeted tests while you work; run all CI gates before finishing.
