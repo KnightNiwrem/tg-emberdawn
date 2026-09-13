@@ -23,6 +23,8 @@ if Path(sys.argv[0]).name == 'deno':
     assert os.environ['TEST_PG_URL'] == (
         'postgresql://postgres:postgres@127.0.0.1:' + str(55000 + int(run)) + '/postgres'
     )
+    if os.environ.get('MOCK_BOOTSTRAP'):
+        assert int((root / (run + '.probes')).read_text()) >= 3, 'TCP server is not ready'
     sys.exit(int(os.environ.get('MOCK_TEST_EXIT', '0')))
 if args[0] == 'run':
     assert args[args.index('-p') + 1] == '127.0.0.1::5432'
@@ -52,7 +54,15 @@ elif args[0] == 'port':
     assert args == ['port', created.read_text(), '5432/tcp'], args
     print('127.0.0.1:' + str(55000 + int(run)))
 elif args[0] == 'exec':
-    assert args == ['exec', created.read_text(), 'pg_isready', '-U', 'postgres'], args
+    assert args[:3] == ['exec', created.read_text(), 'pg_isready'], args
+    assert args[3:] in [['-U', 'postgres'], ['-h', '127.0.0.1', '-U', 'postgres']], args
+    if os.environ.get('MOCK_BOOTSTRAP'):
+        probes = root / (run + '.probes')
+        probe_count = int(probes.read_text()) + 1 if probes.exists() else 1
+        probes.write_text(str(probe_count))
+        # The temporary bootstrap server accepts Unix sockets, then stops before TCP starts.
+        ready = probe_count >= 3 or (probe_count == 1 and '-h' not in args)
+        sys.exit(0 if ready else 1)
     sys.exit(1 if os.environ.get('MOCK_NOT_READY') else 0)
 elif args[:2] == ['container', 'inspect']:
     assert args[2:4] == [
@@ -159,6 +169,10 @@ class PgLocalTest(unittest.TestCase):
         self.assertTrue(collision.exists(), 'failed creation must not delete the existing container')
         self.assertEqual(json.loads(collision.read_text()), {'id': 'foreign-id', 'owner': 'earlier-run'})
         self.assert_clean(collision)
+
+    def test_waits_for_tcp_after_the_temporary_bootstrap_server(self):
+        self.finish(self.start(1, MOCK_BOOTSTRAP='1'), 0)
+        self.assert_clean()
 
     def test_failures_preserve_status_and_clean_up(self):
         cases = [

@@ -46,16 +46,16 @@ binding=$(docker port "$container_name" 5432/tcp)
 port=${binding##*:}
 test_pg_url="postgresql://postgres:postgres@127.0.0.1:$port/postgres"
 
-# Wait until the server accepts connections (container image cold starts).
+# Wait for TCP; the image first starts a temporary server that only accepts Unix sockets.
 readiness_attempt=0
 while [ "$readiness_attempt" -lt 60 ]; do
-  if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
+  if docker exec "$container_name" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
     break
   fi
   readiness_attempt=$((readiness_attempt + 1))
   sleep 0.5
 done
-if ! docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
+if [ "$readiness_attempt" -eq 60 ]; then
   echo "pg-local: Postgres did not become ready in time" >&2
   exit 1
 fi
