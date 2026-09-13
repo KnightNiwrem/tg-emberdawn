@@ -4,38 +4,42 @@
 #
 #   deno task test:pg:local
 #
-# The container is always removed afterwards; the suite's own gate
-# (TEST_PG_URL) is set here, so the four tests run instead of being
-# ignored. Exit code is the suite's exit code.
+# Each invocation owns its container and loopback port, including during
+# concurrent runs. TEST_PG_URL enables the suite against that database.
+# Exit code is the suite's exit code.
 set -e
 
-NAME=emberdawn-pg-local
-PORT=55432
-URL="postgresql://postgres:postgres@localhost:$PORT/postgres"
+container_id=''
 
 cleanup() {
-  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  if [ -n "$container_id" ]; then
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+  fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-cleanup
-docker run -d --name "$NAME" \
+container_id=$(docker run -d \
   -e POSTGRES_PASSWORD=postgres \
-  -p "$PORT:5432" \
-  postgres:16 >/dev/null
+  -p 127.0.0.1::5432 \
+  postgres:16)
+binding=$(docker port "$container_id" 5432/tcp)
+port=${binding##*:}
+test_pg_url="postgresql://postgres:postgres@127.0.0.1:$port/postgres"
 
 # Wait until the server accepts connections (container image cold starts).
-i=0
-while [ $i -lt 60 ]; do
-  if docker exec "$NAME" pg_isready -U postgres >/dev/null 2>&1; then
+readiness_attempt=0
+while [ "$readiness_attempt" -lt 60 ]; do
+  if docker exec "$container_id" pg_isready -U postgres >/dev/null 2>&1; then
     break
   fi
-  i=$((i + 1))
+  readiness_attempt=$((readiness_attempt + 1))
   sleep 0.5
 done
-if ! docker exec "$NAME" pg_isready -U postgres >/dev/null 2>&1; then
+if ! docker exec "$container_id" pg_isready -U postgres >/dev/null 2>&1; then
   echo "pg-local: Postgres did not become ready in time" >&2
   exit 1
 fi
 
-TEST_PG_URL="$URL" deno task test:pg
+TEST_PG_URL="$test_pg_url" deno task test:pg

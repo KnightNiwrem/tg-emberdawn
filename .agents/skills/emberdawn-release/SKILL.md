@@ -1,6 +1,6 @@
 ---
 name: emberdawn-release
-description: Use when an explicit public-launch decision is being made for Emberdawn, or when changing post-launch save compatibility, migration, or durable content-ID policy.
+description: Prepare an explicitly requested Emberdawn public launch or change post-launch save compatibility policy.
 ---
 
 # Emberdawn release policy
@@ -9,7 +9,9 @@ The root `AGENTS.md` is the only source of truth for the current release phase; 
 repeat its value. Read the current phase from root `AGENTS.md`: while it says PRE-LAUNCH, the
 deferred rules below are inactive; once an explicitly approved launch changes root to LIVE, they
 become active. Deployment, playtesting, database contents, tags, and `stateVersion` numbers do not
-imply launch, and nothing may infer or automate the transition.
+imply launch. An explicit request to prepare launch authorizes preparation; changing the phase
+requires approval of launch itself. Once approved, complete the transition without requesting the
+same decision again.
 
 ## Deferred rules (activate at public release only)
 

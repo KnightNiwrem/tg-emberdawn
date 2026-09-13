@@ -37,18 +37,6 @@ jobs:
   test-pg:
     name: test (pg round-trip)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
@@ -63,7 +51,5 @@ jobs:
           key: deno-${{ hashFiles('deno.lock') }}
           restore-keys: deno-
 
-      - name: Round-trip against Postgres
-        run: deno task test:pg
-        env:
-          TEST_PG_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Round-trip against a disposable Postgres
+        run: deno task test:pg:local

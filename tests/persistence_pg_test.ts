@@ -2,8 +2,8 @@
  * PgStore round-trip against a REAL Postgres.
  * Skipped unless TEST_PG_URL is set:
  *   TEST_PG_URL=postgresql://user:pass@host:5432/db deno task test:pg
- * CI runs it via a postgres service container; locally, one command
- * provisions a throwaway container, runs the suite, and tears it down:
+ * CI and local Docker runs use one command to provision a throwaway
+ * container, run the suite, and tear down only that run's container:
  *   deno task test:pg:local
  */
 

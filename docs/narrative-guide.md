@@ -157,11 +157,18 @@ machine-checked in `tests/dialogue_copy_test.ts`:
 
 - `SkillDef.flavor` and `ItemDef.desc` are creative; they may be boastful, nonliteral, or wrong
   about the world. They never carry numbers.
-- The player-facing rules block is GENERATED from effect data (engine/mechanics.ts) in the canonical
-  vocabulary: Shield, DEF/RES, round, action, beneficial/harmful effect. Editing prose never touches
-  it.
+- The player-facing rules block is GENERATED from effect data (`src/engine/mechanics.ts`:
+  `mechanicsText`/`mechanicsLines`/`consumableEffectLines`) in the canonical vocabulary: Shield,
+  DEF/RES, round, action, beneficial/harmful effect. Equipment triggers use `triggerDisclosure` in
+  `src/render/menus.ts`. Do not replace generated summaries with authored descriptions or duplicate
+  their mechanical quantities in prose.
+- Validate mechanical disclosure structurally: assert that the renderer discloses every effect-spec
+  field. Do not lexically scan creative names/flavor for words such as "ward" or "stun".
 - Battle narration (`spec.line`, `defaultInstanceLine`) is in-world and distinct from the rules
-  summary, but generic effect output (grants, fades, dispels) still uses the canonical terms.
+  summary, but generic effect output (grants, fades, dispels) still uses the canonical terms: Shield
+  for the pool, rounds for duration, beneficial/harmful effects for removals. Some balance metrics
+  parse these generic lines; changes use the
+  [balance parser contract](../.agents/skills/emberdawn-combat/references/balance.md).
 
 ## 5. Motifs (use deliberately, not decoratively)
 

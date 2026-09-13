@@ -1,26 +1,19 @@
 ---
 name: emberdawn-design-decisions
-description: Use when reconsidering Emberdawn accepted trade-offs, intentional non-goals, dead-code findings, or architectural rationale that the project has already decided.
+description: Evaluate Emberdawn code-quality refactors, cleanup findings, or proposed changes to documented design trade-offs.
 ---
 
 # Emberdawn design decisions
 
-Accepted trade-offs and intentional non-goals. These are settled decisions; re-opening one requires
-an explicit design change, not a drive-by refactor. Each entry states the current decision, not its
-history.
+Accepted trade-offs and intentional non-goals. Preserve these during ordinary fixes and refactors.
+An explicit user request to revisit a decision authorizes that design work; do not request the same
+decision again. Keep unrelated decisions intact.
 
 ## Dungeons are consecutive runs
 
-Each dungeon entry starts at floor 1. Combat and authored discovery floors lead consecutively to the
-boss; leaving or fleeing abandons the current run. Players cannot visit hub facilities or rest
-between floors. Discovery rooms supply atmosphere and occasional finite caches, never free recovery.
-An interrupted session resumes the active run; disconnecting is not abandoning it.
-
-Durable first clears and collected floor caches are separate from temporary run progress. Retries
-retain earned quest progress and loot but cannot regenerate first-clear rewards or cache contents.
-Boss story gates remain in force, so preparation quests can use the earlier encounters and a player
-can abandon a run to report back. The next entry still begins at floor 1. See `docs/dungeon-runs.md`
-for the full policy and content authoring boundaries.
+The canonical [dungeon-run policy](../../../docs/dungeon-runs.md) defines consecutive progression,
+abandonment versus disconnected-session resumption, recovery restrictions, durable rewards, and boss
+preparation. Preserve that contract when changing dungeon design.
 
 ## Overland travel is not free (#157/#162)
 
@@ -43,9 +36,9 @@ for the full policy and content authoring boundaries.
 
 ## Forge temper is per-pattern mastery
 
-Forge tempers are recorded as item-pattern flags (`forge_i_<itemId>`): every copy of that catalog id
-carries the temper, replacement loot inherits the forge-work, and the forge is a bounded per-pattern
-sink. This is a documented design choice, not a bug.
+The [economy contract](../emberdawn-content-authoring/references/economy.md#economy) defines
+tempering as catalog-pattern mastery shared by every copy, including later replacement loot.
+Preserve that bounded per-pattern sink when evaluating item-instance alternatives.
 
 ## Evaluated dead-code findings
 

@@ -6,8 +6,8 @@
  * These tests pin that contract against the shared Agent Skills
  * specification baseline (https://agentskills.io/specification):
  *
- *  - the root AGENTS.md stays within a 12 KiB UTF-8 byte budget (target
- *    8–10 KiB) so it fits every harness's project-instruction window;
+ *  - the root AGENTS.md stays within the repository's 12 KiB UTF-8 byte
+ *    ceiling; this is not a target or a guarantee about harness limits;
  *  - every `.agents/skills/<name>/SKILL.md` path referenced by the root
  *    routing table exists on disk, is routed exactly once, and every
  *    on-disk skill directory is routed;
@@ -19,7 +19,9 @@
  *  - the retired `docs/agent-guides/` layout can never reappear — neither
  *    referenced in root nor present as a directory;
  *  - the canonical editorial guide docs/narrative-guide.md exists and the
- *    emberdawn-narrative-writing skill routes to it.
+ *    emberdawn-narrative-writing skill routes to it;
+ *  - local Markdown links in skills and their references resolve, so
+ *    conditional guidance cannot silently become unreachable.
  */
 
 import { assert, assertEquals, assertMatch } from '@std/assert';
@@ -169,4 +171,33 @@ async function validateSkill(expectedName: string, relPath: string): Promise<voi
   // A skill is instructions, not just metadata: the Markdown body must
   // carry content after the frontmatter block.
   assert(fm[2].trim().length > 0, `${relPath}: empty Markdown body after frontmatter`);
+}
+
+Deno.test('agent docs: local skill and reference links resolve', async () => {
+  const skillRoot = new URL('.agents/skills/', repoRoot);
+  for await (const document of markdownFiles(skillRoot)) {
+    const source = await Deno.readTextFile(document);
+    for (const match of source.matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
+      const target = match[1];
+      if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(target)) continue;
+      const destination = new URL(target, document);
+      // Fragments identify sections within a file; Deno's file URLs need only the path.
+      destination.hash = '';
+      let exists = false;
+      try {
+        exists = (await Deno.stat(destination)).isFile;
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+      }
+      assert(exists, `${document.pathname}: broken local reference ${target}`);
+    }
+  }
+});
+
+async function* markdownFiles(directory: URL): AsyncGenerator<URL> {
+  for await (const entry of Deno.readDir(directory)) {
+    const path = new URL(entry.name + (entry.isDirectory ? '/' : ''), directory);
+    if (entry.isDirectory) yield* markdownFiles(path);
+    else if (entry.isFile && entry.name.endsWith('.md')) yield path;
+  }
 }

@@ -108,23 +108,34 @@ requirements.
 
 ## Development and verification
 
-Run the same four gates as CI before committing:
+For code changes, run the four gates on the final candidate before committing:
 
 ```bash
 deno task fmt:check
 deno task lint
 deno task check
-deno task test
+TEST_PG_URL= deno task test
 ```
 
-For persistence or schema changes, also run the PostgreSQL round-trip suite against a test database:
+During development, choose checks for the changed behavior. Rerun checks when later edits invalidate
+their evidence. Documentation-only changes need formatting and relevant documentation checks; agent
+guidance changes use `deno test --allow-import --allow-read tests/agent_docs_test.ts`. CI still runs
+the full gate matrix. See [AGENTS.md](AGENTS.md#verification) for the completion and verification
+policy.
+
+For persistence or schema changes, also run the PostgreSQL round-trip suite against an explicitly
+disposable test database:
 
 ```bash
 TEST_PG_URL='postgresql://postgres:postgres@localhost:5432/emberdawn_test' deno task test:pg
 ```
 
-Alternatively, `deno task test:pg:local` provisions a throwaway PostgreSQL container using Docker.
-`deno task fmt` formats the repository; `deno task balance` runs the balance simulation.
+Alternatively, `deno task test:pg:local` provisions a private throwaway PostgreSQL container on an
+available loopback port and removes only that run's container. Concurrent runs use separate
+containers. Nonempty `TEST_PG_URL` enables real writes and deletions, including in the ordinary test
+task; keep it unset or empty for non-PostgreSQL runs. Bot integration tests use fake credentials and
+captured transport. `deno task fmt` formats the repository; `deno task balance` runs the balance
+simulation.
 
 ## Playing
 

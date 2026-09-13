@@ -1,23 +1,28 @@
 ---
 name: emberdawn-narrative-writing
-description: Use when writing or revising Emberdawn player-facing narrative, UI copy, NPC dialogue, character voice, motifs, or editorial style.
+description: Write or revise Emberdawn authored player-facing prose, dialogue, or UI copy.
 ---
 
 # Emberdawn narrative writing
 
-The canonical editorial contract for every authored player-facing string is
-`docs/narrative-guide.md`. **Read that guide before authoring or revising any narrative text** —
-setting facts, narrator/UI/character voices, per-NPC voice sheets, motif use, and punctuation are
-all defined there, and prose decisions are checked against it.
+`docs/narrative-guide.md` is the canonical editorial contract. Read its relevant sections, not the
+whole guide for every string edit:
 
-Boundary with mechanics (see the root `AGENTS.md` invariant): names and flavor text are creative and
-may be nonliteral, but player-facing mechanical summaries are generated from structured effect
-specs. Do not duplicate mechanical quantities, rules, or reward summaries in authored prose. Item
-descriptions (`ItemDef.desc`) and skill flavor (`SkillDef.flavor`) remain number-free under the
-guide's specific convention; ordinary numerical narration elsewhere is permitted. Use the canonical
-rules vocabulary (Shield, DEF/RES, round, action, beneficial/harmful effect) in generic effect
-output.
+| Task                                                        | Guide sections                                                                                                                                                                                     |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI labels, errors, instructions                             | [UI/system voice](../../../docs/narrative-guide.md#uisystem-voice-out-of-world-but-never-coy); §3b when quest requirements or consequences are involved                                            |
+| NPC/player speech, dialogue prompts and choices             | [Character dialogue](../../../docs/narrative-guide.md#character-dialogue), including the affected NPC's voice-sheet row; §3/3a for punctuation, presentation, and staging; §6 for class neutrality |
+| Narration, setting, plot, return-visit continuity           | [Setting facts](../../../docs/narrative-guide.md#1-setting-facts-canonical-revised-189), narrator voice, and relevant §3b/§5/§6 guidance                                                           |
+| Item descriptions, skill flavor, generic combat-effect copy | [Mechanical/flavor boundary](../../../docs/narrative-guide.md#4-mechanicalflavor-boundary-inherited-from-120121)                                                                                   |
+| An editorial validation pass                                | [Validation boundary](../../../docs/narrative-guide.md#7-validation-boundary)                                                                                                                      |
 
-Tone register: the game is about seeking hope for a future. Maintain overall hope without denying
-real loss. Describe temporary setbacks as recoverable; state permanent exclusions, failures, and
-forfeited rewards plainly.
+Maintain overall hope without denying loss. Temporary setbacks sound recoverable; permanent
+exclusions, failures, and forfeited rewards are explicit. Names/flavor are creative, while
+mechanical summaries come from structured effects. Item descriptions and skill flavor remain
+number-free; ordinary numerical narration elsewhere is permitted. Generic effects use Shield,
+DEF/RES, round, action, and beneficial/harmful effect.
+
+Changing only wording does not require content or story-engine skills. If the task also changes
+structured consequences, dialogue staging/navigation, or progression, load the matching behavioral
+guidance. Generic battle-line changes may affect
+[balance parsers](../emberdawn-combat/references/balance.md).
