@@ -31,11 +31,11 @@ reviewed. These are conditional domain checks, not one execution sequence. For a
 follow its intended acquisition route: drops and contextual loot use world guidance; shop stock,
 gathering/crafting, and quest rewards use economy guidance.
 
-| When changing or reviewing...                                                                      | Read                                                                 |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Zones, drops, contextual loot, encounter eligibility, dungeons, reachability, or objective sources | [World content](references/world-content.md)                         |
-| Prices, stock, selling, forge, gathering/crafting, forage, or quest rewards                        | [Economy and rewards](references/economy.md)                         |
-| Chapter progression, class cadence, chapter flags, or story/theme continuity                       | [Progression and story context](references/progression-and-story.md) |
+| When changing or reviewing...                                                                                   | Read                                                                 |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Zones, drops, contextual loot, encounter eligibility or weighting, dungeons, reachability, or objective sources | [World content](references/world-content.md)                         |
+| Prices, stock, selling, forge, gathering/crafting, forage, or quest rewards                                     | [Economy and rewards](references/economy.md)                         |
+| Chapter progression, class cadence, chapter flags, or story/theme continuity                                    | [Progression and story context](references/progression-and-story.md) |
 
 For quest lifecycle, dialogue flow, story effects, or NPC topic wiring, also load
 `emberdawn-story-and-quests`: lifecycle contacts, offer/turn-in dialogues, story-event objectives,
