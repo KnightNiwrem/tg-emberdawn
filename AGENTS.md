@@ -110,7 +110,8 @@ does not require persistence guidance.
 
 ## Verification
 
-CI (`.github/workflows/ci.yml`) runs these gates; all must pass before committing:
+Use targeted checks during implementation. Before committing or reporting completion, code or mixed
+changes must pass these gates; reuse valid results and rerun checks affected by later edits:
 
 ```bash
 deno task fmt:check
@@ -118,6 +119,10 @@ deno task lint
 deno task check
 deno task test
 ```
+
+For documentation-only eligibility, required document checks, and failure reporting, see the
+[verification policy](docs/verification.md). Its local exception does not change full CI, including
+PostgreSQL, which still runs for every PR.
 
 Also run `deno task test:pg` (the Postgres round-trip) whenever persistence or schema behavior
 changes; `deno task test:pg:local` provisions a throwaway Docker Postgres.
@@ -145,7 +150,7 @@ running them.
 1. Check `git status` before editing and preserve unrelated work. Use an isolated worktree when
    needed; existing user changes do not by themselves block the task.
 2. Load the skill or skills that match your task from the table above.
-3. Run the relevant targeted tests while you work; run all CI gates before finishing.
+3. Follow the Verification policy above for targeted checks, final gates, and justified reruns.
 
 Complete the requested outcome, including necessary integration, repairs for failures caused by the
 change, and verification. Committed code is a deliverable: review its correctness, readability,
