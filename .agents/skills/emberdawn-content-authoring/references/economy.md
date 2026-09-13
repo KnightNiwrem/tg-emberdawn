@@ -20,10 +20,11 @@
   forge-work, and the forge is a bounded per-pattern sink) and boost only that item's own base
   stats. The two temper materials are chosen by the item's tier and slot, not the player's location.
 - Gathering and processing (#203/#204) use explicit local catalogs in `content/gathering.ts` and
-  `content/crafting.ts`. Gathering requires authored tools/bait and shares three charges per zone
-  across activities. Spending the final charge starts a six-hour timer; all three replenish when it
-  expires. Partially spent allowances do not recharge. Refusals never spend ingredients, bait, gold
-  or charges. Tools remain ordinary inventory materials. Recipe inputs and material uses are derived
+  `content/crafting.ts`. Forage needs no tool or bait; mining requires a reusable pickaxe; fishing
+  requires a reusable fishing rod and consumes one bait per cast. Activities share three charges per
+  zone. Spending the final charge starts a six-hour timer; all three replenish when it expires.
+  Partially spent allowances do not recharge. Refusals never spend ingredients, bait, gold or
+  charges. Tools remain ordinary inventory materials. Recipe inputs and material uses are derived
   for the UI; do not promise future facilities in flavor text. See
   [resources and crafting](../../../../docs/resources-and-crafting.md) for sources, the early supply
   chain, tempering costs, and current extension boundaries.

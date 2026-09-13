@@ -26,6 +26,7 @@
 
 import { assert, assertEquals, assertMatch } from '@std/assert';
 import { parse } from '@std/yaml';
+import { validateMarkdownLinks } from './helpers_markdown.ts';
 
 const repoRoot = new URL('../', import.meta.url);
 
@@ -176,21 +177,7 @@ async function validateSkill(expectedName: string, relPath: string): Promise<voi
 Deno.test('agent docs: local skill and reference links resolve', async () => {
   const skillRoot = new URL('.agents/skills/', repoRoot);
   for await (const document of markdownFiles(skillRoot)) {
-    const source = await Deno.readTextFile(document);
-    for (const match of source.matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
-      const target = match[1];
-      if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(target)) continue;
-      const destination = new URL(target, document);
-      // Fragments identify sections within a file; Deno's file URLs need only the path.
-      destination.hash = '';
-      let exists = false;
-      try {
-        exists = (await Deno.stat(destination)).isFile;
-      } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error;
-      }
-      assert(exists, `${document.pathname}: broken local reference ${target}`);
-    }
+    await validateMarkdownLinks(document);
   }
 });
 

@@ -51,5 +51,8 @@ jobs:
           key: deno-${{ hashFiles('deno.lock') }}
           restore-keys: deno-
 
+      - name: Check Postgres helper ownership and interruption cleanup
+        run: python3 scripts/pg-local-test.py
+
       - name: Round-trip against a disposable Postgres
         run: deno task test:pg:local

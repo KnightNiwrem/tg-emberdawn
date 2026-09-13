@@ -15,7 +15,7 @@ effects also use [story transactions](transactions.md).
   active→turnIn transition authority: readiness is announced exactly once, by the surface that
   caused it. `resolveVictory` collects ready ids from drops, the kill, the availability refresh,
   dungeon bookkeeping, and first-clear rewards, and appends one deduped `questReadyLine`
-  (`📜 "<name>" is ready to turn in!` — the one shared formatter) per quest after all of the
+  (`📜 “<name>” is ready to turn in!` — the one shared formatter) per quest after all of the
   victory's mutations. `arriveAt()` puts it in the arrival lines; the dialogue interaction puts it
   in the interaction notices. It is never re-derived at render time and never re-announced for an
   already-`turnIn` quest.

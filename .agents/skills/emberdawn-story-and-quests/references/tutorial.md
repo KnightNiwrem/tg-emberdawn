@@ -1,7 +1,5 @@
 # Guided prologue
 
-## Guided prologue
-
 Fresh heroes run a directed prologue before the real hub opens: Elder Maren's ember brief → one
 controlled battle vs `e_cinder_mite` (a `tutorial`-flagged level-1 fixture) → the ember reward →
 release into the real hub. The engine enforces basic action → skill → Guard → item lesson beats in

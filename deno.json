@@ -20,7 +20,10 @@
     "@std/yaml": "jsr:@std/yaml@^1",
     "grammy-testing": "npm:grammy-testing@^0.26.0",
     "pg": "npm:pg@^8.23.0",
-    "@types/pg": "npm:@types/pg@^8"
+    "@types/pg": "npm:@types/pg@^8",
+    "mdast-util-from-markdown": "npm:mdast-util-from-markdown@^2.0.3",
+    "mdast-util-to-string": "npm:mdast-util-to-string@^4.0.0",
+    "github-slugger": "npm:github-slugger@^2.0.0"
   },
   "lock": true,
   "compilerOptions": {

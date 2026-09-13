@@ -9,35 +9,42 @@
 # Exit code is the suite's exit code.
 set -e
 
-container_id=''
+run_directory=''
+container_name=''
 
 cleanup() {
-  if [ -n "$container_id" ]; then
-    docker rm -f "$container_id" >/dev/null 2>&1 || true
+  if [ -n "$container_name" ]; then
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$run_directory" ]; then
+    rmdir "$run_directory" || true
   fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-container_id=$(docker run -d \
+# Establish ownership before docker run can create a container or be interrupted.
+run_directory=$(mktemp -d "${TMPDIR:-/tmp}/emberdawn-pg.XXXXXXXXXX")
+container_name="${run_directory##*/}"
+docker run -d --name "$container_name" \
   -e POSTGRES_PASSWORD=postgres \
   -p 127.0.0.1::5432 \
-  postgres:16)
-binding=$(docker port "$container_id" 5432/tcp)
+  postgres:16 >/dev/null
+binding=$(docker port "$container_name" 5432/tcp)
 port=${binding##*:}
 test_pg_url="postgresql://postgres:postgres@127.0.0.1:$port/postgres"
 
 # Wait until the server accepts connections (container image cold starts).
 readiness_attempt=0
 while [ "$readiness_attempt" -lt 60 ]; do
-  if docker exec "$container_id" pg_isready -U postgres >/dev/null 2>&1; then
+  if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
     break
   fi
   readiness_attempt=$((readiness_attempt + 1))
   sleep 0.5
 done
-if ! docker exec "$container_id" pg_isready -U postgres >/dev/null 2>&1; then
+if ! docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
   echo "pg-local: Postgres did not become ready in time" >&2
   exit 1
 fi
