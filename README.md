@@ -108,7 +108,7 @@ requirements.
 
 ## Development and verification
 
-For code or mixed changes, complete these four gates before committing. The
+For code or mixed changes, complete these four gates before committing or reporting completion. The
 [verification policy](docs/verification.md) defines targeted checks during implementation, reuse of
 valid results, and the narrower local path for qualifying documentation-only changes. Full CI still
 runs for every PR.
