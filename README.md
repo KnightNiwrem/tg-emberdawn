@@ -108,7 +108,10 @@ requirements.
 
 ## Development and verification
 
-Run the same four gates as CI before committing:
+For code or mixed changes, complete these four gates before committing. The
+[verification policy](docs/verification.md) defines targeted checks during implementation, reuse of
+valid results, and the narrower local path for qualifying documentation-only changes. Full CI still
+runs for every PR.
 
 ```bash
 deno task fmt:check
@@ -117,7 +120,8 @@ deno task check
 deno task test
 ```
 
-For persistence or schema changes, also run the PostgreSQL round-trip suite against a test database:
+For persistence or schema behavior changes, also run the PostgreSQL round-trip suite against a
+confirmed disposable test database:
 
 ```bash
 TEST_PG_URL='postgresql://postgres:postgres@localhost:5432/emberdawn_test' deno task test:pg
