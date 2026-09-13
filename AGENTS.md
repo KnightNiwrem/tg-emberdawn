@@ -132,6 +132,18 @@ changes; `deno task test:pg:local` provisions a throwaway Docker Postgres.
 
 ## Working on a change
 
-1. Check `git status` before editing; start from a clean tree.
+1. Check `git status` before editing and preserve unrelated work. Use an isolated worktree when
+   needed; existing user changes do not by themselves block the task.
 2. Load the skill or skills that match your task from the table above.
 3. Run the relevant targeted tests while you work; run all CI gates before finishing.
+
+Complete the requested outcome, including necessary integration, repairs for failures caused by the
+change, and verification. Committed code is a deliverable: review its correctness, readability,
+descriptive naming, and consistency with the existing design before finishing.
+
+Keep each PR focused on one requested outcome. Include supporting changes needed to complete it;
+propose independent improvements as separate issues and sequential PRs. Continue autonomously within
+the authorized scope without repeated approval for routine implementation and verification steps.
+
+Finish when the requested acceptance criteria and required checks are satisfied. If blocked, report
+the unresolved blocker precisely, including what remains incomplete and why.
