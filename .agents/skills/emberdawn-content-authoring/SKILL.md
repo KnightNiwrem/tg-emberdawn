@@ -10,101 +10,48 @@ pure construction and lookup helpers are allowed. Content modules never import g
 Telegram/Deno-specific APIs. Content refers only to real ids defined in other content modules; the
 integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce this and must stay green.
 
-For changes to or reviews of `questBoosts` or quest-dependent encounter weighting, read
-[docs/quest-encounters.md](../../../docs/quest-encounters.md).
+Source and test paths in this skill and its references are relative to the repository root.
 
-## Adding content checklist
+## Common content checks
 
-1. Define ids first, then reference them. Follow the conventions already used in each content module
-   — for example `e_*` enemies, `w_`/`a_`/`t_`/`c_`/`m_` items, `sk_*` skills, `npc_*` NPCs, `dlg_*`
-   dialogues, `d_*` dungeons, `m<n>_*` main quests, `sq_*` side quests, and bare-word zone ids. This
-   list is not exhaustive: the content modules and the content-integrity tests are the authority on
-   each catalog's real convention.
-2. Enemy stats: use `mk()` with level and multipliers — never raw numbers.
-3. Wire drops at sensible probabilities (bosses 0.4–1.0, field 0.1–0.6).
-4. Evaluate quest rewards against eligible local shop stock and prices at that quest beat, including
-   item rewards and required expenditures. Check the relevant progression and balance tests.
-5. Run the content-integrity tests; they catch dangling ids.
-6. Safe havens (`safeHaven: true`) never spawn battles: keep their explore tables battle-free (the
-   engine also filters them). Battles belong in the wilds players travel to. They also author no
-   `rest` events (#211): arrival at a haven already restores both pools fully, so an in-haven rest
-   could only roll against full pools — the engine filters those too.
-7. Every zone must be reachable: list it in `STARTING_ZONES` or grant it via a quest or dungeon
-   `unlockZones` reward array — the zone-reachability test enforces this. Quests and dungeon
-   first-clears list zones in authored order; existing unlocks are not granted or announced again.
-8. `learnLevel: 1` skills are granted at creation. Save-schema questions after persisted-shape
-   changes follow `emberdawn-persistence`.
-9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
-   enough dungeon floor slots. `tests/progression_test.ts` enforces encounter capacity, and the full
-   m1→m25 simulation walks the main questline through the pure engine.
-10. For quest lifecycle, dialogue flow, story effects, or NPC topic wiring, also load
-    `emberdawn-story-and-quests`: lifecycle contacts, offer/turn-in dialogues, story-event
-    objectives, and topic wiring are all content-integrity tested.
+- Define ids first, then reference them. Follow the conventions already used in each content module
+  — for example `e_*` enemies, `w_`/`a_`/`t_`/`c_`/`m_` items, `sk_*` skills, `npc_*` NPCs, `dlg_*`
+  dialogues, `d_*` dungeons, `m<n>_*` main quests, `sq_*` side quests, and bare-word zone ids. This
+  list is not exhaustive: the content modules and the content-integrity tests are the authority on
+  each catalog's real convention.
+- Run the content-integrity tests; they catch dangling ids.
 
-## Economy
+Save-schema questions after persisted-shape changes follow `emberdawn-persistence`. For content-ID
+changes, follow the root `AGENTS.md` release-phase and persisted-identity rules.
 
-- Selling returns 40% of price.
-- Shops are AUTHORED local catalogs (`ShopDef`, referenced by a zone's `services.shop`): each shop
-  owns its stock rules in authored order, with condition-gated groups (`when` — e.g. Bram's tier-2
-  steel opens exactly at the m5_arms beat) and authored local price rules (`pricePct`). There is no
-  computed universal stock and no `shopTierFor` — what a counter carries is what the author wrote
-  for that counter (#161).
-- Equipment is filtered per shopper: only their class, only pieces they can actually equip
-  (`def.level ≤ player level`). The counter revalidates `isEquippable` before charging (defense in
-  depth). Trinkets stock only what the player can currently equip (`item.level ≤ player level`).
-- Zone contextual loot (#158/#165): zones author a `lootTable` (stable id in `content/loot.ts`)
-  rolled IN ADDITION to ordinary enemy rewards for explore/elite/travel battles resolved in that
-  zone (dungeon battles grant their own caches instead). Quest-kind drops in any contextual table
-  stay behind the central relevance filter.
-- Forge tempers up to +5 are item-pattern mastery (`forge_i_<itemId>` flags — a documented design
-  choice: every copy of that catalog id carries the temper, replacement loot inherits your
-  forge-work, and the forge is a bounded per-pattern sink) and boost only that item's own base
-  stats. The two temper materials are chosen by the item's tier and slot, not the player's location.
-- Gathering and processing (#203/#204) use explicit local catalogs in `content/gathering.ts` and
-  `content/crafting.ts`. Gathering requires authored tools/bait and shares three charges per zone
-  across activities. Spending the final charge starts a six-hour timer; all three replenish when it
-  expires. Partially spent allowances do not recharge. Refusals never spend ingredients, bait, gold
-  or charges. Tools remain ordinary inventory materials. Recipe inputs and material uses are derived
-  for the UI; do not promise future facilities in flavor text. See `docs/resources-and-crafting.md`
-  for sources, the early supply chain, tempering costs, and current extension boundaries.
+## Read for the task
 
-## Endgame economy
+Use the applicable definition checks below and load references for the content being changed or
+reviewed. These are conditional domain checks, not one execution sequence. For an item addition,
+follow its intended acquisition route: drops and contextual loot use world guidance; shop stock,
+gathering/crafting, and quest rewards use economy guidance.
 
-- Postgame XP converts to gold (`ceil(xp / 8)`) instead of vanishing.
-- Safe-haven forage recharges on a 6h real-time cooldown (`forageResetAt`, stamped the moment the
-  last charge is spent; `explore()` takes an injected `now` for deterministic tests). Free travel
-  never refreshes it.
-- The Vault consumes the Sunspire Key on the first boss victory; its sole source is the m11_toll
-  reward.
-- Boss first-clears award boss trinkets `t_12`–`t_18`: never stocked, `unique` (unsellable and
-  un-droppable earned trophies).
+| When changing or reviewing...                                                                                   | Read                                                                 |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Zones, drops, contextual loot, encounter eligibility or weighting, dungeons, reachability, or objective sources | [World content](references/world-content.md)                         |
+| Prices, stock, selling, forge, gathering/crafting, forage, or quest rewards                                     | [Economy and rewards](references/economy.md)                         |
+| Chapter progression, class cadence, chapter flags, or story/theme continuity                                    | [Progression and story context](references/progression-and-story.md) |
 
-## Chapter-one curve
+For quest lifecycle, dialogue flow, story effects, or NPC topic wiring, also load
+`emberdawn-story-and-quests`: lifecycle contacts, offer/turn-in dialogues, story-event objectives,
+and topic wiring are all content-integrity tested.
 
-The bridge to Aranya is authored, not an unexplained grind: m1_embers (4× Lv-1 ember-rats in the
-Outskirts) → m2_letter (delivery) → m3_wolves (3× Lv-4 wolves, Whisperwood) → m4_floors
-(silk-broods, Lv 5) → m5_arms (the tier-2 preparation beat: two Iron Chunks, no coin cost; Bram's
-authored tier-2 stock group opens when the quest becomes active and remains open afterward, subject
-to equipment eligibility) → m3_roots (Aranya, level 7) → m4_blessing (shards, level 8, unlocks
-Hollowmere). Every dungeon authors `recommendedLevel`; see `emberdawn-combat` for how it is
-surfaced.
+For authored player-facing prose, load `emberdawn-narrative-writing`.
 
-## Skill cadence
+## Item, skill, and enemy definitions
 
-Each class demonstrates its identity by level 2 — the Cleric heals from level 1 (Mend Wounds), not
-level 4. Ladders stay distinct rather than uniform: warrior's second damage tier is 13 (Whirlwind)
-with Iron Wall moved to 16; cleric's offensive upgrade is 11 (Radiant Burst) with Holy Ward at 16,
-and Judgment strikes for 290% MAG so late-game cleric damage is not stranded. The class picker
-states the starting kit, tradeoff, and complexity, and marks Warrior as the forgiving beginner pick.
+Authoritative definitions: `src/content/items.ts`, `src/content/skills.ts`,
+`src/content/enemies.ts`. Mechanical disclosure is checked in `tests/mechanics_test.ts` and the
+content-integrity tests above; acquisition references are covered by `tests/item_sources_test.ts`.
+
+- Enemy stats: use `mk()` with level and multipliers — never raw numbers.
+- `learnLevel: 1` skills are granted at creation.
+
 Mechanical summaries are generated from `effects` by `src/engine/mechanics.ts`; authors provide
 structured effects and nonmechanical flavor. New effect shapes require summary-renderer support and
 relevant tests.
-
-## Story and theme
-
-The game is about seeking hope for a future: the player is a Dawncaller, the Sundered King is
-despair hoarding tomorrow, and each chapter recovers a piece of the dawn. Chapter flags are
-`chapter1Done`…`chapter6Done`; the game-clear moment is defeating King Aldric (flag set via the
-dungeon first-clear `crownRestored`). Preserve an overall hopeful tone while stating permanent
-consequences plainly: a closed quest branch or forfeited reward must not sound temporarily
-unavailable. For prose style and consequence disclosure, load `emberdawn-narrative-writing`.
