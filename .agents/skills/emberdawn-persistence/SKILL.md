@@ -1,6 +1,6 @@
 ---
 name: emberdawn-persistence
-description: Use when changing Emberdawn PlayerState or BattleState shape, stores, stateVersion, save compatibility, or persisted content identities.
+description: Use when changing or reviewing Emberdawn PlayerState/BattleState shape, stores, save versioning, compatibility, or persisted content IDs.
 ---
 
 # Emberdawn persistence

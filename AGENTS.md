@@ -84,7 +84,7 @@ Story and quest mutations derive identity and authorization from live `PlayerSta
 definitions, never from callback data or caller assertions. Central engine operations revalidate
 scene, ownership, location, and conditions; story bundles commit transactionally; retries are
 suppressed by stable receipts; terminal quest outcomes are monotonic. Load
-`emberdawn-story-and-quests` before changing this subsystem.
+`emberdawn-story-and-quests` when changing or reviewing story behavior or authority.
 
 ## Conditional skills
 
@@ -92,16 +92,21 @@ Detailed, conditionally loaded guidance lives in standard Agent Skills under `.a
 only the skill or skills relevant to the task — not every skill each session. If your harness does
 not auto-load a matching skill, read its `SKILL.md` file directly at the listed path.
 
-| When the task touches...                                                            | Read this skill                                                                       |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Engine boundaries, handlers, message lifecycle, callbacks, locking, reset, webhook  | `emberdawn-architecture` (`.agents/skills/emberdawn-architecture/SKILL.md`)           |
-| Quests, NPC topics, dialogue, choices, StoryEffects, receipts, outcomes             | `emberdawn-story-and-quests` (`.agents/skills/emberdawn-story-and-quests/SKILL.md`)   |
-| Combat, effects, initiative, durations, death/revival, telemetry, dungeons, balance | `emberdawn-combat` (`.agents/skills/emberdawn-combat/SKILL.md`)                       |
-| PlayerState/BattleState, stateVersion, stores, persisted IDs                        | `emberdawn-persistence` (`.agents/skills/emberdawn-persistence/SKILL.md`)             |
-| Items, skills, enemies, zones, dungeons, drops, NPCs, quest definitions, economy    | `emberdawn-content-authoring` (`.agents/skills/emberdawn-content-authoring/SKILL.md`) |
-| Authored player-facing prose                                                        | `emberdawn-narrative-writing` (`.agents/skills/emberdawn-narrative-writing/SKILL.md`) |
-| An explicit public launch                                                           | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
-| Intentional trade-offs and non-goals                                                | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
+Select skills for the contracts being changed, reviewed, or investigated. Authored wording-only
+edits use `emberdawn-narrative-writing`. If the task also changes or reviews content IDs, structure,
+gameplay, or authority, load the corresponding skills. Reading existing `PlayerState` fields alone
+does not require persistence guidance.
+
+| When changing or reviewing...                                                                      | Read this skill                                                                       |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Engine/I/O boundaries, message lifecycle, callback handling, locking, reset, webhook behavior      | `emberdawn-architecture` (`.agents/skills/emberdawn-architecture/SKILL.md`)           |
+| Dialogue flow, NPC topic behavior, quest lifecycle, story effects or authority                     | `emberdawn-story-and-quests` (`.agents/skills/emberdawn-story-and-quests/SKILL.md`)   |
+| Combat rules, effects, encounter selection, dungeon behavior, telemetry, balance                   | `emberdawn-combat` (`.agents/skills/emberdawn-combat/SKILL.md`)                       |
+| Persisted PlayerState/BattleState shape, stores, save versioning/compatibility, persisted IDs      | `emberdawn-persistence` (`.agents/skills/emberdawn-persistence/SKILL.md`)             |
+| Content IDs, structure, gameplay data, economy                                                     | `emberdawn-content-authoring` (`.agents/skills/emberdawn-content-authoring/SKILL.md`) |
+| Authored player-facing prose                                                                       | `emberdawn-narrative-writing` (`.agents/skills/emberdawn-narrative-writing/SKILL.md`) |
+| An explicit public launch; post-launch save compatibility, migrations or durable content-ID policy | `emberdawn-release` (`.agents/skills/emberdawn-release/SKILL.md`)                     |
+| Intentional trade-offs and non-goals                                                               | `emberdawn-design-decisions` (`.agents/skills/emberdawn-design-decisions/SKILL.md`)   |
 
 ## Verification
 

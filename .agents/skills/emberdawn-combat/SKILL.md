@@ -1,6 +1,6 @@
 ---
 name: emberdawn-combat
-description: Use when changing Emberdawn combat order, initiative, effects, durations, death and revival, combat telemetry, encounters, dungeons, or balance.
+description: Use when changing or reviewing Emberdawn combat rules, effects, encounter selection, dungeon behavior, combat telemetry, or balance.
 ---
 
 # Emberdawn combat
@@ -85,6 +85,9 @@ stay-and-fight defensive tool; Flee still uses SPD separately.
   hand.
 
 ## Encounters, bosses, and dungeons
+
+For changes to or reviews of `questBoosts` or quest-dependent encounter weighting, read
+[docs/quest-encounters.md](../../../docs/quest-encounters.md).
 
 - Battles carry structured provenance (`BattleOrigin`): `explore`, `elite`, `dungeon`, or `travel`.
   Dungeon origins carry the dungeon id, floor, and boss flag. Travel origins identify the edge and

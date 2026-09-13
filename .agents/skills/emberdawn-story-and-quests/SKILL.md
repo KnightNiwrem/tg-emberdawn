@@ -1,6 +1,6 @@
 ---
 name: emberdawn-story-and-quests
-description: Use when changing Emberdawn NPC topics, dialogues, dialogue choices, conditions, StoryEffects, story receipts, decisions, quest lifecycle, quest authority, or quest outcomes.
+description: Use when changing or reviewing Emberdawn dialogue flow, NPC topic behavior, quest lifecycle, or story authority and effects. For wording-only edits, use emberdawn-narrative-writing.
 ---
 
 # Emberdawn story and quests
