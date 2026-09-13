@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from '@std/assert';
+import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert';
 import { markdownNavigation, validateMarkdownLinks } from './helpers_markdown.ts';
 
 Deno.test('Markdown navigation excludes metadata, code, and images but resolves reference links', () => {
@@ -88,4 +88,25 @@ Deno.test('Markdown links do not fetch external destinations', async () => {
       '[web](https://example.com/guide) [mail](mailto:test@example.com) [relative](//example.com/guide)',
     );
   });
+});
+
+Deno.test('Markdown links identify the document and target when URL or fragment parsing fails', async () => {
+  const document = new URL('file:///guidance/skill.md');
+  for (
+    const [target, causeType] of [
+      ['reference.md#100%', URIError],
+      ['http://[', TypeError],
+    ] as const
+  ) {
+    const error = await assertRejects(
+      () =>
+        validateMarkdownLinks(document, (path) => {
+          assertEquals(path, document, 'malformed targets must fail before reading a destination');
+          return Promise.resolve(`[link](${target})`);
+        }),
+      Error,
+      `${document.pathname}: malformed reference ${target}`,
+    );
+    assertInstanceOf(error.cause, causeType);
+  }
 });

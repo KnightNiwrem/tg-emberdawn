@@ -47,9 +47,15 @@ export async function validateMarkdownLinks(
 ): Promise<void> {
   const navigation = markdownNavigation(await readText(document));
   for (const target of navigation.links) {
-    const destination = new URL(target, document);
-    if (destination.protocol !== 'file:' || destination.host) continue;
-    const fragment = decodeURIComponent(destination.hash.slice(1));
+    let destination: URL;
+    let fragment: string;
+    try {
+      destination = new URL(target, document);
+      if (destination.protocol !== 'file:' || destination.host) continue;
+      fragment = decodeURIComponent(destination.hash.slice(1));
+    } catch (error) {
+      throw new Error(`${document.pathname}: malformed reference ${target}`, { cause: error });
+    }
     destination.hash = '';
     destination.search = '';
     let source: string;
