@@ -1,6 +1,6 @@
 ---
 name: emberdawn-architecture
-description: Use when changing Emberdawn engine boundaries, handlers, the live-message lifecycle, callbacks, locking, the session or reset flow, webhook setup, or Telegram I/O.
+description: Use when changing or reviewing Emberdawn engine/I/O boundaries, message lifecycle, callback handling, locking, reset, or webhook behavior.
 ---
 
 # Emberdawn architecture

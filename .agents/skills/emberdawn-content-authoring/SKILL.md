@@ -1,6 +1,6 @@
 ---
 name: emberdawn-content-authoring
-description: Use when adding or changing Emberdawn items, skills, enemies, zones, dungeons, drops, NPCs, dialogues, or quest definitions, or when tuning shop, forge, or reward economy.
+description: Use when adding, changing, or reviewing Emberdawn content IDs, structure, gameplay data, or economy. For wording-only edits, use emberdawn-narrative-writing.
 ---
 
 # Emberdawn content authoring
@@ -9,6 +9,9 @@ Rules for adding or changing content in `src/content/`. Content definitions are 
 pure construction and lookup helpers are allowed. Content modules never import grammy or touch
 Telegram/Deno-specific APIs. Content refers only to real ids defined in other content modules; the
 integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce this and must stay green.
+
+For changes to or reviews of `questBoosts` or quest-dependent encounter weighting, read
+[docs/quest-encounters.md](../../../docs/quest-encounters.md).
 
 ## Adding content checklist
 
@@ -34,9 +37,9 @@ integrity tests in `tests/engine_test.ts` ("content integrity: …") enforce thi
 9. Kill objectives must be satisfiable: the target enemy needs a wilds spawn (zone explore table) or
    enough dungeon floor slots. `tests/progression_test.ts` enforces encounter capacity, and the full
    m1→m25 simulation walks the main questline through the pure engine.
-10. Quest and dialogue content must also satisfy `emberdawn-story-and-quests`: lifecycle contacts,
-    offer/turn-in dialogues, story-event objectives, and topic wiring are all content-integrity
-    tested.
+10. For quest lifecycle, dialogue flow, story effects, or NPC topic wiring, also load
+    `emberdawn-story-and-quests`: lifecycle contacts, offer/turn-in dialogues, story-event
+    objectives, and topic wiring are all content-integrity tested.
 
 ## Economy
 

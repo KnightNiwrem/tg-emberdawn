@@ -1,6 +1,6 @@
 ---
 name: emberdawn-release
-description: Use when an explicit public-launch decision is being made for Emberdawn, or when changing post-launch save compatibility, migration, or durable content-ID policy.
+description: Use when planning or reviewing an explicit Emberdawn public launch, or changing or reviewing post-launch save compatibility, migrations, or durable content-ID policy.
 ---
 
 # Emberdawn release policy
