@@ -11,10 +11,17 @@ set -e
 
 run_directory=''
 container_name=''
+owner_token=''
 
 cleanup() {
   if [ -n "$container_name" ]; then
-    docker rm -f "$container_name" >/dev/null 2>&1 || true
+    container_identity=$(docker container inspect \
+      --format '{{.Id}} {{index .Config.Labels "emberdawn.pg-local.owner"}}' \
+      "$container_name" 2>/dev/null) || container_identity=''
+    if [ "${container_identity#* }" = "$owner_token" ]; then
+      # Remove the verified ID so a name reassignment cannot redirect cleanup.
+      docker rm -f "${container_identity%% *}" >/dev/null 2>&1 || true
+    fi
   fi
   if [ -n "$run_directory" ]; then
     rmdir "$run_directory" || true
@@ -26,8 +33,12 @@ trap 'exit 143' TERM
 
 # Establish ownership before docker run can create a container or be interrupted.
 run_directory=$(mktemp -d "${TMPDIR:-/tmp}/emberdawn-pg.XXXXXXXXXX")
+# Ownership is independent of the name: a failed run may have collided with another container.
+owner_token=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+[ "${#owner_token}" -eq 32 ]
 container_name="${run_directory##*/}"
 docker run -d --name "$container_name" \
+  --label "emberdawn.pg-local.owner=$owner_token" \
   -e POSTGRES_PASSWORD=postgres \
   -p 127.0.0.1::5432 \
   postgres:16 >/dev/null
