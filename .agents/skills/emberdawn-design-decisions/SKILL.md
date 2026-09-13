@@ -5,9 +5,10 @@ description: Use when reconsidering Emberdawn accepted trade-offs, intentional n
 
 # Emberdawn design decisions
 
-Accepted trade-offs and intentional non-goals. These are settled decisions; re-opening one requires
-an explicit design change, not a drive-by refactor. Each entry states the current decision, not its
-history.
+Accepted trade-offs and intentional non-goals. Keep these decisions as the default for unrelated
+work. An explicit user request to revisit one authorizes that design work within the requested
+scope; it does not require a second approval to begin. Each entry states the current decision, not
+its history.
 
 ## Dungeons are consecutive runs
 
