@@ -40,10 +40,10 @@ code/mixed-change gates. Classify the whole change, not just its most recent edi
 
 Run `deno task fmt:check` and the applicable existing documentation checks:
 
-| Changed documentation                                                             | Existing check                                    |
-| --------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `AGENTS.md`, skill Markdown under `.agents/skills/`, or `docs/narrative-guide.md` | `tests/agent_docs_test.ts`                        |
-| `docs/world-topology.md`                                                          | The authoring-map check in `tests/routes_test.ts` |
+| Changed documentation                                                                     | Existing check                                    |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `AGENTS.md`, skill `SKILL.md` files under `.agents/skills/`, or `docs/narrative-guide.md` | `tests/agent_docs_test.ts`                        |
+| `docs/world-topology.md`                                                                  | The authoring-map check in `tests/routes_test.ts` |
 
 From the repository root, run the applicable command or commands:
 
@@ -51,6 +51,9 @@ From the repository root, run the applicable command or commands:
 deno test --allow-import --allow-read tests/agent_docs_test.ts
 deno test --allow-import --allow-read --filter='world topology: the authoring map' tests/routes_test.ts
 ```
+
+Skill reference files are not read by the agent-document tests; use formatting and the manual review
+below for reference-only edits.
 
 If another changed document is covered by an existing test, run that check too. Documentation with
 no automated check still requires reviewing the changed claims, examples, and links against their
