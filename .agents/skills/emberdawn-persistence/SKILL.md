@@ -15,6 +15,27 @@ and `tests/persistence_pg_test.ts`. `src/persistence/migrate.ts` handles Postgre
 not `PlayerState` migrations. Run `deno task test:pg` (or `deno task test:pg:local` for a throwaway
 Docker Postgres) whenever persistence or schema behavior changes.
 
+## Database command targets
+
+- Both `deno task test` and `deno task test:pg` run `tests/persistence_pg_test.ts` when
+  `TEST_PG_URL` is set. The tests create schema and overwrite/delete fixed test-player IDs in that
+  database. Use a confirmed disposable test database; an inherited `TEST_PG_URL` alone does not
+  establish that. With it unset, these tests are skipped, which does not satisfy a required
+  PostgreSQL check.
+- `deno task test:pg:local` uses the current Docker context, removes the container named
+  `emberdawn-pg-local` before and after the run, and publishes host port `55432`. Before reuse,
+  establish that any existing container with that name is disposable and safe to replace and that
+  the port is available for this run. The helper has no concurrent isolation; do not run it
+  concurrently. If those resources belong to other work, use a separate disposable database via
+  `TEST_PG_URL` instead.
+- Once the test target and helper resources are established as disposable and available to the task,
+  run and rerun the required checks without repeated approval. An unresolved target does not block
+  implementation or checks that do not use it.
+- `deno task migrate:pg` runs schema setup against `DATABASE_URL`, or the PostgreSQL `PG*`
+  environment defaults when that URL is absent. `deno task start` requires `DATABASE_URL` and opens
+  the store with schema setup before serving updates. Apply the root action/target authorization
+  boundary before using a live database; these are separate from the `TEST_PG_URL` test target.
+
 ## Scene state
 
 `SceneState` is a discriminated union. Views use named fields: dialogueId/nodeId/confirmation,

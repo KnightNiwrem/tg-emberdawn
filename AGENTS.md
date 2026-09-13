@@ -122,6 +122,11 @@ deno task test
 Also run `deno task test:pg` (the Postgres round-trip) whenever persistence or schema behavior
 changes; `deno task test:pg:local` provisions a throwaway Docker Postgres.
 
+`deno task test` has environment/network access and includes the PostgreSQL tests when `TEST_PG_URL`
+is set. Keep it unset for local runs unless it points to a confirmed disposable test database. For
+database tests and the local helper's resource ownership, read `emberdawn-persistence` before
+running them.
+
 `npx fallow` is advisory only — evaluate findings per
 [the code-quality review guidance](docs/code-quality.md) and the settled calls in
 `emberdawn-design-decisions`; never auto-apply removals (#185).
@@ -152,3 +157,17 @@ the authorized scope without repeated approval for routine implementation and ve
 
 Finish when the requested acceptance criteria and required checks are satisfied. If blocked, report
 the unresolved blocker precisely, including what remains incomplete and why.
+
+## Operational boundaries
+
+Run and rerun checks against confirmed disposable resources without asking at each step. Deployment,
+starting a bot, webhook mutation, and live database changes need authorization covering the action
+and target. Use authorization already provided in the request or conversation; configured
+credentials alone do not establish it. If an action or target remains unresolved, continue
+preparation and local verification, then ask only for the missing decision before that operation.
+
+For bot startup or webhook operations, read the architecture skill's
+[webhook reference](.agents/skills/emberdawn-architecture/references/webhooks.md). For database
+command targets, read `emberdawn-persistence`. Public launch remains a separate explicit decision
+under the release lifecycle above. These instructions do not override tool or environment
+permissions.

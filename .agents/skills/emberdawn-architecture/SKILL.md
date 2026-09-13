@@ -15,12 +15,12 @@ Read the references for the contracts being changed or reviewed; combine routes 
 crosses them. A review confined to the shared import or ordered-completion boundary can use the
 sections below and `tests/architecture_test.ts` directly.
 
-| When changing or reviewing...                                                | Read                                                                  |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Live-message delivery, `/start`, callback encoding, revisions, or staleness  | [Message lifecycle and callbacks](references/message-lifecycle.md)    |
-| Locking, load/mutate/save coordination, database rollback, or reset behavior | [State coordination and reset](references/state-and-reset.md)         |
-| Webhook authentication, polling/webhook selection, or secret rotation        | [Webhook boundary](references/webhooks.md)                            |
-| Generated effect summaries, mechanical vocabulary, or generic battle output  | [Flavor and mechanics disclosure](references/mechanics-disclosure.md) |
+| When changing or reviewing...                                                                    | Read                                                                  |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Live-message delivery, `/start`, callback encoding, revisions, or staleness                      | [Message lifecycle and callbacks](references/message-lifecycle.md)    |
+| Locking, load/mutate/save coordination, database rollback, or reset behavior                     | [State coordination and reset](references/state-and-reset.md)         |
+| Bot startup, webhook operations or authentication, polling/webhook selection, or secret rotation | [Webhook boundary](references/webhooks.md)                            |
+| Generated effect summaries, mechanical vocabulary, or generic battle output                      | [Flavor and mechanics disclosure](references/mechanics-disclosure.md) |
 
 ## Supported transport and deployment
 
