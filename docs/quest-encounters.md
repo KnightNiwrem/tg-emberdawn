@@ -119,5 +119,7 @@ the quest and restores the base rate on the next exploration.
 `tests/quest_encounters_test.ts` covers lifecycle boundaries, multi-objective completion, inventory
 progress, independent and shared targets, duplicate/order independence, competing guarantees,
 eligibility filtering, non-enemy rewards, baseline selection, and the real stag acceptance/victory
-path. Run it with `deno test --allow-import tests/quest_encounters_test.ts`, then run the four CI
-gates listed in `AGENTS.md`.
+path. For changes to quest-encounter behavior, use
+`deno test --allow-import tests/quest_encounters_test.ts` as a targeted check. Follow the
+[verification policy](verification.md) for final gates, documentation-only checks, and justified
+reruns.
