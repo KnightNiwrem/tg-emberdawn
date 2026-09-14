@@ -1,101 +1,84 @@
 # AGENTS.md — Emberdawn
 
-Operating manual for agents working on this repository. Read this before changing anything.
+Read this operating manual before changing the repository.
 
 ## What this is
 
-**Emberdawn** is a turn-based RPG about seeking hope for a future, played entirely inside Telegram.
-Runtime: **Deno** + **grammY**, built on Bot API Rich Messages — buttons live in the message body,
-never in `reply_markup`. Normal play happens in one live game message per player, edited in place on
-every action.
+**Emberdawn** is a turn-based Telegram RPG about seeking hope for a future, built with **Deno** and
+**grammY**. Bot API Rich Message buttons belong in the message body, never in `reply_markup`.
 
-The bot is private-chat-only: its hard BotFather setting prevents adding it to groups. Group chat
-handling and custom-crafted callback payloads are outside the supported scope. Preserve normal
-stale-tap protection and existing engine/story authority; confirmation actions require their active
-confirmation scene.
+BotFather enforces private-chat-only operation. Group handling and custom-crafted callback payloads
+are outside scope. Preserve stale-tap protection and engine/story authority; confirmation actions
+require their active confirmation scene.
 
 ## Release lifecycle — current status: PRE-LAUNCH
 
-This section is the only source of truth for whether save-compatibility obligations are active.
-Deployment, playtesting, database contents, tags, and `stateVersion` numbers do NOT imply launch.
+This section alone determines the release phase and active save-compatibility obligations. Public
+launch requires an explicit decision; never infer it from deployment, playtesting, database
+contents, tags, or `stateVersion`.
 
-- Releases move forward only. A functional revert ships as a new forward change; never redeploy an
-  older binary or downgrade a schema. Transaction rollback on a failed database operation is a
-  separate, required atomicity mechanism. This does not change the pre-launch save policy below.
-- Development and playtest saves are DISPOSABLE; they carry no compatibility promise.
-- Persisted-shape changes advance `stateVersion`; older development saves are refused rather than
-  migrated. Do not add `PlayerState`/save-payload migrations for retired pre-launch development
-  saves; PostgreSQL schema migrations are a separate concern.
-- Content IDs may be added, renamed, or removed freely — with no aliases, tombstones, or recovery
-  shims — but every ID referenced by current code and content must resolve.
-- Never silently guess a replacement for an unknown or corrupt persisted ID, and never invent
-  fallback state for one: a detected unresolved ID is refused with a pointer to /reset — never
-  repaired or substituted.
-- Public launch is an explicit decision only; never infer it from a deployment or version tag.
+- Releases move forward only: functional reverts ship as new changes, never older binaries or schema
+  downgrades. Failed database operations still require transaction rollback for atomicity.
+- Development and playtest saves are DISPOSABLE, with no compatibility promise.
+- Persisted-shape changes advance `stateVersion`. Refuse older development saves; never add
+  `PlayerState`/save-payload migrations for retired pre-launch saves. PostgreSQL schema migrations
+  are separate.
+- Content IDs may be added, renamed, or removed without aliases, tombstones, or recovery shims.
+  Every ID referenced by current code or content must resolve.
+- Refuse detected unknown or corrupt persisted IDs with a pointer to /reset; never repair them,
+  guess replacements, or invent fallback state.
 
-For the mechanics behind this policy, load the `emberdawn-persistence` skill; for an explicit launch
-decision or post-launch compatibility policy, load the `emberdawn-release` skill.
+Mechanics: `emberdawn-persistence`. Explicit launch or post-launch policy: `emberdawn-release`.
 
 ## Cross-cutting architecture invariants
 
 These apply to every change:
 
 1. **Engine purity.** `src/engine/` and `src/content/` never import grammy or Telegram/Deno-specific
-   APIs. Handlers call pure engine functions; rendering is a pure function of `PlayerState`. Data
-   flows one way: handler → engine mutation → render → persist.
-2. **Ordered completion.** Gameplay resolution is one deterministic, explicitly ordered flow that is
-   complete before rendering or persistence proceeds. No event bus, no detached state mutation, no
-   parallel mutation of the same fight. Async I/O belongs only at the Telegram/database boundary.
-   Pinned by `tests/architecture_test.ts`.
-3. **Single live message.** Each player has exactly one live game message. Normal gameplay view
-   changes edit it in place via `commit()` in `src/handlers/session.ts`. Explicit `/start` delivers
-   a fresh live message; older copies become stale. Never send extra button-bearing messages during
-   normal play.
-4. **Staleness and revision guard.** Every committed render stamps its buttons with the player's
-   `uiRev`; the router validates message identity and revision BEFORE gameplay mutation. Tracked
-   messages require a matching revision; a newer copy may become authoritative by adopting its
-   stamped revision. Stale taps and revisionless gameplay callbacks are no-ops. Do not weaken this
-   into "always process".
+   APIs. Handlers call pure engine functions; rendering is pure from `PlayerState`. Flow: handler →
+   engine mutation → render → persist.
+2. **Ordered completion.** Deterministic, explicitly ordered gameplay resolution completes before
+   rendering or persistence. No event bus, detached state mutation, or parallel mutation of one
+   fight. Async I/O belongs only at the Telegram/database boundary. See
+   `tests/architecture_test.ts`.
+3. **Single live message.** Normal play edits one live message per player via `commit()` in
+   `src/handlers/session.ts`; never send extra button-bearing messages. Explicit `/start` delivers a
+   fresh live message and makes older copies stale.
+4. **Staleness and revision guard.** Committed renders stamp buttons with `uiRev`. Validate message
+   identity and revision BEFORE gameplay mutation; stale or revisionless gameplay callbacks are
+   no-ops. Preserve tracked-revision matching and newer-copy adoption per the architecture skill's
+   message-lifecycle reference.
 5. **Cross-instance consistency.** Every user-associated update runs inside
-   `PlayerStore.withLock(user)` around the whole load → mutate → save flow. Never mutate player
-   state outside the lock; never hold the lock across user input.
+   `PlayerStore.withLock(user)` around load → mutate → save. Never mutate player state outside the
+   lock or hold it across user input.
 6. **callback_data budget.** 64 bytes maximum, built and parsed only via `src/codec.ts`
    (`encodeCb`/`decodeCb`). Never inline raw callback strings in renderers or handlers.
-7. **Persisted state is plain JSON.** `PlayerState` — including its nested `BattleState` — is
-   persisted as plain JSON: no Dates, Maps, Sets, class instances, or functions. Battle-scoped state
-   belongs on `BattleState`; genuinely derived, runtime-only context such as `DerivedStats` is never
-   persisted.
-8. **Rich text, not HTML.** Rich messages use typed entities (`{ type: 'bold', text }`) and the
-   helpers in `src/render/rich.ts`. HTML tags render literally.
-9. **Flavor is not rules.** Item and skill names and flavor text are creative, never a rules source.
-   Player-facing mechanical summaries are generated from structured effect specs; never hand-write a
-   second description. Canonical rules vocabulary: Shield, DEF/RES, round, action,
-   beneficial/harmful effect.
+7. **Persisted state is plain JSON.** `PlayerState`, including `BattleState`, must round-trip as
+   plain JSON. Battle-scoped state belongs on `BattleState`; derived runtime context is never
+   persisted. Detailed shape rules live in `emberdawn-persistence`.
+8. **Rich text, not HTML.** Use typed entities and `src/render/rich.ts`; HTML tags render literally.
+9. **Flavor is not rules.** Item/skill names and flavor are creative, never rules sources. Generate
+   mechanical summaries from structured effect specs; never hand-write a second description.
+   Canonical rules vocabulary: Shield, DEF/RES, round, action, beneficial/harmful effect.
 10. **Secrets.** Never commit `.env`, tokens, or local database files.
-11. **Descriptive naming.** Variable names must be descriptive and reveal intent; avoid
-    single-letter domain variables (e.g. use `player`, `battle`, `questDef`, `itemDef`, `stats`).
-    Compact `callback_data` keys and values and idiomatic short loop indices (`i`, `j`) are the only
-    exceptions. Name semantic counters for their role (e.g. `candidateSeed`, `floorNumber`,
-    `tierIndex`), even in loops (#217).
+11. **Descriptive naming.** Variable names reveal intent; no single-letter domain variables. Only
+    compact `callback_data` keys/values and idiomatic short loop indices are exempt. Semantic
+    counters need role names even in loops (#217).
 
 ## Story-authority invariant
 
-Story and quest mutations derive identity and authorization from live `PlayerState` and content
-definitions, never from callback data or caller assertions. Central engine operations revalidate
-scene, ownership, location, and conditions; story bundles commit transactionally; retries are
-suppressed by stable receipts; terminal quest outcomes are monotonic. Load
-`emberdawn-story-and-quests` when changing or reviewing story behavior or authority.
+Derive story/quest identity and authorization from live `PlayerState` and content, never callback
+data or caller assertions. Central engine operations revalidate scene, ownership, location, and
+conditions. Story bundles commit transactionally; stable receipts suppress retries; terminal quest
+outcomes are monotonic. Behavior and authority details: `emberdawn-story-and-quests`.
 
 ## Conditional skills
 
-Detailed, conditionally loaded guidance lives in standard Agent Skills under `.agents/skills/`. Load
-only the skill or skills relevant to the task — not every skill each session. If your harness does
-not auto-load a matching skill, read its `SKILL.md` file directly at the listed path.
-
-Select skills for the contracts being changed, reviewed, or investigated. Authored wording-only
-edits use `emberdawn-narrative-writing`. If the task also changes or reviews content IDs, structure,
-gameplay, or authority, load the corresponding skills. Reading existing `PlayerState` fields alone
-does not require persistence guidance.
+Load only skills for contracts being changed, reviewed, or investigated. If the harness does not
+auto-load them, read the listed `SKILL.md` files directly. Authored wording-only edits use
+`emberdawn-narrative-writing`; load additional skills when IDs, structure, gameplay, or authority
+are also affected. Reading existing `PlayerState` fields alone does not require persistence
+guidance.
 
 | When changing or reviewing...                                                                      | Read this skill                                                                       |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -120,17 +103,15 @@ deno task check
 deno task test
 ```
 
-For documentation-only eligibility, required document checks, and failure reporting, see the
-[verification policy](docs/verification.md). Its local exception does not change full CI, including
-PostgreSQL, which still runs for every PR.
+Documentation-only eligibility, document checks, and failure reporting follow the
+[verification policy](docs/verification.md). Full CI, including PostgreSQL, still runs for every PR.
 
-Also run `deno task test:pg` (the Postgres round-trip) whenever persistence or schema behavior
-changes; `deno task test:pg:local` provisions a throwaway Docker Postgres.
+Persistence or schema behavior changes also require `deno task test:pg`; `deno task test:pg:local`
+provisions a throwaway Docker Postgres.
 
-`deno task test` has environment/network access and includes the PostgreSQL tests when `TEST_PG_URL`
-is set. Keep it unset for local runs unless it points to a confirmed disposable test database. For
-database tests and the local helper's resource ownership, read `emberdawn-persistence` before
-running them.
+`deno task test` has environment/network access and runs PostgreSQL tests when `TEST_PG_URL` is set.
+Keep it unset unless it targets a confirmed disposable test database. Before database tests, read
+`emberdawn-persistence` for command targets and local-helper resource ownership.
 
 `npx fallow` is advisory only — evaluate findings per
 [the code-quality review guidance](docs/code-quality.md) and the settled calls in
@@ -140,28 +121,24 @@ running them.
 
 - `src/engine/` — pure game logic
 - `src/content/` — pure content definitions
-- `src/render/` — pure rendering (`PlayerState` → rich message)
+- `src/render/` — pure rich-message rendering
 - `src/handlers/` — Telegram/I/O boundary
 - `src/persistence/` — stores and schema handling
 - `tests/` — deterministic engine and integration tests
 
 ## Working on a change
 
-1. Check `git status` before editing and preserve unrelated work. Use an isolated worktree when
-   needed; existing user changes do not by themselves block the task.
-2. Load the skill or skills that match your task from the table above.
-3. Follow the Verification policy above for targeted checks, final gates, and justified reruns.
+Check `git status` before editing; preserve unrelated work and use an isolated worktree when needed.
+Existing user changes do not by themselves block the task.
 
-Complete the requested outcome, including necessary integration, repairs for failures caused by the
-change, and verification. Committed code is a deliverable: review its correctness, readability,
-descriptive naming, and consistency with the existing design before finishing.
+Complete the requested outcome through integration, repairs for change-caused failures, and the
+verification above. Committed code is a deliverable: review correctness, readability, descriptive
+naming, and consistency with the existing design. Finish when acceptance criteria and required
+checks are satisfied; otherwise report the precise blocker, unfinished work, and reason.
 
-Keep each PR focused on one requested outcome. Include supporting changes needed to complete it;
-propose independent improvements as separate issues and sequential PRs. Continue autonomously within
-the authorized scope without repeated approval for routine implementation and verification steps.
-
-Finish when the requested acceptance criteria and required checks are satisfied. If blocked, report
-the unresolved blocker precisely, including what remains incomplete and why.
+Keep each PR focused on one requested outcome, including its necessary supporting changes. Propose
+independent improvements as separate issues and sequential PRs. Continue autonomously within the
+authorized scope; routine implementation and verification need no repeated approval.
 
 ## Operational boundaries
 
