@@ -12,10 +12,12 @@ import { handleHelp, handleReset, handleStart } from './handlers/commands.ts';
 export interface BotOptions {
   token: string;
   store: PlayerStore;
+  /** Bot API server root; defaults to Telegram's. End-to-end tests point it at an emulator. */
+  apiRoot?: string;
 }
 
 export function createBot(options: BotOptions): Bot<Context> {
-  const bot = new Bot<Context>(options.token);
+  const bot = new Bot<Context>(options.token, { client: { apiRoot: options.apiRoot } });
 
   // Layer 1 (in-process): serialize per user so each load/mutate/save cycle
   // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a

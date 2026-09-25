@@ -20,7 +20,16 @@
     "@std/yaml": "jsr:@std/yaml@^1",
     "grammy-testing": "npm:grammy-testing@^0.26.0",
     "pg": "npm:pg@^8.23.0",
-    "@types/pg": "npm:@types/pg@^8"
+    "@types/pg": "npm:@types/pg@^8",
+    "tg-bot-api-emulator/": "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@61ee49cbe3b14c14b96cd885c035365040cd81dc/"
+  },
+  "scopes": {
+    "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@61ee49cbe3b14c14b96cd885c035365040cd81dc/": {
+      "hono": "jsr:@hono/hono@^4.13.7",
+      "zod": "npm:zod@^4.6.5",
+      "hono/route": "jsr:@hono/hono@^4.13.7/route",
+      "hono/utils/http-status": "jsr:@hono/hono@^4.13.7/utils/http-status"
+    }
   },
   "lock": true,
   "compilerOptions": {
@@ -28,6 +37,16 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true
   },
-  "fmt": { "singleQuote": true, "lineWidth": 100 },
-  "lint": { "rules": { "include": ["no-explicit-any", "no-slow-types"] } }
+  "fmt": {
+    "singleQuote": true,
+    "lineWidth": 100
+  },
+  "lint": {
+    "rules": {
+      "include": [
+        "no-explicit-any",
+        "no-slow-types"
+      ]
+    }
+  }
 }
