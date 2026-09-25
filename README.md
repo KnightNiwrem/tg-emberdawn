@@ -120,6 +120,9 @@ deno task check
 deno task test
 ```
 
+The [E2E player journeys](docs/e2e-tests.md) cover menu and battle flows through the local Telegram
+emulator and record library feedback from writing those tests.
+
 For persistence or schema behavior changes, also run the PostgreSQL round-trip suite against a
 confirmed disposable test database:
 

@@ -56,10 +56,13 @@ interface DeliveryGate {
   opened: Promise<void>;
 }
 
-/** A callback button as the player sees it: its label and what it sends. */
+/** A button as the player sees it, including controls that cannot be pressed. */
 export interface VisibleButton {
   label: string;
-  callbackData: string;
+  callbackData?: string;
+  disabled: boolean;
+  /** Text since the previous button row, for repeated labels such as Details. */
+  beside: string;
 }
 
 /** Flattens rich text to the plain string a reader sees. */
@@ -110,22 +113,27 @@ export function messageText(message: PrivateMessage): string {
 }
 
 function collectButtons(blocks: readonly RichBlock[], into: VisibleButton[]): void {
+  let precedingText = '';
   for (const block of blocks) {
     if (block.type === 'buttons') {
-      for (const button of block.buttons) addButton(button, into);
+      for (const button of block.buttons) {
+        into.push({
+          label: plainText(button.text),
+          disabled: 'disabled' in button,
+          callbackData: 'callback_data' in button ? button.callback_data : undefined,
+          beside: precedingText,
+        });
+      }
+      precedingText = '';
     } else if ('blocks' in block) {
       collectButtons(block.blocks, into);
+    } else {
+      precedingText += `\n${blockText(block)}`;
     }
   }
 }
 
-function addButton(button: RichMessageButton, into: VisibleButton[]): void {
-  if ('callback_data' in button && typeof button.callback_data === 'string') {
-    into.push({ label: plainText(button.text), callbackData: button.callback_data });
-  }
-}
-
-/** Every callback button a message shows, in reading order. */
+/** Every button a message shows, including disabled controls, in reading order. */
 export function messageButtons(message: PrivateMessage): VisibleButton[] {
   const buttons: VisibleButton[] = [];
   collectButtons(message.rich_message?.blocks ?? [], buttons);
@@ -136,8 +144,6 @@ export function messageButtons(message: PrivateMessage): VisibleButton[] {
 export class E2eWorld {
   readonly #session: EmulationSessionClient;
   readonly #servers: Deno.HttpServer[];
-  readonly #bot: ReturnType<typeof createBot>;
-  readonly #webhookUrl: string;
   readonly #delivery: DeliveryGate;
   readonly account: VirtualAccountClient;
   readonly botId: number;
@@ -147,23 +153,19 @@ export class E2eWorld {
   private constructor(fields: {
     session: EmulationSessionClient;
     servers: Deno.HttpServer[];
-    bot: ReturnType<typeof createBot>;
-    webhookUrl: string;
     delivery: DeliveryGate;
     account: VirtualAccountClient;
     botId: number;
   }) {
     this.#session = fields.session;
     this.#servers = fields.servers;
-    this.#bot = fields.bot;
-    this.#webhookUrl = fields.webhookUrl;
     this.#delivery = fields.delivery;
     this.account = fields.account;
     this.botId = fields.botId;
     this.activity = fields.session.botActivity({ bot_id: fields.botId });
   }
 
-  static async start(options: { playerName?: string; secretToken?: string } = {}) {
+  static async start(options: { playerName?: string } = {}) {
     const emulator = startEmulator();
     const session = await emulator.client.createSession();
     const { token, bot: botProfile } = await session.createBot({
@@ -176,7 +178,7 @@ export class E2eWorld {
 
     const bot = createBot({ token, store: new MemoryStore(), apiRoot: session.botApiRoot });
     await bot.init();
-    const secretToken = options.secretToken ?? crypto.randomUUID();
+    const secretToken = crypto.randomUUID();
     const delivery: DeliveryGate = { opened: Promise.resolve() };
     const handleWebhook = createWebhookHandler({
       handleUpdate: webhookCallback(bot, 'std/http', { secretToken }),
@@ -192,8 +194,6 @@ export class E2eWorld {
     return new E2eWorld({
       session,
       servers: [emulator.server, webhookServer],
-      bot,
-      webhookUrl,
       delivery,
       account,
       botId: botProfile.id,
@@ -202,11 +202,6 @@ export class E2eWorld {
 
   get chat(): PrivateMessageTarget {
     return { type: 'private', botId: this.botId };
-  }
-
-  /** Re-registers the webhook with another secret, as a misconfigured deploy would. */
-  async registerWebhookSecret(secretToken: string): Promise<void> {
-    await this.#bot.api.setWebhook(this.#webhookUrl, { secret_token: secretToken });
   }
 
   /** Waits for the bot to be handed the update that a player action after
@@ -247,22 +242,6 @@ export class E2eWorld {
       this.#delivery.opened = Promise.resolve();
       resolve();
     };
-  }
-
-  /** Makes the bot's next calls of a Bot API method fail with 429 Too Many Requests. */
-  async rateLimit(method: string, count = 1): Promise<void> {
-    await this.#session.queueRateLimitResponses({
-      bot_id: this.botId,
-      method,
-      retry_after: 1,
-      count,
-    });
-  }
-
-  /** Reads the webhook's pending count and last delivery error. The bot's
-   * own call is recorded in the activity log like any other. */
-  webhookInfo() {
-    return this.#bot.api.getWebhookInfo();
   }
 
   async stop(): Promise<void> {
@@ -309,17 +288,25 @@ export class Player {
 
   /** Presses the button whose label matches, on the given message or the
    * current screen, then waits for the bot to finish handling it. */
-  async tap(label: string | RegExp, message?: PrivateMessage): Promise<CallbackQuery> {
+  async tap(
+    label: string | RegExp,
+    options: { message?: PrivateMessage; beside?: string } = {},
+  ): Promise<CallbackQuery> {
     const start = await this.world.activity.position();
-    const query = await this.press(label, message);
+    const query = await this.press(label, options);
     await this.world.pressHandled(start, query);
     return this.world.account.getCallbackQuery(query.id);
   }
 
   /** Presses without waiting, for taps that race the bot. */
-  async press(label: string | RegExp, message?: PrivateMessage): Promise<CallbackQuery> {
-    const target = message ?? await this.screen();
-    const button = findButton(target, label);
+  async press(
+    label: string | RegExp,
+    options: { message?: PrivateMessage; beside?: string } = {},
+  ): Promise<CallbackQuery> {
+    const target = options.message ?? await this.screen();
+    const button = findButton(target, label, options.beside);
+    if (button.disabled) throw new Error(`button ${button.label} is disabled`);
+    if (!button.callbackData) throw new Error(`button ${button.label} has no callback action`);
     return await this.world.account.pressCallbackButton({
       chat: this.world.chat,
       message_id: target.message_id,
@@ -328,16 +315,26 @@ export class Player {
   }
 }
 
-export function findButton(message: PrivateMessage, label: string | RegExp): VisibleButton {
+export function findButton(
+  message: PrivateMessage,
+  label: string | RegExp,
+  beside?: string,
+): VisibleButton {
   const buttons = messageButtons(message);
-  const button = buttons.find((candidate) =>
-    typeof label === 'string' ? candidate.label.includes(label) : label.test(candidate.label)
+  const matches = buttons.filter((candidate) =>
+    (typeof label === 'string' ? candidate.label.includes(label) : label.test(candidate.label)) &&
+    (beside === undefined || candidate.beside.includes(beside))
   );
-  if (!button) {
+  if (matches.length !== 1) {
     const shown = buttons.map((candidate) => candidate.label).join(' | ');
-    throw new Error(`no button matching ${label} on message ${message.message_id}: ${shown}`);
+    throw new Error(
+      `expected one button matching ${label}${beside ? ` beside ${beside}` : ''}, ` +
+        `found ${matches.length} on message ${message.message_id}: ${shown}\n${
+          messageText(message)
+        }`,
+    );
   }
-  return button;
+  return matches[0];
 }
 
 /** Runs a test body against a fresh world and player, always tearing down. */
@@ -345,41 +342,89 @@ export async function withPlayer(
   body: (player: Player, world: E2eWorld) => Promise<void>,
   options?: Parameters<typeof E2eWorld.start>[0],
 ): Promise<void> {
+  // Each Deno test file runs in its own realm and its tests run serially.
+  // Pin game randomness for reproducible combat; branch-specific actions use withRoll.
   const world = await E2eWorld.start(options);
+  const originalRandom = Math.random;
+  Math.random = () => 0.5;
   try {
     await body(new Player(world), world);
   } finally {
+    Math.random = originalRandom;
     await world.stop();
   }
 }
 
+/** Selects a random branch while still playing through the real chat and handlers. */
+export async function withRoll<Result>(
+  roll: number,
+  action: () => Promise<Result>,
+): Promise<Result> {
+  const originalRandom = Math.random;
+  Math.random = () => roll;
+  try {
+    return await action();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 /** Each class's free basic action, as its battle button reads. */
-export const BASIC_ACTION: Record<string, string> = {
+export const BASIC_ACTION = {
   Warrior: 'Strike',
   Mage: 'Arcane Bolt',
   Rogue: 'Quick Attack',
   Cleric: 'Radiant Strike',
+} as const;
+
+export type HeroClass = keyof typeof BASIC_ACTION;
+
+export const FIRST_SKILL: Record<HeroClass, string> = {
+  Warrior: 'Cleave',
+  Mage: 'Firebolt',
+  Rogue: 'Quick Slash',
+  Cleric: 'Smite',
 };
 
 /** Plays the guided prologue through its buttons: pick a class, take
  * Maren's ember, and win the lesson fight beat by beat (basic action,
  * skill, guard, potion), ending on the unlocked village hub. */
-export async function completePrologue(player: Player, className: string): Promise<void> {
-  const basicAction = BASIC_ACTION[className]!;
+export async function completePrologue(player: Player, className: HeroClass): Promise<void> {
+  const basicAction = BASIC_ACTION[className];
+  await startPrologue(player, className);
+  await player.tap(basicAction);
+  await player.tap('Skills');
+  await player.tap(FIRST_SKILL[className]);
+  await player.tap('Guard');
+  await player.tap('Items');
+  await player.tap('Use Minor Potion');
+  await winBattle(player, basicAction);
+  await player.tap('Continue');
+}
+
+export async function startPrologue(player: Player, className: HeroClass): Promise<void> {
   await player.send('/start');
   await player.tap(`Play ${className}`);
   await player.tap('Speak with Elder Maren');
   await player.tap('Take the ember');
   await player.tap('Face the cinder mite');
-  await player.tap(basicAction);
-  await player.tap('Skills');
-  await player.tap(/MP$/);
-  await player.tap('Guard');
-  await player.tap('Items');
-  await player.tap('Use Minor Potion');
-  // The lesson is cleared; ordinary hits now finish the mite.
-  for (let round = 0; round < 10 && !(await player.labels()).includes('➡️ Continue'); round++) {
-    await player.tap(basicAction);
+}
+
+/** Bounded play, with a visible victory required before callers continue. */
+export async function winBattle(player: Player, basicAction: string): Promise<void> {
+  for (let round = 0; round <= 20; round++) {
+    if ((await player.labels()).includes('➡️ Continue')) {
+      if (!(await player.screenText()).includes('🏆 Victory')) {
+        throw new Error(`expected victory:\n${await player.screenText()}`);
+      }
+      return;
+    }
+    if (round < 20) await player.tap(basicAction);
   }
-  await player.tap('Continue');
+  throw new Error(`battle did not finish within 20 actions:\n${await player.screenText()}`);
+}
+
+export async function travelTo(player: Player, destination: string): Promise<void> {
+  await player.tap('Travel');
+  await player.tap(`Take the road to ${destination}`);
 }

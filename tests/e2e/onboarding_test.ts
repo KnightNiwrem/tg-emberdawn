@@ -1,61 +1,44 @@
-/** E2E: a new player's first minutes, played only through the chat. */
-
+/** A new player learns each class's actions and reaches the playable village. */
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import { completePrologue, withPlayer } from './harness.ts';
+import { BASIC_ACTION, FIRST_SKILL, startPrologue, winBattle, withPlayer } from './harness.ts';
 
-Deno.test('e2e: /start offers every class on one rich message', async () => {
-  await withPlayer(async (player) => {
-    await player.send('/start');
-
-    const botMessages = await player.botMessages();
-    assertEquals(botMessages.length, 1);
-    assert(botMessages[0]!.rich_message, 'the picker is a rich message');
-    assertEquals(botMessages[0]!.reply_markup, undefined, 'buttons live in the message body');
-    assertStringIncludes(await player.screenText(), 'Choose how you will face the road');
-    assertEquals(await player.labels(), ['Play Warrior', 'Play Mage', 'Play Rogue', 'Play Cleric']);
-  });
-});
-
-Deno.test('e2e: picking a class turns the picker into the village hub', async () => {
-  await withPlayer(async (player) => {
-    await player.send('/start');
-    const picker = await player.screen();
-
-    const pick = await player.tap('Play Mage');
-
-    assertEquals(pick.status, 'answered', 'the tap is acknowledged');
-    const hub = await player.screen();
-    assertEquals(hub.message_id, picker.message_id, 'the picker is edited in place');
-    assert(hub.edit_date !== undefined, 'the message shows as edited');
-    const hubText = await player.screenText();
-    assertStringIncludes(hubText, 'Emberdawn Village');
-    assertStringIncludes(hubText, 'Ash · Lv 1 Mage');
-    assertEquals(await player.labels(), ['🧓 Speak with Elder Maren', '❓ Help']);
-  }, { playerName: 'Ash' });
-});
-
-for (const className of ['Warrior', 'Mage', 'Rogue', 'Cleric']) {
-  Deno.test(`e2e: a ${className} plays the prologue into the open hub`, async () => {
+for (const className of ['Warrior', 'Mage', 'Rogue', 'Cleric'] as const) {
+  Deno.test(`e2e: a ${className} learns combat and opens the village menus`, async () => {
     await withPlayer(async (player) => {
-      await completePrologue(player, className);
+      await startPrologue(player, className);
+      assertStringIncludes(await player.screenText(), 'Battle · Round 1');
+      await player.tap(BASIC_ACTION[className]);
+      assertStringIncludes(await player.screenText(), 'Battle · Round 2');
+      await player.tap('Skills');
+      await player.tap(FIRST_SKILL[className]);
+      assertStringIncludes(await player.screenText(), 'Battle · Round 3');
+      await player.tap('Guard');
+      assertStringIncludes(await player.screenText(), 'Battle · Round 4');
+      await player.tap('Items');
+      await player.tap('Use Minor Potion');
+      assertStringIncludes(await player.screenText(), 'Battle · Round 5');
+      await winBattle(player, BASIC_ACTION[className]);
+      assertStringIncludes(await player.screenText(), 'Spoils:');
+      await player.tap('Continue');
 
-      const hubText = await player.screenText();
-      assertStringIncludes(hubText, 'Talk to Elder Maren');
-      assertStringIncludes(hubText, 'Sparks of Trouble');
-      const labels = await player.labels();
+      assertStringIncludes(await player.screenText(), 'Talk to Elder Maren');
       for (const unlocked of ['🧭 Search', '🧺 Gather', '🛠️ Craft', '🚶 Travel']) {
-        assert(labels.includes(unlocked), `${unlocked} is unlocked after the prologue`);
+        assert((await player.labels()).includes(unlocked));
       }
-      assertEquals((await player.botMessages()).length, 1, 'the whole prologue used one message');
+      await player.tap('Character');
+      assertStringIncludes(await player.screenText(), `Ash — Lv 2 ${className}`);
+      assertStringIncludes(await player.screenText(), 'Victories: 1');
+      await player.tap('Inventory');
+      assert(
+        (await player.labels()).includes(`🧪 Minor Potion ×${className === 'Warrior' ? 3 : 2}`),
+        'lesson potion was replaced',
+      );
+      await player.tap('Back');
+      assertStringIncludes(await player.screenText(), 'Emberdawn Village');
+      const messages = await player.botMessages();
+      assertEquals(messages.length, 1, 'onboarding and menu navigation edit one message');
+      assert(messages[0].rich_message);
+      assertEquals(messages[0].reply_markup, undefined, 'controls are in the rich message body');
     });
   });
 }
-
-Deno.test('e2e: the prologue fight levels the hero to 2', async () => {
-  await withPlayer(async (player) => {
-    await completePrologue(player, 'Warrior');
-    await player.tap('Character');
-
-    assertStringIncludes(await player.screenText(), 'Lv 2 Warrior');
-  });
-});
