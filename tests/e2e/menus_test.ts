@@ -1,13 +1,7 @@
 /** Menu journeys with purchases, equipment changes, and crafted supplies visible in chat. */
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import {
-  completePrologue,
-  findButton,
-  travelTo,
-  winBattle,
-  withPlayer,
-  withRoll,
-} from './harness.ts';
+import { findButton } from 'tg-bot-api-emulator/clients/typescript/mod.ts';
+import { beside, completePrologue, travelTo, winBattle, withPlayer, withRoll } from './harness.ts';
 
 Deno.test('e2e: inspect shop stock, buy a potion, sell it, and return to the bag', async () => {
   await withPlayer(async (player) => {
@@ -15,7 +9,7 @@ Deno.test('e2e: inspect shop stock, buy a potion, sell it, and return to the bag
     await player.tap('Shop');
     await player.tap('Next');
     assert((await player.labels()).includes('📄 2/2'));
-    await player.tap('Details', { beside: 'Minor Potion' });
+    await player.tap({ label: /Details/, within: 'Minor Potion' });
     assertStringIncludes(await player.screenText(), 'Price: 30g');
     assertStringIncludes(await player.screenText(), 'In bag: 3');
     await player.tap('Sources');
@@ -24,7 +18,7 @@ Deno.test('e2e: inspect shop stock, buy a potion, sell it, and return to the bag
     await player.tap('Buy · 30g');
     assertStringIncludes(await player.screenText(), 'In bag: 4');
     assertStringIncludes(await player.screenText(), '26 gold');
-    assertEquals(findButton(await player.screen(), 'Buy — too costly').disabled, true);
+    assert('disabled' in findButton(await player.screen(), { label: 'Buy — too costly' }).button);
     await player.tap('Shop');
     assert((await player.labels()).includes('📄 2/2'), 'detail returns to the same shelf page');
     await player.tap('Switch to selling');
@@ -49,13 +43,13 @@ Deno.test('e2e: inspect armor, unequip it, and equip the returned bag copy', asy
     await completePrologue(player, 'Warrior');
     await player.tap('Inventory');
     await player.tap('Equipment');
-    await player.tap('Details', { beside: 'Padded Vest' });
+    await player.tap({ label: /Details/, within: 'Unequip armor' });
     assertStringIncludes(await player.screenText(), 'Padded Vest');
     await player.tap('Equipment');
-    await player.tap('Details', { beside: 'Rusty Blade' });
+    await player.tap({ label: /Details/, within: 'Unequip weapon' });
     assertStringIncludes(await player.screenText(), 'Rusty Blade');
     await player.tap('Equipment');
-    await player.tap('Details', { beside: 'Padded Vest' });
+    await player.tap({ label: /Details/, within: 'Unequip armor' });
     await player.tap('Unequip');
     assertStringIncludes(await player.screenText(), 'Armor: — empty —');
     await player.tap('Padded Vest');
@@ -97,13 +91,14 @@ Deno.test('e2e: gather ingredients, inspect their uses, and brew a potion', asyn
     assertStringIncludes(await player.screenText(), 'Local workshops · 1/');
     await player.tap('Next');
     assertStringIncludes(await player.screenText(), 'Brew Minor Potion');
-    await player.tap('Make one batch', { beside: 'Brew Minor Potion' });
+    await player.tap(beside('Make one batch', 'Brew Minor Potion'));
     assertStringIncludes(await player.screenText(), 'Wild Berries (have 0)');
     assertStringIncludes(await player.screenText(), 'Bitterleaf (have 1)');
-    assertEquals(
-      findButton(await player.screen(), 'Ingredients or requirements missing', 'Brew Minor Potion')
-        .disabled,
-      true,
+    assert(
+      'disabled' in findButton(
+        await player.screen(),
+        beside('Ingredients or requirements missing', 'Brew Minor Potion'),
+      ).button,
     );
     await player.tap('Previous');
     assertStringIncludes(await player.screenText(), 'Local workshops · 1/');
@@ -152,7 +147,7 @@ Deno.test('e2e: earn tempering materials, improve armor, and inspect the equippe
     await player.tap('Inventory');
     assert((await player.labels()).includes('🧱 Plant Fiber ×1'), 'tempering spent two fiber');
     await player.tap('Equipment');
-    await player.tap('Details', { beside: 'Padded Vest' });
+    await player.tap({ label: /Details/, within: 'Unequip armor' });
     assertStringIncludes(await player.screenText(), 'Padded Vest +1');
     await player.tap('Equipment');
     await player.tap('Back');

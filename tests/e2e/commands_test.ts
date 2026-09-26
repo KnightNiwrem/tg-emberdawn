@@ -1,14 +1,8 @@
 /** E2E: slash commands beside the live game message. */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import {
-  completePrologue,
-  messageButtons,
-  travelTo,
-  winBattle,
-  withPlayer,
-  withRoll,
-} from './harness.ts';
+import { listButtons } from 'tg-bot-api-emulator/clients/typescript/mod.ts';
+import { completePrologue, travelTo, winBattle, withPlayer, withRoll } from './harness.ts';
 
 Deno.test('e2e: /help replies without buttons and leaves the game playable', async () => {
   await withPlayer(async (player) => {
@@ -19,7 +13,7 @@ Deno.test('e2e: /help replies without buttons and leaves the game playable', asy
 
     const help = (await player.botMessages()).at(-1)!;
     assert(help.message_id > live.message_id, '/help sends its own message');
-    assertEquals(messageButtons(help), [], 'help never competes with the live message');
+    assertEquals(listButtons(help), [], 'help never competes with the live message');
     assertEquals((await player.screen()).message_id, live.message_id);
     const inventory = await player.tap('Inventory');
     assertEquals(inventory.answer?.text, undefined, 'the live message still plays');

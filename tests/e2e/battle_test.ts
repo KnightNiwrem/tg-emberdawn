@@ -1,8 +1,8 @@
 /** Ordinary fights: menu navigation, paid actions, victory, escape, and recovery. */
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import { findButton } from 'tg-bot-api-emulator/clients/typescript/mod.ts';
 import {
   completePrologue,
-  findButton,
   type Player,
   travelTo,
   winBattle,
@@ -149,7 +149,7 @@ Deno.test('e2e: exhaust healing MP, replenish with an ether, and cast again', as
     const spent = await battlePools(player);
     assertEquals(spent.mp, openingMp % 8);
     await player.tap('Skills');
-    assertEquals(findButton(await player.screen(), 'Mend Wounds — 8 MP').disabled, true);
+    assert('disabled' in findButton(await player.screen(), { label: 'Mend Wounds — 8 MP' }).button);
     await player.tap('Back to battle');
     assertEquals(
       await battlePools(player),

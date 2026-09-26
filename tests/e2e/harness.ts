@@ -12,23 +12,21 @@ import { createSessionLifecycleService } from 'tg-bot-api-emulator/src/compositi
 import {
   type BotActivityLog,
   type BotActivityPosition,
+  type ButtonSelector,
   type CallbackQuery,
   type EmulationSessionClient,
+  findButton,
+  listButtons,
+  type MessageButton,
   type PrivateMessage,
   type PrivateMessageTarget,
+  richMessageToPlainText,
   TelegramEmulationClient,
   type VirtualAccountClient,
 } from 'tg-bot-api-emulator/clients/typescript/mod.ts';
 import { createBot } from '../../src/bot.ts';
 import { MemoryStore } from '../../src/persistence/store.ts';
 import { createWebhookHandler } from '../../src/webhook-server.ts';
-
-// Rich message parts as the account's client shows them, derived from the
-// message model that history returns.
-type RichMessage = NonNullable<PrivateMessage['rich_message']>;
-type RichBlock = RichMessage['blocks'][number];
-type RichMessageButton = Extract<RichBlock, { type: 'buttons' }>['buttons'][number];
-type RichText = RichMessageButton['text'];
 
 const LOOPBACK = '127.0.0.1';
 
@@ -56,88 +54,30 @@ interface DeliveryGate {
   opened: Promise<void>;
 }
 
-/** A button as the player sees it, including controls that cannot be pressed. */
-export interface VisibleButton {
-  label: string;
-  callbackData?: string;
-  disabled: boolean;
-  /** Text since the previous button row, for repeated labels such as Details. */
-  beside: string;
-}
-
-/** Flattens rich text to the plain string a reader sees. */
-export function plainText(text: RichText | undefined): string {
-  if (text === undefined) return '';
-  if (typeof text === 'string') return text;
-  if (Array.isArray(text)) return text.map(plainText).join('');
-  const node = text as Exclude<RichText, string | readonly RichText[]>;
-  if ('text' in node) return plainText(node.text);
-  if (node.type === 'button') return plainText(node.button.text);
-  if (node.type === 'custom_emoji') return node.alternative_text;
-  if (node.type === 'mathematical_expression') return node.expression;
-  return '';
-}
-
-function blockText(block: RichBlock): string {
-  switch (block.type) {
-    case 'paragraph':
-    case 'footer':
-    case 'heading':
-    case 'pre':
-    case 'expandable_blockquote':
-    case 'pullquote':
-      return plainText(block.text);
-    case 'blockquote':
-    case 'collage':
-    case 'slideshow':
-      return block.blocks.map(blockText).join('\n');
-    case 'details':
-      return [plainText(block.summary), ...block.blocks.map(blockText)].join('\n');
-    case 'list':
-      return block.items
-        .map((item) => `${item.label} ${item.blocks.map(blockText).join('\n')}`)
-        .join('\n');
-    case 'table':
-      return block.cells.map((row) => row.map((cell) => plainText(cell.text)).join(' | '))
-        .join('\n');
-    default:
-      return '';
-  }
-}
-
-/** The readable text of a message: plain text or every rich text block. */
+/** Plain messages and rich game screens share one text assertion surface. */
 export function messageText(message: PrivateMessage): string {
-  if (message.text !== undefined) return message.text;
-  const blocks = message.rich_message?.blocks ?? [];
-  return blocks.map(blockText).filter((line) => line.length > 0).join('\n');
+  return message.text ??
+    (message.rich_message === undefined ? '' : richMessageToPlainText(message.rich_message));
 }
 
-function collectButtons(blocks: readonly RichBlock[], into: VisibleButton[]): void {
-  let precedingText = '';
-  for (const block of blocks) {
-    if (block.type === 'buttons') {
-      for (const button of block.buttons) {
-        into.push({
-          label: plainText(button.text),
-          disabled: 'disabled' in button,
-          callbackData: 'callback_data' in button ? button.callback_data : undefined,
-          beside: precedingText,
-        });
-      }
-      precedingText = '';
-    } else if ('blocks' in block) {
-      collectButtons(block.blocks, into);
-    } else {
-      precedingText += `\n${blockText(block)}`;
-    }
-  }
+/** Recipe headings precede their action row as siblings, outside native `within` scopes. */
+export function beside(label: string, text: string): ButtonSelector {
+  return (candidate) => {
+    if (candidate.label !== label) return false;
+    const container = candidate.containers.findLast((part) => part.kind === 'block');
+    if (container?.kind !== 'block') return false;
+    const preceding = container.siblingBlocks.slice(0, container.index);
+    const sectionStart = preceding.findLastIndex((block) => block.type === 'buttons') + 1;
+    return richMessageToPlainText({ blocks: preceding.slice(sectionStart) }).includes(text);
+  };
 }
 
-/** Every button a message shows, including disabled controls, in reading order. */
-export function messageButtons(message: PrivateMessage): VisibleButton[] {
-  const buttons: VisibleButton[] = [];
-  collectButtons(message.rich_message?.blocks ?? [], buttons);
-  return buttons;
+/** Short labels remain convenient in game flows; native selectors handle scoped controls. */
+type ButtonTarget = string | RegExp | ButtonSelector;
+
+function selectorFor(target: ButtonTarget): ButtonSelector {
+  if (typeof target === 'string') return (button: MessageButton) => button.label.includes(target);
+  return target instanceof RegExp ? { label: target } : target;
 }
 
 /** A running bot plus one virtual player chatting with it. */
@@ -271,7 +211,7 @@ export class Player {
   /** The newest bot message that shows buttons: the one the player plays on. */
   async screen(): Promise<PrivateMessage> {
     const withButtons = (await this.botMessages()).filter((message) =>
-      messageButtons(message).length > 0
+      listButtons(message).length > 0
     );
     const newest = withButtons.at(-1);
     if (!newest) throw new Error('the chat shows no message with buttons');
@@ -283,58 +223,46 @@ export class Player {
   }
 
   async labels(message?: PrivateMessage): Promise<string[]> {
-    return messageButtons(message ?? await this.screen()).map((button) => button.label);
+    return listButtons(message ?? await this.screen()).map((button) => button.label);
   }
 
   /** Presses the button whose label matches, on the given message or the
    * current screen, then waits for the bot to finish handling it. */
   async tap(
-    label: string | RegExp,
-    options: { message?: PrivateMessage; beside?: string } = {},
+    target: ButtonTarget,
+    options: { message?: PrivateMessage } = {},
   ): Promise<CallbackQuery> {
     const start = await this.world.activity.position();
-    const query = await this.press(label, options);
+    const query = await this.press(target, options);
     await this.world.pressHandled(start, query);
     return this.world.account.getCallbackQuery(query.id);
   }
 
   /** Presses without waiting, for taps that race the bot. */
   async press(
-    label: string | RegExp,
-    options: { message?: PrivateMessage; beside?: string } = {},
+    target: ButtonTarget,
+    options: { message?: PrivateMessage } = {},
   ): Promise<CallbackQuery> {
-    const target = options.message ?? await this.screen();
-    const button = findButton(target, label, options.beside);
-    if (button.disabled) throw new Error(`button ${button.label} is disabled`);
-    if (!button.callbackData) throw new Error(`button ${button.label} has no callback action`);
-    return await this.world.account.pressCallbackButton({
+    const message = options.message ?? await this.screen();
+    const selector = selectorFor(target);
+    if (options.message) {
+      // Explicit snapshots preserve the old revision when a test replays a stale control.
+      const selected = findButton(message, selector);
+      if (!('callback_data' in selected.button)) {
+        throw new Error(`button ${selected.label} has no callback action`);
+      }
+      return await this.world.account.pressCallbackButton({
+        chat: this.world.chat,
+        message_id: message.message_id,
+        callback_data: selected.button.callback_data,
+      });
+    }
+    return await this.world.account.pressButton({
       chat: this.world.chat,
-      message_id: target.message_id,
-      callback_data: button.callbackData,
+      message_id: message.message_id,
+      button: selector,
     });
   }
-}
-
-export function findButton(
-  message: PrivateMessage,
-  label: string | RegExp,
-  beside?: string,
-): VisibleButton {
-  const buttons = messageButtons(message);
-  const matches = buttons.filter((candidate) =>
-    (typeof label === 'string' ? candidate.label.includes(label) : label.test(candidate.label)) &&
-    (beside === undefined || candidate.beside.includes(beside))
-  );
-  if (matches.length !== 1) {
-    const shown = buttons.map((candidate) => candidate.label).join(' | ');
-    throw new Error(
-      `expected one button matching ${label}${beside ? ` beside ${beside}` : ''}, ` +
-        `found ${matches.length} on message ${message.message_id}: ${shown}\n${
-          messageText(message)
-        }`,
-    );
-  }
-  return matches[0];
 }
 
 /** Runs a test body against a fresh world and player, always tearing down. */

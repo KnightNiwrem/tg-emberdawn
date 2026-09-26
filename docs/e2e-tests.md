@@ -43,54 +43,73 @@ flee outcomes. The game already resolves its default RNG through `Math.random`. 
 reproducible without modifying production code. Keep these test bodies serial within their Deno
 realm; overlapping worlds would share that random override.
 
-`tap` accepts a label substring or regular expression and requires exactly one match. Repeated
-labels use adjacent visible text, for example:
+`tap` accepts a label substring, a regular expression, or the library's native `ButtonSelector`.
+Native selector strings match the whole label; the short string form on `Player.tap` remains a
+substring convenience. Ordinary taps use `account.pressButton`, and button/text assertions use the
+library's `findButton`, `listButtons`, and `richMessageToPlainText`.
 
 ```ts
-await player.tap('Details', { beside: 'Minor Potion' });
-await player.tap('Details', { beside: 'Padded Vest' });
-await player.tap('Make one batch', { beside: 'Brew Minor Potion' });
+await player.tap({ label: /Details/, within: 'Minor Potion' });
+await player.tap({ label: /Details/, within: 'Unequip armor' });
+await player.tap(beside('Make one batch', 'Brew Minor Potion'));
 ```
 
-The harness reports the current text and available labels when a match is missing or ambiguous.
-Disabled controls remain in the projection so tests can inspect the unaffordable purchase, depleted
-skill, and missing-ingredients states. Battle loops have action limits and require visible victory
-before continuing.
+`beside` is a small predicate for recipe headings that precede their button rows as sibling blocks.
+The library supplies the block position and sibling list, and still owns finding exactly one match.
+Explicit message snapshots use `findButton` plus the raw `pressCallbackButton` API to preserve the
+captured callback revision for stale-tap checks. Battle loops have action limits and require visible
+victory before continuing.
 
-## Emulator library feedback from these tests
+## Emulator library feedback: follow-up at b328685
 
-These observations concern the pinned `tg-bot-api-emulator` revision
-`61ee49cbe3b14c14b96cd885c035365040cd81dc` in `deno.json`. Both inconveniences were encountered
-while writing the journeys above and are handled locally in `tests/e2e/harness.ts`.
+The suite was upgraded from `61ee49cbe3b14c14b96cd885c035365040cd81dc` to
+`b328685da710337c055baf2c9b336cb3f9ecee75`. All 20 existing journeys pass after adopting the new
+client APIs. The harness is 72 lines shorter overall: the local rich-text traversal, button
+projection, and ambiguity checking have been removed. This is a practical improvement to authoring
+and maintaining these tests.
 
-### 1. Selecting a button by what the player sees requires application code
+| Previous inconvenience                                             | Result with the new APIs                                                                                                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local rich-text/block traversal for readable assertions            | Resolved for these flows by `richMessageToPlainText`, including Sources/Uses lists and collapsed battle history. Its output also includes button labels. |
+| Custom button traversal and disabled-state projection              | Resolved by `listButtons` and `findButton`; tests inspect `'disabled' in selected.button` directly.                                                      |
+| Custom label matching, ambiguity checking, and callback extraction | Ordinary taps now use `pressButton`. Native errors identify candidate labels, structural paths, and container text.                                      |
+| Disambiguating repeated controls beside descriptive text           | Partly resolved: native `within` works for shop and equipment rows; recipe headings still need a predicate over preceding siblings.                      |
 
-The TypeScript client's `pressCallbackButton` takes a message ID and `callback_data`. Shop shelves
-and Equipment each display several identical **Details** buttons; crafting displays repeated **Make
-one batch** buttons. A label alone cannot identify the intended row. Selecting the potion or armor
-therefore required walking the rich blocks, associating a row with its preceding text, and finding
-the callback data ourselves.
+The shop probe also exercised the new client directly: `account.pressButton` bought a Minor Potion,
+the projected text showed the increased bag count, and `findButton` found its disabled replacement
+when the remaining gold was insufficient. An intentionally ambiguous `/Details/` selector reported
+both candidates and their distinct block paths.
 
-The local `beside` selector handles the game's layout and rejects ambiguous matches. This also
-caught two concrete ambiguous shortcuts during the work: the Cleric's `/MP$/` selector matched both
-Smite and Mend Wounds, and `Equip` matched both Equip and Equipment. The tests now name the intended
-action explicitly.
+### Remaining inconvenience: matching preceding sibling text
 
-A useful library addition would expose buttons by readable label and structural location, allow
-scoping to a row or section, and fail with the matching candidates when a selector is ambiguous.
-Keep the raw callback API available for the double-tap scenario.
+This is the one remaining selector gap encountered while adapting the actual menu tests. `within`
+searches containers enclosing a button. Emberdawn renders each recipe as a heading, ingredient and
+output paragraphs, then a separate buttons block. That recipe title is a sibling, outside the
+button's container.
 
-### 2. Rich-message assertions require a local presentation adapter
+For example, on the first crafting page, this native query finds no match despite the visible recipe
+heading and its disabled control:
 
-`getMessages` returns structured messages. The shop, inventory, recipe, and battle tests need
-readable text, labels, and whether a control is disabled. Sources and Uses contain nested lists;
-battle recaps contain blockquotes and expandable history. The suite must maintain `plainText`,
-`blockText`, and `messageButtons` to inspect those messages. In particular, the old callback-only
-projection omitted controls that had become disabled, so it could not assert the purchase and
-healing-skill states the new journeys exercise.
+```ts
+findButton(screen, {
+  label: 'Ingredients or requirements missing',
+  within: 'Make Fishing Rod',
+});
+```
 
-A library projection for readable rich text and buttons, retaining disabled state and structural
-location, would remove this duplicated adapter work. Raw message access is sufficient to complete
-all these flows today. Our `screenText` includes the content of expandable blocks regardless of
-their initial collapsed state; it is a content assertion, not a simulation of a Telegram client's
-layout.
+Its error correctly lists the three disabled controls and their paths, but each container contains
+only `Ingredients or requirements missing`; the recipe names are absent. The potion crafting journey
+therefore uses the local `beside` predicate for both the enabled action and its disabled
+replacement. It reads the siblings since the preceding buttons block through the library's public
+container metadata. There is no need to extract callback data or implement a separate ambiguity
+check.
+
+Equipment has the same layout: `within: 'Padded Vest'` fails, but `within: 'Unequip armor'` succeeds
+because that label shares the Details button's row. Shop selection with `within: 'Minor Potion'`
+succeeds because the neighboring Buy button includes the item name. These behaviors were checked
+against the rendered game screens.
+
+A convenience selector for preceding sibling text, with that text included in failure diagnostics,
+would remove the remaining recipe-specific adapter. The existing predicate API makes this a small
+workaround rather than a blocker. `screenText` continues to assert content, including collapsed
+blocks; it does not model the Telegram client's layout or expansion state.
