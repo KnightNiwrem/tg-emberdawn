@@ -21,10 +21,10 @@
     "grammy-testing": "npm:grammy-testing@^0.26.0",
     "pg": "npm:pg@^8.23.0",
     "@types/pg": "npm:@types/pg@^8",
-    "tg-bot-api-emulator/": "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@b328685da710337c055baf2c9b336cb3f9ecee75/"
+    "tg-bot-api-emulator/": "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@47050df252207f207cb16fafc4ecef19ff985281/"
   },
   "scopes": {
-    "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@b328685da710337c055baf2c9b336cb3f9ecee75/": {
+    "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@47050df252207f207cb16fafc4ecef19ff985281/": {
       "hono": "jsr:@hono/hono@^4.13.7",
       "zod": "npm:zod@^4.6.5",
       "hono/route": "jsr:@hono/hono@^4.13.7/route",

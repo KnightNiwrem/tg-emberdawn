@@ -1,10 +1,12 @@
 # E2E player journeys
 
-`tests/e2e/` runs the real bot handlers and webhook against an in-process Telegram Bot API emulator.
-Each test creates a disposable memory store and virtual player, plays from `/start`, and checks chat
-messages, button labels, and callback answers. Setup earns items and progression through gameplay;
-tests do not seed or inspect player saves. These tests need loopback networking and no Telegram
-credentials or database.
+`tests/e2e/` runs the real bot handlers and webhook against an in-process Telegram Bot API emulator
+(`createInProcessEmulator` from the emulator's TypeScript client). The bot calls the Bot API through
+the emulator's in-process `fetch`; the emulator delivers updates to the bot's webhook over loopback
+HTTP. Each test creates a disposable memory store and virtual player, plays from `/start`, and
+checks chat messages, button labels, and callback answers. Setup earns items and progression through
+gameplay; tests do not seed or inspect player saves. These tests need loopback networking for the
+webhook and no Telegram credentials or database.
 
 Run just these journeys:
 
@@ -59,6 +61,66 @@ The library supplies the block position and sibling list, and still owns finding
 Explicit message snapshots use `findButton` plus the raw `pressCallbackButton` API to preserve the
 captured callback revision for stale-tap checks. Battle loops have action limits and require visible
 victory before continuing.
+
+## Emulator library feedback: follow-up at 47050df
+
+The suite was upgraded from `b328685da710337c055baf2c9b336cb3f9ecee75` to
+`47050df252207f207cb16fafc4ecef19ff985281`, 702 emulator commits later. All 20 journeys pass with no
+change to what they play or assert. Only the harness and the double-tap test needed edits, plus an
+optional `fetch` on `createBot` so the bot can use the in-process emulator.
+
+### Breaking changes
+
+| Change                                                                                                                                                                                                          | Effect on this suite                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every control action resolves to `ActionOutcome<T>`, `{ result, receipt }`. An action without a result resolves to its `ActionReceipt` alone. Reads such as `getMessages` and `getCallbackQuery` are unchanged. | Seven type errors in `harness.ts`: `createSession`, `createBot`, `createAccount`, `sendMessage`, `pressButton` and `pressCallbackButton`. There is no compatibility shim or deprecation period, so every caller has to unwrap `result`. The fix is mechanical.                                              |
+| Webhook confirmation moved earlier. `update_confirmed` is now recorded when the complete 2xx response arrives, before any method named in a webhook reply runs.                                                 | No effect here. grammY's `webhookCallback` does not use webhook replies by default, so the bot answers only after its handler finishes, and `handled()` still means the handler is done. A bot that answers with a webhook reply can no longer treat `update_confirmed` as "the reply method ran".          |
+| Server modules moved. Control contracts and the HTTP grammar now live under `src/api/`, and the in-process emulator lives under `clients/typescript/in_process/`.                                               | The old harness deep-imported `src/api/mod.ts` and `src/composition/session_lifecycle.ts`. Those paths still resolve at this commit, but they are internal and can move again. The harness now uses only the supported `clients/typescript/in_process/mod.ts` and `clients/typescript/mod.ts` entry points. |
+
+### Improvements adopted
+
+- **Action receipts as wait positions.** `send`, `tap` and the double-tap test now wait `after` the
+  action's receipt. Before, they read `activity.position()` before acting, which cost one extra
+  control request per player action.
+- **The supported in-process emulator.** `createInProcessEmulator()` replaced the local bootstrap.
+  That bootstrap served the emulator on a loopback port and resolved its handler late, because the
+  public origin had to name a port that is known only once the server listens. Disposal now ends the
+  emulator's sessions. As a side effect, test output no longer shows Deno's `request.signal`
+  legacy-abort warning (see below).
+
+### Regressions
+
+None observed. Every journey passes, and the suite takes about as long as it did at `b328685`.
+
+### Remaining gaps
+
+1. **Webhooks cannot be delivered in process.** The in-process emulator sends webhook requests with
+   the network `fetch`. The session lifecycle already takes a `WebhookTransport`
+   (`NETWORK_WEBHOOK_TRANSPORT` in `src/composition/session_lifecycle.ts`), but
+   `InProcessEmulatorOptions` does not expose it. A webhook-mode bot therefore still needs a
+   loopback listener and `--allow-net`. With a transport option, this suite could hand webhook
+   requests directly to `webhookCallback` and run without network access.
+2. **Contradictory confirmation docs.** The client's `UpdateConfirmedEntry` doc comment
+   (`clients/typescript/types.ts`) says a webhook confirmation comes "after any method the answer
+   names has run". The server contract (`src/api/contracts/bot_activity.ts`) and
+   `docs/features/webhooks.md` say it comes before that method runs, which is how the emulator now
+   behaves.
+3. **Stale in-process guide.** `docs/clients/typescript/in-process-emulator.md` still waits after
+   `activity.position()` and compares `reply_parameters` as `JSON.stringify` text. The
+   getting-started guide it mirrors uses the action receipt and `parameters_json`.
+4. **Loosely typed delivered updates.** `update_delivered` entries still type `update` as a loose
+   object with only `update_id`, so `E2eWorld.delivered` keeps its `as unknown as Update` cast to
+   read `message` and `callback_query`.
+5. **No selector for preceding sibling text.** Unchanged from `b328685` (see below); `beside`
+   remains.
+6. **Deno 2.9 legacy-abort warning from the standalone server.** The standalone server
+   (`deno task
+   start`) prints
+   `Deno.serve: request.signal aborts on successful responses (legacy behavior)` on its first Bot
+   API call. The emulator binds `context.req.raw.signal` into Bot API calls, bot activity waits and
+   inline-query waits. This predates `b328685`, where the old loopback harness printed the same
+   warning. It does not affect in-process use. It should be checked before Deno makes the non-legacy
+   behavior the default.
 
 ## Emulator library feedback: follow-up at b328685
 
