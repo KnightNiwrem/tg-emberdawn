@@ -69,6 +69,12 @@ The suite was upgraded from `b328685da710337c055baf2c9b336cb3f9ecee75` to
 change to what they play or assert. Only the harness and the double-tap test needed edits, plus an
 optional `fetch` on `createBot` so the bot can use the in-process emulator.
 
+The emulator is now imported from `raw.githubusercontent.com` at the pinned commit instead of
+`cdn.jsdelivr.net/gh`. At this commit, jsDelivr returned 503 for individual emulator modules, in CI
+and locally, and Deno fails the whole module graph on one failed import. The content and the
+`deno.lock` hashes are the same. Only the URLs changed. After one successful run, CI's
+`~/.cache/deno` cache serves the modules.
+
 ### Breaking changes
 
 | Change                                                                                                                                                                                                          | Effect on this suite                                                                                                                                                                                                                                                                                        |
