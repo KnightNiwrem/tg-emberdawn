@@ -94,26 +94,33 @@ None observed. Every journey passes, and the suite takes about as long as it did
 
 ### Remaining gaps
 
-1. **Webhooks cannot be delivered in process.** The in-process emulator sends webhook requests with
-   the network `fetch`. The session lifecycle already takes a `WebhookTransport`
-   (`NETWORK_WEBHOOK_TRANSPORT` in `src/composition/session_lifecycle.ts`), but
+1. **Webhooks cannot be delivered in process.**
+   ([#298](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/298)) The in-process emulator
+   sends webhook requests with the network `fetch`. The session lifecycle already takes a
+   `WebhookTransport` (`NETWORK_WEBHOOK_TRANSPORT` in `src/composition/session_lifecycle.ts`), but
    `InProcessEmulatorOptions` does not expose it. A webhook-mode bot therefore still needs a
    loopback listener and `--allow-net`. With a transport option, this suite could hand webhook
    requests directly to `webhookCallback` and run without network access.
-2. **Contradictory confirmation docs.** The client's `UpdateConfirmedEntry` doc comment
-   (`clients/typescript/types.ts`) says a webhook confirmation comes "after any method the answer
-   names has run". The server contract (`src/api/contracts/bot_activity.ts`) and
-   `docs/features/webhooks.md` say it comes before that method runs, which is how the emulator now
-   behaves.
-3. **Stale in-process guide.** `docs/clients/typescript/in-process-emulator.md` still waits after
-   `activity.position()` and compares `reply_parameters` as `JSON.stringify` text. The
-   getting-started guide it mirrors uses the action receipt and `parameters_json`.
-4. **Loosely typed delivered updates.** `update_delivered` entries still type `update` as a loose
-   object with only `update_id`, so `E2eWorld.delivered` keeps its `as unknown as Update` cast to
-   read `message` and `callback_query`.
-5. **No selector for preceding sibling text.** Unchanged from `b328685` (see below); `beside`
-   remains.
-6. **Deno 2.9 legacy-abort warning from the standalone server.** The standalone server
+2. **Contradictory confirmation docs.**
+   ([#299](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/299)) The client's
+   `UpdateConfirmedEntry` doc comment (`clients/typescript/types.ts`) says a webhook confirmation
+   comes "after any method the answer names has run". The server contract
+   (`src/api/contracts/bot_activity.ts`) and `docs/features/webhooks.md` say it comes before that
+   method runs, which is how the emulator now behaves.
+3. **Stale in-process guide.**
+   ([#300](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/300))
+   `docs/clients/typescript/in-process-emulator.md` still waits after `activity.position()` and
+   compares `reply_parameters` as `JSON.stringify` text. The getting-started guide it mirrors uses
+   the action receipt and `parameters_json`.
+4. **Loosely typed delivered updates.**
+   ([#301](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/301)) `update_delivered`
+   entries still type `update` as a loose object with only `update_id`, so `E2eWorld.delivered`
+   keeps its `as unknown as Update` cast to read `message` and `callback_query`.
+5. **No selector for preceding sibling text.**
+   ([#302](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/302)) Unchanged from `b328685`
+   (see below); `beside` remains.
+6. **Deno 2.9 legacy-abort warning from the standalone server.**
+   ([#303](https://github.com/KnightNiwrem/tg-bot-api-emulator/issues/303)) The standalone server
    (`deno task
    start`) prints
    `Deno.serve: request.signal aborts on successful responses (legacy behavior)` on its first Bot
