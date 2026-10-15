@@ -8,6 +8,7 @@
     "balance:update": "deno run --allow-read --allow-write scripts/balance.ts --update-snapshot",
     "test:pg": "deno test --allow-import --allow-env --allow-net --allow-read --allow-write tests/persistence_pg_test.ts",
     "test:pg:local": "sh scripts/pg-local.sh",
+    "cache:deps": "sh scripts/cache-deps.sh",
     "migrate:pg": "deno run --allow-net --allow-env src/persistence/migrate.ts",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
@@ -21,10 +22,10 @@
     "grammy-testing": "npm:grammy-testing@^0.26.0",
     "pg": "npm:pg@^8.23.0",
     "@types/pg": "npm:@types/pg@^8",
-    "tg-bot-api-emulator/": "https://raw.githubusercontent.com/KnightNiwrem/tg-bot-api-emulator/47050df252207f207cb16fafc4ecef19ff985281/"
+    "tg-bot-api-emulator/": "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@47050df252207f207cb16fafc4ecef19ff985281/"
   },
   "scopes": {
-    "https://raw.githubusercontent.com/KnightNiwrem/tg-bot-api-emulator/47050df252207f207cb16fafc4ecef19ff985281/": {
+    "https://cdn.jsdelivr.net/gh/KnightNiwrem/tg-bot-api-emulator@47050df252207f207cb16fafc4ecef19ff985281/": {
       "hono": "jsr:@hono/hono@^4.13.7",
       "zod": "npm:zod@^4.6.5",
       "hono/route": "jsr:@hono/hono@^4.13.7/route",

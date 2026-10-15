@@ -69,11 +69,17 @@ The suite was upgraded from `b328685da710337c055baf2c9b336cb3f9ecee75` to
 change to what they play or assert. Only the harness and the double-tap test needed edits, plus an
 optional `fetch` on `createBot` so the bot can use the in-process emulator.
 
-The emulator is now imported from `raw.githubusercontent.com` at the pinned commit instead of
-`cdn.jsdelivr.net/gh`. At this commit, jsDelivr returned 503 for individual emulator modules, in CI
-and locally, and Deno fails the whole module graph on one failed import. The content and the
-`deno.lock` hashes are the same. Only the URLs changed. After one successful run, CI's
-`~/.cache/deno` cache serves the modules.
+The emulator is still imported from jsDelivr (`cdn.jsdelivr.net/gh`). The first fetches of a newly
+pinned commit can fail while jsDelivr has not cached its files yet:
+
+- some edge servers answer 503 `No healthy backends` (Fastly error 54113);
+- some answer a false 404 for a file that exists at the commit.
+
+Retrying succeeds, but Deno fails the whole module graph on one failed import. It also caches a 404
+as "not found", so a plain retry repeats it. `deno task cache:deps` (`scripts/cache-deps.sh`)
+retries `deno cache --frozen` and reloads the module the previous attempt reported missing. CI runs
+it before `check` and `test`. After one green run, CI's `~/.cache/deno` cache serves the modules.
+Run it locally when a pin bump fails to resolve.
 
 ### Breaking changes
 
