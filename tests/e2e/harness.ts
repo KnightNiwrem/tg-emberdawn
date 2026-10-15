@@ -1,15 +1,21 @@
 /**
  * End-to-end harness: the real bot, in webhook mode as deployed, talking to
- * an in-process Telegram Bot API emulator over loopback HTTP. Tests act as a
- * virtual player through the emulator's account client and assert on what
- * that player's chat shows, never on the store.
+ * an in-process Telegram Bot API emulator. The bot calls the Bot API through
+ * the emulator's in-process fetch, and the emulator delivers updates to the
+ * bot's webhook over loopback HTTP. Tests act as a virtual player through the
+ * emulator's account client and assert on what that player's chat shows,
+ * never on the store.
  */
 
 import { webhookCallback } from 'grammy';
 import type { Update } from 'grammy/types';
-import { createEmulationApi } from 'tg-bot-api-emulator/src/api/mod.ts';
-import { createSessionLifecycleService } from 'tg-bot-api-emulator/src/composition/session_lifecycle.ts';
 import {
+  createInProcessEmulator,
+  type InProcessEmulator,
+} from 'tg-bot-api-emulator/clients/typescript/in_process/mod.ts';
+import {
+  type ActionOutcome,
+  type ActionReceipt,
   type BotActivityLog,
   type BotActivityPosition,
   type ButtonSelector,
@@ -21,7 +27,6 @@ import {
   type PrivateMessage,
   type PrivateMessageTarget,
   richMessageToPlainText,
-  TelegramEmulationClient,
   type VirtualAccountClient,
 } from 'tg-bot-api-emulator/clients/typescript/mod.ts';
 import { createBot } from '../../src/bot.ts';
@@ -33,20 +38,6 @@ const LOOPBACK = '127.0.0.1';
 /** Serves a handler on an ephemeral loopback port. */
 function serveLoopback(handler: Deno.ServeHandler): Deno.HttpServer<Deno.NetAddr> {
   return Deno.serve({ hostname: LOOPBACK, port: 0, onListen: () => {} }, handler);
-}
-
-/** Starts the emulator in-process. Its public origin must name the port it
- * listens on, which is only known once it listens, so requests go through a
- * handler bound after startup. */
-function startEmulator(): { client: TelegramEmulationClient; server: Deno.HttpServer } {
-  const emulatorApi = Promise.withResolvers<ReturnType<typeof createEmulationApi>>();
-  const server = serveLoopback(async (request) => (await emulatorApi.promise).fetch(request));
-  const origin = `http://${LOOPBACK}:${server.addr.port}`;
-  emulatorApi.resolve(createEmulationApi({
-    sessionLifecycle: createSessionLifecycleService(),
-    publicOrigin: origin,
-  }));
-  return { client: new TelegramEmulationClient(origin), server };
 }
 
 /** Webhook requests wait for this before the bot sees them. */
@@ -82,8 +73,9 @@ function selectorFor(target: ButtonTarget): ButtonSelector {
 
 /** A running bot plus one virtual player chatting with it. */
 export class E2eWorld {
+  readonly #emulator: InProcessEmulator;
   readonly #session: EmulationSessionClient;
-  readonly #servers: Deno.HttpServer[];
+  readonly #webhookServer: Deno.HttpServer;
   readonly #delivery: DeliveryGate;
   readonly account: VirtualAccountClient;
   readonly botId: number;
@@ -91,32 +83,53 @@ export class E2eWorld {
   readonly activity: BotActivityLog;
 
   private constructor(fields: {
+    emulator: InProcessEmulator;
     session: EmulationSessionClient;
-    servers: Deno.HttpServer[];
+    webhookServer: Deno.HttpServer;
     delivery: DeliveryGate;
     account: VirtualAccountClient;
     botId: number;
   }) {
+    this.#emulator = fields.emulator;
     this.#session = fields.session;
-    this.#servers = fields.servers;
+    this.#webhookServer = fields.webhookServer;
     this.#delivery = fields.delivery;
     this.account = fields.account;
     this.botId = fields.botId;
     this.activity = fields.session.botActivity({ bot_id: fields.botId });
   }
 
-  static async start(options: { playerName?: string } = {}) {
-    const emulator = startEmulator();
-    const session = await emulator.client.createSession();
-    const { token, bot: botProfile } = await session.createBot({
+  /** Starts a world; a startup that fails disposes of the emulator, which
+   * ends the session it opened. */
+  static async start(options: { playerName?: string } = {}): Promise<E2eWorld> {
+    const emulator = createInProcessEmulator();
+    try {
+      return await E2eWorld.#open(emulator, options);
+    } catch (error) {
+      await emulator[Symbol.asyncDispose]();
+      throw error;
+    }
+  }
+
+  static async #open(
+    emulator: InProcessEmulator,
+    options: { playerName?: string },
+  ): Promise<E2eWorld> {
+    const { result: session } = await emulator.client.createSession();
+    const { result: { token, bot: botProfile } } = await session.createBot({
       first_name: 'Emberdawn',
       username: 'emberdawn_test_bot',
     });
-    const { account } = await session.createAccount({
+    const { result: { account } } = await session.createAccount({
       first_name: options.playerName ?? 'Ash',
     });
 
-    const bot = createBot({ token, store: new MemoryStore(), apiRoot: session.botApiRoot });
+    const bot = createBot({
+      token,
+      store: new MemoryStore(),
+      apiRoot: session.botApiRoot,
+      fetch: emulator.fetch,
+    });
     await bot.init();
     const secretToken = crypto.randomUUID();
     const delivery: DeliveryGate = { opened: Promise.resolve() };
@@ -129,11 +142,17 @@ export class E2eWorld {
       return handleWebhook(request);
     });
     const webhookUrl = `http://${LOOPBACK}:${webhookServer.addr.port}/webhook`;
-    await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+    try {
+      await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+    } catch (error) {
+      await webhookServer.shutdown();
+      throw error;
+    }
 
     return new E2eWorld({
+      emulator,
       session,
-      servers: [emulator.server, webhookServer],
+      webhookServer,
       delivery,
       account,
       botId: botProfile.id,
@@ -144,10 +163,10 @@ export class E2eWorld {
     return { type: 'private', botId: this.botId };
   }
 
-  /** Waits for the bot to be handed the update that a player action after
-   * `start` caused; a refused update is handed over again, so this finds the
-   * first attempt. */
-  delivered(start: BotActivityPosition, causedBy: (update: Update) => boolean) {
+  /** Waits for the bot to be handed the update that a player action caused,
+   * from the action's receipt or an earlier position; a refused update is
+   * handed over again, so this finds the first attempt. */
+  delivered(start: BotActivityPosition | ActionReceipt, causedBy: (update: Update) => boolean) {
     return this.activity.waitFor({
       kind: 'update_delivered',
       // The log types updates loosely; they are Bot API updates as grammY reads them.
@@ -159,7 +178,10 @@ export class E2eWorld {
    * action after `start` caused, and returns its confirmation. The webhook
    * confirms an update only once the bot's handler has answered 2xx; a
    * failed delivery is handed over again until one is confirmed. */
-  async handled(start: BotActivityPosition, causedBy: (update: Update) => boolean) {
+  async handled(
+    start: BotActivityPosition | ActionReceipt,
+    causedBy: (update: Update) => boolean,
+  ) {
     const delivered = await this.delivered(start, causedBy);
     return await this.activity.waitFor(
       { kind: 'update_confirmed', update_id: delivered.update.update_id },
@@ -168,7 +190,7 @@ export class E2eWorld {
   }
 
   /** Waits until the bot has finished handling a press of a callback button. */
-  pressHandled(start: BotActivityPosition, query: CallbackQuery) {
+  pressHandled(start: BotActivityPosition | ActionReceipt, query: CallbackQuery) {
     return this.handled(start, (update) => update.callback_query?.id === query.id);
   }
 
@@ -186,7 +208,8 @@ export class E2eWorld {
 
   async stop(): Promise<void> {
     await this.#session.end();
-    await Promise.all(this.#servers.map((server) => server.shutdown()));
+    await this.#webhookServer.shutdown();
+    await this.#emulator[Symbol.asyncDispose]();
   }
 }
 
@@ -195,9 +218,11 @@ export class Player {
   constructor(readonly world: E2eWorld) {}
 
   async send(text: string): Promise<void> {
-    const start = await this.world.activity.position();
-    const sent = await this.world.account.sendMessage({ to: this.world.chat, text });
-    await this.world.handled(start, (update) => update.message?.message_id === sent.message_id);
+    const { result: sent, receipt } = await this.world.account.sendMessage({
+      to: this.world.chat,
+      text,
+    });
+    await this.world.handled(receipt, (update) => update.message?.message_id === sent.message_id);
   }
 
   history(): Promise<readonly PrivateMessage[]> {
@@ -232,9 +257,8 @@ export class Player {
     target: ButtonTarget,
     options: { message?: PrivateMessage } = {},
   ): Promise<CallbackQuery> {
-    const start = await this.world.activity.position();
-    const query = await this.press(target, options);
-    await this.world.pressHandled(start, query);
+    const { result: query, receipt } = await this.press(target, options);
+    await this.world.pressHandled(receipt, query);
     return this.world.account.getCallbackQuery(query.id);
   }
 
@@ -242,7 +266,7 @@ export class Player {
   async press(
     target: ButtonTarget,
     options: { message?: PrivateMessage } = {},
-  ): Promise<CallbackQuery> {
+  ): Promise<ActionOutcome<CallbackQuery>> {
     const message = options.message ?? await this.screen();
     const selector = selectorFor(target);
     if (options.message) {

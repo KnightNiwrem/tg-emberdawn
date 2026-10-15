@@ -14,10 +14,14 @@ export interface BotOptions {
   store: PlayerStore;
   /** Bot API server root; defaults to Telegram's. End-to-end tests point it at an emulator. */
   apiRoot?: string;
+  /** Bot API transport; defaults to grammY's. End-to-end tests pass an in-process emulator's. */
+  fetch?: typeof fetch;
 }
 
 export function createBot(options: BotOptions): Bot<Context> {
-  const bot = new Bot<Context>(options.token, { client: { apiRoot: options.apiRoot } });
+  const bot = new Bot<Context>(options.token, {
+    client: { apiRoot: options.apiRoot, fetch: options.fetch },
+  });
 
   // Layer 1 (in-process): serialize per user so each load/mutate/save cycle
   // is atomic. Layer 2 (cross-instance, #18): PgStore.withLock holds a

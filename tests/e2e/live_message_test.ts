@@ -43,13 +43,12 @@ Deno.test('e2e: a double tap acts once; the second tap is stale', async () => {
     assertStringIncludes(await player.screenText(), 'Battle · Round 1');
 
     // Both presses reach the emulator before the bot handles either.
-    const start = await world.activity.position();
     const release = world.holdDeliveries();
-    const firstPress = await player.press('Strike');
-    const secondPress = await player.press('Strike');
+    const { result: firstPress, receipt: beforePresses } = await player.press('Strike');
+    const { result: secondPress } = await player.press('Strike');
     release();
-    const firstHandled = await world.pressHandled(start, firstPress);
-    const secondHandled = await world.pressHandled(start, secondPress);
+    const firstHandled = await world.pressHandled(beforePresses, firstPress);
+    const secondHandled = await world.pressHandled(beforePresses, secondPress);
 
     await world.activity.assertNone(
       { method: 'editMessageText' },

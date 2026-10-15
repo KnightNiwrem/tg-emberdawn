@@ -31,6 +31,11 @@ jobs:
           key: deno-${{ hashFiles('deno.lock') }}
           restore-keys: deno-
 
+      # Only these gates import the emulator from jsDelivr; see scripts/cache-deps.sh.
+      - name: Fetch Deno dependencies
+        if: matrix.task == 'check' || matrix.task == 'test'
+        run: deno task cache:deps
+
       - name: Run ${{ matrix.task }}
         run: deno task ${{ matrix.task }}
 
