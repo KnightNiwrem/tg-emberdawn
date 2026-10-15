@@ -78,8 +78,10 @@ pinned commit can fail while jsDelivr has not cached its files yet:
 Retrying succeeds, but Deno fails the whole module graph on one failed import. It also caches a 404
 as "not found", so a plain retry repeats it. `deno task cache:deps` (`scripts/cache-deps.sh`)
 retries `deno cache --frozen` and reloads the module the previous attempt reported missing. CI runs
-it before `check` and `test`. After one green run, CI's `~/.cache/deno` cache serves the modules.
-Run it locally when a pin bump fails to resolve.
+it before `check` and `test`, which fetch the emulator from jsDelivr on every run. CI's
+`~/.cache/deno` entry is keyed by `deno.lock` and saved by the first job to finish. `fmt:check`,
+`lint` and the Postgres job never load the emulator, so the entry usually holds no emulator modules.
+Run the task locally when a pin bump fails to resolve.
 
 ### Breaking changes
 
