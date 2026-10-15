@@ -99,8 +99,22 @@ export class E2eWorld {
     this.activity = fields.session.botActivity({ bot_id: fields.botId });
   }
 
-  static async start(options: { playerName?: string } = {}) {
+  /** Starts a world; a startup that fails disposes of the emulator, which
+   * ends the session it opened. */
+  static async start(options: { playerName?: string } = {}): Promise<E2eWorld> {
     const emulator = createInProcessEmulator();
+    try {
+      return await E2eWorld.#open(emulator, options);
+    } catch (error) {
+      await emulator[Symbol.asyncDispose]();
+      throw error;
+    }
+  }
+
+  static async #open(
+    emulator: InProcessEmulator,
+    options: { playerName?: string },
+  ): Promise<E2eWorld> {
     const { result: session } = await emulator.client.createSession();
     const { result: { token, bot: botProfile } } = await session.createBot({
       first_name: 'Emberdawn',
@@ -128,7 +142,12 @@ export class E2eWorld {
       return handleWebhook(request);
     });
     const webhookUrl = `http://${LOOPBACK}:${webhookServer.addr.port}/webhook`;
-    await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+    try {
+      await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+    } catch (error) {
+      await webhookServer.shutdown();
+      throw error;
+    }
 
     return new E2eWorld({
       emulator,
